@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, ShoppingBag, Check, AlertCircle } from 'lucide-react';
 import type { Product, ProductColor, Size, Fit, VariantStatus } from '@/lib/types';
 import { useCart } from '@/context/CartContext';
+import { useNotificationContext } from '@/App';
 import { Modal } from '@/components/ui/Modal';
 import { cn } from '@/lib/utils';
 
@@ -13,12 +14,13 @@ interface QuickViewModalProps {
 
 export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps) {
   const { addItem } = useCart();
+  const { showSuccess, showError, showWarning } = useNotificationContext();
   const [selectedColor, setSelectedColor] = useState<ProductColor | null>(null);
   const [selectedSize, setSelectedSize] = useState<Size | null>(null);
   const [selectedFit, setSelectedFit] = useState<Fit | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
+  const [showSuccessState, setShowSuccessState] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Reset state when product changes
@@ -35,7 +37,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
       setSelectedFit(product.availableFits?.[0] || null);
       setQuantity(1);
       setError(null);
-      setShowSuccess(false);
+      setShowSuccessState(false);
     }
   }, [product]);
 
@@ -63,6 +65,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
   );
 
   const isOutOfStock = selectedVariant?.status === 'OUT_OF_STOCK';
+  const isBackorder = selectedVariant?.status === 'BACKORDER';
 
   // Get display image
   const displayImage = selectedVariant?.images[0] || product.variants[0]?.images[0] || '/images/placeholder-product.jpg';
@@ -76,8 +79,13 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
       setError('Selecciona una talla');
       return;
     }
-    if (!selectedVariant || isOutOfStock) {
-      setError('Esta combinación no está disponible');
+    if (!selectedVariant) {
+      showError('Esta combinación no está disponible');
+      return;
+    }
+
+    if (isOutOfStock) {
+      showError(`Producto agotado: ${product.name} - ${selectedColor.name} / Talla ${selectedSize}`);
       return;
     }
 
@@ -87,26 +95,55 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
     setTimeout(() => {
       addItem(product, selectedVariant.id, selectedColor, selectedSize, selectedFit || undefined, quantity);
       setIsAdding(false);
-      setShowSuccess(true);
+      
+      // Show notification based on status
+      if (isBackorder) {
+        showWarning(
+          `Agregado: ${product.name} - ${selectedColor.name} / Talla ${selectedSize}. Bajo pedido: llega en 7-10 días`,
+          5000
+        );
+      } else {
+        showSuccess(
+          `Agregado: ${product.name} - ${selectedColor.name} / Talla ${selectedSize}`,
+          3000
+        );
+      }
+      
+      setShowSuccessState(true);
       
       setTimeout(() => {
-        setShowSuccess(false);
+        setShowSuccessState(false);
         onClose();
       }, 1500);
     }, 300);
   };
 
   const statusConfig = {
-    AVAILABLE: { dot: 'bg-[#34C759]', text: 'Disponible' },
-    BACKORDER: { dot: 'bg-[#FF9500]', text: 'Bajo pedido (7-10 días)' },
-    OUT_OF_STOCK: { dot: 'bg-[#FF3B30]', text: 'Agotado' },
+    AVAILABLE: { 
+      dot: 'bg-[#34C759]', 
+      bg: 'bg-[#34C759]/10',
+      text: 'text-[#34C759]',
+      label: 'Disponible' 
+    },
+    BACKORDER: { 
+      dot: 'bg-[#FF9500]', 
+      bg: 'bg-[#FF9500]/10',
+      text: 'text-[#FF9500]',
+      label: 'Bajo pedido (7-10 días)' 
+    },
+    OUT_OF_STOCK: { 
+      dot: 'bg-[#FF3B30]', 
+      bg: 'bg-[#FF3B30]/10',
+      text: 'text-[#FF3B30]',
+      label: 'Agotado' 
+    },
   };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="lg" showCloseButton={false}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Image */}
-        <div className="aspect-[4/5] bg-[#F5F5F7] rounded-lg overflow-hidden">
+        <div className="aspect-[4/5] bg-[#F5F5F7] rounded-lg overflow-hidden relative">
           <img
             src={displayImage}
             alt={product.name}
@@ -115,6 +152,18 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
               (e.target as HTMLImageElement).src = '/images/placeholder-product.jpg';
             }}
           />
+          
+          {/* Status Badge on Image */}
+          {selectedVariant && (
+            <div className={cn(
+              'absolute top-3 right-3 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5',
+              statusConfig[selectedVariant.status].bg,
+              statusConfig[selectedVariant.status].text
+            )}>
+              <span className={cn('w-2 h-2 rounded-full', statusConfig[selectedVariant.status].dot)} />
+              {statusConfig[selectedVariant.status].label}
+            </div>
+          )}
         </div>
 
         {/* Info */}
@@ -206,15 +255,20 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                     }}
                     disabled={!isAvailable}
                     className={cn(
-                      'min-w-[44px] h-10 px-3 text-sm font-medium rounded-lg transition-all duration-200',
+                      'min-w-[44px] h-10 px-3 text-sm font-medium rounded-lg transition-all duration-200 relative',
                       selectedSize === size
                         ? 'bg-[#111111] text-white'
                         : isAvailable
                         ? 'border border-[#E5E5E5] text-[#333333] hover:border-[#111111]'
-                        : 'border border-gray-200 text-gray-300 bg-gray-50 cursor-not-allowed line-through'
+                        : 'border border-gray-200 text-gray-300 bg-gray-50 cursor-not-allowed'
                     )}
                   >
-                    {size}
+                    <span className={cn(!isAvailable && 'line-through')}>
+                      {size}
+                    </span>
+                    {status === 'BACKORDER' && (
+                      <span className="absolute -top-1 -right-1 w-2 h-2 bg-[#FF9500] rounded-full" />
+                    )}
                   </button>
                 );
               })}
@@ -246,9 +300,14 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
 
           {/* Availability Status */}
           {selectedVariant && (
-            <div className="flex items-center gap-2 mb-4">
-              <span className={cn('w-2 h-2 rounded-full', statusConfig[selectedVariant.status].dot)} />
-              <span className="text-sm text-gray-600">{statusConfig[selectedVariant.status].text}</span>
+            <div className={cn(
+              'flex items-center gap-2 mb-4 p-3 rounded-lg',
+              statusConfig[selectedVariant.status].bg
+            )}>
+              <span className={cn('w-2.5 h-2.5 rounded-full', statusConfig[selectedVariant.status].dot)} />
+              <span className={cn('text-sm font-medium', statusConfig[selectedVariant.status].text)}>
+                {statusConfig[selectedVariant.status].label}
+              </span>
             </div>
           )}
 
@@ -283,17 +342,19 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
           {/* Add to Cart Button */}
           <button
             onClick={handleAddToCart}
-            disabled={isAdding || showSuccess}
+            disabled={isAdding || showSuccessState || isOutOfStock}
             className={cn(
               'mt-auto w-full flex items-center justify-center gap-2 px-6 py-4 font-medium rounded-full transition-all duration-300',
-              showSuccess
+              showSuccessState
                 ? 'bg-[#34C759] text-white'
                 : isOutOfStock
                 ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : isBackorder
+                ? 'bg-[#FF9500] text-white hover:opacity-90'
                 : 'bg-[#111111] text-white hover:opacity-80'
             )}
           >
-            {showSuccess ? (
+            {showSuccessState ? (
               <>
                 <Check className="w-5 h-5" strokeWidth={1.5} />
                 Agregado
@@ -302,6 +363,16 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
               <>
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 Agregando...
+              </>
+            ) : isOutOfStock ? (
+              <>
+                <X className="w-5 h-5" strokeWidth={1.5} />
+                AGOTADO
+              </>
+            ) : isBackorder ? (
+              <>
+                <ShoppingBag className="w-5 h-5" strokeWidth={1.5} />
+                AGREGAR - BAJO PEDIDO
               </>
             ) : (
               <>

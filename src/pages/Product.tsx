@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { ChevronRight, Check, Plus, Minus, ShoppingBag, Info } from 'lucide-react';
 import { getProductBySlug, PRODUCTS } from '@/lib/dummy-data';
 import { useCart } from '@/context/CartContext';
-import { useToast } from '@/components/ui/Toast';
+import { useNotificationContext } from '@/App';
 import { ImageGallery } from '@/components/product/ImageGallery';
 import { PriceDisplay } from '@/components/product/PriceDisplay';
 import { CountdownTimer } from '@/components/product/CountdownTimer';
@@ -49,7 +49,7 @@ function Accordion({
 export function Product() {
   const { slug } = useParams<{ slug: string }>();
   const { addItem } = useCart();
-  const { showToast, ToastComponent } = useToast();
+  const { showSuccess, showError, showWarning } = useNotificationContext();
 
   const product = slug ? getProductBySlug(slug) : undefined;
 
@@ -112,20 +112,20 @@ export function Product() {
 
   const handleAddToCart = () => {
     if (!selectedColor) {
-      showToast('Por favor selecciona un color', 'warning');
+      showWarning('Por favor selecciona un color');
       return;
     }
     if (!selectedSize) {
-      showToast('Por favor selecciona una talla', 'warning');
+      showWarning('Por favor selecciona una talla');
       return;
     }
     if (!selectedVariant) {
-      showToast('La combinación seleccionada no está disponible', 'error');
+      showError('La combinación seleccionada no está disponible');
       return;
     }
 
     if (isOutOfStock) {
-      showToast('Este producto está agotado', 'error');
+      showError(`Producto agotado: ${product.name} - ${selectedColor.name} / Talla ${selectedSize}`);
       return;
     }
 
@@ -134,7 +134,20 @@ export function Product() {
     // Simulate adding to cart
     setTimeout(() => {
       addItem(product, selectedVariant.id, selectedColor, selectedSize, selectedFit, quantity);
-      showToast('Agregado a tu pedido', 'success');
+      
+      // Show notification based on status
+      if (isBackorder) {
+        showWarning(
+          `Agregado: ${product.name} - ${selectedColor.name} / Talla ${selectedSize}. Bajo pedido: llega en 7-10 días`,
+          5000
+        );
+      } else {
+        showSuccess(
+          `Agregado: ${product.name} - ${selectedColor.name} / Talla ${selectedSize}`,
+          3000
+        );
+      }
+      
       setIsAdding(false);
     }, 300);
   };
@@ -148,14 +161,22 @@ export function Product() {
 
     if (variant) {
       addItem(complementaryProduct, variant.id, selectedColor, size, undefined, 1);
-      showToast(`${complementaryProduct.name} agregado`, 'success');
+      
+      if (variant.status === 'BACKORDER') {
+        showWarning(
+          `Agregado: ${complementaryProduct.name} - ${selectedColor.name} / Talla ${size}. Bajo pedido: llega en 7-10 días`,
+          5000
+        );
+      } else if (variant.status === 'OUT_OF_STOCK') {
+        showError(`${complementaryProduct.name} está agotado`);
+      } else {
+        showSuccess(`${complementaryProduct.name} agregado a tu pedido`);
+      }
     }
   };
 
   return (
     <main className="min-h-screen bg-white pt-16">
-      {ToastComponent}
-
       {/* Breadcrumb */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <nav className="flex items-center gap-2 text-sm text-gray-500">

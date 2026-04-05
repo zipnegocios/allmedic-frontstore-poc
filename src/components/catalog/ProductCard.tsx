@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Eye } from 'lucide-react';
+import { Eye, Check, X, Clock } from 'lucide-react';
 import type { Product } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { CountdownBadge } from '@/components/ui/CountdownBadge';
@@ -9,12 +9,24 @@ import { cn } from '@/lib/utils';
 
 interface ProductCardProps {
   product: Product;
+  selectedFilterColor?: string | null;
 }
 
-export function ProductCard({ product }: ProductCardProps) {
-  const [selectedColorId, setSelectedColorId] = useState(product.colors[0]?.id);
+export function ProductCard({ product, selectedFilterColor }: ProductCardProps) {
+  // Use filter color if provided, otherwise use first available color
+  const [selectedColorId, setSelectedColorId] = useState(
+    selectedFilterColor || product.colors[0]?.id
+  );
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
   
+  // Update selected color when filter changes
+  useEffect(() => {
+    if (selectedFilterColor && product.colors.some(c => c.id === selectedFilterColor)) {
+      setSelectedColorId(selectedFilterColor);
+    }
+  }, [selectedFilterColor, product.colors]);
+  
+  const selectedColor = product.colors.find(c => c.id === selectedColorId);
   const variantWithColor = product.variants.find(v => v.colorId === selectedColorId);
   const displayImage = variantWithColor?.images[0] || '/images/placeholder-product.jpg';
   
@@ -25,6 +37,32 @@ export function ProductCard({ product }: ProductCardProps) {
   
   // Check if product has an active countdown offer
   const hasActiveCountdown = product.discountEnd && new Date(product.discountEnd) > new Date();
+
+  // Get availability status for the selected color
+  const getAvailabilityStatus = () => {
+    const colorVariants = product.variants.filter(v => v.colorId === selectedColorId);
+    const hasAvailable = colorVariants.some(v => v.status === 'AVAILABLE');
+    const hasBackorder = colorVariants.some(v => v.status === 'BACKORDER');
+    const allOutOfStock = colorVariants.every(v => v.status === 'OUT_OF_STOCK');
+
+    if (allOutOfStock) return { status: 'OUT_OF_STOCK' as const, label: 'Agotado', color: 'bg-[#FF3B30]' };
+    if (hasAvailable) return { status: 'AVAILABLE' as const, label: 'Disponible', color: 'bg-[#34C759]' };
+    if (hasBackorder) return { status: 'BACKORDER' as const, label: 'Bajo pedido', color: 'bg-[#FF9500]' };
+    return { status: 'AVAILABLE' as const, label: 'Disponible', color: 'bg-[#34C759]' };
+  };
+
+  const availability = getAvailabilityStatus();
+
+  const getStatusIcon = () => {
+    switch (availability.status) {
+      case 'AVAILABLE':
+        return <Check className="w-3 h-3" strokeWidth={2} />;
+      case 'OUT_OF_STOCK':
+        return <X className="w-3 h-3" strokeWidth={2} />;
+      case 'BACKORDER':
+        return <Clock className="w-3 h-3" strokeWidth={2} />;
+    }
+  };
 
   return (
     <>
@@ -37,6 +75,17 @@ export function ProductCard({ product }: ProductCardProps) {
               {product.isNew && <Badge>Nuevo</Badge>}
               {product.isBestSeller && <Badge variant="secondary">Best Seller</Badge>}
               {hasDiscount && !hasActiveCountdown && <Badge variant="destructive">-{discountPercentage}%</Badge>}
+            </div>
+
+            {/* Availability Status Badge - Top Right */}
+            <div className="absolute top-3 right-3 z-10">
+              <div className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-white text-xs font-medium shadow-md",
+                availability.color
+              )}>
+                {getStatusIcon()}
+                <span className="hidden sm:inline">{availability.label}</span>
+              </div>
             </div>
 
             {/* Countdown Timer - Bottom of image */}
@@ -53,7 +102,7 @@ export function ProductCard({ product }: ProductCardProps) {
             {/* Image */}
             <img
               src={displayImage}
-              alt={product.name}
+              alt={`${product.name} - ${selectedColor?.name || ''}`}
               className={cn(
                 "w-full h-full object-cover transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]",
                 hasActiveCountdown && "group-hover:scale-105 group-hover:brightness-95"
@@ -152,6 +201,13 @@ export function ProductCard({ product }: ProductCardProps) {
                 </span>
               )}
             </div>
+          )}
+
+          {/* Selected Color Name */}
+          {selectedColor && (
+            <p className="mt-2 text-xs text-gray-500">
+              Color: <span className="font-medium text-[#111111]">{selectedColor.name}</span>
+            </p>
           )}
         </div>
       </div>

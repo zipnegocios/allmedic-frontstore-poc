@@ -206,7 +206,11 @@ export function Catalog() {
                 )}
               >
                 {filteredProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} />
+                  <ProductCard 
+                    key={product.id} 
+                    product={product} 
+                    selectedFilterColor={filters.colors.length === 1 ? filters.colors[0] : null}
+                  />
                 ))}
               </div>
             ) : (
