@@ -119,9 +119,9 @@ export function Header({ onCartClick }: HeaderProps) {
 
             {/* Desktop Navigation */}
             <nav className="hidden lg:flex items-center gap-1">
-              {/* MegaMenu Button */}
+              {/* MegaMenu Button - Toggle behavior */}
               <button
-                onClick={() => setIsMegaMenuOpen(true)}
+                onClick={() => setIsMegaMenuOpen(!isMegaMenuOpen)}
                 className={cn(
                   'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full transition-all duration-200',
                   isMegaMenuOpen

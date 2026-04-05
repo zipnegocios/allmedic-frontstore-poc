@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Eye, Check, X, Clock } from 'lucide-react';
+import { Eye, Check, X, Clock, Loader2 } from 'lucide-react';
 import type { Product } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { CountdownBadge } from '@/components/ui/CountdownBadge';
@@ -18,13 +18,23 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
     selectedFilterColor || product.colors[0]?.id
   );
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
+  const [isImageLoading, setIsImageLoading] = useState(true);
   
   // Update selected color when filter changes
   useEffect(() => {
     if (selectedFilterColor && product.colors.some(c => c.id === selectedFilterColor)) {
       setSelectedColorId(selectedFilterColor);
+      setIsImageLoading(true);
     }
   }, [selectedFilterColor, product.colors]);
+  
+  // Reset loading state when color changes
+  const handleColorChange = (colorId: string) => {
+    if (colorId !== selectedColorId) {
+      setSelectedColorId(colorId);
+      setIsImageLoading(true);
+    }
+  };
   
   const selectedColor = product.colors.find(c => c.id === selectedColorId);
   const variantWithColor = product.variants.find(v => v.colorId === selectedColorId);
@@ -99,15 +109,25 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
               </div>
             )}
 
+            {/* Loading Spinner */}
+            {isImageLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-[#F5F5F7] z-5">
+                <Loader2 className="w-8 h-8 text-gray-400 animate-spin" strokeWidth={1.5} />
+              </div>
+            )}
+
             {/* Image */}
             <img
               src={displayImage}
               alt={`${product.name} - ${selectedColor?.name || ''}`}
               className={cn(
                 "w-full h-full object-cover transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]",
-                hasActiveCountdown && "group-hover:scale-105 group-hover:brightness-95"
+                hasActiveCountdown && "group-hover:scale-105 group-hover:brightness-95",
+                isImageLoading && "opacity-0"
               )}
+              onLoad={() => setIsImageLoading(false)}
               onError={(e) => {
+                setIsImageLoading(false);
                 (e.target as HTMLImageElement).src = '/images/placeholder-product.jpg';
               }}
             />
@@ -182,7 +202,7 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    setSelectedColorId(color.id);
+                    handleColorChange(color.id);
                   }}
                   className={cn(
                     'w-4 h-4 rounded-full border transition-all duration-200',

@@ -34,7 +34,9 @@ export function openWhatsApp(message: string): void {
 }
 
 export async function registerLead(data: WhatsAppMessageData): Promise<void> {
-  // Mock API call - en producción esto enviaría los datos al backend
-  console.log('Registrando lead:', data);
-  return new Promise(resolve => setTimeout(resolve, 500));
+  // Simulate API call - log data for debugging
+  console.log('Registering lead:', data);
+  return new Promise(resolve => {
+    setTimeout(resolve, 500);
+  });
 }

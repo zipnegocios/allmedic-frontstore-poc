@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import { Flame, Timer, Zap } from 'lucide-react';
 
 interface CountdownBadgeProps {
-  endDate: Date;
+  endDate: Date | string;
   size?: 'sm' | 'md';
   variant?: 'urgent' | 'hot' | 'flash';
 }
@@ -37,12 +37,13 @@ function formatNumber(num: number) {
 }
 
 export function CountdownBadge({ endDate, size = 'sm', variant = 'urgent' }: CountdownBadgeProps) {
-  const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(calculateTimeLeft(endDate));
+  const dateObj = typeof endDate === 'string' ? new Date(endDate) : endDate;
+  const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(calculateTimeLeft(dateObj));
   const [isPulsing, setIsPulsing] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
-      const remaining = calculateTimeLeft(endDate);
+      const remaining = calculateTimeLeft(dateObj);
       setTimeLeft(remaining);
       
       if (remaining && remaining.total < 60 * 60 * 1000) {
@@ -52,7 +53,7 @@ export function CountdownBadge({ endDate, size = 'sm', variant = 'urgent' }: Cou
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [endDate]);
+  }, [dateObj]);
 
   if (!timeLeft) return null;
 

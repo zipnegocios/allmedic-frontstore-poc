@@ -223,6 +223,9 @@ export function Product() {
     }
   };
 
+  // Brand logo path
+  const brandLogoPath = `/images/brands/${product.brand.toLowerCase().replace(/\s+/g, '-').replace(/'/g, '')}.png`;
+
   // Mobile layout: Brand → Title → Image → Variants → Quantity → Price → Button
   // Desktop layout: Image (left) → Info (right)
 
@@ -360,7 +363,11 @@ export function Product() {
         <div className="hidden lg:grid lg:grid-cols-2 lg:gap-12">
           {/* Gallery */}
           <div>
-            <ImageGallery images={images} productName={product.name} />
+            <ImageGallery 
+              images={images} 
+              productName={product.name} 
+              brandLogo={brandLogoPath}
+            />
           </div>
 
           {/* Info */}

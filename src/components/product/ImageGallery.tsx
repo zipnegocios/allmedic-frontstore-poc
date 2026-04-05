@@ -1,20 +1,23 @@
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ImageGalleryProps {
   images: string[];
   productName: string;
+  brandLogo?: string;
 }
 
-export function ImageGallery({ images, productName }: ImageGalleryProps) {
+export function ImageGallery({ images, productName, brandLogo }: ImageGalleryProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isImageLoading, setIsImageLoading] = useState(true);
 
   const displayImages = images.length > 0 ? images : ['/images/placeholder-product.jpg'];
 
   const handleImageChange = (index: number) => {
     if (index === selectedIndex) return;
+    setIsImageLoading(true);
     setIsTransitioning(true);
     setTimeout(() => {
       setSelectedIndex(index);
@@ -36,14 +39,24 @@ export function ImageGallery({ images, productName }: ImageGalleryProps) {
     <div className="space-y-4">
       {/* Main Image */}
       <div className="relative aspect-[4/5] bg-[#F5F5F7] overflow-hidden rounded-lg">
+        {/* Loading Spinner */}
+        {isImageLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-[#F5F5F7] z-10">
+            <Loader2 className="w-10 h-10 text-gray-400 animate-spin" strokeWidth={1.5} />
+          </div>
+        )}
+
         <img
           src={displayImages[selectedIndex]}
           alt={`${productName} - Imagen ${selectedIndex + 1}`}
           className={cn(
             'w-full h-full object-cover transition-opacity duration-300',
-            isTransitioning ? 'opacity-0' : 'opacity-100'
+            isTransitioning ? 'opacity-0' : 'opacity-100',
+            isImageLoading && 'opacity-0'
           )}
+          onLoad={() => setIsImageLoading(false)}
           onError={(e) => {
+            setIsImageLoading(false);
             (e.target as HTMLImageElement).src = '/images/placeholder-product.jpg';
           }}
         />
@@ -112,6 +125,20 @@ export function ImageGallery({ images, productName }: ImageGalleryProps) {
           />
         ))}
       </div>
+
+      {/* Brand Logo - Desktop Only */}
+      {brandLogo && (
+        <div className="hidden md:flex justify-center pt-4 border-t border-[#E5E5E5]">
+          <img
+            src={brandLogo}
+            alt="Brand Logo"
+            className="h-8 w-auto opacity-60 hover:opacity-100 transition-opacity"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

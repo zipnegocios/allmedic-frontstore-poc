@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Clock } from 'lucide-react';
 
 interface CountdownTimerProps {
-  endDate: Date;
+  endDate: Date | string;
 }
 
 interface TimeLeft {
@@ -28,11 +28,12 @@ function calculateTimeLeft(endDate: Date): TimeLeft | null {
 }
 
 export function CountdownTimer({ endDate }: CountdownTimerProps) {
-  const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(calculateTimeLeft(endDate));
+  const dateObj = typeof endDate === 'string' ? new Date(endDate) : endDate;
+  const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(calculateTimeLeft(dateObj));
 
   useEffect(() => {
     const timer = setInterval(() => {
-      const remaining = calculateTimeLeft(endDate);
+      const remaining = calculateTimeLeft(dateObj);
       setTimeLeft(remaining);
       
       if (!remaining) {
@@ -41,7 +42,7 @@ export function CountdownTimer({ endDate }: CountdownTimerProps) {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [endDate]);
+  }, [dateObj]);
 
   if (!timeLeft) {
     return null;

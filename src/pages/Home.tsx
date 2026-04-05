@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
 import { HERO_SLIDES, getFeaturedProducts } from '@/lib/dummy-data';
 import { ProductCard } from '@/components/catalog/ProductCard';
-import { ProductListItem, LayoutSwitcher, type ViewMode } from '@/components/catalog/LayoutSwitcher';
+import { ProductListItem } from '@/components/catalog/LayoutSwitcher';
+import type { ViewMode } from '@/components/catalog/LayoutSwitcher';
+import { LayoutSwitcher } from '@/components/catalog/LayoutSwitcher';
 import { FilterableProductSection } from '@/components/home/FilterableProductSection';
 import { BrandCarousel } from '@/components/home/BrandCarousel';
 import { cn } from '@/lib/utils';
@@ -169,7 +171,8 @@ function QuickAccessCards() {
 // Featured Products Section Component
 function FeaturedProductsSection() {
   const featuredProducts = getFeaturedProducts();
-  const [viewMode, setViewMode] = useState<ViewMode>('grid-4');
+  // Mobile default: 1 column (grid-1), same as catalog
+  const [viewMode, setViewMode] = useState<ViewMode>('grid-1');
   const [itemsPerPage, setItemsPerPage] = useState<number>(8);
   
   // Limit products based on itemsPerPage
@@ -181,6 +184,7 @@ function FeaturedProductsSection() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <h2 className="text-2xl font-semibold">Lo más solicitado</h2>
           <div className="flex items-center gap-4">
+            {/* Desktop: show all column options */}
             <div className="hidden sm:block">
               <LayoutSwitcher
                 viewMode={viewMode}
@@ -191,6 +195,7 @@ function FeaturedProductsSection() {
                 showAllColumns={true}
               />
             </div>
+            {/* Mobile: show only 1 col, 2 cols, list */}
             <div className="sm:hidden">
               <LayoutSwitcher
                 viewMode={viewMode}

@@ -14,7 +14,7 @@ interface HierarchicalFilterProps {
 
 interface FilterDropdownProps {
   label: string;
-  value: string | null;
+  value: string | null | undefined;
   options: { value: string; label: string; color?: string }[];
   onSelect: (value: string | null) => void;
   placeholder?: string;

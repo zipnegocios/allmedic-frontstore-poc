@@ -1,20 +1,8 @@
-// ============================================
-// TIPOS BASE
-// ============================================
-
-export type VariantStatus = 'AVAILABLE' | 'BACKORDER' | 'OUT_OF_STOCK';
-
+export type Size = 'XXS' | 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL' | '2XL' | '3XL' | '4XL' | '5XL' | 'OS';
+export type Fit = 'Petite' | 'Regular' | 'Tall' | 'Short';
 export type Gender = 'Mujer' | 'Hombre' | 'Unisex';
-
-export type Category = 'Camisas' | 'Pantalones' | 'Chaquetas' | 'Batas' | 'Accesorios';
-
-export type Fit = 'Petite' | 'Short' | 'Regular' | 'Tall';
-
-export type Size = 'XXS' | 'XS' | 'S' | 'M' | 'L' | 'XL' | '2XL' | '3XL' | '4XL' | '5XL' | 'OS';
-
-// ============================================
-// COLORES
-// ============================================
+export type VariantStatus = 'AVAILABLE' | 'BACKORDER' | 'OUT_OF_STOCK';
+export type Category = 'Camisas' | 'Pantalones' | 'Chaquetas' | 'Conjuntos' | 'Accesorios' | 'Batas';
 
 export interface ProductColor {
   id: string;
@@ -23,40 +11,31 @@ export interface ProductColor {
   hex: string;
 }
 
-// ============================================
-// VARIANTES
-// ============================================
-
 export interface ProductVariant {
   id: string;
+  sku: string;
   colorId: string;
   size: Size;
   fit?: Fit;
-  status: VariantStatus;
   images: string[];
-  sku: string;
+  status: VariantStatus;
 }
-
-// ============================================
-// DESCUENTOS
-// ============================================
 
 export interface VolumeDiscount {
+  quantity: number;
   minQty: number;
+  discount: number;
   discountPct: number;
   label: string;
+  itemsNeeded?: number;
 }
-
-// ============================================
-// PRODUCTO
-// ============================================
 
 export interface Product {
   id: string;
   slug: string;
   name: string;
   brand: string;
-  category: Category;
+  category: string;
   gender: Gender;
   description: string;
   features: string[];
@@ -64,21 +43,16 @@ export interface Product {
   priceNormal: number;
   priceSale?: number;
   discountPct?: number;
-  discountEnd?: Date;
-  volumeDiscounts?: VolumeDiscount[];
+  discountEnd?: string;
   colors: ProductColor[];
-  variants: ProductVariant[];
   availableSizes: Size[];
   availableFits?: Fit[];
-  isNew?: boolean;
-  isBestSeller?: boolean;
-  relatedProducts?: string[];
+  variants: ProductVariant[];
+  isNew: boolean;
+  isBestSeller: boolean;
   complementaryProduct?: string;
+  volumeDiscounts?: VolumeDiscount[];
 }
-
-// ============================================
-// ITEM DEL CARRITO
-// ============================================
 
 export interface CartItem {
   id: string;
@@ -86,52 +60,42 @@ export interface CartItem {
   variantId: string;
   name: string;
   brand: string;
+  slug: string;
   color: ProductColor;
   size: Size;
   fit?: Fit;
-  quantity: number;
-  price: number;
-  image: string;
   sku: string;
+  price: number;
+  quantity: number;
+  image: string;
 }
-
-// ============================================
-// FILTROS
-// ============================================
 
 export interface CatalogFilters {
   gender: Gender | null;
-  categories: Category[];
+  categories: string[];
+  category?: string | null;
   brands: string[];
+  brand?: string | null;
   colors: string[];
-  sizes: Size[];
-  fits: Fit[];
+  color?: string | null;
+  sizes: string[];
+  size?: string | null;
+  fits: string[];
+  fit?: string | null;
+  collection?: string | null;
+  collections?: string[];
+  style?: string | null;
+  styles?: string[];
   priceMin: number;
   priceMax: number;
 }
-
-// ============================================
-// SUCURSAL
-// ============================================
 
 export interface Store {
   id: string;
   name: string;
   address: string;
+  phone: string;
   hours: string;
-  mapUrl: string;
-  isMain?: boolean;
-}
-
-// ============================================
-// HERO SLIDE
-// ============================================
-
-export interface HeroSlide {
-  id: string;
-  image: string;
-  title: string;
-  subtitle?: string;
-  cta: string;
-  ctaLink: string;
+  isMain: boolean;
+  mapUrl?: string;
 }

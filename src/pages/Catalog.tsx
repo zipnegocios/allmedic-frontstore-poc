@@ -43,7 +43,7 @@ export function Catalog() {
   // Reset to page 1 when filters, sort, or items per page change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filters, sortBy, itemsPerPage, searchQuery]);
+  }, [filters, sortBy, itemsPerPage, searchQuery, gridSearchQuery]);
 
   // Update URL when filters change
   useEffect(() => {
