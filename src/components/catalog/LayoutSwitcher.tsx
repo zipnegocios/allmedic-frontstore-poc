@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom';
-import { LayoutGrid, Grid2X2, List, ChevronDown } from 'lucide-react';
+import { LayoutGrid, Grid2X2, Grid3X3, LayoutTemplate, List, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export type ViewMode = 'grid-1' | 'grid-2' | 'list';
+// View modes: grid-1 (1 col), grid-2 (2 cols), grid-3 (3 cols), grid-4 (4 cols), list
+export type ViewMode = 'grid-1' | 'grid-2' | 'grid-3' | 'grid-4' | 'list';
 
 interface LayoutSwitcherProps {
   viewMode: ViewMode;
@@ -10,11 +11,21 @@ interface LayoutSwitcherProps {
   itemsPerPage: number;
   onItemsPerPageChange: (count: number) => void;
   totalItems: number;
+  showAllColumns?: boolean; // If true, show all 4 column options (for desktop)
 }
 
-const viewOptions: { mode: ViewMode; icon: typeof LayoutGrid; label: string }[] = [
-  { mode: 'grid-2', icon: Grid2X2, label: '2 columnas' },
-  { mode: 'grid-1', icon: LayoutGrid, label: '1 columna' },
+// Desktop view options (4, 3, 2 columns + list)
+const desktopViewOptions: { mode: ViewMode; icon: typeof LayoutGrid; label: string }[] = [
+  { mode: 'grid-4', icon: LayoutTemplate, label: '4 cols' },
+  { mode: 'grid-3', icon: Grid3X3, label: '3 cols' },
+  { mode: 'grid-2', icon: Grid2X2, label: '2 cols' },
+  { mode: 'list', icon: List, label: 'Lista' },
+];
+
+// Mobile view options (1, 2 columns + list)
+const mobileViewOptions: { mode: ViewMode; icon: typeof LayoutGrid; label: string }[] = [
+  { mode: 'grid-1', icon: LayoutGrid, label: '1 col' },
+  { mode: 'grid-2', icon: Grid2X2, label: '2 cols' },
   { mode: 'list', icon: List, label: 'Lista' },
 ];
 
@@ -26,11 +37,15 @@ export function LayoutSwitcher({
   itemsPerPage,
   onItemsPerPageChange,
   totalItems,
+  showAllColumns = false,
 }: LayoutSwitcherProps) {
+  // Determine which options to show based on viewport and prop
+  const viewOptions = showAllColumns ? desktopViewOptions : mobileViewOptions;
+
   return (
-    <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+    <div className="flex flex-wrap items-center gap-2 sm:gap-4">
       {/* Results count */}
-      <span className="text-sm text-gray-500 hidden sm:inline">
+      <span className="text-sm text-gray-500 hidden lg:inline">
         {totalItems} producto{totalItems !== 1 ? 's' : ''}
       </span>
 
@@ -41,7 +56,7 @@ export function LayoutSwitcher({
             key={mode}
             onClick={() => onViewModeChange(mode)}
             className={cn(
-              'flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium transition-all duration-200',
+              'flex items-center justify-center gap-1 px-2 sm:px-3 py-2 text-sm font-medium transition-all duration-200',
               viewMode === mode
                 ? 'bg-[#111111] text-white'
                 : 'text-gray-500 hover:text-[#111111] hover:bg-[#F5F5F7]'

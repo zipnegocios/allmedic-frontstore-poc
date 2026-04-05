@@ -141,14 +141,14 @@ export function CountdownBadge({ endDate, size = 'sm', variant = 'urgent' }: Cou
         {timeLeft.days > 0 && (
           <TimeUnit 
             value={timeLeft.days} 
-            label="Día" 
+            label={timeLeft.days === 1 ? 'Día' : 'Días'} 
             config={config} 
             isCritical={isCritical}
           />
         )}
         <TimeUnit 
           value={timeLeft.hours} 
-          label="Hora" 
+          label={timeLeft.hours === 1 ? 'Hora' : 'Horas'} 
           config={config} 
           isCritical={isCritical}
         />

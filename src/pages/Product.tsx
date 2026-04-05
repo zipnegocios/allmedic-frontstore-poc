@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ChevronRight, Check, Plus, Minus, ShoppingBag, Info } from 'lucide-react';
+import { ChevronRight, Check, Plus, Minus, ShoppingBag, Info, X, Clock } from 'lucide-react';
 import { getProductBySlug, PRODUCTS } from '@/lib/dummy-data';
 import { useCart } from '@/context/CartContext';
 import { useNotificationContext } from '@/App';
@@ -10,7 +10,7 @@ import { CountdownTimer } from '@/components/product/CountdownTimer';
 import { VolumeDiscountTable } from '@/components/product/VolumeDiscountTable';
 import { VariantSelector } from '@/components/product/VariantSelector';
 import { CrossSellCard } from '@/components/product/CrossSellCard';
-import type { ProductColor, Size, Fit } from '@/lib/types';
+import type { ProductColor, Size, Fit, VariantStatus } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 // Accordion Component
@@ -42,6 +42,52 @@ function Accordion({
         </span>
       </button>
       {isOpen && <div className="pb-4 text-sm text-gray-600">{children}</div>}
+    </div>
+  );
+}
+
+// Availability Status Component
+function AvailabilityStatus({ status }: { status: VariantStatus | undefined }) {
+  if (!status) {
+    return (
+      <div className="flex items-center gap-2 text-gray-400">
+        <span className="w-2 h-2 rounded-full bg-gray-300" />
+        <span className="text-sm">Selecciona opciones para ver disponibilidad</span>
+      </div>
+    );
+  }
+
+  const statusConfig = {
+    AVAILABLE: {
+      icon: Check,
+      dot: 'bg-[#34C759]',
+      text: 'Disponible - Listo para envío',
+      textColor: 'text-[#34C759]',
+      bgColor: 'bg-[#34C759]/10',
+    },
+    BACKORDER: {
+      icon: Clock,
+      dot: 'bg-[#FF9500]',
+      text: 'Bajo pedido - Llega en 7-10 días',
+      textColor: 'text-[#FF9500]',
+      bgColor: 'bg-[#FF9500]/10',
+    },
+    OUT_OF_STOCK: {
+      icon: X,
+      dot: 'bg-[#FF3B30]',
+      text: 'Agotado - No disponible',
+      textColor: 'text-[#FF3B30]',
+      bgColor: 'bg-[#FF3B30]/10',
+    },
+  };
+
+  const config = statusConfig[status];
+  const Icon = config.icon;
+
+  return (
+    <div className={cn('flex items-center gap-2 px-3 py-2 rounded-lg', config.bgColor)}>
+      <Icon className={cn('w-4 h-4', config.textColor)} strokeWidth={2} />
+      <span className={cn('text-sm font-medium', config.textColor)}>{config.text}</span>
     </div>
   );
 }
@@ -98,8 +144,10 @@ export function Product() {
       (!selectedFit || v.fit === selectedFit)
   );
 
-  const isOutOfStock = selectedVariant?.status === 'OUT_OF_STOCK';
-  const isBackorder = selectedVariant?.status === 'BACKORDER';
+  const variantStatus = selectedVariant?.status;
+  const isOutOfStock = variantStatus === 'OUT_OF_STOCK';
+  const isBackorder = variantStatus === 'BACKORDER';
+  const canAddToCart = selectedVariant && !isOutOfStock;
 
   // Get images for selected color
   const colorVariant = product.variants.find((v) => v.colorId === selectedColor?.id);
@@ -175,10 +223,13 @@ export function Product() {
     }
   };
 
+  // Mobile layout: Brand → Title → Image → Variants → Quantity → Price → Button
+  // Desktop layout: Image (left) → Info (right)
+
   return (
     <main className="min-h-screen bg-white pt-16">
-      {/* Breadcrumb */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      {/* Breadcrumb - Hidden on mobile */}
+      <div className="hidden sm:block max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <nav className="flex items-center gap-2 text-sm text-gray-500">
           <Link to="/" className="hover:text-[#111111] transition-colors">
             Inicio
@@ -200,8 +251,113 @@ export function Product() {
       </div>
 
       {/* Product Details */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+        {/* Mobile Layout */}
+        <div className="lg:hidden">
+          {/* Brand */}
+          <p className="text-xs uppercase tracking-widest text-gray-400 mb-2">
+            {product.brand}
+          </p>
+
+          {/* Name */}
+          <h1 className="text-2xl font-bold text-[#111111] mb-4">
+            {product.name}
+          </h1>
+
+          {/* Image Gallery */}
+          <div className="mb-6">
+            <ImageGallery images={images} productName={product.name} />
+          </div>
+
+          {/* Variant Selector */}
+          {selectedColor && (
+            <div className="mb-6">
+              <VariantSelector
+                product={product}
+                selectedColor={selectedColor}
+                selectedSize={selectedSize}
+                selectedFit={selectedFit}
+                onColorSelect={setSelectedColor}
+                onSizeSelect={setSelectedSize}
+                onFitSelect={product.availableFits ? setSelectedFit : undefined}
+              />
+            </div>
+          )}
+
+          {/* Availability Status */}
+          <div className="mb-4">
+            <AvailabilityStatus status={variantStatus} />
+          </div>
+
+          {/* Quantity */}
+          <div className="mb-4">
+            <h3 className="text-sm font-medium text-[#111111] mb-2">Cantidad</h3>
+            <div className="flex items-center border border-[#E5E5E5] rounded-lg w-fit">
+              <button
+                onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                className="w-10 h-10 flex items-center justify-center hover:bg-[#F5F5F7] transition-colors"
+              >
+                <Minus className="w-4 h-4" strokeWidth={1.5} />
+              </button>
+              <span className="w-12 text-center font-medium">{quantity}</span>
+              <button
+                onClick={() => setQuantity(quantity + 1)}
+                className="w-10 h-10 flex items-center justify-center hover:bg-[#F5F5F7] transition-colors"
+              >
+                <Plus className="w-4 h-4" strokeWidth={1.5} />
+              </button>
+            </div>
+          </div>
+
+          {/* Price Display */}
+          <div className="mb-4">
+            <PriceDisplay
+              priceNormal={product.priceNormal}
+              priceSale={product.priceSale}
+              discountPct={product.discountPct}
+            />
+          </div>
+
+          {/* Countdown */}
+          {product.discountEnd && new Date(product.discountEnd) > new Date() && (
+            <div className="mb-4">
+              <CountdownTimer endDate={product.discountEnd} />
+            </div>
+          )}
+
+          {/* CTA Button */}
+          <button
+            onClick={handleAddToCart}
+            disabled={!canAddToCart || isAdding}
+            className={cn(
+              'w-full flex items-center justify-center gap-2 px-6 py-4 font-medium rounded-full transition-all duration-300',
+              !canAddToCart
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : 'bg-[#111111] text-white hover:opacity-80'
+            )}
+          >
+            <ShoppingBag className="w-5 h-5" strokeWidth={1.5} />
+            {!canAddToCart
+              ? 'Selecciona opciones disponibles'
+              : isAdding
+              ? 'Agregando...'
+              : 'AGREGAR A MI PEDIDO'}
+          </button>
+
+          {/* Volume Discounts */}
+          {product.volumeDiscounts && product.volumeDiscounts.length > 0 && (
+            <div className="mt-6">
+              <VolumeDiscountTable
+                discounts={product.volumeDiscounts}
+                basePrice={product.priceSale || product.priceNormal}
+                currentQuantity={quantity}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Desktop Layout */}
+        <div className="hidden lg:grid lg:grid-cols-2 lg:gap-12">
           {/* Gallery */}
           <div>
             <ImageGallery images={images} productName={product.name} />
@@ -237,7 +393,7 @@ export function Product() {
 
             {/* Variant Selector */}
             {selectedColor && (
-              <div className="mb-8">
+              <div className="mb-6">
                 <VariantSelector
                   product={product}
                   selectedColor={selectedColor}
@@ -249,6 +405,11 @@ export function Product() {
                 />
               </div>
             )}
+
+            {/* Availability Status */}
+            <div className="mb-4">
+              <AvailabilityStatus status={variantStatus} />
+            </div>
 
             {/* Quantity */}
             <div className="mb-6">
@@ -273,29 +434,21 @@ export function Product() {
             {/* CTA Button */}
             <button
               onClick={handleAddToCart}
-              disabled={isOutOfStock || isAdding}
+              disabled={!canAddToCart || isAdding}
               className={cn(
                 'w-full flex items-center justify-center gap-2 px-6 py-4 font-medium rounded-full transition-all duration-300',
-                isOutOfStock
+                !canAddToCart
                   ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                   : 'bg-[#111111] text-white hover:opacity-80'
               )}
             >
               <ShoppingBag className="w-5 h-5" strokeWidth={1.5} />
-              {isOutOfStock
-                ? 'Sin stock disponible'
+              {!canAddToCart
+                ? 'Selecciona opciones disponibles'
                 : isAdding
                 ? 'Agregando...'
                 : 'AGREGAR A MI PEDIDO'}
             </button>
-
-            {/* Backorder Notice */}
-            {isBackorder && (
-              <p className="mt-3 text-sm text-[#FF9500] flex items-center gap-1">
-                <Info className="w-4 h-4" strokeWidth={1.5} />
-                Este item está bajo pedido. Llega en 7-10 días.
-              </p>
-            )}
 
             {/* Volume Discounts */}
             {product.volumeDiscounts && product.volumeDiscounts.length > 0 && (
@@ -326,7 +479,7 @@ export function Product() {
         </div>
 
         {/* Product Info Accordions */}
-        <div className="mt-16 max-w-3xl">
+        <div className="mt-12 lg:mt-16 max-w-3xl">
           <Accordion title="Descripción" defaultOpen>
             <p className="leading-relaxed">{product.description}</p>
           </Accordion>

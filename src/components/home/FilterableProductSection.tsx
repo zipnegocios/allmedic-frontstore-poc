@@ -6,17 +6,19 @@ import { ProductCard } from '@/components/catalog/ProductCard';
 import { ProductListItem } from '@/components/catalog/LayoutSwitcher';
 import type { ViewMode } from '@/components/catalog/LayoutSwitcher';
 import { LayoutSwitcher } from '@/components/catalog/LayoutSwitcher';
-import { Loader2, Search } from 'lucide-react';
+import { Loader2, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function FilterableProductSection() {
-  const [viewMode, setViewMode] = useState<ViewMode>('grid-2');
+  // Default to 4 columns on desktop, 1 column on mobile (handled by responsive classes)
+  const [viewMode, setViewMode] = useState<ViewMode>('grid-4');
   const [itemsPerPage, setItemsPerPage] = useState<number>(12);
+  const [gridSearchQuery, setGridSearchQuery] = useState('');
   
   const {
     filters,
     filterOptions,
-    paginatedProducts,
+    paginatedProducts: originalPaginatedProducts,
     currentPage,
     totalPages,
     totalProducts,
@@ -27,6 +29,19 @@ export function FilterableProductSection() {
     resetFilters,
     goToPage,
   } = useProductFilter(itemsPerPage);
+
+  // Apply dynamic grid search filter
+  const paginatedProducts = gridSearchQuery 
+    ? originalPaginatedProducts.filter(p => {
+        const query = gridSearchQuery.toLowerCase();
+        return (
+          p.name.toLowerCase().includes(query) ||
+          p.brand.toLowerCase().includes(query) ||
+          p.category.toLowerCase().includes(query) ||
+          p.colors.some(c => c.name.toLowerCase().includes(query))
+        );
+      })
+    : originalPaginatedProducts;
 
   return (
     <section className="py-16 bg-[#F5F5F7]">
@@ -53,13 +68,53 @@ export function FilterableProductSection() {
           </div>
           
           {/* Layout Switcher */}
-          <LayoutSwitcher
-            viewMode={viewMode}
-            onViewModeChange={setViewMode}
-            itemsPerPage={itemsPerPage}
-            onItemsPerPageChange={setItemsPerPage}
-            totalItems={totalProducts}
-          />
+          <div className="hidden sm:block">
+            <LayoutSwitcher
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              itemsPerPage={itemsPerPage}
+              onItemsPerPageChange={setItemsPerPage}
+              totalItems={totalProducts}
+              showAllColumns={true}
+            />
+          </div>
+          <div className="sm:hidden">
+            <LayoutSwitcher
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              itemsPerPage={itemsPerPage}
+              onItemsPerPageChange={setItemsPerPage}
+              totalItems={totalProducts}
+              showAllColumns={false}
+            />
+          </div>
+        </div>
+
+        {/* Dynamic Search Input */}
+        <div className="mb-6">
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" strokeWidth={1.5} />
+            <input
+              type="text"
+              value={gridSearchQuery}
+              onChange={(e) => setGridSearchQuery(e.target.value)}
+              placeholder="Buscar en resultados..."
+              className="w-full pl-10 pr-4 py-2.5 text-sm border border-[#E5E5E5] rounded-lg focus:outline-none focus:border-[#111111] transition-colors"
+            />
+            {gridSearchQuery && (
+              <button
+                onClick={() => setGridSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full"
+              >
+                <X className="w-3 h-3 text-gray-400" strokeWidth={1.5} />
+              </button>
+            )}
+          </div>
+          {gridSearchQuery && (
+            <p className="text-xs text-gray-500 mt-2">
+              {paginatedProducts.length} resultado{paginatedProducts.length !== 1 ? 's' : ''} para "{gridSearchQuery}"
+            </p>
+          )}
         </div>
 
         {/* Filters */}
@@ -112,8 +167,12 @@ export function FilterableProductSection() {
             <>
               <div className={cn(
                 'grid gap-4 md:gap-6',
-                viewMode === 'grid-2' && 'grid-cols-2 lg:grid-cols-4',
-                viewMode === 'grid-1' && 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
+                // Desktop view modes (4, 3, 2 cols)
+                viewMode === 'grid-4' && 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-4',
+                viewMode === 'grid-3' && 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-3',
+                viewMode === 'grid-2' && 'grid-cols-2 lg:grid-cols-2',
+                // Mobile view modes (1, 2 cols)
+                viewMode === 'grid-1' && 'grid-cols-1 sm:grid-cols-2',
                 viewMode === 'list' && 'grid-cols-1'
               )}>
                 {paginatedProducts.map((product) => (

@@ -169,7 +169,7 @@ function QuickAccessCards() {
 // Featured Products Section Component
 function FeaturedProductsSection() {
   const featuredProducts = getFeaturedProducts();
-  const [viewMode, setViewMode] = useState<ViewMode>('grid-2');
+  const [viewMode, setViewMode] = useState<ViewMode>('grid-4');
   const [itemsPerPage, setItemsPerPage] = useState<number>(8);
   
   // Limit products based on itemsPerPage
@@ -181,13 +181,26 @@ function FeaturedProductsSection() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <h2 className="text-2xl font-semibold">Lo más solicitado</h2>
           <div className="flex items-center gap-4">
-            <LayoutSwitcher
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-              itemsPerPage={itemsPerPage}
-              onItemsPerPageChange={setItemsPerPage}
-              totalItems={featuredProducts.length}
-            />
+            <div className="hidden sm:block">
+              <LayoutSwitcher
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                itemsPerPage={itemsPerPage}
+                onItemsPerPageChange={setItemsPerPage}
+                totalItems={featuredProducts.length}
+                showAllColumns={true}
+              />
+            </div>
+            <div className="sm:hidden">
+              <LayoutSwitcher
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                itemsPerPage={itemsPerPage}
+                onItemsPerPageChange={setItemsPerPage}
+                totalItems={featuredProducts.length}
+                showAllColumns={false}
+              />
+            </div>
             <Link
               to="/catalogo"
               className="hidden sm:flex items-center gap-1 text-sm font-medium text-[#333333] hover:text-[#111111] transition-colors"
@@ -199,8 +212,12 @@ function FeaturedProductsSection() {
         </div>
         <div className={cn(
           'grid gap-4 md:gap-6',
-          viewMode === 'grid-2' && 'grid-cols-2 lg:grid-cols-4',
-          viewMode === 'grid-1' && 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
+          // Desktop view modes (4, 3, 2 cols)
+          viewMode === 'grid-4' && 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-4',
+          viewMode === 'grid-3' && 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-3',
+          viewMode === 'grid-2' && 'grid-cols-2 lg:grid-cols-2',
+          // Mobile view modes (1, 2 cols)
+          viewMode === 'grid-1' && 'grid-cols-1 sm:grid-cols-2',
           viewMode === 'list' && 'grid-cols-1'
         )}>
           {displayedProducts.map(product => (

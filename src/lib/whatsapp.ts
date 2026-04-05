@@ -4,10 +4,11 @@ export interface WhatsAppMessageData {
   items: CartItem[];
   customerName: string;
   customerCity: string;
+  customerPhone?: string;
 }
 
 export function generateWhatsAppMessage(data: WhatsAppMessageData): string {
-  const { items, customerName, customerCity } = data;
+  const { items, customerName, customerCity, customerPhone } = data;
   
   let message = 'Hola AllMedic 👋, quiero cotizar:\n\n';
   
@@ -18,14 +19,17 @@ export function generateWhatsAppMessage(data: WhatsAppMessageData): string {
   
   message += `*Mis datos:*\n`;
   message += `Nombre: ${customerName}\n`;
-  message += `Ciudad: ${customerCity}`;
+  message += `Ciudad: ${customerCity}\n`;
+  if (customerPhone) {
+    message += `WhatsApp: ${customerPhone}`;
+  }
   
   return message;
 }
 
 export function openWhatsApp(message: string): void {
   const encodedMessage = encodeURIComponent(message);
-  const whatsappUrl = `https://wa.me/593999999999?text=${encodedMessage}`;
+  const whatsappUrl = `https://wa.me/13164695701?text=${encodedMessage}`;
   window.open(whatsappUrl, '_blank');
 }
 

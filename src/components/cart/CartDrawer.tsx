@@ -16,6 +16,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [customerName, setCustomerName] = useState('');
   const [customerCity, setCustomerCity] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const activeDiscount = getActiveVolumeDiscount();
@@ -24,7 +25,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
   const finalTotal = subtotal - discountAmount;
 
   const handleCheckout = async () => {
-    if (!customerName.trim() || !customerCity.trim()) return;
+    if (!customerName.trim() || !customerCity.trim() || !customerPhone.trim()) return;
 
     setIsSubmitting(true);
     
@@ -33,17 +34,22 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
         items,
         customerName: customerName.trim(),
         customerCity: customerCity.trim(),
+        customerPhone: customerPhone.trim(),
       });
 
       const message = generateWhatsAppMessage({
         items,
         customerName: customerName.trim(),
         customerCity: customerCity.trim(),
+        customerPhone: customerPhone.trim(),
       });
 
       openWhatsApp(message);
       clearCart();
       setShowCheckoutModal(false);
+      setCustomerName('');
+      setCustomerCity('');
+      setCustomerPhone('');
       onClose();
     } finally {
       setIsSubmitting(false);
@@ -197,6 +203,19 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
             />
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-[#111111] mb-1">
+              Número de WhatsApp
+            </label>
+            <input
+              type="tel"
+              value={customerPhone}
+              onChange={(e) => setCustomerPhone(e.target.value)}
+              placeholder="Ej: +593 99 999 9999"
+              className="w-full px-3 py-2 border border-[#E5E5E5] rounded-lg focus:outline-none focus:border-[#111111] transition-colors"
+            />
+          </div>
+
           <div className="pt-4 border-t border-[#E5E5E5]">
             <div className="flex justify-between text-sm mb-4">
               <span className="text-gray-500">Total de items:</span>
@@ -204,10 +223,10 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
             </div>
             <button
               onClick={handleCheckout}
-              disabled={!customerName.trim() || !customerCity.trim() || isSubmitting}
+              disabled={!customerName.trim() || !customerCity.trim() || !customerPhone.trim() || isSubmitting}
               className={cn(
                 'w-full flex items-center justify-center gap-2 px-6 py-3 text-white font-medium rounded-full transition-opacity',
-                !customerName.trim() || !customerCity.trim() || isSubmitting
+                !customerName.trim() || !customerCity.trim() || !customerPhone.trim() || isSubmitting
                   ? 'bg-gray-300 cursor-not-allowed'
                   : 'bg-[#25D366] hover:opacity-90'
               )}

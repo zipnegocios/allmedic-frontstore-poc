@@ -13,10 +13,12 @@ type SortOption = 'relevance' | 'price-asc' | 'price-desc' | 'newest';
 export function Catalog() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  // Mobile default: 1 column, Desktop default: 4 columns (handled via CSS)
   const [viewMode, setViewMode] = useState<ViewMode>('grid-1');
   const [itemsPerPage, setItemsPerPage] = useState<number>(20);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [sortBy, setSortBy] = useState<SortOption>('relevance');
+  const [gridSearchQuery, setGridSearchQuery] = useState('');
 
   // Parse filters from URL
   const [filters, setFilters] = useState<CatalogFilters>(() => {
@@ -66,7 +68,7 @@ export function Catalog() {
       priceMax: filters.priceMax,
     });
 
-    // Apply search query
+    // Apply URL search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       products = products.filter(
@@ -75,6 +77,21 @@ export function Catalog() {
           p.brand.toLowerCase().includes(query) ||
           p.category.toLowerCase().includes(query) ||
           p.colors.some(c => c.name.toLowerCase().includes(query))
+      );
+    }
+
+    // Apply grid dynamic search query
+    if (gridSearchQuery) {
+      const query = gridSearchQuery.toLowerCase();
+      products = products.filter(
+        p =>
+          p.name.toLowerCase().includes(query) ||
+          p.brand.toLowerCase().includes(query) ||
+          p.category.toLowerCase().includes(query) ||
+          p.description.toLowerCase().includes(query) ||
+          p.colors.some(c => c.name.toLowerCase().includes(query) || c.code.toLowerCase().includes(query)) ||
+          p.availableSizes.some(s => s.toLowerCase().includes(query)) ||
+          p.variants.some(v => v.sku.toLowerCase().includes(query))
       );
     }
 
@@ -95,7 +112,7 @@ export function Catalog() {
     }
 
     return products;
-  }, [filters, sortBy, searchQuery]);
+  }, [filters, sortBy, searchQuery, gridSearchQuery]);
 
   // Pagination logic
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
@@ -182,15 +199,55 @@ export function Catalog() {
               </select>
             </div>
 
-            {/* Layout Switcher */}
-            <LayoutSwitcher
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-              itemsPerPage={itemsPerPage}
-              onItemsPerPageChange={setItemsPerPage}
-              totalItems={filteredProducts.length}
-            />
+            {/* Layout Switcher - Desktop shows all columns, mobile shows limited */}
+            <div className="hidden sm:block">
+              <LayoutSwitcher
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                itemsPerPage={itemsPerPage}
+                onItemsPerPageChange={setItemsPerPage}
+                totalItems={filteredProducts.length}
+                showAllColumns={true}
+              />
+            </div>
+            <div className="sm:hidden">
+              <LayoutSwitcher
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                itemsPerPage={itemsPerPage}
+                onItemsPerPageChange={setItemsPerPage}
+                totalItems={filteredProducts.length}
+                showAllColumns={false}
+              />
+            </div>
           </div>
+        </div>
+
+        {/* Dynamic Search Input */}
+        <div className="mb-6">
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" strokeWidth={1.5} />
+            <input
+              type="text"
+              value={gridSearchQuery}
+              onChange={(e) => setGridSearchQuery(e.target.value)}
+              placeholder="Buscar en resultados..."
+              className="w-full pl-10 pr-4 py-2.5 text-sm border border-[#E5E5E5] rounded-lg focus:outline-none focus:border-[#111111] transition-colors"
+            />
+            {gridSearchQuery && (
+              <button
+                onClick={() => setGridSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full"
+              >
+                <X className="w-3 h-3 text-gray-400" strokeWidth={1.5} />
+              </button>
+            )}
+          </div>
+          {gridSearchQuery && (
+            <p className="text-xs text-gray-500 mt-2">
+              {filteredProducts.length} resultado{filteredProducts.length !== 1 ? 's' : ''} para "{gridSearchQuery}"
+            </p>
+          )}
         </div>
 
         {/* Content */}
@@ -210,8 +267,12 @@ export function Catalog() {
                 <div
                   className={cn(
                     'grid gap-4 md:gap-6',
-                    viewMode === 'grid-2' && 'grid-cols-2 lg:grid-cols-3',
-                    viewMode === 'grid-1' && 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
+                    // Desktop view modes (4, 3, 2 cols)
+                    viewMode === 'grid-4' && 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4',
+                    viewMode === 'grid-3' && 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-3',
+                    viewMode === 'grid-2' && 'grid-cols-2 lg:grid-cols-2',
+                    // Mobile view modes (1, 2 cols)
+                    viewMode === 'grid-1' && 'grid-cols-1 sm:grid-cols-2',
                     viewMode === 'list' && 'grid-cols-1'
                   )}
                 >

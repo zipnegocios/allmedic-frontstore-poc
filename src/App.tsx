@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { CartProvider } from '@/context/CartContext';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
+import { ScrollToTop, GoToTopButton } from '@/components/layout/ScrollToTop';
 import { CartDrawer } from '@/components/cart/CartDrawer';
 import { NotificationContainer } from '@/components/ui/NotificationContainer';
 import { useNotification } from '@/hooks/useNotification';
@@ -39,6 +40,7 @@ function AppContent() {
   return (
     <NotificationContext.Provider value={{ showSuccess, showError, showWarning, showInfo }}>
       <div className="min-h-screen bg-white">
+        <ScrollToTop />
         <Header onCartClick={() => setIsCartOpen(true)} />
         <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
         
@@ -56,6 +58,8 @@ function AppContent() {
           notifications={notifications} 
           onRemove={removeNotification} 
         />
+        
+        <GoToTopButton />
       </div>
     </NotificationContext.Provider>
   );
