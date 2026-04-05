@@ -1,0 +1,211 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["fullTextIndex"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ──── USUARIOS Y AUTH ────
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String?  // Null para SSO
+  role      UserRole @default(CATALOG_MANAGER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  CATALOG_MANAGER
+}
+
+// ──── CATÁLOGO ────
+model Brand {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  slug        String       @unique
+  description String?      @db.Text
+  logoUrl     String?
+  isActive    Boolean      @default(true)
+  sortOrder   Int          @default(0)
+  products    Product[]
+  collections Collection[]
+
+  @@map("brands")
+}
+
+model Collection {
+  id       String    @id @default(cuid())
+  name     String
+  slug     String    @unique
+  brandId  String
+  brand    Brand     @relation(fields: [brandId], references: [id])
+  products Product[]
+
+  @@map("collections")
+}
+
+model Color {
+  id       String           @id @default(cuid())
+  name     String           @unique
+  code     String           @unique
+  hex      String
+  variants ProductVariant[]
+
+  @@map("colors")
+}
+
+model Product {
+  id                String            @id @default(cuid())
+  slug              String            @unique
+  name              String
+  description       String?           @db.Text
+  sku               String?
+  brandId           String
+  brand             Brand             @relation(fields: [brandId], references: [id])
+  collectionId      String?
+  collection        Collection?       @relation(fields: [collectionId], references: [id])
+  category          String            // Camisas, Pantalones, etc.
+  productType       String?           // Tipo fino
+  gender            Gender
+  priceNormal       Decimal           @db.Decimal(10, 2)
+  priceSale         Decimal?          @db.Decimal(10, 2)
+  discountPct       Int?
+  discountEnd       DateTime?
+  isNew             Boolean           @default(false)
+  isBestSeller      Boolean           @default(false)
+  isActive          Boolean           @default(true)
+  crossSellId       String?           // Producto complementario
+  features          Json?             // String[]
+  careInstructions  Json?             // String[]
+  styles            Json?             // String[] slugs de estilos
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  variants          ProductVariant[]
+  images            ProductImage[]
+
+  @@fulltext([name, description])
+  @@map("products")
+}
+
+enum Gender {
+  HOMBRE
+  MUJER
+  UNISEX
+}
+
+model ProductVariant {
+  id        String          @id @default(cuid())
+  productId String
+  product   Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  colorId   String
+  color     Color           @relation(fields: [colorId], references: [id])
+  size      String          // XXS, XS, S, M, L, XL, 2XL, 3XL, 4XL, 5XL, OS
+  fit       String?         // Petite, Short, Regular, Tall
+  sku       String          @unique
+  status    VariantStatus   @default(AVAILABLE)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@unique([productId, colorId, size, fit])
+  @@map("product_variants")
+}
+
+enum VariantStatus {
+  AVAILABLE
+  BACKORDER
+  OUT_OF_STOCK
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  colorId   String?  // Null = imagen principal
+  url       String
+  alt       String?
+  sortOrder Int      @default(0)
+
+  @@map("product_images")
+}
+
+// ──── SUCURSALES ────
+model Store {
+  id              String   @id @default(cuid())
+  name            String
+  address         String
+  phone           String?
+  hours           String?
+  mapUrl          String?
+  isMain          Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  acceptsOnline   Boolean  @default(false)
+  sortOrder       Int      @default(0)
+
+  @@map("stores")
+}
+
+// ──── LEADS / PEDIDOS ────
+model Lead {
+  id            String     @id @default(cuid())
+  customerName  String
+  customerCity  String
+  customerPhone String?
+  items         Json       // CartItem[]
+  totalItems    Int
+  subtotal      Decimal    @db.Decimal(10, 2)
+  status        LeadStatus @default(SENT)
+  createdAt     DateTime   @default(now())
+
+  @@map("leads")
+}
+
+enum LeadStatus {
+  SENT
+  CONTACTED
+  CONVERTED
+  CANCELLED
+}
+
+// ──── CMS ────
+model Banner {
+  id            String  @id @default(cuid())
+  title         String
+  subtitle      String?
+  imageDesktop  String
+  imageMobile   String?
+  ctaText       String?
+  ctaLink       String?
+  sortOrder     Int     @default(0)
+  isActive      Boolean @default(true)
+
+  @@map("banners")
+}
+
+// ──── ANALÍTICA ────
+model SearchLog {
+  id        String   @id @default(cuid())
+  query     String
+  results   Int
+  createdAt DateTime @default(now())
+
+  @@map("search_logs")
+}
+
+model WhatsAppClick {
+  id        String   @id @default(cuid())
+  productId String?
+  createdAt DateTime @default(now())
+
+  @@map("whatsapp_clicks")
+}

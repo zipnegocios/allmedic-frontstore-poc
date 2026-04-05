@@ -1,9 +1,12 @@
+'use client';
+
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import { ChevronRight, Check, Plus, Minus, ShoppingBag, Info, X, Clock } from 'lucide-react';
 import { getProductBySlug, PRODUCTS } from '@/lib/dummy-data';
 import { useCart } from '@/context/CartContext';
-import { useNotificationContext } from '@/App';
+import { useNotificationContext } from '@/context/NotificationContext';
 import { ImageGallery } from '@/components/product/ImageGallery';
 import { PriceDisplay } from '@/components/product/PriceDisplay';
 import { CountdownTimer } from '@/components/product/CountdownTimer';
@@ -92,8 +95,9 @@ function AvailabilityStatus({ status }: { status: VariantStatus | undefined }) {
   );
 }
 
-export function Product() {
-  const { slug } = useParams<{ slug: string }>();
+export function Product({ slug: slugProp }: { slug?: string } = {}) {
+  const routerParams = useParams();
+  const slug = slugProp || (routerParams?.slug as string);
   const { addItem } = useCart();
   const { showSuccess, showError, showWarning } = useNotificationContext();
 
@@ -126,7 +130,7 @@ export function Product() {
           <h1 className="text-2xl font-bold mb-4">Producto no encontrado</h1>
           <p className="text-gray-500 mb-6">El producto que buscas no existe o ha sido eliminado.</p>
           <Link
-            to="/catalogo"
+            href="/catalogo"
             className="inline-flex items-center gap-2 px-6 py-3 bg-[#111111] text-white font-medium rounded-full hover:opacity-80 transition-opacity"
           >
             Ver catálogo
@@ -234,16 +238,16 @@ export function Product() {
       {/* Breadcrumb - Hidden on mobile */}
       <div className="hidden sm:block max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <nav className="flex items-center gap-2 text-sm text-gray-500">
-          <Link to="/" className="hover:text-[#111111] transition-colors">
+          <Link href="/" className="hover:text-[#111111] transition-colors">
             Inicio
           </Link>
           <ChevronRight className="w-4 h-4" strokeWidth={1.5} />
-          <Link to="/catalogo" className="hover:text-[#111111] transition-colors">
+          <Link href="/catalogo" className="hover:text-[#111111] transition-colors">
             Catálogo
           </Link>
           <ChevronRight className="w-4 h-4" strokeWidth={1.5} />
           <Link
-            to={`/catalogo?category=${product.category}`}
+            href={`/catalogo?category=${product.category}`}
             className="hover:text-[#111111] transition-colors"
           >
             {product.category}

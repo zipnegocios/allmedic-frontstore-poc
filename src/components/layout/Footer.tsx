@@ -1,5 +1,7 @@
+'use client';
+
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { ChevronDown, MapPin, Instagram, Facebook } from 'lucide-react';
 import { STORES } from '@/lib/dummy-data';
 import { cn } from '@/lib/utils';
@@ -13,7 +15,7 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
           {/* Brand Column */}
           <div>
-            <Link to="/" className="inline-block">
+            <Link href="/" className="inline-block">
               <img
                 src="/images/allmedic_logo_white.png"
                 alt="AllMedic Uniforms"
@@ -52,7 +54,7 @@ export function Footer() {
             <ul className="space-y-3">
               <li>
                 <Link
-                  to="/catalogo"
+                  href="/catalogo"
                   className="text-sm text-gray-400 hover:text-white transition-colors"
                 >
                   Catálogo
@@ -60,7 +62,7 @@ export function Footer() {
               </li>
               <li>
                 <Link
-                  to="/marcas"
+                  href="/marcas"
                   className="text-sm text-gray-400 hover:text-white transition-colors"
                 >
                   Marcas
@@ -68,7 +70,7 @@ export function Footer() {
               </li>
               <li>
                 <Link
-                  to="/sucursales"
+                  href="/sucursales"
                   className="text-sm text-gray-400 hover:text-white transition-colors"
                 >
                   Sucursales

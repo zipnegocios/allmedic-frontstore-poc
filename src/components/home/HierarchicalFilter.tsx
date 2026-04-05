@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useRef, useEffect } from 'react';
 import { ChevronDown, X, SlidersHorizontal, Check } from 'lucide-react';
 import type { FilterState, FilterOptions } from '@/hooks/useProductFilter';

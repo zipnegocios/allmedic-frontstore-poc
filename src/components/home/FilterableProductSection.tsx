@@ -1,3 +1,5 @@
+'use client';
+
 import { useState } from 'react';
 import { useProductFilter } from '@/hooks/useProductFilter';
 import { HierarchicalFilter } from './HierarchicalFilter';

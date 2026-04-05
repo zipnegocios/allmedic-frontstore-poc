@@ -1,3 +1,5 @@
+'use client';
+
 import { MapPin, Phone, Clock, Navigation } from 'lucide-react';
 import { STORES } from '@/lib/dummy-data';
 import { cn } from '@/lib/utils';

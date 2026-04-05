@@ -1,5 +1,10 @@
+'use client';
+
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import type { Product, ProductColor, Size, Fit, CartItem, VolumeDiscount } from '@/lib/types';
+
+// Note: We validate cart items by structure check in CartProvider
+// since the schema types are strict literal types
 
 interface CartContextType {
   items: CartItem[];
@@ -29,8 +34,18 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       const saved = localStorage.getItem('cart');
       if (saved) {
         try {
-          return JSON.parse(saved);
-        } catch {
+          const parsed = JSON.parse(saved);
+          // Validate structure but allow the data through with type assertion
+          // since we control the source
+          if (Array.isArray(parsed) && parsed.every(item =>
+            typeof item === 'object' && item !== null &&
+            'id' in item && 'productId' in item && 'variantId' in item
+          )) {
+            return parsed as CartItem[];
+          }
+          return [];
+        } catch (error) {
+          console.warn('Failed to load cart from localStorage:', error);
           return [];
         }
       }

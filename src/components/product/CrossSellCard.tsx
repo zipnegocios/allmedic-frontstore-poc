@@ -1,5 +1,7 @@
+'use client';
+
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import type { Product, Size } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -40,7 +42,7 @@ export function CrossSellCard({
       <div className="flex gap-4">
         {/* Image */}
         <Link
-          to={`/p/${product.slug}`}
+          href={`/p/${product.slug}`}
           className="w-20 h-24 bg-[#F5F5F7] rounded-md overflow-hidden flex-shrink-0"
         >
           <img
@@ -56,7 +58,7 @@ export function CrossSellCard({
         {/* Info */}
         <div className="flex-1 min-w-0">
           <p className="text-xs uppercase tracking-widest text-gray-400">{product.brand}</p>
-          <Link to={`/p/${product.slug}`}>
+          <Link href={`/p/${product.slug}`}>
             <h4 className="text-sm font-medium text-[#111111] truncate hover:underline">
               {product.name}
             </h4>

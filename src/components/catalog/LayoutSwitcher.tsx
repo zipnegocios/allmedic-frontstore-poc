@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { LayoutGrid, Grid2X2, Grid3X3, LayoutTemplate, List, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -102,7 +102,7 @@ export function ProductListItem({ product, onQuickView }: ProductListItemProps) 
   return (
     <div className="group flex gap-4 p-4 bg-white border border-[#E5E5E5] rounded-xl hover:border-[#111111] hover:shadow-md transition-all duration-300">
       {/* Image */}
-      <Link to={`/p/${product.slug}`} className="flex-shrink-0 w-24 h-24 sm:w-32 sm:h-32 bg-[#F5F5F7] rounded-lg overflow-hidden">
+      <Link href={`/p/${product.slug}`} className="flex-shrink-0 w-24 h-24 sm:w-32 sm:h-32 bg-[#F5F5F7] rounded-lg overflow-hidden">
         <img
           src={displayImage}
           alt={product.name}
@@ -119,7 +119,7 @@ export function ProductListItem({ product, onQuickView }: ProductListItemProps) 
           <p className="text-xs uppercase tracking-wider text-gray-400 mb-1">
             {product.brand}
           </p>
-          <Link to={`/p/${product.slug}`}>
+          <Link href={`/p/${product.slug}`}>
             <h3 className="text-base sm:text-lg font-semibold text-[#111111] mb-1 group-hover:underline line-clamp-2">
               {product.name}
             </h3>

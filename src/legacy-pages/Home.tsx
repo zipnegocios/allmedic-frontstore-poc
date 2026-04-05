@@ -1,5 +1,7 @@
+'use client';
+
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
 import { HERO_SLIDES, getFeaturedProducts } from '@/lib/dummy-data';
 import { ProductCard } from '@/components/catalog/ProductCard';
@@ -68,7 +70,7 @@ function HeroCarousel() {
                   </p>
                 )}
                 <Link
-                  to={slide.ctaLink}
+                  href={slide.ctaLink}
                   className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 bg-white text-[#111111] font-medium rounded-full hover:bg-white/90 transition-all hover:scale-105 active:scale-95"
                 >
                   {slide.cta}
@@ -146,7 +148,7 @@ function QuickAccessCards() {
           {cards.map((card, index) => (
             <Link
               key={index}
-              to={card.link}
+              href={card.link}
               className="group relative aspect-[4/3] overflow-hidden rounded-lg"
             >
               <div 
@@ -207,7 +209,7 @@ function FeaturedProductsSection() {
               />
             </div>
             <Link
-              to="/catalogo"
+              href="/catalogo"
               className="hidden sm:flex items-center gap-1 text-sm font-medium text-[#333333] hover:text-[#111111] transition-colors"
             >
               Ver todo
@@ -239,7 +241,7 @@ function FeaturedProductsSection() {
         </div>
         <div className="mt-6 sm:hidden">
           <Link
-            to="/catalogo"
+            href="/catalogo"
             className="flex items-center justify-center gap-1 text-sm font-medium text-[#333333] hover:text-[#111111] transition-colors py-3 border border-[#E5E5E5] rounded-lg"
           >
             Ver todo

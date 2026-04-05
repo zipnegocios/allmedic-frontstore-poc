@@ -1,5 +1,7 @@
+'use client';
+
 import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { ChevronLeft, ChevronRight, MapPin, Tag, Package, Store, X } from 'lucide-react';
 import { PRODUCTS, BRANDS, STORES } from '@/lib/dummy-data';
 import { cn } from '@/lib/utils';
@@ -213,7 +215,7 @@ export function MegaMenu({ isOpen, onClose }: MegaMenuProps) {
                       {section.items.map((product: any) => (
                         <Link
                           key={product.id}
-                          to={`/p/${product.slug}`}
+                          href={`/p/${product.slug}`}
                           onClick={onClose}
                           className="group"
                         >
@@ -239,7 +241,7 @@ export function MegaMenu({ isOpen, onClose }: MegaMenuProps) {
                       {section.items.map((brand: any) => (
                         <Link
                           key={brand.id}
-                          to={`/catalogo?brand=${encodeURIComponent(brand.name)}`}
+                          href={`/catalogo?brand=${encodeURIComponent(brand.name)}`}
                           onClick={onClose}
                           className="group bg-[#F5F5F7] rounded-xl p-4 sm:p-6 hover:bg-[#111111] transition-colors"
                         >
@@ -316,7 +318,7 @@ export function MegaMenu({ isOpen, onClose }: MegaMenuProps) {
           {/* View All Link */}
           <div className="mt-6 sm:mt-8 pt-4 border-t border-[#E5E5E5]">
             <Link
-              to={activeTab === 'stores' ? '/sucursales' : activeTab === 'brands' ? '/catalogo' : '/catalogo'}
+              href={activeTab === 'stores' ? '/sucursales' : activeTab === 'brands' ? '/catalogo' : '/catalogo'}
               onClick={onClose}
               className="inline-flex items-center gap-2 text-sm font-medium text-[#111111] hover:underline"
             >

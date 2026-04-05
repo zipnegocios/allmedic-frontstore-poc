@@ -1,8 +1,10 @@
+'use client';
+
 import { useState, useEffect } from 'react';
 import { X, ShoppingBag, Check, AlertCircle } from 'lucide-react';
 import type { Product, ProductColor, Size, Fit, VariantStatus } from '@/lib/types';
 import { useCart } from '@/context/CartContext';
-import { useNotificationContext } from '@/App';
+import { useNotificationContext } from '@/context/NotificationContext';
 import { Modal } from '@/components/ui/Modal';
 import { cn } from '@/lib/utils';
 

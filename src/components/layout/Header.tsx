@@ -1,5 +1,8 @@
+'use client';
+
 import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import Link from 'next/link';
+import { useRouter, usePathname } from 'next/navigation';
 import { Search, ShoppingBag, X, ChevronRight, Menu, MapPin, Tag, Home, Grid3X3 } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 import { searchProducts } from '@/lib/dummy-data';
@@ -28,8 +31,8 @@ export function Header({ onCartClick }: HeaderProps) {
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const navigate = useNavigate();
-  const location = useLocation();
+  const router = useRouter();
+  const pathname = usePathname();
 
   // Handle scroll
   useEffect(() => {
@@ -43,7 +46,7 @@ export function Header({ onCartClick }: HeaderProps) {
   // Close mobile menu on route change
   useEffect(() => {
     setIsMobileMenuOpen(false);
-  }, [location.pathname]);
+  }, [pathname]);
 
   // Debounced search
   useEffect(() => {
@@ -70,7 +73,7 @@ export function Header({ onCartClick }: HeaderProps) {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      navigate(`/catalogo?q=${encodeURIComponent(searchQuery)}`);
+      router.push(`/catalogo?q=${encodeURIComponent(searchQuery)}`);
       setIsSearchOpen(false);
       setSearchQuery('');
     }
@@ -79,8 +82,8 @@ export function Header({ onCartClick }: HeaderProps) {
   const popularSearches = ['FIGS', 'Cherokee', 'Navy', 'Black', 'Scrub'];
 
   const isActive = (path: string) => {
-    if (path === '/') return location.pathname === '/';
-    return location.pathname.startsWith(path);
+    if (path === '/') return pathname === '/';
+    return pathname.startsWith(path);
   };
 
   return (
@@ -106,7 +109,7 @@ export function Header({ onCartClick }: HeaderProps) {
             </button>
 
             {/* Logo - Animated size on scroll */}
-            <Link to="/" className="flex-shrink-0 transition-all duration-300">
+            <Link href="/" className="flex-shrink-0 transition-all duration-300">
               <img
                 src="/images/allmedic_logo_black.png"
                 alt="AllMedic Uniforms"
@@ -136,7 +139,7 @@ export function Header({ onCartClick }: HeaderProps) {
               {navLinks.map((link) => (
                 <Link
                   key={link.href}
-                  to={link.href}
+                  href={link.href}
                   className={cn(
                     'px-4 py-2 text-sm font-medium rounded-full transition-all duration-200',
                     isActive(link.href)
@@ -222,7 +225,7 @@ export function Header({ onCartClick }: HeaderProps) {
                 return (
                   <li key={link.href}>
                     <Link
-                      to={link.href}
+                      href={link.href}
                       onClick={() => setIsMobileMenuOpen(false)}
                       className={cn(
                         'flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200',
@@ -316,7 +319,7 @@ export function Header({ onCartClick }: HeaderProps) {
                     {searchResults.map(product => (
                       <Link
                         key={product.id}
-                        to={`/p/${product.slug}`}
+                        href={`/p/${product.slug}`}
                         onClick={() => {
                           setIsSearchOpen(false);
                           setSearchQuery('');
@@ -343,7 +346,7 @@ export function Header({ onCartClick }: HeaderProps) {
                       </Link>
                     ))}
                     <Link
-                      to={`/catalogo?q=${encodeURIComponent(searchQuery)}`}
+                      href={`/catalogo?q=${encodeURIComponent(searchQuery)}`}
                       onClick={() => {
                         setIsSearchOpen(false);
                         setSearchQuery('');
@@ -370,7 +373,7 @@ export function Header({ onCartClick }: HeaderProps) {
                         key={term}
                         onClick={() => {
                           setSearchQuery(term);
-                          navigate(`/catalogo?q=${encodeURIComponent(term)}`);
+                          router.push(`/catalogo?q=${encodeURIComponent(term)}`);
                           setIsSearchOpen(false);
                         }}
                         className="px-4 py-2 text-sm bg-[#F5F5F7] rounded-full hover:bg-gray-200 transition-colors"

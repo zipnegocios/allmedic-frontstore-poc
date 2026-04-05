@@ -1,5 +1,7 @@
+'use client';
+
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { Eye, Check, X, Clock, Loader2 } from 'lucide-react';
 import type { Product } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
@@ -79,7 +81,7 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
       <div className="group bg-white">
         {/* Image Container */}
         <div className="relative aspect-[4/5] bg-[#F5F5F7] overflow-hidden">
-          <Link to={`/p/${product.slug}`} className="block w-full h-full">
+          <Link href={`/p/${product.slug}`} className="block w-full h-full">
             {/* Badges */}
             <div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
               {product.isNew && <Badge>Nuevo</Badge>}
@@ -169,7 +171,7 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
           </p>
 
           {/* Name */}
-          <Link to={`/p/${product.slug}`}>
+          <Link href={`/p/${product.slug}`}>
             <h3 className="text-sm font-medium text-[#111111] mb-2 line-clamp-2 group-hover:underline">
               {product.name}
             </h3>

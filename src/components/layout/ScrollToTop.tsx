@@ -1,11 +1,13 @@
+'use client';
+
 import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { usePathname } from 'next/navigation';
 import { ArrowUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // Scroll to top on route change
 export function ScrollToTop() {
-  const { pathname } = useLocation();
+  const pathname = usePathname();
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });

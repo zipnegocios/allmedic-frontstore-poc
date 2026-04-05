@@ -1,5 +1,7 @@
+'use client';
+
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { BRANDS } from '@/lib/dummy-data';
 import { cn } from '@/lib/utils';
@@ -174,7 +176,7 @@ export function BrandCarousel() {
               return (
                 <Link
                   key={brand}
-                  to={`/catalogo?brand=${encodeURIComponent(brand)}`}
+                  href={`/catalogo?brand=${encodeURIComponent(brand)}`}
                   className={cn(
                     'flex-shrink-0 group relative',
                     'w-[calc(50%-6px)] sm:w-[calc(33.333%-11px)] lg:w-[calc(20%-13px)]'

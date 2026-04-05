@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useEffect } from 'react';
 import { X, SlidersHorizontal } from 'lucide-react';
 import type { CatalogFilters, Gender, Category, Size, Fit } from '@/lib/types';

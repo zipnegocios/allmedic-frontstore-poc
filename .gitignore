@@ -43,8 +43,8 @@ Thumbs.db
 # TypeScript cache
 *.tsbuildinfo
 
-# Vite
-vite.config.ts.timestamp-*
+# Legacy (removed)
+# vite.config.ts.timestamp-*
 
 # OS files
 Desktop.ini
@@ -58,3 +58,10 @@ coverage/
 .temp/
 .claude/
 .gemini/
+
+# ─── Next.js ───────────────────────────────────────────────────────────────
+.next/
+out/
+.vercel/
+.turbo/
+next-env.d.ts

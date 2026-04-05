@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { PRODUCTS } from '@/lib/dummy-data';
 import type { CatalogFilters } from '@/lib/types';
 
@@ -59,9 +59,7 @@ export function useProductFilter(itemsPerPage: number = 12) {
 
   // Filter products
   const filteredProducts = useMemo(() => {
-    setIsLoading(true);
-    
-    let products = PRODUCTS.filter(product => {
+    return PRODUCTS.filter(product => {
       if (filters.gender && product.gender !== filters.gender && product.gender !== 'Unisex') {
         return false;
       }
@@ -86,12 +84,14 @@ export function useProductFilter(itemsPerPage: number = 12) {
       }
       return true;
     });
-
-    // Simulate loading delay
-    setTimeout(() => setIsLoading(false), 100);
-    
-    return products;
   }, [filters]);
+
+  // Handle loading state effect
+  useEffect(() => {
+    setIsLoading(true);
+    const timer = setTimeout(() => setIsLoading(false), 100);
+    return () => clearTimeout(timer);
+  }, [filteredProducts]);
 
   // Pagination
   const totalProducts = filteredProducts.length;
