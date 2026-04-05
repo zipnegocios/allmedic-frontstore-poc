@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
-import { HERO_SLIDES, BRANDS, getFeaturedProducts } from '@/lib/dummy-data';
+import { HERO_SLIDES, getFeaturedProducts } from '@/lib/dummy-data';
 import { ProductCard } from '@/components/catalog/ProductCard';
+import { ProductListItem, LayoutSwitcher, type ViewMode } from '@/components/catalog/LayoutSwitcher';
 import { FilterableProductSection } from '@/components/home/FilterableProductSection';
+import { BrandCarousel } from '@/components/home/BrandCarousel';
 import { cn } from '@/lib/utils';
 
 // Hero Carousel Component
@@ -30,7 +32,7 @@ function HeroCarousel() {
   };
 
   return (
-    <section className="relative h-[60vh] min-h-[400px] max-h-[600px] overflow-hidden">
+    <section className="relative w-full h-[calc(100vh-56px)] sm:h-[calc(100vh-64px)] min-h-[500px] max-h-[800px] overflow-hidden">
       {HERO_SLIDES.map((slide, index) => (
         <div
           key={slide.id}
@@ -40,32 +42,32 @@ function HeroCarousel() {
           )}
         >
           {/* Background Image */}
-          <div className="absolute inset-0 bg-gray-800">
+          <div className="absolute inset-0">
             <div 
               className="w-full h-full bg-cover bg-center"
               style={{ 
                 backgroundImage: `url(${slide.image})`,
-                backgroundColor: '#2A2A2A'
+                backgroundColor: '#1a1a1a'
               }}
             />
-            <div className="absolute inset-0 bg-black/50" />
+            <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent" />
           </div>
 
           {/* Content */}
           <div className="relative h-full flex items-center">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-              <div className="max-w-xl">
-                <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 tracking-tight">
+              <div className="max-w-xl px-2 sm:px-0">
+                <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-3 sm:mb-4 tracking-tight leading-tight">
                   {slide.title}
                 </h1>
                 {slide.subtitle && (
-                  <p className="text-lg md:text-xl text-white/80 mb-8">
+                  <p className="text-base sm:text-lg md:text-xl text-white/80 mb-6 sm:mb-8 max-w-md">
                     {slide.subtitle}
                   </p>
                 )}
                 <Link
                   to={slide.ctaLink}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-white text-[#111111] font-medium rounded-full hover:bg-white/90 transition-colors"
+                  className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 bg-white text-[#111111] font-medium rounded-full hover:bg-white/90 transition-all hover:scale-105 active:scale-95"
                 >
                   {slide.cta}
                   <ArrowRight className="w-4 h-4" strokeWidth={1.5} />
@@ -76,32 +78,40 @@ function HeroCarousel() {
         </div>
       ))}
 
-      {/* Navigation Arrows */}
-      <button
-        onClick={goToPrev}
-        className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-      >
-        <ChevronLeft className="w-6 h-6 text-white" strokeWidth={1.5} />
-      </button>
-      <button
-        onClick={goToNext}
-        className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-      >
-        <ChevronRight className="w-6 h-6 text-white" strokeWidth={1.5} />
-      </button>
-
-      {/* Dots */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
-        {HERO_SLIDES.map((_, index) => (
+      {/* Bottom Controls Container */}
+      <div className="absolute bottom-6 sm:bottom-8 left-0 right-0 flex flex-col items-center gap-4">
+        {/* Navigation Arrows - Below CTA, above dots */}
+        <div className="flex items-center gap-4">
           <button
-            key={index}
-            onClick={() => goToSlide(index)}
-            className={cn(
-              'w-2 h-2 rounded-full transition-all duration-300',
-              index === currentSlide ? 'bg-white w-6' : 'bg-white/50 hover:bg-white/70'
-            )}
-          />
-        ))}
+            onClick={goToPrev}
+            className="w-10 h-10 sm:w-12 sm:h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/40 transition-all active:scale-95"
+            aria-label="Anterior"
+          >
+            <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={1.5} />
+          </button>
+          <button
+            onClick={goToNext}
+            className="w-10 h-10 sm:w-12 sm:h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/40 transition-all active:scale-95"
+            aria-label="Siguiente"
+          >
+            <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 text-white" strokeWidth={1.5} />
+          </button>
+        </div>
+
+        {/* Dots */}
+        <div className="flex gap-2">
+          {HERO_SLIDES.map((_, index) => (
+            <button
+              key={index}
+              onClick={() => goToSlide(index)}
+              className={cn(
+                'h-2 rounded-full transition-all duration-300',
+                index === currentSlide ? 'bg-white w-6 sm:w-8' : 'bg-white/40 w-2 hover:bg-white/60'
+              )}
+              aria-label={`Ir a slide ${index + 1}`}
+            />
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -156,49 +166,63 @@ function QuickAccessCards() {
   );
 }
 
-// Brands Section Component
-function BrandsSection() {
-  return (
-    <section className="py-16 bg-[#F5F5F7]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h2 className="text-2xl font-semibold text-center mb-12">Marcas que representamos</h2>
-        <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-4">
-          {BRANDS.slice(0, 14).map((brand, index) => (
-            <Link
-              key={index}
-              to={`/catalogo?brand=${encodeURIComponent(brand)}`}
-              className="flex items-center justify-center p-4 bg-white rounded-lg hover:shadow-md transition-shadow"
-            >
-              <span className="text-sm font-medium text-[#333333] text-center">{brand}</span>
-            </Link>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 // Featured Products Section Component
 function FeaturedProductsSection() {
   const featuredProducts = getFeaturedProducts();
+  const [viewMode, setViewMode] = useState<ViewMode>('grid-2');
+  const [itemsPerPage, setItemsPerPage] = useState<number>(8);
+  
+  // Limit products based on itemsPerPage
+  const displayedProducts = featuredProducts.slice(0, itemsPerPage);
 
   return (
     <section className="py-16 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <h2 className="text-2xl font-semibold">Lo más solicitado</h2>
+          <div className="flex items-center gap-4">
+            <LayoutSwitcher
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              itemsPerPage={itemsPerPage}
+              onItemsPerPageChange={setItemsPerPage}
+              totalItems={featuredProducts.length}
+            />
+            <Link
+              to="/catalogo"
+              className="hidden sm:flex items-center gap-1 text-sm font-medium text-[#333333] hover:text-[#111111] transition-colors"
+            >
+              Ver todo
+              <ArrowRight className="w-4 h-4" strokeWidth={1.5} />
+            </Link>
+          </div>
+        </div>
+        <div className={cn(
+          'grid gap-4 md:gap-6',
+          viewMode === 'grid-2' && 'grid-cols-2 lg:grid-cols-4',
+          viewMode === 'grid-1' && 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
+          viewMode === 'list' && 'grid-cols-1'
+        )}>
+          {displayedProducts.map(product => (
+            viewMode === 'list' ? (
+              <ProductListItem 
+                key={product.id} 
+                product={product}
+                onQuickView={() => {}}
+              />
+            ) : (
+              <ProductCard key={product.id} product={product} />
+            )
+          ))}
+        </div>
+        <div className="mt-6 sm:hidden">
           <Link
             to="/catalogo"
-            className="flex items-center gap-1 text-sm font-medium text-[#333333] hover:text-[#111111] transition-colors"
+            className="flex items-center justify-center gap-1 text-sm font-medium text-[#333333] hover:text-[#111111] transition-colors py-3 border border-[#E5E5E5] rounded-lg"
           >
             Ver todo
             <ArrowRight className="w-4 h-4" strokeWidth={1.5} />
           </Link>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-          {featuredProducts.map(product => (
-            <ProductCard key={product.id} product={product} />
-          ))}
         </div>
       </div>
     </section>
@@ -208,11 +232,11 @@ function FeaturedProductsSection() {
 // Main Home Page
 export function Home() {
   return (
-    <main>
+    <main className="pt-14 sm:pt-16">
       <HeroCarousel />
       <QuickAccessCards />
       <FilterableProductSection />
-      <BrandsSection />
+      <BrandCarousel />
       <FeaturedProductsSection />
     </main>
   );

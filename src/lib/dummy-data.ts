@@ -1046,12 +1046,56 @@ export function getNewProducts(): Product[] {
 }
 
 export function searchProducts(query: string): Product[] {
-  const lowerQuery = query.toLowerCase();
-  return PRODUCTS.filter(p => 
-    p.name.toLowerCase().includes(lowerQuery) ||
-    p.brand.toLowerCase().includes(lowerQuery) ||
-    p.category.toLowerCase().includes(lowerQuery)
-  );
+  const lowerQuery = query.toLowerCase().trim();
+  if (!lowerQuery) return PRODUCTS;
+  
+  return PRODUCTS.filter(p => {
+    // Search in basic fields
+    const basicMatch = 
+      p.name.toLowerCase().includes(lowerQuery) ||
+      p.brand.toLowerCase().includes(lowerQuery) ||
+      p.category.toLowerCase().includes(lowerQuery) ||
+      p.description.toLowerCase().includes(lowerQuery) ||
+      p.gender.toLowerCase().includes(lowerQuery);
+    
+    if (basicMatch) return true;
+    
+    // Search in colors (name and hex)
+    const colorMatch = p.colors.some(c => 
+      c.name.toLowerCase().includes(lowerQuery) ||
+      c.code.toLowerCase().includes(lowerQuery) ||
+      c.hex.toLowerCase().includes(lowerQuery)
+    );
+    if (colorMatch) return true;
+    
+    // Search in sizes
+    const sizeMatch = p.availableSizes.some(s => 
+      s.toLowerCase().includes(lowerQuery)
+    );
+    if (sizeMatch) return true;
+    
+    // Search in fits
+    const fitMatch = p.availableFits?.some(f => 
+      f.toLowerCase().includes(lowerQuery)
+    );
+    if (fitMatch) return true;
+    
+    // Search in features
+    const featureMatch = p.features.some(f => 
+      f.toLowerCase().includes(lowerQuery)
+    );
+    if (featureMatch) return true;
+    
+    // Search in variants (SKU)
+    const variantMatch = p.variants.some(v => 
+      v.sku.toLowerCase().includes(lowerQuery) ||
+      v.size.toLowerCase().includes(lowerQuery) ||
+      (v.fit && v.fit.toLowerCase().includes(lowerQuery))
+    );
+    if (variantMatch) return true;
+    
+    return false;
+  });
 }
 
 export function filterProducts(filters: {

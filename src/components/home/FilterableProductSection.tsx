@@ -1,11 +1,18 @@
+import { useState } from 'react';
 import { useProductFilter } from '@/hooks/useProductFilter';
 import { HierarchicalFilter } from './HierarchicalFilter';
 import { Pagination } from './Pagination';
 import { ProductCard } from '@/components/catalog/ProductCard';
+import { ProductListItem } from '@/components/catalog/LayoutSwitcher';
+import type { ViewMode } from '@/components/catalog/LayoutSwitcher';
+import { LayoutSwitcher } from '@/components/catalog/LayoutSwitcher';
 import { Loader2, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function FilterableProductSection() {
+  const [viewMode, setViewMode] = useState<ViewMode>('grid-2');
+  const [itemsPerPage, setItemsPerPage] = useState<number>(12);
+  
   const {
     filters,
     filterOptions,
@@ -19,7 +26,7 @@ export function FilterableProductSection() {
     applyFilters,
     resetFilters,
     goToPage,
-  } = useProductFilter(12);
+  } = useProductFilter(itemsPerPage);
 
   return (
     <section className="py-16 bg-[#F5F5F7]">
@@ -44,6 +51,15 @@ export function FilterableProductSection() {
               )}
             </p>
           </div>
+          
+          {/* Layout Switcher */}
+          <LayoutSwitcher
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            itemsPerPage={itemsPerPage}
+            onItemsPerPageChange={setItemsPerPage}
+            totalItems={totalProducts}
+          />
         </div>
 
         {/* Filters */}
@@ -94,13 +110,26 @@ export function FilterableProductSection() {
           {/* Products */}
           {paginatedProducts.length > 0 && (
             <>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+              <div className={cn(
+                'grid gap-4 md:gap-6',
+                viewMode === 'grid-2' && 'grid-cols-2 lg:grid-cols-4',
+                viewMode === 'grid-1' && 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
+                viewMode === 'list' && 'grid-cols-1'
+              )}>
                 {paginatedProducts.map((product) => (
-                  <ProductCard 
-                    key={product.id} 
-                    product={product} 
-                    selectedFilterColor={filters.color ? filters.color : null}
-                  />
+                  viewMode === 'list' ? (
+                    <ProductListItem 
+                      key={product.id} 
+                      product={product}
+                      onQuickView={() => {}}
+                    />
+                  ) : (
+                    <ProductCard 
+                      key={product.id} 
+                      product={product} 
+                      selectedFilterColor={filters.color ? filters.color : null}
+                    />
+                  )
                 ))}
               </div>
 
@@ -110,7 +139,7 @@ export function FilterableProductSection() {
                 totalPages={totalPages}
                 onPageChange={goToPage}
                 totalItems={totalProducts}
-                itemsPerPage={12}
+                itemsPerPage={itemsPerPage}
               />
             </>
           )}

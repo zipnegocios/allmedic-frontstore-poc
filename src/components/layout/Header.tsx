@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Search, ShoppingBag, X, ChevronRight } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Search, ShoppingBag, X, ChevronRight, Menu, MapPin, Tag, Home, Grid3X3 } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 import { searchProducts } from '@/lib/dummy-data';
+import { MegaMenu } from './MegaMenu';
 import type { Product } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -10,24 +11,39 @@ interface HeaderProps {
   onCartClick: () => void;
 }
 
+const navLinks = [
+  { label: 'Inicio', href: '/', icon: Home },
+  { label: 'Catálogo', href: '/catalogo', icon: Tag },
+  { label: 'Marcas', href: '/marcas', icon: Tag },
+  { label: 'Tiendas', href: '/sucursales', icon: MapPin },
+];
+
 export function Header({ onCartClick }: HeaderProps) {
   const { totalItems } = useCart();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMegaMenuOpen, setIsMegaMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Handle scroll
   useEffect(() => {
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
+      setIsScrolled(window.scrollY > 10);
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
 
   // Debounced search
   useEffect(() => {
@@ -35,11 +51,11 @@ export function Header({ onCartClick }: HeaderProps) {
       clearTimeout(searchDebounceRef.current);
     }
 
-    if (searchQuery.length >= 3) {
+    if (searchQuery.length >= 2) {
       searchDebounceRef.current = setTimeout(() => {
         const results = searchProducts(searchQuery);
         setSearchResults(results.slice(0, 6));
-      }, 250);
+      }, 200);
     } else {
       setSearchResults([]);
     }
@@ -62,47 +78,84 @@ export function Header({ onCartClick }: HeaderProps) {
 
   const popularSearches = ['FIGS', 'Cherokee', 'Navy', 'Black', 'Scrub'];
 
+  const isActive = (path: string) => {
+    if (path === '/') return location.pathname === '/';
+    return location.pathname.startsWith(path);
+  };
+
   return (
     <>
+      {/* Main Header */}
       <header
         className={cn(
-          'fixed top-0 left-0 right-0 z-40 transition-all duration-300',
-          isScrolled ? 'bg-white/90 backdrop-blur-md shadow-sm' : 'bg-white'
+          'fixed top-0 left-0 right-0 z-50 transition-all duration-300',
+          isScrolled 
+            ? 'bg-white/95 backdrop-blur-md shadow-sm' 
+            : 'bg-white'
         )}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <Link to="/" className="flex-shrink-0">
+          <div className="flex items-center justify-between h-14 sm:h-16">
+            {/* Mobile Menu Button */}
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="lg:hidden p-2 -ml-2 hover:bg-[#F5F5F7] rounded-full transition-colors"
+              aria-label="Menu"
+            >
+              <Menu className="w-5 h-5" strokeWidth={1.5} />
+            </button>
+
+            {/* Logo - Animated size on scroll */}
+            <Link to="/" className="flex-shrink-0 transition-all duration-300">
               <img
                 src="/images/allmedic_logo_black.png"
                 alt="AllMedic Uniforms"
-                className="h-8 w-auto"
+                className={cn(
+                  'w-auto transition-all duration-300',
+                  isScrolled ? 'h-7 sm:h-8' : 'h-10 sm:h-12'
+                )}
               />
             </Link>
 
             {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center gap-8">
-              <Link
-                to="/catalogo"
-                className="text-sm font-medium text-[#333333] hover:text-[#111111] transition-colors"
+            <nav className="hidden lg:flex items-center gap-1">
+              {/* MegaMenu Button */}
+              <button
+                onClick={() => setIsMegaMenuOpen(true)}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full transition-all duration-200',
+                  isMegaMenuOpen
+                    ? 'bg-[#111111] text-white'
+                    : 'text-[#333333] hover:bg-[#F5F5F7] hover:text-[#111111]'
+                )}
               >
-                Catálogo
-              </Link>
-              <Link
-                to="/sucursales"
-                className="text-sm font-medium text-[#333333] hover:text-[#111111] transition-colors"
-              >
-                Tiendas
-              </Link>
+                <Grid3X3 className="w-4 h-4" strokeWidth={1.5} />
+                Explorar
+              </button>
+              
+              {navLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  to={link.href}
+                  className={cn(
+                    'px-4 py-2 text-sm font-medium rounded-full transition-all duration-200',
+                    isActive(link.href)
+                      ? 'bg-[#111111] text-white'
+                      : 'text-[#333333] hover:bg-[#F5F5F7] hover:text-[#111111]'
+                  )}
+                >
+                  {link.label}
+                </Link>
+              ))}
             </nav>
 
             {/* Actions */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2">
               {/* Search Button */}
               <button
                 onClick={() => setIsSearchOpen(true)}
                 className="p-2 hover:bg-[#F5F5F7] rounded-full transition-colors"
+                aria-label="Buscar"
               >
                 <Search className="w-5 h-5" strokeWidth={1.5} />
               </button>
@@ -111,11 +164,12 @@ export function Header({ onCartClick }: HeaderProps) {
               <button
                 onClick={onCartClick}
                 className="p-2 hover:bg-[#F5F5F7] rounded-full transition-colors relative"
+                aria-label="Carrito"
               >
                 <ShoppingBag className="w-5 h-5" strokeWidth={1.5} />
                 {totalItems > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-[#FF3B30] text-white text-xs font-bold rounded-full flex items-center justify-center">
-                    {totalItems}
+                  <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-[#FF3B30] text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-bounce">
+                    {totalItems > 99 ? '99+' : totalItems}
                   </span>
                 )}
               </button>
@@ -123,6 +177,85 @@ export function Header({ onCartClick }: HeaderProps) {
           </div>
         </div>
       </header>
+
+      {/* Mobile Menu Drawer */}
+      <div
+        className={cn(
+          'fixed inset-0 z-40 lg:hidden transition-opacity duration-300',
+          isMobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        )}
+      >
+        {/* Backdrop */}
+        <div 
+          className="absolute inset-0 bg-black/50 backdrop-blur-sm" 
+          onClick={() => setIsMobileMenuOpen(false)} 
+        />
+
+        {/* Menu Panel */}
+        <div
+          className={cn(
+            'absolute top-0 left-0 h-full w-[280px] max-w-[85vw] bg-white shadow-2xl',
+            'transition-transform duration-300 ease-out',
+            isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+          )}
+        >
+          {/* Menu Header */}
+          <div className="flex items-center justify-between p-4 border-b border-[#E5E5E5]">
+            <img
+              src="/images/allmedic_logo_black.png"
+              alt="AllMedic Uniforms"
+              className="h-7 w-auto"
+            />
+            <button
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="p-2 hover:bg-[#F5F5F7] rounded-full transition-colors"
+            >
+              <X className="w-5 h-5" strokeWidth={1.5} />
+            </button>
+          </div>
+
+          {/* Menu Links */}
+          <nav className="p-4">
+            <ul className="space-y-1">
+              {navLinks.map((link) => {
+                const Icon = link.icon;
+                return (
+                  <li key={link.href}>
+                    <Link
+                      to={link.href}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={cn(
+                        'flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200',
+                        isActive(link.href)
+                          ? 'bg-[#111111] text-white'
+                          : 'text-[#333333] hover:bg-[#F5F5F7]'
+                      )}
+                    >
+                      <Icon className="w-5 h-5" strokeWidth={1.5} />
+                      <span className="font-medium">{link.label}</span>
+                      {isActive(link.href) && (
+                        <ChevronRight className="w-4 h-4 ml-auto" strokeWidth={1.5} />
+                      )}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
+
+          {/* Menu Footer */}
+          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-[#E5E5E5] bg-white">
+            <a
+              href="https://wa.me/593999999999"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 w-full py-3 bg-[#25D366] text-white font-medium rounded-xl"
+            >
+              Contactar por WhatsApp
+            </a>
+          </div>
+        </div>
+      </div>
 
       {/* Search Modal */}
       <div
@@ -132,7 +265,7 @@ export function Header({ onCartClick }: HeaderProps) {
         )}
       >
         {/* Backdrop */}
-        <div className="absolute inset-0 bg-black/50" onClick={() => setIsSearchOpen(false)} />
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsSearchOpen(false)} />
 
         {/* Search Panel */}
         <div
@@ -141,7 +274,7 @@ export function Header({ onCartClick }: HeaderProps) {
             isSearchOpen ? 'translate-y-0' : '-translate-y-full'
           )}
         >
-          <div className="max-w-3xl mx-auto px-4 py-6">
+          <div className="max-w-3xl mx-auto px-4 py-4 sm:py-6">
             {/* Search Input */}
             <form onSubmit={handleSearchSubmit} className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" strokeWidth={1.5} />
@@ -150,9 +283,8 @@ export function Header({ onCartClick }: HeaderProps) {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => {}}
                 placeholder="Buscar productos, marcas, colores..."
-                className="w-full pl-12 pr-12 py-4 text-lg bg-[#F5F5F7] rounded-full focus:outline-none focus:ring-2 focus:ring-[#111111]"
+                className="w-full pl-12 pr-12 py-3 sm:py-4 text-base sm:text-lg bg-[#F5F5F7] rounded-full focus:outline-none focus:ring-2 focus:ring-[#111111]"
                 autoFocus={isSearchOpen}
               />
               {searchQuery && (
@@ -174,8 +306,8 @@ export function Header({ onCartClick }: HeaderProps) {
             </form>
 
             {/* Search Results */}
-            <div className="mt-6">
-              {searchQuery.length >= 3 ? (
+            <div className="mt-4 sm:mt-6 max-h-[60vh] overflow-y-auto">
+              {searchQuery.length >= 2 ? (
                 searchResults.length > 0 ? (
                   <div className="space-y-2">
                     <p className="text-xs uppercase tracking-widest text-gray-400 mb-3">
@@ -189,9 +321,9 @@ export function Header({ onCartClick }: HeaderProps) {
                           setIsSearchOpen(false);
                           setSearchQuery('');
                         }}
-                        className="flex items-center gap-4 p-3 hover:bg-[#F5F5F7] rounded-lg transition-colors"
+                        className="flex items-center gap-3 sm:gap-4 p-3 hover:bg-[#F5F5F7] rounded-lg transition-colors"
                       >
-                        <div className="w-10 h-12 bg-[#F5F5F7] rounded overflow-hidden flex-shrink-0">
+                        <div className="w-12 h-16 sm:w-14 sm:h-18 bg-[#F5F5F7] rounded overflow-hidden flex-shrink-0">
                           <img
                             src={product.variants[0]?.images[0] || '/images/placeholder-product.jpg'}
                             alt={product.name}
@@ -207,7 +339,7 @@ export function Header({ onCartClick }: HeaderProps) {
                             ${(product.priceSale || product.priceNormal).toFixed(2)}
                           </p>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-gray-400" strokeWidth={1.5} />
+                        <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" strokeWidth={1.5} />
                       </Link>
                     ))}
                     <Link
@@ -253,6 +385,12 @@ export function Header({ onCartClick }: HeaderProps) {
           </div>
         </div>
       </div>
+
+      {/* MegaMenu */}
+      <MegaMenu 
+        isOpen={isMegaMenuOpen} 
+        onClose={() => setIsMegaMenuOpen(false)} 
+      />
     </>
   );
 }

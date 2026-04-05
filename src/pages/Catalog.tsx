@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, Grid3X3, LayoutList, X } from 'lucide-react';
+import { Search, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { filterProducts } from '@/lib/dummy-data';
 import { ProductCard } from '@/components/catalog/ProductCard';
 import { FilterSidebar, FilterButton } from '@/components/catalog/FilterSidebar';
+import { LayoutSwitcher, ProductListItem, type ViewMode } from '@/components/catalog/LayoutSwitcher';
 import type { CatalogFilters } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -12,7 +13,9 @@ type SortOption = 'relevance' | 'price-asc' | 'price-desc' | 'newest';
 export function Catalog() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<ViewMode>('grid-1');
+  const [itemsPerPage, setItemsPerPage] = useState<number>(20);
+  const [currentPage, setCurrentPage] = useState<number>(1);
   const [sortBy, setSortBy] = useState<SortOption>('relevance');
 
   // Parse filters from URL
@@ -34,6 +37,11 @@ export function Catalog() {
   });
 
   const [searchQuery] = useState(() => searchParams.get('q') || '');
+
+  // Reset to page 1 when filters, sort, or items per page change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters, sortBy, itemsPerPage, searchQuery]);
 
   // Update URL when filters change
   useEffect(() => {
@@ -87,10 +95,24 @@ export function Catalog() {
     }
 
     return products;
-  }, [filters, sortBy]);
+  }, [filters, sortBy, searchQuery]);
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+  const paginatedProducts = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredProducts.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredProducts, currentPage, itemsPerPage]);
 
   const handleFilterChange = (newFilters: CatalogFilters) => {
     setFilters(newFilters);
+  };
+
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const activeFilterCount =
@@ -116,7 +138,7 @@ export function Catalog() {
         </div>
 
         {/* Toolbar */}
-        <div className="flex items-center justify-between mb-6 pb-4 border-b border-[#E5E5E5]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-[#E5E5E5]">
           <div className="flex items-center gap-4">
             <FilterButton
               onClick={() => setIsFilterOpen(true)}
@@ -144,7 +166,7 @@ export function Catalog() {
             )}
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             {/* Sort Dropdown */}
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-500 hidden sm:inline">Ordenar por:</span>
@@ -160,27 +182,14 @@ export function Catalog() {
               </select>
             </div>
 
-            {/* View Mode Toggle */}
-            <div className="hidden sm:flex items-center border border-[#E5E5E5] rounded-lg">
-              <button
-                onClick={() => setViewMode('grid')}
-                className={cn(
-                  'p-2 transition-colors',
-                  viewMode === 'grid' ? 'bg-[#111111] text-white' : 'hover:bg-[#F5F5F7]'
-                )}
-              >
-                <Grid3X3 className="w-4 h-4" strokeWidth={1.5} />
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={cn(
-                  'p-2 transition-colors',
-                  viewMode === 'list' ? 'bg-[#111111] text-white' : 'hover:bg-[#F5F5F7]'
-                )}
-              >
-                <LayoutList className="w-4 h-4" strokeWidth={1.5} />
-              </button>
-            </div>
+            {/* Layout Switcher */}
+            <LayoutSwitcher
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              itemsPerPage={itemsPerPage}
+              onItemsPerPageChange={setItemsPerPage}
+              totalItems={filteredProducts.length}
+            />
           </div>
         </div>
 
@@ -197,22 +206,111 @@ export function Catalog() {
           {/* Product Grid */}
           <div className="flex-1">
             {filteredProducts.length > 0 ? (
-              <div
-                className={cn(
-                  'grid gap-4 md:gap-6',
-                  viewMode === 'grid'
-                    ? 'grid-cols-2 md:grid-cols-3'
-                    : 'grid-cols-1'
+              <>
+                <div
+                  className={cn(
+                    'grid gap-4 md:gap-6',
+                    viewMode === 'grid-2' && 'grid-cols-2 lg:grid-cols-3',
+                    viewMode === 'grid-1' && 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
+                    viewMode === 'list' && 'grid-cols-1'
+                  )}
+                >
+                  {paginatedProducts.map((product) => (
+                    viewMode === 'list' ? (
+                      <ProductListItem 
+                        key={product.id} 
+                        product={product}
+                        onQuickView={() => {}}
+                      />
+                    ) : (
+                      <ProductCard 
+                        key={product.id} 
+                        product={product} 
+                        selectedFilterColor={filters.colors.length === 1 ? filters.colors[0] : null}
+                      />
+                    )
+                  ))}
+                </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-[#E5E5E5]">
+                    <p className="text-sm text-gray-500">
+                      Mostrando{' '}
+                      <span className="font-medium text-[#111111]">
+                        {(currentPage - 1) * itemsPerPage + 1}
+                      </span>{' '}
+                      -{' '}
+                      <span className="font-medium text-[#111111]">
+                        {Math.min(currentPage * itemsPerPage, filteredProducts.length)}
+                      </span>{' '}
+                      de{' '}
+                      <span className="font-medium text-[#111111]">{filteredProducts.length}</span>{' '}
+                      productos
+                    </p>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className={cn(
+                          'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                          currentPage === 1
+                            ? 'text-gray-300 cursor-not-allowed'
+                            : 'text-[#111111] hover:bg-[#F5F5F7]'
+                        )}
+                      >
+                        <ChevronLeft className="w-4 h-4" strokeWidth={1.5} />
+                        <span className="hidden sm:inline">Anterior</span>
+                      </button>
+
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          let pageNum: number;
+                          if (totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (currentPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (currentPage >= totalPages - 2) {
+                            pageNum = totalPages - 4 + i;
+                          } else {
+                            pageNum = currentPage - 2 + i;
+                          }
+
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => handlePageChange(pageNum)}
+                              className={cn(
+                                'w-9 h-9 rounded-lg text-sm font-medium transition-colors',
+                                currentPage === pageNum
+                                  ? 'bg-[#111111] text-white'
+                                  : 'text-[#111111] hover:bg-[#F5F5F7]'
+                              )}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <button
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className={cn(
+                          'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                          currentPage === totalPages
+                            ? 'text-gray-300 cursor-not-allowed'
+                            : 'text-[#111111] hover:bg-[#F5F5F7]'
+                        )}
+                      >
+                        <span className="hidden sm:inline">Siguiente</span>
+                        <ChevronRight className="w-4 h-4" strokeWidth={1.5} />
+                      </button>
+                    </div>
+                  </div>
                 )}
-              >
-                {filteredProducts.map((product) => (
-                  <ProductCard 
-                    key={product.id} 
-                    product={product} 
-                    selectedFilterColor={filters.colors.length === 1 ? filters.colors[0] : null}
-                  />
-                ))}
-              </div>
+              </>
             ) : (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <Search className="w-16 h-16 text-gray-300 mb-4" strokeWidth={1.5} />
