@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { CartProvider } from '@/context/CartContext';
+import { NotificationProvider } from '@/context/NotificationContext';
 import '@/index.css';
 
 export const metadata: Metadata = {
@@ -16,9 +17,11 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body>
-        <CartProvider>
-          {children}
-        </CartProvider>
+        <NotificationProvider>
+          <CartProvider>
+            {children}
+          </CartProvider>
+        </NotificationProvider>
       </body>
     </html>
   );
