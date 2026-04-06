@@ -24,6 +24,31 @@ export const BRANDS = ['FIGS', 'Cherokee', 'Grey\'s Anatomy', 'WonderWink', 'Koi
 // Categories
 export const CATEGORIES = ['Camisas', 'Pantalones', 'Chaquetas', 'Conjuntos', 'Accesorios'];
 
+// Map product IDs to actual image numbers in /public/images/
+const PRODUCT_IMAGE_NUM: Record<string, number> = {
+  'figs-casma': 1,
+  'figs-yola': 2,
+  'cherokee-workwear': 3,
+  'greys-anatomy-lexie': 4,
+  'wonderwink-four-stretch': 5,
+  'koi-lindsey': 6,
+  'dickies-eds': 7,
+  'figs-catarina': 8,
+};
+
+// Map (productNum, colorId) to actual image file color name
+// Falls back to navy if no specific image exists for that color
+const PRODUCT_COLOR_IMAGES: Record<number, Record<string, string>> = {
+  1: { navy: 'navy', black: 'black', ceil: 'ciel', burgundy: 'wine' },
+  2: { navy: 'navy', black: 'black', wine: 'navy' },
+  3: { navy: 'navy', black: 'black', white: 'salt', ceil: 'teal' },
+  4: { navy: 'navy', black: 'black', teal: 'navy' },
+  5: { navy: 'navy', black: 'black', wine: 'ciel', burgundy: 'coral' },
+  6: { navy: 'navy', black: 'black', ceil: 'ciel' },
+  7: { navy: 'navy', black: 'black', white: 'pewter' },
+  8: { navy: 'navy', black: 'black', burgundy: 'navy', royal: 'navy' },
+};
+
 // Generate variants for a product
 function generateVariants(
   productId: string,
@@ -32,25 +57,30 @@ function generateVariants(
   fits?: Fit[]
 ): ProductVariant[] {
   const variants: ProductVariant[] = [];
-  
+  const imgNum = PRODUCT_IMAGE_NUM[productId] || 1;
+  let statusIdx = 0;
+  const statuses: ('AVAILABLE' | 'BACKORDER' | 'OUT_OF_STOCK')[] = ['AVAILABLE', 'AVAILABLE', 'AVAILABLE', 'BACKORDER', 'OUT_OF_STOCK'];
+
   colorIds.forEach((colorId) => {
+    const productColors = PRODUCT_COLOR_IMAGES[imgNum] || {};
+    const colorFile = productColors[colorId] || 'navy';
     sizes.forEach((size) => {
       const sku = `${productId}-${colorId.toUpperCase()}-${size}`;
-      const statuses: ('AVAILABLE' | 'BACKORDER' | 'OUT_OF_STOCK')[] = ['AVAILABLE', 'AVAILABLE', 'AVAILABLE', 'BACKORDER', 'OUT_OF_STOCK'];
-      const status = statuses[Math.floor(Math.random() * statuses.length)];
-      
+      const status = statuses[statusIdx % statuses.length];
+      statusIdx++;
+
       variants.push({
         id: `${productId}-${colorId}-${size}`,
         sku,
         colorId,
         size,
         fit: fits?.[0],
-        images: [`/images/products/${productId}_${colorId}_1.jpg`, `/images/products/${productId}_${colorId}_2.jpg`],
+        images: [`/images/product-${imgNum}-${colorFile}-1.jpg`],
         status,
       });
     });
   });
-  
+
   return variants;
 }
 
