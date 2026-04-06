@@ -30,7 +30,7 @@ export function configureDebug(options: Partial<DebugOptions>) {
 /**
  * Log component render with performance metrics
  */
-export function debugRender(componentName: string, props?: any) {
+export function debugRender(componentName: string, props?: Record<string, unknown>) {
   if (!debugConfig.logRenders) return;
 
   console.group(`%c⚛️ ${componentName}`, 'color: #61dafb; font-weight: bold');
@@ -43,7 +43,7 @@ export function debugRender(componentName: string, props?: any) {
 /**
  * Log state changes
  */
-export function debugState(stateName: string, oldValue: any, newValue: any) {
+export function debugState(stateName: string, oldValue: unknown, newValue: unknown) {
   if (!debugConfig.logState) return;
 
   console.group(`%c📊 State: ${stateName}`, 'color: #fbbf24; font-weight: bold');
@@ -56,7 +56,7 @@ export function debugState(stateName: string, oldValue: any, newValue: any) {
 /**
  * Log network requests
  */
-export function debugNetwork(method: string, url: string, data?: any) {
+export function debugNetwork(method: string, url: string, data?: Record<string, unknown>) {
   if (!debugConfig.logNetwork) return;
 
   const time = new Date().toISOString();
@@ -105,9 +105,9 @@ export async function measurePerformanceAsync<T>(
 /**
  * Inspect object structure
  */
-export function inspectObject(name: string, obj: any, depth: number = 2) {
+export function inspectObject(name: string, obj: unknown, depth: number = 2) {
   console.group(`%c🔍 Inspecting ${name}`, 'color: #8b5cf6; font-weight: bold');
-  const inspect = (o: any, d: number): any => {
+  const inspect = (o: unknown, d: number): unknown => {
     if (d <= 0 || o === null) return o;
     if (typeof o !== 'object') return o;
 
@@ -115,10 +115,10 @@ export function inspectObject(name: string, obj: any, depth: number = 2) {
       return o.map(item => inspect(item, d - 1));
     }
 
-    const result: any = {};
+    const result: Record<string, unknown> = {};
     for (const key in o) {
       if (Object.prototype.hasOwnProperty.call(o, key)) {
-        result[key] = inspect(o[key], d - 1);
+        result[key] = inspect((o as Record<string, unknown>)[key], d - 1);
       }
     }
     return result;
@@ -149,8 +149,8 @@ export function debugLog(message: string, data?: any) {
  */
 export function getDebugLogs(): string {
   try {
-    const logs = JSON.parse(localStorage.getItem('debug-logs') || '[]');
-    return logs.map((log: any) => `${log.message}\n${JSON.stringify(log.data)}`).join('\n\n');
+    const logs = JSON.parse(localStorage.getItem('debug-logs') || '[]') as Array<{message: string; data: unknown}>;
+    return logs.map((log) => `${log.message}\n${JSON.stringify(log.data)}`).join('\n\n');
   } catch {
     return 'No debug logs available';
   }
@@ -182,8 +182,8 @@ export function exportDebugLogs() {
 }
 
 // Global debug helper
-if (isDev) {
-  (window as any).__DEBUG__ = {
+if (isDev && typeof window !== 'undefined') {
+  (window as unknown as Record<string, unknown>).__DEBUG__ = {
     config: debugConfig,
     configure: configureDebug,
     render: debugRender,

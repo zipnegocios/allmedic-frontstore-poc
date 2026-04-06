@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronRight, Check, Plus, Minus, ShoppingBag, Info, X, Clock } from 'lucide-react';
@@ -103,25 +103,16 @@ export function Product({ slug: slugProp }: { slug?: string } = {}) {
 
   const product = slug ? getProductBySlug(slug) : undefined;
 
-  // State
-  const [selectedColor, setSelectedColor] = useState<ProductColor | undefined>();
-  const [selectedSize, setSelectedSize] = useState<Size | undefined>();
-  const [selectedFit, setSelectedFit] = useState<Fit | undefined>();
+  // State with initializers
+  const [selectedColor, setSelectedColor] = useState<ProductColor | undefined>(() => product?.colors[0]);
+  const [selectedSize, setSelectedSize] = useState<Size | undefined>(() => {
+    if (!product) return undefined;
+    const firstColorVariants = product.variants.filter(v => v.colorId === product.colors[0]?.id);
+    return firstColorVariants.find(v => v.status !== 'OUT_OF_STOCK')?.size;
+  });
+  const [selectedFit, setSelectedFit] = useState<Fit | undefined>(() => product?.availableFits?.[0]);
   const [quantity, setQuantity] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
-
-  // Initialize selections
-  useEffect(() => {
-    if (product) {
-      setSelectedColor(product.colors[0]);
-      // Auto-select first available size for the first color
-      const firstColorVariants = product.variants.filter(v => v.colorId === product.colors[0]?.id);
-      const firstAvailableSize = firstColorVariants.find(v => v.status !== 'OUT_OF_STOCK')?.size;
-      setSelectedSize(firstAvailableSize);
-      setSelectedFit(product.availableFits?.[0]);
-      setQuantity(1);
-    }
-  }, [product]);
 
   if (!product) {
     return (

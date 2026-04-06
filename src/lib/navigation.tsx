@@ -17,7 +17,7 @@ export function Link({
   href?: string;
   children: React.ReactNode;
   className?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }) {
   const finalHref = to || href || '#';
   return (
