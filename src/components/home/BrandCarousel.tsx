@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { BRANDS } from '@/lib/dummy-data';
+import { BRANDS as DEFAULT_BRANDS } from '@/lib/dummy-data';
 import { cn } from '@/lib/utils';
 
 // Featured brands with descriptions
@@ -25,7 +25,8 @@ const BRAND_INFO: Record<string, { description: string; featured: boolean }> = {
   'Mandala': { description: 'Arte y espiritualidad', featured: false },
 };
 
-export function BrandCarousel() {
+export function BrandCarousel({ brands: brandsProp }: { brands?: string[] } = {}) {
+  const BRANDS = brandsProp || DEFAULT_BRANDS;
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [isDragging, setIsDragging] = useState(false);

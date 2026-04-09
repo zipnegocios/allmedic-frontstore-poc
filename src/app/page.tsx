@@ -1,24 +1,19 @@
-'use client';
-
-import { useEffect, useState } from 'react';
 import { Footer } from '@/components/layout/Footer';
 import { Home } from '@/legacy-pages/Home';
+import { getFeaturedProducts, getHeroSlides } from '@/lib/data-service';
+import { getStores } from '@/lib/data-service';
 
-export default function HomePage() {
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    setIsReady(true);
-  }, []);
-
-  if (!isReady) {
-    return null;
-  }
+export default async function HomePage() {
+  const [featuredProducts, heroSlides, stores] = await Promise.all([
+    getFeaturedProducts(),
+    getHeroSlides(),
+    getStores(),
+  ]);
 
   return (
     <div className="min-h-screen bg-white">
-      <Home />
-      <Footer />
+      <Home heroSlides={heroSlides} featuredProducts={featuredProducts} />
+      <Footer stores={stores} />
     </div>
   );
 }

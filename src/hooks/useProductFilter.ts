@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { PRODUCTS } from '@/lib/dummy-data';
-import type { CatalogFilters } from '@/lib/types';
+import { PRODUCTS as DEFAULT_PRODUCTS } from '@/lib/dummy-data';
+import type { CatalogFilters, Product } from '@/lib/types';
 
 export interface FilterOptions {
   categories: string[];
@@ -14,7 +14,8 @@ export interface FilterOptions {
 
 export interface FilterState extends CatalogFilters {}
 
-export function useProductFilter(itemsPerPage: number = 12) {
+export function useProductFilter(itemsPerPage: number = 12, products?: Product[]) {
+  const PRODUCTS = products || DEFAULT_PRODUCTS;
   const [filters, setFilters] = useState<CatalogFilters>({
     gender: null,
     categories: [],
@@ -55,7 +56,7 @@ export function useProductFilter(itemsPerPage: number = 12) {
       collections: [],
       styles: [],
     };
-  }, []);
+  }, [PRODUCTS]);
 
   // Filter products
   const filteredProducts = useMemo(() => {
@@ -84,7 +85,7 @@ export function useProductFilter(itemsPerPage: number = 12) {
       }
       return true;
     });
-  }, [filters]);
+  }, [PRODUCTS, filters]);
 
   // Handle loading state effect
   useEffect(() => {

@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { X, SlidersHorizontal } from 'lucide-react';
-import type { CatalogFilters, Gender, Category, Size, Fit } from '@/lib/types';
-import { AVAILABLE_COLORS, BRANDS } from '@/lib/dummy-data';
+import type { CatalogFilters, Gender, Category, Size, Fit, ProductColor } from '@/lib/types';
+import { AVAILABLE_COLORS as DEFAULT_COLORS, BRANDS as DEFAULT_BRANDS } from '@/lib/dummy-data';
 import { ColorSwatch } from './ColorSwatch';
 import { cn } from '@/lib/utils';
 
@@ -12,6 +12,8 @@ interface FilterSidebarProps {
   onFilterChange: (filters: CatalogFilters) => void;
   isOpen: boolean;
   onClose: () => void;
+  brandNames?: string[];
+  availableColors?: ProductColor[];
 }
 
 const categories: Category[] = ['Camisas', 'Pantalones', 'Chaquetas', 'Batas', 'Accesorios'];
@@ -23,7 +25,11 @@ export function FilterSidebar({
   onFilterChange,
   isOpen,
   onClose,
+  brandNames,
+  availableColors,
 }: FilterSidebarProps) {
+  const BRANDS = brandNames || DEFAULT_BRANDS;
+  const AVAILABLE_COLORS = availableColors || DEFAULT_COLORS;
   const [localFilters, setLocalFilters] = useState<CatalogFilters>(filters);
 
   useEffect(() => {

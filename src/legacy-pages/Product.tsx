@@ -1,10 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronRight, Check, Plus, Minus, ShoppingBag, Info, X, Clock } from 'lucide-react';
-import { getProductBySlug, PRODUCTS } from '@/lib/dummy-data';
 import { useCart } from '@/context/CartContext';
 import { useNotificationContext } from '@/context/NotificationContext';
 import { ImageGallery } from '@/components/product/ImageGallery';
@@ -13,7 +11,7 @@ import { CountdownTimer } from '@/components/product/CountdownTimer';
 import { VolumeDiscountTable } from '@/components/product/VolumeDiscountTable';
 import { VariantSelector } from '@/components/product/VariantSelector';
 import { CrossSellCard } from '@/components/product/CrossSellCard';
-import type { ProductColor, Size, Fit, VariantStatus } from '@/lib/types';
+import type { Product as ProductType, ProductColor, Size, Fit, VariantStatus } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 // Accordion Component
@@ -95,13 +93,9 @@ function AvailabilityStatus({ status }: { status: VariantStatus | undefined }) {
   );
 }
 
-export function Product({ slug: slugProp }: { slug?: string } = {}) {
-  const routerParams = useParams();
-  const slug = slugProp || (routerParams?.slug as string);
+export function Product({ product, complementaryProduct: complementaryProductProp }: { product?: ProductType; complementaryProduct?: ProductType }) {
   const { addItem } = useCart();
   const { showSuccess, showError, showWarning } = useNotificationContext();
-
-  const product = slug ? getProductBySlug(slug) : undefined;
 
   // State with initializers
   const [selectedColor, setSelectedColor] = useState<ProductColor | undefined>(() => product?.colors[0]);
@@ -149,9 +143,7 @@ export function Product({ slug: slugProp }: { slug?: string } = {}) {
   const images = colorVariant?.images || ['/images/placeholder-product.jpg'];
 
   // Get complementary product
-  const complementaryProduct = product.complementaryProduct
-    ? PRODUCTS.find((p) => p.id === product.complementaryProduct)
-    : undefined;
+  const complementaryProduct = complementaryProductProp;
 
   const handleAddToCart = () => {
     if (!selectedColor) {

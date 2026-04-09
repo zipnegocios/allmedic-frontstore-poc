@@ -3,10 +3,12 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, MapPin, Instagram, Facebook } from 'lucide-react';
-import { STORES } from '@/lib/dummy-data';
+import { STORES as DEFAULT_STORES } from '@/lib/dummy-data';
 import { cn } from '@/lib/utils';
+import type { Store } from '@/lib/types';
 
-export function Footer() {
+export function Footer({ stores }: { stores?: Store[] }) {
+  const STORES = stores || DEFAULT_STORES;
   const [expandedStore, setExpandedStore] = useState<string | null>(null);
 
   return (

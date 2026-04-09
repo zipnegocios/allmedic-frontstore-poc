@@ -5,13 +5,16 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { Search, ShoppingBag, X, ChevronRight, Menu, MapPin, Tag, Home, Grid3X3 } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
-import { searchProducts } from '@/lib/dummy-data';
+import { searchProducts as defaultSearchProducts } from '@/lib/dummy-data';
 import { MegaMenu } from './MegaMenu';
-import type { Product } from '@/lib/types';
+import type { Product, Store } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 interface HeaderProps {
   onCartClick: () => void;
+  products?: Product[];
+  brands?: string[];
+  stores?: Store[];
 }
 
 const navLinks = [
@@ -21,7 +24,7 @@ const navLinks = [
   { label: 'Tiendas', href: '/sucursales', icon: MapPin },
 ];
 
-export function Header({ onCartClick }: HeaderProps) {
+export function Header({ onCartClick, products, brands, stores }: HeaderProps) {
   const { totalItems } = useCart();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -56,7 +59,18 @@ export function Header({ onCartClick }: HeaderProps) {
 
     if (searchQuery.length >= 2) {
       searchDebounceRef.current = setTimeout(() => {
-        const results = searchProducts(searchQuery);
+        let results: Product[];
+        if (products) {
+          const q = searchQuery.toLowerCase();
+          results = products.filter(p =>
+            p.name.toLowerCase().includes(q) ||
+            p.brand.toLowerCase().includes(q) ||
+            p.category.toLowerCase().includes(q) ||
+            p.colors.some(c => c.name.toLowerCase().includes(q))
+          );
+        } else {
+          results = defaultSearchProducts(searchQuery);
+        }
         setSearchResults(results.slice(0, 6));
       }, 200);
     } else {
@@ -92,8 +106,8 @@ export function Header({ onCartClick }: HeaderProps) {
       <header
         className={cn(
           'fixed top-0 left-0 right-0 z-50 transition-all duration-300',
-          isScrolled 
-            ? 'bg-white/95 backdrop-blur-md shadow-sm' 
+          isScrolled
+            ? 'bg-white/95 backdrop-blur-md shadow-sm'
             : 'bg-white'
         )}
       >
@@ -135,7 +149,7 @@ export function Header({ onCartClick }: HeaderProps) {
                 <Grid3X3 className="w-4 h-4" strokeWidth={1.5} />
                 Explorar
               </button>
-              
+
               {navLinks.map((link) => (
                 <Link
                   key={link.href}
@@ -189,9 +203,9 @@ export function Header({ onCartClick }: HeaderProps) {
         )}
       >
         {/* Backdrop */}
-        <div 
-          className="absolute inset-0 bg-black/50 backdrop-blur-sm" 
-          onClick={() => setIsMobileMenuOpen(false)} 
+        <div
+          className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+          onClick={() => setIsMobileMenuOpen(false)}
         />
 
         {/* Menu Panel */}
@@ -249,7 +263,7 @@ export function Header({ onCartClick }: HeaderProps) {
           {/* Menu Footer */}
           <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-[#E5E5E5] bg-white">
             <a
-              href="https://wa.me/593999999999"
+              href="https://wa.me/13164695701"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-2 w-full py-3 bg-[#25D366] text-white font-medium rounded-xl"
@@ -390,9 +404,12 @@ export function Header({ onCartClick }: HeaderProps) {
       </div>
 
       {/* MegaMenu */}
-      <MegaMenu 
-        isOpen={isMegaMenuOpen} 
-        onClose={() => setIsMegaMenuOpen(false)} 
+      <MegaMenu
+        isOpen={isMegaMenuOpen}
+        onClose={() => setIsMegaMenuOpen(false)}
+        products={products}
+        brands={brands}
+        stores={stores}
       />
     </>
   );

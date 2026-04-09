@@ -11,7 +11,7 @@ import { LayoutSwitcher } from '@/components/catalog/LayoutSwitcher';
 import { Loader2, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export function FilterableProductSection() {
+export function FilterableProductSection({ products }: { products?: import('@/lib/types').Product[] } = {}) {
   // Default to 4 columns on desktop, 1 column on mobile (handled by responsive classes)
   const [viewMode, setViewMode] = useState<ViewMode>('grid-4');
   const [itemsPerPage, setItemsPerPage] = useState<number>(12);
@@ -30,7 +30,7 @@ export function FilterableProductSection() {
     applyFilters,
     resetFilters,
     goToPage,
-  } = useProductFilter(itemsPerPage);
+  } = useProductFilter(itemsPerPage, products);
 
   // Apply dynamic grid search filter
   const paginatedProducts = gridSearchQuery 

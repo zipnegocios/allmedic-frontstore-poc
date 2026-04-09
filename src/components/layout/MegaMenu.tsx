@@ -1,27 +1,29 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, MapPin, Tag, Package, Store, X } from 'lucide-react';
-import { PRODUCTS, BRANDS, STORES } from '@/lib/dummy-data';
+import { PRODUCTS as DEFAULT_PRODUCTS, BRANDS as DEFAULT_BRANDS, STORES as DEFAULT_STORES } from '@/lib/dummy-data';
+import type { Product, Store as StoreType } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 interface MegaMenuProps {
   isOpen: boolean;
   onClose: () => void;
+  products?: Product[];
+  brands?: string[];
+  stores?: StoreType[];
 }
 
-// Get featured products (best sellers)
-const getFeaturedProducts = () => PRODUCTS.filter(p => p.isBestSeller).slice(0, 6);
+export function MegaMenu({ isOpen, onClose, products: productsProp, brands: brandsProp, stores: storesProp }: MegaMenuProps) {
+  const PRODUCTS = productsProp || DEFAULT_PRODUCTS;
+  const BRANDS = brandsProp || DEFAULT_BRANDS;
+  const STORES = storesProp || DEFAULT_STORES;
 
-// Get new arrivals
-const getNewArrivals = () => PRODUCTS.filter(p => p.isNew).slice(0, 6);
-
-// Get products by category
-const getProductsByCategory = (category: string) => 
-  PRODUCTS.filter(p => p.category === category).slice(0, 6);
-
-export function MegaMenu({ isOpen, onClose }: MegaMenuProps) {
+  // Get featured products (best sellers)
+  const getFeaturedProducts = () => PRODUCTS.filter(p => p.isBestSeller).slice(0, 6);
+  const getNewArrivals = () => PRODUCTS.filter(p => p.isNew).slice(0, 6);
+  const getProductsByCategory = (category: string) => PRODUCTS.filter(p => p.category === category).slice(0, 6);
   const [activeTab, setActiveTab] = useState<'products' | 'brands' | 'stores'>('products');
   const [currentIndex, setCurrentIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
