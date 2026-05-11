@@ -25,18 +25,10 @@ RUN npm ci --ignore-scripts
 # Copiar código fuente
 COPY . .
 
-# Variables de entorno necesarias para el build
-# Estas se sobreescriben en runtime, pero Next.js las necesita en build time
-# si se usan en páginas estáticas o en el config
-ARG DATABASE_URL
-ARG AUTH_SECRET
+# Variables de entorno públicas necesarias en build time
+# NEXT_PUBLIC_* se inyectan en el bundle del cliente
 ARG NEXT_PUBLIC_WHATSAPP_NUMBER
-ARG AUTH_TRUST_HOST=true
-
-ENV DATABASE_URL=${DATABASE_URL}
-ENV AUTH_SECRET=${AUTH_SECRET}
 ENV NEXT_PUBLIC_WHATSAPP_NUMBER=${NEXT_PUBLIC_WHATSAPP_NUMBER}
-ENV AUTH_TRUST_HOST=${AUTH_TRUST_HOST}
 ENV NODE_ENV=production
 
 # Construir la aplicación

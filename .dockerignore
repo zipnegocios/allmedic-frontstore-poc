@@ -15,11 +15,12 @@ yarn-error.log*
 dist
 out
 
-# Environment (se inyectan en runtime)
+# Environment (se inyectan en runtime via EasyPanel, NO en la imagen)
 .env
 .env.local
 .env.*.local
 .env.easypanel
+.env.easypanel.example
 
 # IDE / Editor
 .vscode
