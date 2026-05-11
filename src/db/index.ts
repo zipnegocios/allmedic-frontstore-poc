@@ -3,11 +3,9 @@ import { Pool } from "pg";
 import * as schema from "./schema";
 
 function getDatabaseUrl(): string {
-  // Primero intentar DATABASE_URL (PostgreSQL)
   if (process.env.DATABASE_URL?.startsWith('postgresql://') || process.env.DATABASE_URL?.startsWith('postgres://')) {
     return process.env.DATABASE_URL;
   }
-  // Fallback: construir desde variables individuales (compatibilidad con config anterior)
   const user = process.env.DB_USER;
   const password = process.env.DB_PASSWORD;
   const host = process.env.DB_HOST;
@@ -23,7 +21,32 @@ function getDatabaseUrl(): string {
   return `postgresql://${user}:${encodeURIComponent(password)}@${host}:${port}/${database}`;
 }
 
-const pool = new Pool({ connectionString: getDatabaseUrl() });
+// ── Lazy initialization: no creamos el Pool hasta que se use ──
+// Esto evita que el build falle cuando no hay variables de entorno disponibles.
+let _pool: Pool | null = null;
+let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 
-export const db = drizzle(pool, { schema });
+function getPool(): Pool {
+  if (!_pool) {
+    _pool = new Pool({ connectionString: getDatabaseUrl() });
+  }
+  return _pool;
+}
+
+function getDb() {
+  if (!_db) {
+    _db = drizzle(getPool(), { schema });
+  }
+  return _db;
+}
+
+// Exportamos un proxy que crea el pool/db bajo demanda la primera vez
+// que se accede a cualquier propiedad. Esto mantiene la API existente
+// (db.select, db.insert, etc.) sin cambios en el resto del código.
+export const db = new Proxy({} as ReturnType<typeof drizzle<typeof schema>>, {
+  get(_target, prop) {
+    return getDb()[prop as keyof typeof _db];
+  },
+}) as ReturnType<typeof drizzle<typeof schema>>;
+
 export type DB = typeof db;
