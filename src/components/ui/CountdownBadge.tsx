@@ -40,10 +40,14 @@ function formatNumber(num: number) {
 
 export function CountdownBadge({ endDate, size = 'sm', variant = 'urgent' }: CountdownBadgeProps) {
   const dateObj = typeof endDate === 'string' ? new Date(endDate) : endDate;
-  const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(calculateTimeLeft(dateObj));
+  const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(null);
   const [isPulsing, setIsPulsing] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
+    setIsMounted(true);
+    setTimeLeft(calculateTimeLeft(dateObj));
+
     const timer = setInterval(() => {
       const remaining = calculateTimeLeft(dateObj);
       setTimeLeft(remaining);
@@ -57,7 +61,7 @@ export function CountdownBadge({ endDate, size = 'sm', variant = 'urgent' }: Cou
     return () => clearInterval(timer);
   }, [dateObj]);
 
-  if (!timeLeft) return null;
+  if (!isMounted || !timeLeft) return null;
 
   const isCritical = timeLeft.total < 60 * 60 * 1000;
 

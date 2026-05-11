@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, MapPin, Tag, Package, Store, X } from 'lucide-react';
 import { PRODUCTS as DEFAULT_PRODUCTS, BRANDS as DEFAULT_BRANDS, STORES as DEFAULT_STORES } from '@/lib/dummy-data';
