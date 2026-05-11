@@ -41,7 +41,8 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
       setError(null);
       setShowSuccessState(false);
     }
-  }, [product]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product?.id]);
 
   if (!product) return null;
 

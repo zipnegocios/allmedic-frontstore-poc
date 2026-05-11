@@ -2,7 +2,7 @@ import { pgTable, text, integer, boolean, decimal, timestamp, jsonb, index } fro
 
 // ─── Stores ───
 export const stores = pgTable("stores", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   name: text("name").notNull(),
   address: text("address").notNull(),
   phone: text("phone"),
@@ -16,7 +16,7 @@ export const stores = pgTable("stores", {
 
 // ─── Leads ───
 export const leads = pgTable("leads", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   customerName: text("customer_name").notNull(),
   customerCity: text("customer_city").notNull(),
   customerPhone: text("customer_phone"),
@@ -32,7 +32,7 @@ export const leads = pgTable("leads", {
 
 // ─── Banners ───
 export const banners = pgTable("banners", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   title: text("title").notNull(),
   subtitle: text("subtitle"),
   imageDesktop: text("image_desktop").notNull(),
@@ -45,7 +45,7 @@ export const banners = pgTable("banners", {
 
 // ─── Search Logs ───
 export const searchLogs = pgTable("search_logs", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   query: text("query").notNull(),
   results: integer("results").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
@@ -53,7 +53,7 @@ export const searchLogs = pgTable("search_logs", {
 
 // ─── WhatsApp Clicks ───
 export const whatsappClicks = pgTable("whatsapp_clicks", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   productId: text("product_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });

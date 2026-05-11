@@ -3,7 +3,7 @@ import { relations } from "drizzle-orm";
 
 // ─── Brands ───
 export const brands = pgTable("brands", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   name: text("name").notNull().unique(),
   slug: text("slug").notNull().unique(),
   description: text("description"),
@@ -19,7 +19,7 @@ export const brandsRelations = relations(brands, ({ many }) => ({
 
 // ─── Collections ───
 export const collections = pgTable("collections", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   brandId: text("brand_id").notNull().references(() => brands.id),
@@ -32,7 +32,7 @@ export const collectionsRelations = relations(collections, ({ one, many }) => ({
 
 // ─── Colors ───
 export const colors = pgTable("colors", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   name: text("name").notNull().unique(),
   code: text("code").notNull().unique(),
   hex: text("hex").notNull(),
@@ -44,7 +44,7 @@ export const colorsRelations = relations(colors, ({ many }) => ({
 
 // ─── Products ───
 export const products = pgTable("products", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
   description: text("description"),
@@ -83,7 +83,7 @@ export const productsRelations = relations(products, ({ one, many }) => ({
 
 // ─── Product Variants ───
 export const productVariants = pgTable("product_variants", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   productId: text("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
   colorId: text("color_id").notNull().references(() => colors.id),
   size: text("size").notNull(),
@@ -104,7 +104,7 @@ export const productVariantsRelations = relations(productVariants, ({ one }) => 
 
 // ─── Product Images ───
 export const productImages = pgTable("product_images", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   productId: text("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
   colorId: text("color_id"),
   url: text("url").notNull(),

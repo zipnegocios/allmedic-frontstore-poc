@@ -44,8 +44,10 @@ export function BrandCarousel({ brands: brandsProp }: { brands?: string[] } = {}
   };
 
   const [itemsPerView, setItemsPerView] = useState(5);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
+    setIsMounted(true);
     const handleResize = () => setItemsPerView(getItemsPerView());
     handleResize();
     window.addEventListener('resize', handleResize);
@@ -56,15 +58,20 @@ export function BrandCarousel({ brands: brandsProp }: { brands?: string[] } = {}
 
   // Auto-play
   useEffect(() => {
-    if (!isPaused && !isDragging) {
-      autoPlayRef.current = setInterval(() => {
-        setCurrentIndex(prev => (prev >= maxIndex ? 0 : prev + 1));
-      }, 3000);
-    }
+    if (!isMounted || isPaused || isDragging) return;
+    autoPlayRef.current = setInterval(() => {
+      setCurrentIndex(prev => {
+        const next = prev >= maxIndex ? 0 : prev + 1;
+        return next;
+      });
+    }, 3000);
     return () => {
-      if (autoPlayRef.current) clearInterval(autoPlayRef.current);
+      if (autoPlayRef.current) {
+        clearInterval(autoPlayRef.current);
+        autoPlayRef.current = null;
+      }
     };
-  }, [isPaused, isDragging, maxIndex]);
+  }, [isMounted, isPaused, isDragging, maxIndex]);
 
   const goToPrev = useCallback(() => {
     setCurrentIndex(prev => (prev <= 0 ? maxIndex : prev - 1));

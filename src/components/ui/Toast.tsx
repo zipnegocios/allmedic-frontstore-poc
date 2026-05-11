@@ -52,7 +52,8 @@ export function Toast({ message, type = 'info', duration = 3000, onClose, isVisi
       clearInterval(progressInterval);
       clearTimeout(closeTimeout);
     };
-  }, [isVisible, duration, onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isVisible]);
 
   if (!isVisible) return null;
 

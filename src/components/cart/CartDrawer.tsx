@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, ShoppingBag, TrendingUp, MessageCircle } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 import { CartItemComponent } from './CartItem';
@@ -11,6 +11,12 @@ import { cn } from '@/lib/utils';
 interface CartDrawerProps {
   isOpen: boolean;
   onClose: () => void;
+}
+
+function ClientOnly({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  return mounted ? <>{children}</> : <span>0</span>;
 }
 
 export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
@@ -81,7 +87,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#E5E5E5]">
           <div className="flex items-center gap-2">
             <ShoppingBag className="w-5 h-5" strokeWidth={1.5} />
-            <h2 className="text-lg font-semibold">Mi Pedido ({totalItems})</h2>
+            <h2 className="text-lg font-semibold">Mi Pedido (<ClientOnly>{totalItems}</ClientOnly>)</h2>
           </div>
           <button
             onClick={onClose}

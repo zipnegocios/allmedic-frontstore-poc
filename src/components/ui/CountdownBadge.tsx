@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Flame, Timer, Zap } from 'lucide-react';
 
@@ -19,7 +19,7 @@ interface TimeLeft {
 }
 
 function calculateTimeLeft(endDate: Date): TimeLeft | null {
-  const difference = new Date(endDate).getTime() - new Date().getTime();
+  const difference = new Date(endDate).getTime() - Date.now();
 
   if (difference <= 0) {
     return null;
@@ -39,7 +39,7 @@ function formatNumber(num: number) {
 }
 
 export function CountdownBadge({ endDate, size = 'sm', variant = 'urgent' }: CountdownBadgeProps) {
-  const dateObj = typeof endDate === 'string' ? new Date(endDate) : endDate;
+  const dateObjRef = useRef(typeof endDate === 'string' ? new Date(endDate) : endDate);
   const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(null);
   const [isPulsing, setIsPulsing] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -49,10 +49,13 @@ export function CountdownBadge({ endDate, size = 'sm', variant = 'urgent' }: Cou
   }, []);
 
   useEffect(() => {
-    setTimeLeft(calculateTimeLeft(dateObj));
+    if (!isMounted) return;
+    
+    const end = dateObjRef.current;
+    setTimeLeft(calculateTimeLeft(end));
 
     const timer = setInterval(() => {
-      const remaining = calculateTimeLeft(dateObj);
+      const remaining = calculateTimeLeft(end);
       setTimeLeft(remaining);
       
       if (remaining && remaining.total < 60 * 60 * 1000) {
@@ -62,7 +65,7 @@ export function CountdownBadge({ endDate, size = 'sm', variant = 'urgent' }: Cou
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [dateObj]);
+  }, [isMounted]);
 
   if (!isMounted || !timeLeft) return null;
 
@@ -191,17 +194,13 @@ interface TimeUnitProps {
 }
 
 function TimeUnit({ value, label, config, isCritical }: TimeUnitProps) {
-  const [isFlipping, setIsFlipping] = useState(false);
   const [displayValue, setDisplayValue] = useState(value);
+  const prevValueRef = useRef(value);
 
   useEffect(() => {
-    if (value !== displayValue) {
-      setIsFlipping(true);
-      const timeout = setTimeout(() => {
-        setDisplayValue(value);
-        setIsFlipping(false);
-      }, 150);
-      return () => clearTimeout(timeout);
+    if (value !== prevValueRef.current) {
+      prevValueRef.current = value;
+      setDisplayValue(value);
     }
   }, [value]);
 
@@ -214,7 +213,6 @@ function TimeUnit({ value, label, config, isCritical }: TimeUnitProps) {
           'flex items-center justify-center rounded',
           'bg-black/20 backdrop-blur-sm',
           'transition-all duration-150',
-          isFlipping && 'scale-y-90 opacity-70',
           isCritical && 'bg-red-900/40'
         )}
       >
