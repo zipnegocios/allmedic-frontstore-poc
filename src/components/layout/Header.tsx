@@ -28,6 +28,11 @@ export function Header({ onCartClick, products, brands, stores }: HeaderProps) {
   const { totalItems } = useCart();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMegaMenuOpen, setIsMegaMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -184,7 +189,7 @@ export function Header({ onCartClick, products, brands, stores }: HeaderProps) {
                 aria-label="Carrito"
               >
                 <ShoppingBag className="w-5 h-5" strokeWidth={1.5} />
-                {totalItems > 0 && (
+                {isMounted && totalItems > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-[#FF3B30] text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-bounce">
                     {totalItems > 99 ? '99+' : totalItems}
                   </span>

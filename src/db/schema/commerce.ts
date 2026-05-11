@@ -1,8 +1,8 @@
-import { pgTable, text, integer, boolean, decimal, timestamp, jsonb, uuid, index } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, boolean, decimal, timestamp, jsonb, index } from "drizzle-orm/pg-core";
 
 // ─── Stores ───
 export const stores = pgTable("stores", {
-  id: uuid("id").primaryKey().defaultRandom(),
+  id: text("id").primaryKey(),
   name: text("name").notNull(),
   address: text("address").notNull(),
   phone: text("phone"),
@@ -16,7 +16,7 @@ export const stores = pgTable("stores", {
 
 // ─── Leads ───
 export const leads = pgTable("leads", {
-  id: uuid("id").primaryKey().defaultRandom(),
+  id: text("id").primaryKey(),
   customerName: text("customer_name").notNull(),
   customerCity: text("customer_city").notNull(),
   customerPhone: text("customer_phone"),
@@ -32,7 +32,7 @@ export const leads = pgTable("leads", {
 
 // ─── Banners ───
 export const banners = pgTable("banners", {
-  id: uuid("id").primaryKey().defaultRandom(),
+  id: text("id").primaryKey(),
   title: text("title").notNull(),
   subtitle: text("subtitle"),
   imageDesktop: text("image_desktop").notNull(),
@@ -45,7 +45,7 @@ export const banners = pgTable("banners", {
 
 // ─── Search Logs ───
 export const searchLogs = pgTable("search_logs", {
-  id: uuid("id").primaryKey().defaultRandom(),
+  id: text("id").primaryKey(),
   query: text("query").notNull(),
   results: integer("results").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
@@ -53,7 +53,7 @@ export const searchLogs = pgTable("search_logs", {
 
 // ─── WhatsApp Clicks ───
 export const whatsappClicks = pgTable("whatsapp_clicks", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  productId: uuid("product_id"),
+  id: text("id").primaryKey(),
+  productId: text("product_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });

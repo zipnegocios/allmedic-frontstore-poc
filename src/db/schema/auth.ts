@@ -1,7 +1,7 @@
-import { pgTable, text, timestamp, uuid, primaryKey, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, primaryKey, integer } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
-  id: uuid("id").primaryKey().defaultRandom(),
+  id: text("id").primaryKey(),
   name: text("name"),
   email: text("email").notNull().unique(),
   emailVerified: timestamp("email_verified", { withTimezone: true }),
@@ -12,7 +12,7 @@ export const users = pgTable("users", {
 });
 
 export const accounts = pgTable("accounts", {
-  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   type: text("type").notNull(),
   provider: text("provider").notNull(),
   providerAccountId: text("provider_account_id").notNull(),
@@ -29,7 +29,7 @@ export const accounts = pgTable("accounts", {
 
 export const sessions = pgTable("sessions", {
   sessionToken: text("session_token").notNull().primaryKey(),
-  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   expires: timestamp("expires", { withTimezone: true }).notNull(),
 });
 

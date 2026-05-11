@@ -46,6 +46,9 @@ export function CountdownBadge({ endDate, size = 'sm', variant = 'urgent' }: Cou
 
   useEffect(() => {
     setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
     setTimeLeft(calculateTimeLeft(dateObj));
 
     const timer = setInterval(() => {
@@ -194,12 +197,13 @@ function TimeUnit({ value, label, config, isCritical }: TimeUnitProps) {
   useEffect(() => {
     if (value !== displayValue) {
       setIsFlipping(true);
-      setTimeout(() => {
+      const timeout = setTimeout(() => {
         setDisplayValue(value);
         setIsFlipping(false);
       }, 150);
+      return () => clearTimeout(timeout);
     }
-  }, [value, displayValue]);
+  }, [value]);
 
   return (
     <div className="flex flex-col items-center">
