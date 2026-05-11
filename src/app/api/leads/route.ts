@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { Prisma } from '@prisma/client';
+import { db } from '@/db';
+import { leads as leadsTable, whatsappClicks as whatsappClicksTable } from '@/db/schema';
 import { z } from 'zod';
+import { desc } from 'drizzle-orm';
 
 const CreateLeadSchema = z.object({
   customerName: z.string().min(2),
@@ -28,24 +29,18 @@ export async function POST(request: NextRequest) {
     const validatedData = CreateLeadSchema.parse(body);
 
     // Create lead in database
-    const lead = await prisma.lead.create({
-      data: {
-        customerName: validatedData.customerName,
-        customerCity: validatedData.customerCity,
-        customerPhone: validatedData.customerPhone,
-        items: validatedData.items, // Stored as JSON
-        totalItems: validatedData.totalItems,
-        subtotal: new Prisma.Decimal(validatedData.subtotal),
-        status: 'SENT',
-      },
-    });
+    const [lead] = await db.insert(leadsTable).values({
+      customerName: validatedData.customerName,
+      customerCity: validatedData.customerCity,
+      customerPhone: validatedData.customerPhone,
+      items: validatedData.items,
+      totalItems: validatedData.totalItems,
+      subtotal: validatedData.subtotal.toString(),
+      status: 'SENT',
+    }).returning();
 
     // Track WhatsApp click
-    await prisma.whatsAppClick.create({
-      data: {
-        productId: undefined, // From cart, not single product
-      },
-    });
+    await db.insert(whatsappClicksTable).values({});
 
     return NextResponse.json(
       {
@@ -78,10 +73,11 @@ export async function POST(request: NextRequest) {
 export async function GET(_request: NextRequest) {
   try {
     // TODO: Add auth check here
-    const leads = await prisma.lead.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    });
+    const leads = await db
+      .select()
+      .from(leadsTable)
+      .orderBy(desc(leadsTable.createdAt))
+      .limit(100);
 
     return NextResponse.json({ leads }, { status: 200 });
   } catch (error) {
