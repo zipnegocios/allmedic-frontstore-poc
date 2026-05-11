@@ -1,0 +1,72 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Node.js
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Next.js build outputs (se regeneran en el contenedor)
+.next
+dist
+out
+
+# Environment (se inyectan en runtime)
+.env
+.env.local
+.env.*.local
+.env.easypanel
+
+# IDE / Editor
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs
+*.log
+
+# Testing
+coverage
+.nyc_output
+
+# TypeScript
+*.tsbuildinfo
+
+# Prisma (ya no se usa)
+prisma/migrations
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Misc
+README.md
+CHANGELOG.md
+LICENSE
+.eslintrc*
+.prettierrc*
+.editorconfig
+
+# Claude / AI docs
+.claude
+.claude/docs
+.claude/skills
+*.md
+!public/**/*.md
+
+# Local DB
+*.db
+*.sqlite
+*.sqlite3
