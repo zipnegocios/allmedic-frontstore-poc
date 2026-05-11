@@ -1,297 +1,341 @@
-import { db } from './index';
-import {
-  colors as colorsTable,
-  brands as brandsTable,
-  products as productsTable,
-  productVariants as variantsTable,
-  productImages as imagesTable,
-  stores as storesTable,
-  banners as bannersTable,
-} from './schema';
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
+import * as schema from "./schema";
 
-// ── Color data ──
-const COLORS = [
-  { id: 'navy', name: 'Navy', code: 'NV', hex: '#1B365D' },
-  { id: 'black', name: 'Black', code: 'BK', hex: '#000000' },
-  { id: 'white', name: 'White', code: 'WH', hex: '#FFFFFF' },
-  { id: 'ceil', name: 'Ceil Blue', code: 'CB', hex: '#89CFF0' },
-  { id: 'wine', name: 'Wine', code: 'WN', hex: '#722F37' },
-  { id: 'teal', name: 'Teal', code: 'TL', hex: '#008080' },
-  { id: 'burgundy', name: 'Burgundy', code: 'BG', hex: '#800020' },
-  { id: 'royal', name: 'Royal Blue', code: 'RB', hex: '#4169E1' },
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+
+const db = drizzle(pool, { schema });
+
+// ── Seed data ──
+
+const brandsData = [
+  { id: 'brand-figs', name: 'FIGS', slug: 'figs', description: 'Tecnología médica de vanguardia', logoUrl: '/images/brands/figs.png', sortOrder: 1 },
+  { id: 'brand-cherokee', name: 'Cherokee', slug: 'cherokee', description: 'Tradición y calidad', logoUrl: '/images/brands/cherokee.png', sortOrder: 2 },
+  { id: 'brand-greys', name: "Grey's Anatomy", slug: 'greys-anatomy', description: 'El clásico atemporal', logoUrl: '/images/brands/greys-anatomy.png', sortOrder: 3 },
+  { id: 'brand-wonderwink', name: 'WonderWink', slug: 'wonderwink', description: 'Diseño moderno', logoUrl: '/images/brands/wonderwink.png', sortOrder: 4 },
+  { id: 'brand-koi', name: 'Koi', slug: 'koi', description: 'Diseños únicos', logoUrl: '/images/brands/koi.png', sortOrder: 5 },
+  { id: 'brand-dickies', name: 'Dickies', slug: 'dickies', description: 'Resistencia extrema', logoUrl: '/images/brands/dickies.png', sortOrder: 6 },
 ];
 
-// ── Brand data ──
-const BRANDS = [
-  { name: 'FIGS', slug: 'figs', description: 'Tecnología FIONx premium para profesionales médicos', logoUrl: '/images/brands/figs.png' },
-  { name: 'Cherokee', slug: 'cherokee', description: 'Uniformes médicos clásicos y duraderos', logoUrl: null },
-  { name: "Grey's Anatomy", slug: 'greys-anatomy', description: 'Elegancia y comodidad para el profesional de salud', logoUrl: '/images/brands/greys-anatomy.png' },
-  { name: 'WonderWink', slug: 'wonderwink', description: 'Scrubs coloridos con elasticidad superior', logoUrl: '/images/brands/wonderwink.png' },
-  { name: 'Koi', slug: 'koi', description: 'Diseño único y funcionalidad para enfermería', logoUrl: '/images/brands/koi.png' },
-  { name: 'Dickies', slug: 'dickies', description: 'Durabilidad y confiabilidad desde 1922', logoUrl: null },
-  { name: 'Skechers', slug: 'skechers', description: 'Comodidad inspirada en calzado deportivo', logoUrl: '/images/brands/skechers.png' },
-  { name: 'Healing Hands', slug: 'healing-hands', description: 'Scrubs premium con tecnología antimicrobiana', logoUrl: '/images/brands/healing-hands.png' },
-  { name: 'Infinity', slug: 'infinity', description: 'Línea premium de Cherokee con tecnología Certainty', logoUrl: '/images/brands/infinity.png' },
-  { name: 'Heartsoul', slug: 'heartsoul', description: 'Uniformes juveniles y llenos de energía', logoUrl: '/images/brands/heartsoul.png' },
-  { name: 'Med Couture', slug: 'med-couture', description: 'Alta costura médica con tejidos premium', logoUrl: '/images/brands/med-couture.png' },
-  { name: 'Landau', slug: 'landau', description: 'Uniformes médicos con herencia americana', logoUrl: '/images/brands/landau.png' },
-  { name: 'Jaanuu', slug: 'jaanuu', description: 'Scrubs modernos con diseño minimalista', logoUrl: '/images/brands/jaanuu.png' },
-  { name: 'Adar', slug: 'adar', description: 'Uniformes accesibles de alta calidad', logoUrl: '/images/brands/adar.png' },
-  { name: 'Carhartt Liberty', slug: 'carhartt-liberty', description: 'Resistencia industrial para el entorno médico', logoUrl: '/images/brands/carhartt-liberty.png' },
-  { name: 'Maevn', slug: 'maevn', description: 'Innovación en diseño y comodidad', logoUrl: '/images/brands/maevn.png' },
-  { name: 'Mandala', slug: 'mandala', description: 'Diseño ecuatoriano para profesionales de salud', logoUrl: '/images/brands/mandala.png' },
+const colorsData = [
+  { id: 'color-navy', name: 'Navy', code: 'NV', hex: '#1B365D' },
+  { id: 'color-black', name: 'Black', code: 'BK', hex: '#000000' },
+  { id: 'color-white', name: 'White', code: 'WH', hex: '#FFFFFF' },
+  { id: 'color-ceil', name: 'Ceil Blue', code: 'CB', hex: '#89CFF0' },
+  { id: 'color-wine', name: 'Wine', code: 'WN', hex: '#722F37' },
+  { id: 'color-teal', name: 'Teal', code: 'TL', hex: '#008080' },
+  { id: 'color-burgundy', name: 'Burgundy', code: 'BG', hex: '#800020' },
+  { id: 'color-royal', name: 'Royal Blue', code: 'RB', hex: '#4169E1' },
 ];
 
-// ── Gender mapping ──
-const genderMap: Record<string, string> = {
-  'Mujer': 'MUJER',
-  'Hombre': 'HOMBRE',
-  'Unisex': 'UNISEX',
-};
-
-// ── Image mapping ──
-const PRODUCT_IMAGE_NUM: Record<string, number> = {
-  'figs-casma': 1, 'figs-yola': 2, 'cherokee-workwear': 3, 'greys-anatomy-lexie': 4,
-  'wonderwink-four-stretch': 5, 'koi-lindsey': 6, 'dickies-eds': 7, 'figs-catarina': 8,
-};
-const PRODUCT_COLOR_IMAGES: Record<number, Record<string, string>> = {
-  1: { navy: 'navy', black: 'black', ceil: 'ciel', burgundy: 'wine' },
-  2: { navy: 'navy', black: 'black', wine: 'navy' },
-  3: { navy: 'navy', black: 'black', white: 'salt', ceil: 'teal' },
-  4: { navy: 'navy', black: 'black', teal: 'navy' },
-  5: { navy: 'navy', black: 'black', wine: 'ciel', burgundy: 'coral' },
-  6: { navy: 'navy', black: 'black', ceil: 'ciel' },
-  7: { navy: 'navy', black: 'black', white: 'pewter' },
-  8: { navy: 'navy', black: 'black', burgundy: 'navy', royal: 'navy' },
-};
-
-function getImageUrl(productId: string, colorId: string): string {
-  const imgNum = PRODUCT_IMAGE_NUM[productId] || 1;
-  const productColors = PRODUCT_COLOR_IMAGES[imgNum] || {};
-  const colorFile = productColors[colorId] || 'navy';
-  return `/images/product-${imgNum}-${colorFile}-1.jpg`;
-}
-
-// ── Product data ──
-const PRODUCTS = [
+const productsData = [
   {
-    id: 'figs-casma', slug: 'figs-casma-scrub-top', name: 'Casma Scrub Top',
-    brand: 'FIGS', category: 'Camisas', gender: 'Mujer',
+    id: 'prod-figs-casma',
+    slug: 'figs-casma-scrub-top',
+    name: 'Casma Scrub Top',
     description: 'El Casma Scrub Top de FIGS combina estilo y funcionalidad. Con tejido elástico de cuatro direcciones y tecnología FIONx que repele líquidos.',
+    sku: 'FIGS-CASMA',
+    brandId: 'brand-figs',
+    category: 'Camisas',
+    gender: 'MUJER',
+    priceNormal: '48.00',
+    priceSale: '38.40',
+    discountPct: 20,
+    isNew: true,
+    isBestSeller: true,
     features: ['Tejido FIONx elástico de 4 direcciones', 'Tecnología anti-microbiana', 'Bolsillos laterales profundos', 'Cuello en V moderno', 'Ajuste atlético'],
     careInstructions: ['Lavar en agua fría', 'No usar blanqueador', 'Secar a baja temperatura', 'Planchar a temperatura media'],
-    priceNormal: 48.00, priceSale: 38.40, discountPct: 20,
-    discountEnd: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-    colorIds: ['navy', 'black', 'ceil', 'burgundy'],
-    sizes: ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL'],
-    isNew: true, isBestSeller: true, complementary: 'figs-yola',
   },
   {
-    id: 'figs-yola', slug: 'figs-yola-scrub-pants', name: 'Yola Scrub Pants',
-    brand: 'FIGS', category: 'Pantalones', gender: 'Mujer',
-    description: 'Pantalones scrub Yola con cintura elástica y ajuste cómodo.',
+    id: 'prod-figs-yola',
+    slug: 'figs-yola-scrub-pants',
+    name: 'Yola Scrub Pants',
+    description: 'Pantalones scrub Yola con cintura elástica y ajuste cómodo. Perfectos para largas jornadas de trabajo.',
+    sku: 'FIGS-YOLA',
+    brandId: 'brand-figs',
+    category: 'Pantalones',
+    gender: 'MUJER',
+    priceNormal: '52.00',
+    priceSale: null,
+    discountPct: null,
+    isNew: false,
+    isBestSeller: true,
     features: ['Cintura elástica ajustable', 'Bolsillos cargo laterales', 'Tejido transpirable', 'Resistente a arrugas'],
     careInstructions: ['Lavar en ciclo suave', 'No usar suavizante', 'Secar al aire libre preferiblemente'],
-    priceNormal: 52.00, colorIds: ['navy', 'black', 'wine'],
-    sizes: ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL'],
-    isNew: false, isBestSeller: true, complementary: 'figs-casma',
   },
   {
-    id: 'cherokee-workwear', slug: 'cherokee-workwear-scrub-top', name: 'Workwear Scrub Top',
-    brand: 'Cherokee', category: 'Camisas', gender: 'Unisex',
+    id: 'prod-cherokee-workwear',
+    slug: 'cherokee-workwear-scrub-top',
+    name: 'Workwear Scrub Top',
     description: 'El clásico scrub top de Cherokee Workwear. Duradero, cómodo y asequible.',
+    sku: 'CHK-WW',
+    brandId: 'brand-cherokee',
+    category: 'Camisas',
+    gender: 'UNISEX',
+    priceNormal: '24.99',
+    priceSale: '19.99',
+    discountPct: 20,
+    isNew: false,
+    isBestSeller: true,
     features: ['Mezcla de poliéster y algodón', 'Dos bolsillos frontales', 'Cuello en V', 'Fácil cuidado'],
     careInstructions: ['Lavar a máquina', 'Secar en secadora', 'No necesita plancha'],
-    priceNormal: 24.99, priceSale: 19.99, discountPct: 20,
-    colorIds: ['navy', 'black', 'white', 'ceil'],
-    sizes: ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'],
-    isNew: false, isBestSeller: true,
   },
   {
-    id: 'greys-anatomy-lexie', slug: 'greys-anatomy-lexie-scrub-top', name: 'Lexie Scrub Top',
-    brand: "Grey's Anatomy", category: 'Camisas', gender: 'Mujer',
-    description: 'Elegante scrub top con detalles de moda. Tejido suave.',
+    id: 'prod-greys-lexie',
+    slug: 'greys-anatomy-lexie-scrub-top',
+    name: 'Lexie Scrub Top',
+    description: 'Elegante scrub top con detalles de moda. Tejido suave que se siente increíble contra la piel.',
+    sku: 'GA-LEXIE',
+    brandId: 'brand-greys',
+    category: 'Camisas',
+    gender: 'MUJER',
+    priceNormal: '38.00',
+    priceSale: null,
+    discountPct: null,
+    isNew: true,
+    isBestSeller: false,
     features: ['Tejido suave y elástico', 'Detalles de costuras decorativas', 'Bolsillos funcionales', 'Ajuste favorecedor'],
     careInstructions: ['Lavar en agua fría', 'Secar a baja temperatura'],
-    priceNormal: 38.00, colorIds: ['navy', 'black', 'teal'],
-    sizes: ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL'],
-    isNew: true, isBestSeller: false,
   },
   {
-    id: 'wonderwink-four-stretch', slug: 'wonderwink-four-stretch-scrub-top', name: 'Four-Stretch Scrub Top',
-    brand: 'WonderWink', category: 'Camisas', gender: 'Mujer',
-    description: 'Scrub top con elástico de cuatro direcciones para máxima comodidad.',
+    id: 'prod-wonderwink-four',
+    slug: 'wonderwink-four-stretch-scrub-top',
+    name: 'Four-Stretch Scrub Top',
+    description: 'Scrub top con elástico de cuatro direcciones para máxima comodidad y movimiento.',
+    sku: 'WW-4ST',
+    brandId: 'brand-wonderwink',
+    category: 'Camisas',
+    gender: 'MUJER',
+    priceNormal: '32.00',
+    priceSale: '25.60',
+    discountPct: 20,
+    isNew: false,
+    isBestSeller: true,
     features: ['Elástico de 4 direcciones', 'Bolsillos múltiples', 'Cuello redondo', 'Colores vibrantes'],
     careInstructions: ['Lavar a máquina', 'No usar blanqueador'],
-    priceNormal: 32.00, priceSale: 25.60, discountPct: 20,
-    discountEnd: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
-    colorIds: ['navy', 'black', 'wine', 'burgundy'],
-    sizes: ['XS', 'S', 'M', 'L', 'XL', '2XL'],
-    isNew: false, isBestSeller: true,
   },
   {
-    id: 'koi-lindsey', slug: 'koi-lindsey-scrub-pants', name: 'Lindsey Scrub Pants',
-    brand: 'Koi', category: 'Pantalones', gender: 'Mujer',
+    id: 'prod-koi-lindsey',
+    slug: 'koi-lindsey-scrub-pants',
+    name: 'Lindsey Scrub Pants',
     description: 'Pantalones scrub Lindsey con estilo único y funcionalidad superior.',
+    sku: 'KOI-LND',
+    brandId: 'brand-koi',
+    category: 'Pantalones',
+    gender: 'MUJER',
+    priceNormal: '42.00',
+    priceSale: null,
+    discountPct: null,
+    isNew: true,
+    isBestSeller: false,
     features: ['Diseño de carga con múltiples bolsillos', 'Cintura ajustable con cordón', 'Tejido duradero', 'Colores de moda'],
     careInstructions: ['Lavar en agua fría', 'Secar en secadora a baja temperatura'],
-    priceNormal: 42.00, colorIds: ['navy', 'black', 'ceil'],
-    sizes: ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL'],
-    isNew: true, isBestSeller: false,
   },
   {
-    id: 'dickies-eds', slug: 'dickies-eds-scrub-top', name: 'EDS Scrub Top',
-    brand: 'Dickies', category: 'Camisas', gender: 'Unisex',
+    id: 'prod-dickies-eds',
+    slug: 'dickies-eds-scrub-top',
+    name: 'EDS Scrub Top',
     description: 'El clásico EDS de Dickies. Confiabilidad y durabilidad desde 1922.',
+    sku: 'DK-EDS',
+    brandId: 'brand-dickies',
+    category: 'Camisas',
+    gender: 'UNISEX',
+    priceNormal: '22.00',
+    priceSale: '17.60',
+    discountPct: 20,
+    isNew: false,
+    isBestSeller: true,
     features: ['Tejido resistente', 'Costuras reforzadas', 'Bolsillos funcionales', 'Fácil mantenimiento'],
     careInstructions: ['Lavar a máquina', 'Secar en secadora', 'No necesita plancha'],
-    priceNormal: 22.00, priceSale: 17.60, discountPct: 20,
-    colorIds: ['navy', 'black', 'white'],
-    sizes: ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'],
-    isNew: false, isBestSeller: true,
   },
   {
-    id: 'figs-catarina', slug: 'figs-catarina-scrub-top', name: 'Catarina Scrub Top',
-    brand: 'FIGS', category: 'Camisas', gender: 'Mujer',
+    id: 'prod-figs-catarina',
+    slug: 'figs-catarina-scrub-top',
+    name: 'Catarina Scrub Top',
     description: 'Scrub top Catarina con diseño elegante y funcionalidad superior.',
+    sku: 'FIGS-CAT',
+    brandId: 'brand-figs',
+    category: 'Camisas',
+    gender: 'MUJER',
+    priceNormal: '46.00',
+    priceSale: null,
+    discountPct: null,
+    isNew: true,
+    isBestSeller: true,
     features: ['Tejido FIONx premium', 'Diseño asimétrico moderno', 'Múltiples bolsillos', 'Ajuste favorecedor'],
     careInstructions: ['Lavar en agua fría', 'Secar a baja temperatura'],
-    priceNormal: 46.00, colorIds: ['navy', 'black', 'burgundy', 'royal'],
-    sizes: ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL'],
-    isNew: true, isBestSeller: true,
   },
 ];
 
-// ── Stores ──
-const STORES = [
-  { name: 'AllMedic Quito - Matriz', address: 'Av. 6 de Diciembre N34-123, Quito, Ecuador', phone: '+593 2 123 4567', hours: 'Lun - Vie: 9:00 - 18:00, Sáb: 10:00 - 14:00', isMain: true },
-  { name: 'AllMedic Guayaquil', address: 'Av. 9 de Octubre 1234, Guayaquil, Ecuador', phone: '+593 4 234 5678', hours: 'Lun - Vie: 9:00 - 18:00, Sáb: 10:00 - 14:00', isMain: false },
-  { name: 'AllMedic Cuenca', address: 'Calle Larga 567, Cuenca, Ecuador', phone: '+593 7 345 6789', hours: 'Lun - Vie: 9:00 - 18:00, Sáb: 10:00 - 14:00', isMain: false },
-];
-
-// ── Banners ──
-const BANNERS = [
-  { title: 'Uniformes médicos de alta calidad', subtitle: 'Descubre nuestra colección de scrubs premium diseñados para profesionales de la salud.', imageDesktop: '/images/hero-1.jpg', ctaText: 'Ver catálogo', ctaLink: '/catalogo' },
-  { title: 'Nueva colección FIGS 2024', subtitle: 'Los scrubs más cómodos y estilosos del mercado. Tecnología FIONx de última generación.', imageDesktop: '/images/hero-2.jpg', ctaText: 'Descubrir', ctaLink: '/catalogo?brand=FIGS' },
-  { title: 'Descuentos en Cherokee', subtitle: 'Hasta 20% de descuento en toda la línea Cherokee Workwear.', imageDesktop: '/images/hero-3.jpg', ctaText: 'Ver ofertas', ctaLink: '/catalogo?brand=Cherokee' },
-];
-
-const STATUSES = ['AVAILABLE', 'AVAILABLE', 'AVAILABLE', 'BACKORDER', 'OUT_OF_STOCK'];
-
-async function main() {
-  console.log('🌱 Starting seed...\n');
-
-  // Clean existing data
-  console.log('🗑️  Cleaning existing data...');
-  await db.delete(imagesTable);
-  await db.delete(variantsTable);
-  await db.delete(productsTable);
-  await db.delete(bannersTable);
-  await db.delete(storesTable);
-  await db.delete(colorsTable);
-  await db.delete(brandsTable);
-  console.log('   Done.\n');
-
-  // 1. Colors
-  console.log('🎨 Seeding colors...');
-  for (const color of COLORS) {
-    await db.insert(colorsTable).values(color);
-  }
-  console.log(`   ✓ ${COLORS.length} colors\n`);
-
-  // 2. Brands
-  console.log('🏷️  Seeding brands...');
-  const brandMap: Record<string, string> = {};
-  for (let i = 0; i < BRANDS.length; i++) {
-    const b = BRANDS[i];
-    const [created] = await db.insert(brandsTable).values({
-      name: b.name,
-      slug: b.slug,
-      description: b.description,
-      logoUrl: b.logoUrl,
-      sortOrder: i,
-    }).returning({ id: brandsTable.id });
-    brandMap[b.name] = created.id;
-  }
-  console.log(`   ✓ ${BRANDS.length} brands\n`);
-
-  // 3. Products + Variants + Images
-  console.log('📦 Seeding products...');
-  let totalVariants = 0;
-  let totalImages = 0;
-
-  for (const p of PRODUCTS) {
-    const brandId = brandMap[p.brand];
-    if (!brandId) { console.error(`   ✗ Brand not found: ${p.brand}`); continue; }
-
-    const [created] = await db.insert(productsTable).values({
-      id: p.id,
-      slug: p.slug,
-      name: p.name,
-      description: p.description,
-      brandId,
-      category: p.category,
-      gender: genderMap[p.gender],
-      priceNormal: p.priceNormal.toString(),
-      priceSale: p.priceSale?.toString() ?? null,
-      discountPct: p.discountPct ?? null,
-      discountEnd: p.discountEnd ?? null,
-      isNew: p.isNew ?? false,
-      isBestSeller: p.isBestSeller ?? false,
-      crossSellId: p.complementary ?? null,
-      features: p.features,
-      careInstructions: p.careInstructions,
-    }).returning({ id: productsTable.id });
-
-    let idx = 0;
-    const seenImages = new Set<string>();
-
-    for (const colorId of p.colorIds) {
-      for (const size of p.sizes) {
-        await db.insert(variantsTable).values({
-          productId: created.id,
-          colorId,
-          size,
-          sku: `${p.id}-${colorId.toUpperCase()}-${size}`,
-          status: STATUSES[idx++ % STATUSES.length],
-        });
-        totalVariants++;
-      }
-
-      const imageUrl = getImageUrl(p.id, colorId);
-      if (!seenImages.has(imageUrl)) {
-        seenImages.add(imageUrl);
-        await db.insert(imagesTable).values({
-          productId: created.id,
-          colorId,
-          url: imageUrl,
-          alt: `${p.name} - ${colorId}`,
-          sortOrder: totalImages,
-        });
-        totalImages++;
-      }
+// Helper to generate variants
+function generateVariants(productId: string, colorIds: string[], sizes: string[]) {
+  const variants: Array<{
+    id: string;
+    productId: string;
+    colorId: string;
+    size: string;
+    sku: string;
+    status: string;
+  }> = [];
+  let statusIdx = 0;
+  const statuses = ['AVAILABLE', 'AVAILABLE', 'AVAILABLE', 'BACKORDER', 'OUT_OF_STOCK'];
+  for (const colorId of colorIds) {
+    for (const size of sizes) {
+      const sku = `${productId}-${colorId.toUpperCase().replace('COLOR-', '')}-${size}`;
+      variants.push({
+        id: `${productId}-var-${variants.length}`,
+        productId,
+        colorId,
+        size,
+        sku,
+        status: statuses[statusIdx % statuses.length],
+      });
+      statusIdx++;
     }
-    console.log(`   ✓ ${p.name} (${p.colorIds.length} colors × ${p.sizes.length} sizes)`);
   }
-  console.log(`   Total: ${PRODUCTS.length} products, ${totalVariants} variants, ${totalImages} images\n`);
-
-  // 4. Stores
-  console.log('🏪 Seeding stores...');
-  for (let i = 0; i < STORES.length; i++) {
-    await db.insert(storesTable).values({ ...STORES[i], sortOrder: i });
-  }
-  console.log(`   ✓ ${STORES.length} stores\n`);
-
-  // 5. Banners
-  console.log('🖼️  Seeding banners...');
-  for (let i = 0; i < BANNERS.length; i++) {
-    await db.insert(bannersTable).values({ ...BANNERS[i], sortOrder: i });
-  }
-  console.log(`   ✓ ${BANNERS.length} banners\n`);
-
-  console.log('✅ Seed completed successfully!');
+  return variants;
 }
 
-main()
-  .catch((e) => { console.error('❌ Seed failed:', e); process.exit(1); })
-  .finally(() => process.exit(0));
+const variantsData = [
+  ...generateVariants('prod-figs-casma', ['color-navy', 'color-black', 'color-ceil', 'color-burgundy'], ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL']),
+  ...generateVariants('prod-figs-yola', ['color-navy', 'color-black', 'color-wine'], ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL']),
+  ...generateVariants('prod-cherokee-workwear', ['color-navy', 'color-black', 'color-white', 'color-ceil'], ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL']),
+  ...generateVariants('prod-greys-lexie', ['color-navy', 'color-black', 'color-teal'], ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL']),
+  ...generateVariants('prod-wonderwink-four', ['color-navy', 'color-black', 'color-wine', 'color-burgundy'], ['XS', 'S', 'M', 'L', 'XL', '2XL']),
+  ...generateVariants('prod-koi-lindsey', ['color-navy', 'color-black', 'color-ceil'], ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL']),
+  ...generateVariants('prod-dickies-eds', ['color-navy', 'color-black', 'color-white'], ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL']),
+  ...generateVariants('prod-figs-catarina', ['color-navy', 'color-black', 'color-burgundy', 'color-royal'], ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL']),
+];
+
+// Image mapping from dummy-data
+const productImageMap: Record<string, Record<string, string>> = {
+  'prod-figs-casma': { navy: 'navy', black: 'black', ceil: 'ciel', burgundy: 'wine' },
+  'prod-figs-yola': { navy: 'navy', black: 'black', wine: 'navy' },
+  'prod-cherokee-workwear': { navy: 'navy', black: 'black', white: 'salt', ceil: 'teal' },
+  'prod-greys-lexie': { navy: 'navy', black: 'black', teal: 'navy' },
+  'prod-wonderwink-four': { navy: 'navy', black: 'black', wine: 'ciel', burgundy: 'coral' },
+  'prod-koi-lindsey': { navy: 'navy', black: 'black', ceil: 'ciel' },
+  'prod-dickies-eds': { navy: 'navy', black: 'black', white: 'pewter' },
+  'prod-figs-catarina': { navy: 'navy', black: 'black', burgundy: 'navy', royal: 'navy' },
+};
+
+const productImageNum: Record<string, number> = {
+  'prod-figs-casma': 1,
+  'prod-figs-yola': 2,
+  'prod-cherokee-workwear': 3,
+  'prod-greys-lexie': 4,
+  'prod-wonderwink-four': 5,
+  'prod-koi-lindsey': 6,
+  'prod-dickies-eds': 7,
+  'prod-figs-catarina': 8,
+};
+
+function generateImages(productId: string, colorIds: string[]) {
+  const imgNum = productImageNum[productId] || 1;
+  const colorMap = productImageMap[productId] || {};
+  const images: Array<{ id: string; productId: string; colorId: string | null; url: string; alt: string; sortOrder: number }> = [];
+  let sortOrder = 0;
+  for (const colorId of colorIds) {
+    const colorName = colorId.replace('color-', '');
+    const fileColor = colorMap[colorName] || 'navy';
+    images.push({
+      id: `${productId}-img-${sortOrder}`,
+      productId,
+      colorId,
+      url: `/images/product-${imgNum}-${fileColor}-1.jpg`,
+      alt: `${productId} ${colorName}`,
+      sortOrder: sortOrder++,
+    });
+  }
+  return images;
+}
+
+const imagesData = [
+  ...generateImages('prod-figs-casma', ['color-navy', 'color-black', 'color-ceil', 'color-burgundy']),
+  ...generateImages('prod-figs-yola', ['color-navy', 'color-black', 'color-wine']),
+  ...generateImages('prod-cherokee-workwear', ['color-navy', 'color-black', 'color-white', 'color-ceil']),
+  ...generateImages('prod-greys-lexie', ['color-navy', 'color-black', 'color-teal']),
+  ...generateImages('prod-wonderwink-four', ['color-navy', 'color-black', 'color-wine', 'color-burgundy']),
+  ...generateImages('prod-koi-lindsey', ['color-navy', 'color-black', 'color-ceil']),
+  ...generateImages('prod-dickies-eds', ['color-navy', 'color-black', 'color-white']),
+  ...generateImages('prod-figs-catarina', ['color-navy', 'color-black', 'color-burgundy', 'color-royal']),
+];
+
+const storesData = [
+  { id: 'store-quito', name: 'AllMedic Quito - Matriz', address: 'Av. 6 de Diciembre N34-123, Quito, Ecuador', phone: '+593 2 123 4567', hours: 'Lun - Vie: 9:00 - 18:00, Sáb: 10:00 - 14:00', isMain: true, isActive: true, sortOrder: 1 },
+  { id: 'store-gye', name: 'AllMedic Guayaquil', address: 'Av. 9 de Octubre 1234, Guayaquil, Ecuador', phone: '+593 4 234 5678', hours: 'Lun - Vie: 9:00 - 18:00, Sáb: 10:00 - 14:00', isMain: false, isActive: true, sortOrder: 2 },
+  { id: 'store-cue', name: 'AllMedic Cuenca', address: 'Calle Larga 567, Cuenca, Ecuador', phone: '+593 7 345 6789', hours: 'Lun - Vie: 9:00 - 18:00, Sáb: 10:00 - 14:00', isMain: false, isActive: true, sortOrder: 3 },
+];
+
+const bannersData = [
+  { id: 'banner-1', title: 'Uniformes médicos de alta calidad', subtitle: 'Descubre nuestra colección de scrubs premium diseñados para profesionales de la salud.', imageDesktop: '/images/hero-1.jpg', imageMobile: '/images/hero-1-mobile.jpg', ctaText: 'Ver catálogo', ctaLink: '/catalogo', sortOrder: 1, isActive: true },
+  { id: 'banner-2', title: 'Nueva colección FIGS 2024', subtitle: 'Los scrubs más cómodos y estilosos del mercado. Tecnología FIONx de última generación.', imageDesktop: '/images/hero-2.jpg', imageMobile: '/images/hero-2-mobile.jpg', ctaText: 'Descubrir', ctaLink: '/catalogo?brand=FIGS', sortOrder: 2, isActive: true },
+  { id: 'banner-3', title: 'Descuentos en Cherokee', subtitle: 'Hasta 20% de descuento en toda la línea Cherokee Workwear.', imageDesktop: '/images/hero-3.jpg', imageMobile: '/images/hero-3-mobile.jpg', ctaText: 'Ver ofertas', ctaLink: '/catalogo?brand=Cherokee', sortOrder: 3, isActive: true },
+];
+
+async function seed() {
+  console.log('🌱 Starting seed...');
+
+  // Clear existing data (respecting FK constraints)
+  console.log('  Clearing existing data...');
+  await db.delete(schema.productImages);
+  await db.delete(schema.productVariants);
+  await db.delete(schema.products);
+  await db.delete(schema.collections);
+  await db.delete(schema.colors);
+  await db.delete(schema.brands);
+  await db.delete(schema.banners);
+  await db.delete(schema.stores);
+
+  // Insert brands
+  console.log('  Inserting brands...');
+  for (const b of brandsData) {
+    await db.insert(schema.brands).values(b);
+  }
+
+  // Insert colors
+  console.log('  Inserting colors...');
+  for (const c of colorsData) {
+    await db.insert(schema.colors).values(c);
+  }
+
+  // Insert products
+  console.log('  Inserting products...');
+  for (const p of productsData) {
+    await db.insert(schema.products).values(p as any);
+  }
+
+  // Insert variants
+  console.log('  Inserting variants...');
+  for (const v of variantsData) {
+    await db.insert(schema.productVariants).values(v as any);
+  }
+
+  // Insert images
+  console.log('  Inserting images...');
+  for (const img of imagesData) {
+    await db.insert(schema.productImages).values(img as any);
+  }
+
+  // Insert stores
+  console.log('  Inserting stores...');
+  for (const s of storesData) {
+    await db.insert(schema.stores).values(s as any);
+  }
+
+  // Insert banners
+  console.log('  Inserting banners...');
+  for (const b of bannersData) {
+    await db.insert(schema.banners).values(b as any);
+  }
+
+  console.log('✅ Seed completed successfully!');
+  await pool.end();
+}
+
+seed().catch((err) => {
+  console.error('❌ Seed failed:', err);
+  process.exit(1);
+});

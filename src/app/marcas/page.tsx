@@ -32,6 +32,17 @@ export default async function MarcasPage() {
                     src={`/images/brands/${brand.slug}.png`}
                     alt={brand.name}
                     className="max-w-full max-h-full object-contain group-hover:scale-110 transition-transform duration-300"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      const parent = target.parentElement;
+                      if (parent) {
+                        const fallback = document.createElement('div');
+                        fallback.className = 'text-lg sm:text-xl font-bold text-[#111111] group-hover:text-white text-center transition-colors';
+                        fallback.textContent = brand.name;
+                        parent.appendChild(fallback);
+                      }
+                    }}
                   />
                 </div>
 

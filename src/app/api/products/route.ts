@@ -8,6 +8,7 @@ import {
   colors as colorsTable,
 } from '@/db/schema';
 import { eq, and, or, sql, asc, desc, inArray } from 'drizzle-orm';
+import { PRODUCTS as DUMMY_PRODUCTS } from '@/lib/dummy-data';
 
 /**
  * GET /api/products
@@ -131,9 +132,65 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('[GET /api/products]', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch products' },
-      { status: 500 }
-    );
+    // Fallback to dummy data
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '12');
+    const search = searchParams.get('search');
+    const category = searchParams.get('category');
+    const brand = searchParams.get('brand');
+
+    let filtered = [...DUMMY_PRODUCTS];
+    if (search) {
+      const q = search.toLowerCase();
+      filtered = filtered.filter(p => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q));
+    }
+    if (category) {
+      filtered = filtered.filter(p => p.category === category);
+    }
+    if (brand) {
+      filtered = filtered.filter(p => p.brand.toLowerCase().replace(/\s+/g, '-') === brand.toLowerCase());
+    }
+
+    const total = filtered.length;
+    const start = (page - 1) * limit;
+    const paginated = filtered.slice(start, start + limit);
+
+    return NextResponse.json({
+      products: paginated.map(p => ({
+        id: p.id,
+        slug: p.slug,
+        name: p.name,
+        description: p.description,
+        category: p.category,
+        gender: p.gender,
+        priceNormal: String(p.priceNormal),
+        priceSale: p.priceSale ? String(p.priceSale) : null,
+        discountPct: p.discountPct ?? null,
+        discountEnd: p.discountEnd ? new Date(p.discountEnd) : null,
+        isNew: p.isNew,
+        isBestSeller: p.isBestSeller,
+        brandName: p.brand,
+        variants: p.variants.map(v => ({
+          id: v.id,
+          productId: p.id,
+          colorId: v.colorId,
+          size: v.size,
+          fit: v.fit ?? null,
+          sku: v.sku,
+          status: v.status,
+          colorName: p.colors.find(c => c.id === v.colorId)?.name ?? '',
+          colorCode: p.colors.find(c => c.id === v.colorId)?.code ?? '',
+          colorHex: p.colors.find(c => c.id === v.colorId)?.hex ?? '',
+        })),
+        images: p.variants[0]?.images?.[0] ? [{ productId: p.id, colorId: p.variants[0].colorId, url: p.variants[0].images[0], alt: p.name }] : [],
+      })),
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    });
   }
 }

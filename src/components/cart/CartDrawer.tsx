@@ -13,10 +13,10 @@ interface CartDrawerProps {
   onClose: () => void;
 }
 
-function ClientOnly({ children }: { children: React.ReactNode }) {
+function ClientOnly({ children, fallback = null }: { children: React.ReactNode; fallback?: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  return mounted ? <>{children}</> : <span>0</span>;
+  return mounted ? <>{children}</> : <>{fallback}</>;
 }
 
 export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
@@ -87,7 +87,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#E5E5E5]">
           <div className="flex items-center gap-2">
             <ShoppingBag className="w-5 h-5" strokeWidth={1.5} />
-            <h2 className="text-lg font-semibold">Mi Pedido (<ClientOnly>{totalItems}</ClientOnly>)</h2>
+            <h2 className="text-lg font-semibold">Mi Pedido (<ClientOnly fallback={0}>{totalItems}</ClientOnly>)</h2>
           </div>
           <button
             onClick={onClose}
@@ -99,7 +99,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
 
         {/* Content */}
         <div className="flex flex-col h-[calc(100%-140px)]">
-          {items.length === 0 ? (
+          <ClientOnly fallback={
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
               <ShoppingBag className="w-16 h-16 text-gray-300 mb-4" strokeWidth={1.5} />
               <p className="text-gray-500 mb-2">Tu pedido está vacío</p>
@@ -111,65 +111,79 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                 Explorar catálogo
               </button>
             </div>
-          ) : (
-            <>
-              {/* Items List */}
-              <div className="flex-1 overflow-y-auto px-6">
-                {items.map(item => (
-                  <CartItemComponent
-                    key={item.id}
-                    item={item}
-                    onUpdateQuantity={(qty) => updateQuantity(item.id, qty)}
-                    onRemove={() => removeItem(item.id)}
-                  />
-                ))}
-              </div>
-
-              {/* Footer */}
-              <div className="border-t border-[#E5E5E5] px-6 py-4 space-y-4 bg-[#F5F5F7]">
-                {/* Volume Discount Info */}
-                {activeDiscount && (
-                  <div className="flex items-center gap-2 text-sm text-[#34C759]">
-                    <TrendingUp className="w-4 h-4" strokeWidth={1.5} />
-                    <span>Descuento {activeDiscount.discountPct}% aplicado</span>
-                  </div>
-                )}
-                {nextTier && (
-                  <div className="flex items-center gap-2 text-sm text-[#FF9500]">
-                    <TrendingUp className="w-4 h-4" strokeWidth={1.5} />
-                    <span>Agrega {nextTier.itemsNeeded} más y ahorra {nextTier.discountPct}%</span>
-                  </div>
-                )}
-
-                {/* Subtotal */}
-                <div className="space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Subtotal</span>
-                    <span className="font-medium">${subtotal.toFixed(2)}</span>
-                  </div>
-                  {discountAmount > 0 && (
-                    <div className="flex justify-between text-sm text-[#34C759]">
-                      <span>Descuento ({activeDiscount?.discountPct}%)</span>
-                      <span>-${discountAmount.toFixed(2)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-lg font-bold pt-2 border-t border-[#E5E5E5]">
-                    <span>Total estimado</span>
-                    <span>${finalTotal.toFixed(2)}</span>
-                  </div>
-                </div>
-
-                {/* Checkout Button */}
+          }>
+            {items.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                <ShoppingBag className="w-16 h-16 text-gray-300 mb-4" strokeWidth={1.5} />
+                <p className="text-gray-500 mb-2">Tu pedido está vacío</p>
+                <p className="text-sm text-gray-400">Agrega productos para comenzar tu cotización</p>
                 <button
-                  onClick={() => setShowCheckoutModal(true)}
-                  className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[#25D366] text-white font-medium rounded-full hover:opacity-90 transition-opacity"
+                  onClick={onClose}
+                  className="mt-6 px-6 py-2 bg-[#111111] text-white text-sm font-medium rounded-full hover:opacity-80 transition-opacity"
                 >
-                  <MessageCircle className="w-5 h-5" strokeWidth={1.5} />
-                  Enviar por WhatsApp
+                  Explorar catálogo
                 </button>
               </div>
-            </>
-          )}
+            ) : (
+              <>
+                {/* Items List */}
+                <div className="flex-1 overflow-y-auto px-6">
+                  {items.map(item => (
+                    <CartItemComponent
+                      key={item.id}
+                      item={item}
+                      onUpdateQuantity={(qty) => updateQuantity(item.id, qty)}
+                      onRemove={() => removeItem(item.id)}
+                    />
+                  ))}
+                </div>
+
+                {/* Footer */}
+                <div className="border-t border-[#E5E5E5] px-6 py-4 space-y-4 bg-[#F5F5F7]">
+                  {/* Volume Discount Info */}
+                  {activeDiscount && (
+                    <div className="flex items-center gap-2 text-sm text-[#34C759]">
+                      <TrendingUp className="w-4 h-4" strokeWidth={1.5} />
+                      <span>Descuento {activeDiscount.discountPct}% aplicado</span>
+                    </div>
+                  )}
+                  {nextTier && (
+                    <div className="flex items-center gap-2 text-sm text-[#FF9500]">
+                      <TrendingUp className="w-4 h-4" strokeWidth={1.5} />
+                      <span>Agrega {nextTier.itemsNeeded} más y ahorra {nextTier.discountPct}%</span>
+                    </div>
+                  )}
+
+                  {/* Subtotal */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Subtotal</span>
+                      <span className="font-medium">${subtotal.toFixed(2)}</span>
+                    </div>
+                    {discountAmount > 0 && (
+                      <div className="flex justify-between text-sm text-[#34C759]">
+                        <span>Descuento ({activeDiscount?.discountPct}%)</span>
+                        <span>-${discountAmount.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-lg font-bold pt-2 border-t border-[#E5E5E5]">
+                      <span>Total estimado</span>
+                      <span>${finalTotal.toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  {/* Checkout Button */}
+                  <button
+                    onClick={() => setShowCheckoutModal(true)}
+                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[#25D366] text-white font-medium rounded-full hover:opacity-90 transition-opacity"
+                  >
+                    <MessageCircle className="w-5 h-5" strokeWidth={1.5} />
+                    Enviar por WhatsApp
+                  </button>
+                </div>
+              </>
+            )}
+          </ClientOnly>
         </div>
       </div>
 
