@@ -6,6 +6,7 @@ import { compare } from 'bcryptjs';
 import { users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import type { Adapter } from '@auth/core/adapters';
+import { authConfig } from './auth-config';
 
 // Lazy adapter: only create the DrizzleAdapter when first used
 // This prevents build-time failures when DB env vars are not available
@@ -23,6 +24,7 @@ export const {
   signIn,
   signOut,
 } = NextAuth({
+  ...authConfig,
   adapter: {
     createUser: (data) => getAdapter().createUser!(data),
     getUser: (id) => getAdapter().getUser!(id),
@@ -38,14 +40,6 @@ export const {
     deleteSession: (token) => getAdapter().deleteSession!(token),
     createVerificationToken: (data) => getAdapter().createVerificationToken!(data),
     useVerificationToken: (data) => getAdapter().useVerificationToken!(data),
-  },
-  session: {
-    strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60,
-  },
-  pages: {
-    signIn: '/admin/login',
-    error: '/admin/login',
   },
   providers: [
     Credentials({
@@ -76,18 +70,4 @@ export const {
       },
     }),
   ],
-  callbacks: {
-    jwt({ token, user }: any) {
-      if (user) {
-        token.role = user.role;
-      }
-      return token;
-    },
-    session({ session, token }: any) {
-      if (token?.role) {
-        session.user.role = token.role;
-      }
-      return session;
-    },
-  },
 });
