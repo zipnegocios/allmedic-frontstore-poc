@@ -19,8 +19,10 @@ import {
 } from './dummy-data';
 
 // ── Fallback flag ──
-// Set to true to always use dummy data (bypass DB)
+// Set FORCE_DUMMY_DATA=true to always use dummy data
+// During Next.js static generation (build time), DB may be unavailable — allow fallback
 const FORCE_DUMMY = process.env.FORCE_DUMMY_DATA === 'true';
+const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build' || process.env.NEXT_PHASE === 'phase-export';
 
 let _dbAvailable = !FORCE_DUMMY;
 
@@ -34,8 +36,11 @@ async function checkDbAvailable(): Promise<boolean> {
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error('DB timeout')), 3000)),
     ]);
     return true;
-  } catch {
+  } catch (err) {
     _dbAvailable = false;
+    if (!isBuildTime) {
+      throw new Error(`Database connection failed: ${(err as Error).message}`);
+    }
     console.warn('[data-service] Database unavailable, falling back to dummy data');
     return false;
   }
