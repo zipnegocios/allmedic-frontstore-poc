@@ -1,9 +1,10 @@
 import { pgTable, text, integer, timestamp, vector, index, jsonb } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+import { uuid } from "@/lib/uuid";
 import { products } from "./products";
 
 export const productDocuments = pgTable("product_documents", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  id: text("id").primaryKey().$defaultFn(() => uuid()),
   productId: text("product_id").references(() => products.id, { onDelete: "cascade" }),
   filename: text("filename").notNull(),
   content: text("content"),
@@ -17,7 +18,7 @@ export const productDocumentsRelations = relations(productDocuments, ({ one, man
 }));
 
 export const productEmbeddings = pgTable("product_embeddings", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  id: text("id").primaryKey().$defaultFn(() => uuid()),
   documentId: text("document_id").notNull().references(() => productDocuments.id, { onDelete: "cascade" }),
   chunkIndex: integer("chunk_index").notNull(),
   content: text("content").notNull(),

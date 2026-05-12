@@ -1,7 +1,8 @@
 import { pgTable, text, timestamp, primaryKey, integer } from "drizzle-orm/pg-core";
+import { uuid } from "@/lib/uuid";
 
 export const users = pgTable("users", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  id: text("id").primaryKey().$defaultFn(() => uuid()),
   name: text("name"),
   email: text("email").notNull().unique(),
   emailVerified: timestamp("email_verified", { withTimezone: true }),
