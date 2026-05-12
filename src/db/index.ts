@@ -3,9 +3,22 @@ import { Pool } from "pg";
 import * as schema from "./schema";
 
 function getDatabaseUrl(): string {
-  if (process.env.DATABASE_URL?.startsWith('postgresql://') || process.env.DATABASE_URL?.startsWith('postgres://')) {
-    return process.env.DATABASE_URL;
+  const rawUrl = process.env.DATABASE_URL;
+  if (rawUrl?.startsWith('postgresql://') || rawUrl?.startsWith('postgres://')) {
+    // Si la URL tiene caracteres especiales sin encodear en la contraseña,
+    // parseamos manualmente para encodearla y reconstruir la URL limpia.
+    try {
+      const match = rawUrl.match(/^postgres(?:ql)?:\/\/([^:]+):([^@]+)@(.+)$/);
+      if (match) {
+        const [, user, password, rest] = match;
+        return `postgresql://${user}:${encodeURIComponent(password)}@${rest}`;
+      }
+    } catch {
+      // Si falla el parseo, devolvemos la URL original y que pg la intente
+    }
+    return rawUrl;
   }
+
   const user = process.env.DB_USER;
   const password = process.env.DB_PASSWORD;
   const host = process.env.DB_HOST;
