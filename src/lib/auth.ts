@@ -5,6 +5,17 @@ import Credentials from 'next-auth/providers/credentials';
 import { compare } from 'bcryptjs';
 import { users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import type { Adapter } from '@auth/core/adapters';
+
+// Lazy adapter: only create the DrizzleAdapter when first used
+// This prevents build-time failures when DB env vars are not available
+let _adapter: Adapter | null = null;
+function getAdapter(): Adapter {
+  if (!_adapter) {
+    _adapter = DrizzleAdapter(getDbInstance());
+  }
+  return _adapter;
+}
 
 export const {
   handlers: { GET, POST },
@@ -12,7 +23,22 @@ export const {
   signIn,
   signOut,
 } = NextAuth({
-  adapter: DrizzleAdapter(getDbInstance()),
+  adapter: {
+    createUser: (data) => getAdapter().createUser!(data),
+    getUser: (id) => getAdapter().getUser!(id),
+    getUserByEmail: (email) => getAdapter().getUserByEmail!(email),
+    getUserByAccount: (account) => getAdapter().getUserByAccount!(account),
+    updateUser: (data) => getAdapter().updateUser!(data),
+    deleteUser: (id) => getAdapter().deleteUser!(id) as Promise<void>,
+    linkAccount: (data) => getAdapter().linkAccount!(data),
+    unlinkAccount: (data) => getAdapter().unlinkAccount!(data),
+    createSession: (data) => getAdapter().createSession!(data),
+    getSessionAndUser: (token) => getAdapter().getSessionAndUser!(token),
+    updateSession: (data) => getAdapter().updateSession!(data),
+    deleteSession: (token) => getAdapter().deleteSession!(token),
+    createVerificationToken: (data) => getAdapter().createVerificationToken!(data),
+    useVerificationToken: (data) => getAdapter().useVerificationToken!(data),
+  },
   session: {
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60,
