@@ -46,27 +46,32 @@ export const {
     Credentials({
       name: 'credentials',
       credentials: {
-        email: { label: 'Email', type: 'email' },
+        email: { label: 'Usuario o Email', type: 'text' },
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const user = await db.select()
-          .from(users)
-          .where(eq(users.email, credentials.email as string))
-          .limit(1);
+        const identifier = credentials.email as string;
+        const isEmail = identifier.includes('@');
 
-        if (!user.length || !user[0].password) return null;
+        // Search by email or name (username)
+        const userQuery = isEmail
+          ? db.select().from(users).where(eq(users.email, identifier)).limit(1)
+          : db.select().from(users).where(eq(users.name, identifier)).limit(1);
 
-        const valid = await compare(credentials.password as string, user[0].password);
+        const userResult = await userQuery;
+
+        if (!userResult.length || !userResult[0].password) return null;
+
+        const valid = await compare(credentials.password as string, userResult[0].password);
         if (!valid) return null;
 
         return {
-          id: user[0].id,
-          email: user[0].email,
-          name: user[0].name,
-          role: user[0].role,
+          id: userResult[0].id,
+          email: userResult[0].email,
+          name: userResult[0].name,
+          role: userResult[0].role,
         };
       },
     }),
