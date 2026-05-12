@@ -25,16 +25,29 @@ const FORCE_DUMMY = process.env.FORCE_DUMMY_DATA === 'true';
 const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build' || process.env.NEXT_PHASE === 'phase-export';
 
 let _dbAvailable = !FORCE_DUMMY;
+let _lastDbCheck = 0;
+const DB_CHECK_INTERVAL_MS = 30000; // reintentar cada 30 segundos
 
 async function checkDbAvailable(): Promise<boolean> {
   if (FORCE_DUMMY) return false;
-  if (!_dbAvailable) return false;
+
+  // Si falló antes, reintentamos solo si pasó el intervalo
+  if (!_dbAvailable) {
+    const now = Date.now();
+    if (now - _lastDbCheck < DB_CHECK_INTERVAL_MS) {
+      return false; // todavía no toca reintentar
+    }
+  }
+
+  _lastDbCheck = Date.now();
+
   try {
     // Quick health check: try a simple count query with timeout
     await Promise.race([
       db.select({ count: sql<number>`count(*)` }).from(productsTable).limit(1),
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error('DB timeout')), 3000)),
     ]);
+    _dbAvailable = true;
     return true;
   } catch (err) {
     _dbAvailable = false;
