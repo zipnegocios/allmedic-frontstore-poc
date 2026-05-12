@@ -1,13 +1,14 @@
 import { auth } from '@/lib/auth';
+import { redirect } from 'next/navigation';
 
 export async function requireAdmin() {
   const session = await auth();
   if (!session?.user) {
-    throw new Error('Unauthorized');
+    redirect('/admin/login');
   }
   const role = (session.user as any).role;
   if (role !== 'CATALOG_MANAGER' && role !== 'ADMIN') {
-    throw new Error('Forbidden');
+    redirect('/admin/login?error=forbidden');
   }
   return session;
 }
