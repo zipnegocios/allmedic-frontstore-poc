@@ -25,6 +25,7 @@ export const {
   signOut,
 } = NextAuth({
   ...authConfig,
+  trustHost: true,
   adapter: {
     createUser: (data) => getAdapter().createUser!(data),
     getUser: (id) => getAdapter().getUser!(id),
