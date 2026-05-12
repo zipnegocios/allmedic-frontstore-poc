@@ -47,6 +47,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
+# Copiar scripts de migración y entrypoint
+COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
+
 # Verificar que server.js existe
 RUN test -f server.js || (echo "ERROR: server.js not found" && exit 1)
 
@@ -66,5 +69,5 @@ ENV HOSTNAME=0.0.0.0
 # Cambiar al usuario no-root
 USER nextjs
 
-# Comando de inicio
-CMD ["node", "server.js"]
+# Comando de inicio: ejecuta migraciones y luego inicia el servidor
+ENTRYPOINT ["sh", "./scripts/start.sh"]
