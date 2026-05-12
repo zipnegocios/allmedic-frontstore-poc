@@ -49,4 +49,10 @@ export const db = new Proxy({} as ReturnType<typeof drizzle<typeof schema>>, {
   },
 }) as ReturnType<typeof drizzle<typeof schema>>;
 
+// Exportamos la instancia real para casos donde se necesita el objeto DB
+// directamente (ej: DrizzleAdapter de Auth.js que hace instanceof checks)
+export function getDbInstance() {
+  return getDb();
+}
+
 export type DB = typeof db;

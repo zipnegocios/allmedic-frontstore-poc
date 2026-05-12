@@ -1,6 +1,6 @@
 import NextAuth from 'next-auth';
 import { DrizzleAdapter } from '@auth/drizzle-adapter';
-import { db } from '@/db';
+import { db, getDbInstance } from '@/db';
 import Credentials from 'next-auth/providers/credentials';
 import { compare } from 'bcryptjs';
 import { users } from '@/db/schema';
@@ -12,7 +12,7 @@ export const {
   signIn,
   signOut,
 } = NextAuth({
-  adapter: DrizzleAdapter(db),
+  adapter: DrizzleAdapter(getDbInstance()),
   session: {
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60,

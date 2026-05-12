@@ -90,6 +90,9 @@ export const productVariants = pgTable("product_variants", {
   fit: text("fit"),
   sku: text("sku").notNull().unique(),
   status: text("status").notNull().default("AVAILABLE"),
+  stock: integer("stock").default(0),
+  location: text("location"),
+  minStock: integer("min_stock").default(5),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 }, (table) => [
