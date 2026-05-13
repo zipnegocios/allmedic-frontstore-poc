@@ -10,6 +10,14 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Search, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Tag } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 
 interface Brand {
   id: string;
@@ -27,6 +35,10 @@ export default function AdminBrandsPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
+  const [formData, setFormData] = useState({ name: '', slug: '', description: '', logoUrl: '', isActive: true, sortOrder: 0 });
+  const [saving, setSaving] = useState(false);
 
   const fetchBrands = useCallback(async () => {
     setLoading(true);
@@ -51,11 +63,73 @@ export default function AdminBrandsPage() {
     fetchBrands();
   }, [fetchBrands]);
 
+  function openNew() {
+    setEditingBrand(null);
+    setFormData({ name: '', slug: '', description: '', logoUrl: '', isActive: true, sortOrder: 0 });
+    setDialogOpen(true);
+  }
+
+  function openEdit(brand: Brand) {
+    setEditingBrand(brand);
+    setFormData({
+      name: brand.name,
+      slug: brand.slug,
+      description: brand.description || '',
+      logoUrl: brand.logoUrl || '',
+      isActive: brand.isActive,
+      sortOrder: brand.sortOrder,
+    });
+    setDialogOpen(true);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const url = editingBrand ? `/api/admin/brands/${editingBrand.id}` : '/api/admin/brands';
+      const method = editingBrand ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      if (!res.ok) throw new Error('Failed to save');
+      toast.success(editingBrand ? 'Marca actualizada' : 'Marca creada');
+      setDialogOpen(false);
+      fetchBrands();
+    } catch {
+      toast.error('Error al guardar marca');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm('¿Estás seguro de eliminar esta marca?')) return;
+    try {
+      const res = await fetch(`/api/admin/brands/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete');
+      toast.success('Marca eliminada');
+      fetchBrands();
+    } catch {
+      toast.error('Error al eliminar marca');
+    }
+  }
+
+  // Auto-generate slug from name
+  useEffect(() => {
+    if (!editingBrand && formData.name && !formData.slug) {
+      setFormData(prev => ({
+        ...prev,
+        slug: prev.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+      }));
+    }
+  }, [formData.name, editingBrand, formData.slug]);
+
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-[#111111]">Marcas</h1>
-        <Button className="bg-[#111111]">
+        <Button className="bg-[#111111]" onClick={openNew}>
           <Plus className="w-4 h-4 mr-2" />
           Nueva Marca
         </Button>
@@ -117,8 +191,8 @@ export default function AdminBrandsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button size="sm" variant="ghost"><Pencil className="w-4 h-4" /></Button>
-                        <Button size="sm" variant="ghost"><Trash2 className="w-4 h-4 text-red-500" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => openEdit(brand)}><Pencil className="w-4 h-4" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => handleDelete(brand.id)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -140,6 +214,42 @@ export default function AdminBrandsPage() {
           </Button>
         </div>
       )}
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingBrand ? 'Editar Marca' : 'Nueva Marca'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Nombre *</Label>
+              <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Slug *</Label>
+              <Input value={formData.slug} onChange={e => setFormData({ ...formData, slug: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Descripción</Label>
+              <Input value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Logo URL</Label>
+              <Input value={formData.logoUrl} onChange={e => setFormData({ ...formData, logoUrl: e.target.value })} />
+            </div>
+            <div className="flex items-center gap-2">
+              <input type="checkbox" checked={formData.isActive} onChange={e => setFormData({ ...formData, isActive: e.target.checked })} />
+              <Label>Activa</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSave} disabled={saving} className="bg-[#111111]">
+              {saving ? 'Guardando...' : 'Guardar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

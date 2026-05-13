@@ -1,7 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
-import { getAdminProductById, updateProduct, deleteProduct } from '@/lib/admin-data-service';
+import { getAdminProductById, updateProductWithRelations, deleteProduct } from '@/lib/admin-data-service';
 import { z } from 'zod';
+
+const VariantSchema = z.object({
+  id: z.string().optional(),
+  colorId: z.string().min(1),
+  size: z.string().min(1),
+  fit: z.string().optional(),
+  sku: z.string().min(1),
+  status: z.enum(['AVAILABLE', 'BACKORDER', 'OUT_OF_STOCK']).default('AVAILABLE'),
+  stock: z.number().default(0),
+  minStock: z.number().default(5),
+});
+
+const ImageSchema = z.object({
+  id: z.string().optional(),
+  colorId: z.string().optional(),
+  url: z.string().min(1),
+  alt: z.string().optional(),
+  sortOrder: z.number().default(0),
+});
 
 const UpdateProductSchema = z.object({
   slug: z.string().min(1).optional(),
@@ -9,7 +28,9 @@ const UpdateProductSchema = z.object({
   description: z.string().optional(),
   sku: z.string().optional(),
   brandId: z.string().min(1).optional(),
+  collectionId: z.string().optional(),
   category: z.string().min(1).optional(),
+  productType: z.string().optional(),
   gender: z.string().min(1).optional(),
   priceNormal: z.string().min(1).optional(),
   priceSale: z.string().optional(),
@@ -20,6 +41,10 @@ const UpdateProductSchema = z.object({
   isActive: z.boolean().optional(),
   features: z.array(z.string()).optional(),
   careInstructions: z.array(z.string()).optional(),
+  styles: z.array(z.string()).optional(),
+  crossSellId: z.string().optional().nullable(),
+  variants: z.array(VariantSchema).optional(),
+  images: z.array(ImageSchema).optional(),
 });
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -43,7 +68,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { id } = await params;
     const body = await request.json();
     const validated = UpdateProductSchema.parse(body);
-    const product = await updateProduct(id, validated as any);
+    const product = await updateProductWithRelations(id, validated);
     return NextResponse.json(product);
   } catch (err) {
     if (err instanceof z.ZodError) {

@@ -1,7 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
-import { getAdminProducts, createProduct } from '@/lib/admin-data-service';
+import { getAdminProducts, createProductWithRelations } from '@/lib/admin-data-service';
 import { z } from 'zod';
+
+const VariantSchema = z.object({
+  colorId: z.string().min(1),
+  size: z.string().min(1),
+  fit: z.string().optional(),
+  sku: z.string().min(1),
+  status: z.enum(['AVAILABLE', 'BACKORDER', 'OUT_OF_STOCK']).default('AVAILABLE'),
+  stock: z.number().default(0),
+  minStock: z.number().default(5),
+});
+
+const ImageSchema = z.object({
+  colorId: z.string().optional(),
+  url: z.string().min(1),
+  alt: z.string().optional(),
+  sortOrder: z.number().default(0),
+});
 
 const CreateProductSchema = z.object({
   slug: z.string().min(1),
@@ -9,15 +26,23 @@ const CreateProductSchema = z.object({
   description: z.string().optional(),
   sku: z.string().optional(),
   brandId: z.string().min(1),
+  collectionId: z.string().optional(),
   category: z.string().min(1),
+  productType: z.string().optional(),
   gender: z.string().min(1),
   priceNormal: z.string().min(1),
   priceSale: z.string().optional(),
   discountPct: z.number().optional(),
+  discountEnd: z.string().optional(),
   isNew: z.boolean().default(false),
   isBestSeller: z.boolean().default(false),
-  features: z.array(z.string()).optional(),
-  careInstructions: z.array(z.string()).optional(),
+  isActive: z.boolean().default(true),
+  features: z.array(z.string()).default([]),
+  careInstructions: z.array(z.string()).default([]),
+  styles: z.array(z.string()).default([]),
+  crossSellId: z.string().optional(),
+  variants: z.array(VariantSchema).default([]),
+  images: z.array(ImageSchema).default([]),
 });
 
 export async function GET(request: NextRequest) {
@@ -45,7 +70,7 @@ export async function POST(request: NextRequest) {
     await requireAdmin();
     const body = await request.json();
     const validated = CreateProductSchema.parse(body);
-    const product = await createProduct(validated as any);
+    const product = await createProductWithRelations(validated);
     return NextResponse.json(product, { status: 201 });
   } catch (err) {
     if (err instanceof z.ZodError) {

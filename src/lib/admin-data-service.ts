@@ -73,7 +73,23 @@ export async function getAdminProductById(id: string) {
   if (!product) return null;
 
   const [variants, images, brand] = await Promise.all([
-    db.select().from(variantsTable).where(eq(variantsTable.productId, id)),
+    db.select({
+      id: variantsTable.id,
+      productId: variantsTable.productId,
+      colorId: variantsTable.colorId,
+      size: variantsTable.size,
+      fit: variantsTable.fit,
+      sku: variantsTable.sku,
+      status: variantsTable.status,
+      stock: variantsTable.stock,
+      minStock: variantsTable.minStock,
+      colorName: colorsTable.name,
+      colorCode: colorsTable.code,
+      colorHex: colorsTable.hex,
+    })
+      .from(variantsTable)
+      .leftJoin(colorsTable, eq(variantsTable.colorId, colorsTable.id))
+      .where(eq(variantsTable.productId, id)),
     db.select().from(imagesTable).where(eq(imagesTable.productId, id)).orderBy(asc(imagesTable.sortOrder)),
     db.select().from(brandsTable).where(eq(brandsTable.id, product.brandId)).limit(1),
   ]);
@@ -94,6 +110,128 @@ export async function updateProduct(id: string, data: Partial<typeof productsTab
 export async function deleteProduct(id: string) {
   // Soft delete
   await db.update(productsTable).set({ isActive: false }).where(eq(productsTable.id, id));
+}
+
+// ── Product with Relations (Transactional) ──
+
+interface VariantInput {
+  colorId: string;
+  size: string;
+  fit?: string;
+  sku: string;
+  status: string;
+  stock: number;
+  minStock: number;
+}
+
+interface ImageInput {
+  colorId?: string;
+  url: string;
+  alt?: string;
+  sortOrder: number;
+}
+
+interface ProductWithRelationsInput {
+  slug: string;
+  name: string;
+  description?: string;
+  sku?: string;
+  brandId: string;
+  collectionId?: string;
+  category: string;
+  productType?: string;
+  gender: string;
+  priceNormal: string;
+  priceSale?: string;
+  discountPct?: number;
+  discountEnd?: string | null;
+  isNew?: boolean;
+  isBestSeller?: boolean;
+  isActive?: boolean;
+  features?: string[];
+  careInstructions?: string[];
+  styles?: string[];
+  crossSellId?: string | null;
+  variants?: VariantInput[];
+  images?: ImageInput[];
+}
+
+export async function createProductWithRelations(input: ProductWithRelationsInput) {
+  return await db.transaction(async (tx) => {
+    const { variants = [], images = [], ...productData } = input;
+
+    const [product] = await tx.insert(productsTable).values({
+      ...productData,
+      discountEnd: productData.discountEnd ? new Date(productData.discountEnd) : undefined,
+    }).returning();
+
+    if (variants.length > 0) {
+      await tx.insert(variantsTable).values(
+        variants.map(v => ({
+          ...v,
+          productId: product.id,
+        }))
+      );
+    }
+
+    if (images.length > 0) {
+      await tx.insert(imagesTable).values(
+        images.map(i => ({
+          ...i,
+          productId: product.id,
+        }))
+      );
+    }
+
+    return product;
+  });
+}
+
+export async function updateProductWithRelations(
+  id: string,
+  input: Partial<ProductWithRelationsInput>
+) {
+  return await db.transaction(async (tx) => {
+    const { variants, images, ...productData } = input;
+
+    // Update product base
+    if (Object.keys(productData).length > 0) {
+      const updateData: Record<string, unknown> = { ...productData };
+      if (productData.discountEnd !== undefined) {
+        updateData.discountEnd = productData.discountEnd ? new Date(productData.discountEnd) : null;
+      }
+      await tx.update(productsTable).set(updateData).where(eq(productsTable.id, id));
+    }
+
+    // Replace variants: delete existing, insert new
+    if (variants !== undefined) {
+      await tx.delete(variantsTable).where(eq(variantsTable.productId, id));
+      if (variants.length > 0) {
+        await tx.insert(variantsTable).values(
+          variants.map(v => ({
+            ...v,
+            productId: id,
+          }))
+        );
+      }
+    }
+
+    // Replace images: delete existing, insert new
+    if (images !== undefined) {
+      await tx.delete(imagesTable).where(eq(imagesTable.productId, id));
+      if (images.length > 0) {
+        await tx.insert(imagesTable).values(
+          images.map(i => ({
+            ...i,
+            productId: id,
+          }))
+        );
+      }
+    }
+
+    const [product] = await tx.select().from(productsTable).where(eq(productsTable.id, id)).limit(1);
+    return product;
+  });
 }
 
 // ── Variants ──
