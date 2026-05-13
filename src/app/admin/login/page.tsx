@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle, Eye, EyeOff } from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 function LoginForm() {
@@ -49,11 +51,16 @@ function LoginForm() {
     <Card className="w-full max-w-md border-0 shadow-2xl">
       <CardHeader className="space-y-4 pb-6">
         <div className="flex justify-center">
-          <div className="w-16 h-16 bg-[#111111] rounded-xl flex items-center justify-center">
-            <svg viewBox="0 0 40 40" className="w-10 h-10 text-white" fill="currentColor">
-              <path d="M20 2L4 12v16l16 10 16-10V12L20 2zm0 4.5L30.5 12 20 18.5 9.5 12 20 6.5zM8 15.5l10 6.25v10.5L8 26v-10.5zm14 16.75v-10.5l10-6.25V26l-10 6.25z"/>
-            </svg>
-          </div>
+          <Link href="/" className="block bg-[#111111] rounded-xl p-4 hover:opacity-90 transition-opacity">
+            <Image
+              src="/images/allmedic_logo_white.png"
+              alt="AllMedic"
+              width={160}
+              height={48}
+              className="h-12 w-auto"
+              priority
+            />
+          </Link>
         </div>
         <div className="text-center space-y-1">
           <CardTitle className="text-2xl font-bold text-[#111111]">AllMedic Admin</CardTitle>
@@ -75,7 +82,7 @@ function LoginForm() {
             <Input
               id="identifier"
               type="text"
-              placeholder="masteradmin o admin@allmedic.com"
+              placeholder="Usuario o correo"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               required
@@ -125,10 +132,15 @@ export default function AdminLoginPage() {
         <Card className="w-full max-w-md border-0 shadow-2xl">
           <CardContent className="p-8">
             <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 bg-[#111111] rounded-xl flex items-center justify-center">
-                <svg viewBox="0 0 40 40" className="w-10 h-10 text-white" fill="currentColor">
-                  <path d="M20 2L4 12v16l16 10 16-10V12L20 2zm0 4.5L30.5 12 20 18.5 9.5 12 20 6.5zM8 15.5l10 6.25v10.5L8 26v-10.5zm14 16.75v-10.5l10-6.25V26l-10 6.25z"/>
-                </svg>
+              <div className="bg-[#111111] rounded-xl p-4">
+                <Image
+                  src="/images/allmedic_logo_white.png"
+                  alt="AllMedic"
+                  width={160}
+                  height={48}
+                  className="h-12 w-auto"
+                  priority
+                />
               </div>
             </div>
             <p className="text-center text-gray-500">Cargando...</p>
