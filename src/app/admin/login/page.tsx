@@ -57,7 +57,8 @@ function LoginForm() {
               alt="AllMedic"
               width={160}
               height={48}
-              className="h-12 w-auto"
+              className="w-auto"
+              style={{ height: '48px' }}
               priority
             />
           </Link>
@@ -138,7 +139,8 @@ export default function AdminLoginPage() {
                   alt="AllMedic"
                   width={160}
                   height={48}
-                  className="h-12 w-auto"
+                  className="w-auto"
+                  style={{ height: '48px' }}
                   priority
                 />
               </div>
