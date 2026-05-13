@@ -11,13 +11,11 @@ export default auth((req) => {
 
   if (isAdminRoute || isApiAdminRoute) {
     if (!isLoggedIn) {
-      // For API routes, return 401. For pages, let NextAuth handle redirect via pages config
+      // Usuario no autenticado: redirigir a login sin error=forbidden
       if (isApiAdminRoute) {
         return Response.json({ error: 'Unauthorized' }, { status: 401 });
       }
-      // For page routes, returning a Response triggers the error page
-      // But NextAuth v5 with pages.signIn config handles redirect automatically
-      // when authorized() returns false. So we just return nothing here.
+      return Response.redirect(new URL('/admin/login', nextUrl));
     }
 
     const role = (req.auth?.user as any)?.role;
@@ -25,7 +23,7 @@ export default auth((req) => {
       if (isApiAdminRoute) {
         return Response.json({ error: 'Forbidden' }, { status: 403 });
       }
-      // Redirect forbidden users to login with error param
+      // Usuario autenticado pero sin permisos: mostrar error=forbidden
       return Response.redirect(new URL('/admin/login?error=forbidden', nextUrl));
     }
   }
