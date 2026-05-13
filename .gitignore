@@ -1,15 +1,4 @@
-# ─── AI Agents & Antigravity ───────────────────────────────────────────────
-# Agent config / workflow dirs
-.agents/
-.agent/
-_agents/
-_agent/
-.gemini/
-.claude/
-.cursor/
 
-# Antigravity plans & artifacts (stored locally, never committed)
-.plans/
 
 # ─── Dependencies ───────────────────────────────────────────────────────────
 node_modules/
