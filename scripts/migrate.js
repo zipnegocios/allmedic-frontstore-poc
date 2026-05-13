@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
- * Database schema synchronization — compiled runtime version
- * Runs directly without tsx, using plain Node.js + pg
+ * Database schema synchronization — ESM runtime version
+ * Runs directly with Node.js ESM + pg
  */
 
-const { Pool } = require('pg');
+import { Pool } from 'pg';
+import bcryptjs from 'bcryptjs';
 
 function getDatabaseUrl() {
   const rawUrl = process.env.DATABASE_URL;
@@ -41,6 +42,17 @@ async function migrate() {
     pool = new Pool({
       connectionString: getDatabaseUrl(),
       connectionTimeoutMillis: 10000,
+      // Robustez para entornos Docker/Easypanel: reintentos y keepalive
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
+      // Manejo de errores inesperados en el pool
+      idleTimeoutMillis: 30000,
+      max: 10,
+    });
+
+    // Manejar errores de clientes inactivos para evitar crash del proceso
+    pool.on('error', (err) => {
+      console.warn('⚠️  Unexpected Postgres pool error:', err.message);
     });
   } catch (err) {
     console.warn('⚠️  Could not create DB pool:', err.message);
@@ -369,7 +381,6 @@ async function migrate() {
 
     // ── 6. Ensure admin user ──
     console.log('  Ensuring admin user...');
-    const bcryptjs = require('bcryptjs');
     const adminPassword = await bcryptjs.hash('AMU.master26', 12);
 
     await client.query(`

@@ -132,6 +132,8 @@ export function Header({ onCartClick, products, brands, stores }: HeaderProps) {
               <img
                 src="/images/allmedic_logo_black.png"
                 alt="AllMedic Uniforms"
+                width={160}
+                height={48}
                 className={cn(
                   'w-auto transition-all duration-300',
                   isScrolled ? 'h-7 sm:h-8' : 'h-10 sm:h-12'
@@ -226,6 +228,8 @@ export function Header({ onCartClick, products, brands, stores }: HeaderProps) {
             <img
               src="/images/allmedic_logo_black.png"
               alt="AllMedic Uniforms"
+              width={160}
+              height={28}
               className="h-7 w-auto"
             />
             <button

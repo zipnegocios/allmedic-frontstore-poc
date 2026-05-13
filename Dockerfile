@@ -56,7 +56,7 @@ RUN test -f server.js || (echo "ERROR: server.js not found" && exit 1)
 # Healthcheck simple: solo verifica que el servidor HTTP responda
 # No depende de la base de datos para evitar fallos durante el startup
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=5 \
-  CMD node -e "require('http').get('http://127.0.0.1:3000/api/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))"
+  CMD node -e "import('http').then(({ get }) => { get('http://127.0.0.1:3000/api/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1)) })"
 
 # Puerto expuesto
 EXPOSE 3000

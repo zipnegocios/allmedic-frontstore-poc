@@ -21,6 +21,8 @@ export function Footer({ stores }: { stores?: Store[] }) {
               <img
                 src="/images/allmedic_logo_white.png"
                 alt="AllMedic Uniforms"
+                width={160}
+                height={40}
                 className="h-10 w-auto"
               />
             </Link>
