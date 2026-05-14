@@ -99,6 +99,8 @@ const GENDERS = [
 ];
 const SIZES = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '2XL', '3XL', '4XL', '5XL', 'OS'];
 const FITS = ['Petite', 'Regular', 'Tall', 'Short'];
+const SELECT_EMPTY_VALUE = '__empty__';
+
 const STATUSES = [
   { value: 'AVAILABLE', label: 'Disponible' },
   { value: 'BACKORDER', label: 'Pedido especial' },
@@ -624,12 +626,12 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
                             name={`variants.${index}.fit`}
                             control={control}
                             render={({ field }) => (
-                              <Select value={field.value || ''} onValueChange={field.onChange}>
+                              <Select value={field.value || SELECT_EMPTY_VALUE} onValueChange={(value) => field.onChange(value === SELECT_EMPTY_VALUE ? '' : value)}>
                                 <SelectTrigger className="text-xs">
                                   <SelectValue placeholder="Fit" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="">—</SelectItem>
+                                  <SelectItem value={SELECT_EMPTY_VALUE}>—</SelectItem>
                                   {FITS.map(f => (
                                     <SelectItem key={f} value={f}>{f}</SelectItem>
                                   ))}
@@ -751,12 +753,12 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
                             name={`images.${index}.colorId`}
                             control={control}
                             render={({ field }) => (
-                              <Select value={field.value || ''} onValueChange={field.onChange}>
+                              <Select value={field.value || SELECT_EMPTY_VALUE} onValueChange={(value) => field.onChange(value === SELECT_EMPTY_VALUE ? '' : value)}>
                                 <SelectTrigger className="text-xs">
                                   <SelectValue placeholder="Sin color específico" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="">Sin color específico</SelectItem>
+                                  <SelectItem value={SELECT_EMPTY_VALUE}>Sin color específico</SelectItem>
                                   {colors.map(c => (
                                     <SelectItem key={c.id} value={c.id}>
                                       <div className="flex items-center gap-2">

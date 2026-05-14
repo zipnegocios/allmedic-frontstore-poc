@@ -27,6 +27,8 @@ interface Lead {
   createdAt: Date;
 }
 
+const ALL_STATUSES = 'ALL';
+
 const statusColors: Record<string, string> = {
   SENT: 'bg-yellow-100 text-yellow-800',
   PROCESSING: 'bg-blue-100 text-blue-800',
@@ -36,7 +38,7 @@ const statusColors: Record<string, string> = {
 
 export default function AdminLeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState(ALL_STATUSES);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -45,7 +47,7 @@ export default function AdminLeadsPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (status) params.set('status', status);
+      if (status !== ALL_STATUSES) params.set('status', status);
       params.set('page', String(page));
       params.set('limit', '20');
       const res = await fetch(`/api/admin/leads?${params}`);
@@ -91,7 +93,7 @@ export default function AdminLeadsPage() {
                 <SelectValue placeholder="Filtrar por estado" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos</SelectItem>
+                <SelectItem value={ALL_STATUSES}>Todos</SelectItem>
                 <SelectItem value="SENT">Enviado</SelectItem>
                 <SelectItem value="PROCESSING">En proceso</SelectItem>
                 <SelectItem value="COMPLETED">Completado</SelectItem>
