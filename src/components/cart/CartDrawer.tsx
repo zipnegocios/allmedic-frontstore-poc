@@ -26,6 +26,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
   const [customerCity, setCustomerCity] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   const activeDiscount = getActiveVolumeDiscount();
   const nextTier = getNextVolumeTier();
@@ -33,16 +34,22 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
   const finalTotal = subtotal - discountAmount;
 
   const handleCheckout = async () => {
-    if (!customerName.trim() || !customerCity.trim() || !customerPhone.trim()) return;
+    if (!customerName.trim() || !customerCity.trim() || !customerPhone.trim() || items.length === 0) return;
 
     setIsSubmitting(true);
+    setCheckoutError(null);
     
     try {
-      await registerLead({
+      const lead = await registerLead({
         items,
         customerName: customerName.trim(),
         customerCity: customerCity.trim(),
         customerPhone: customerPhone.trim(),
+        totalItems,
+        subtotal,
+        discountPct: activeDiscount?.discountPct ?? 0,
+        discountAmount,
+        total: finalTotal,
       });
 
       const message = generateWhatsAppMessage({
@@ -50,6 +57,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
         customerName: customerName.trim(),
         customerCity: customerCity.trim(),
         customerPhone: customerPhone.trim(),
+        ...lead.totals,
       });
 
       openWhatsApp(message);
@@ -58,7 +66,10 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
       setCustomerName('');
       setCustomerCity('');
       setCustomerPhone('');
+      setCheckoutError(null);
       onClose();
+    } catch (error) {
+      setCheckoutError(error instanceof Error ? error.message : 'No pudimos registrar tu cotización. Inténtalo nuevamente.');
     } finally {
       setIsSubmitting(false);
     }
@@ -190,14 +201,25 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
       {/* Checkout Modal */}
       <Modal
         isOpen={showCheckoutModal}
-        onClose={() => setShowCheckoutModal(false)}
+        onClose={() => {
+          if (!isSubmitting) {
+            setCheckoutError(null);
+            setShowCheckoutModal(false);
+          }
+        }}
         title="Completa tu pedido"
         size="sm"
       >
         <div className="space-y-4">
           <p className="text-sm text-gray-500">
-            Ingresa tus datos para enviar tu cotización por WhatsApp.
+            Ingresa tus datos para registrar tu cotización y enviarla por WhatsApp.
           </p>
+
+          {checkoutError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {checkoutError}
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-[#111111] mb-1">
@@ -206,7 +228,10 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
             <input
               type="text"
               value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
+              onChange={(e) => {
+                setCustomerName(e.target.value);
+                setCheckoutError(null);
+              }}
               placeholder="Ej: María García"
               className="w-full px-3 py-2 border border-[#E5E5E5] rounded-lg focus:outline-none focus:border-[#111111] transition-colors"
             />
@@ -219,7 +244,10 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
             <input
               type="text"
               value={customerCity}
-              onChange={(e) => setCustomerCity(e.target.value)}
+              onChange={(e) => {
+                setCustomerCity(e.target.value);
+                setCheckoutError(null);
+              }}
               placeholder="Ej: Quito"
               className="w-full px-3 py-2 border border-[#E5E5E5] rounded-lg focus:outline-none focus:border-[#111111] transition-colors"
             />
@@ -232,23 +260,42 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
             <input
               type="tel"
               value={customerPhone}
-              onChange={(e) => setCustomerPhone(e.target.value)}
+              onChange={(e) => {
+                setCustomerPhone(e.target.value);
+                setCheckoutError(null);
+              }}
               placeholder="Ej: +593 99 999 9999"
               className="w-full px-3 py-2 border border-[#E5E5E5] rounded-lg focus:outline-none focus:border-[#111111] transition-colors"
             />
           </div>
 
-          <div className="pt-4 border-t border-[#E5E5E5]">
-            <div className="flex justify-between text-sm mb-4">
-              <span className="text-gray-500">Total de items:</span>
-              <span className="font-medium">{totalItems}</span>
+          <div className="pt-4 border-t border-[#E5E5E5] space-y-3">
+            <div className="space-y-2 rounded-lg bg-[#F5F5F7] p-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Total de items:</span>
+                <span className="font-medium">{totalItems}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Subtotal:</span>
+                <span className="font-medium">${subtotal.toFixed(2)}</span>
+              </div>
+              {discountAmount > 0 && (
+                <div className="flex justify-between text-sm text-[#34C759]">
+                  <span>Descuento ({activeDiscount?.discountPct}%):</span>
+                  <span>-${discountAmount.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between border-t border-[#E5E5E5] pt-2 text-base font-bold">
+                <span>Total estimado:</span>
+                <span>${finalTotal.toFixed(2)}</span>
+              </div>
             </div>
             <button
               onClick={handleCheckout}
-              disabled={!customerName.trim() || !customerCity.trim() || !customerPhone.trim() || isSubmitting}
+              disabled={!customerName.trim() || !customerCity.trim() || !customerPhone.trim() || isSubmitting || items.length === 0}
               className={cn(
                 'w-full flex items-center justify-center gap-2 px-6 py-3 text-white font-medium rounded-full transition-opacity',
-                !customerName.trim() || !customerCity.trim() || !customerPhone.trim() || isSubmitting
+                !customerName.trim() || !customerCity.trim() || !customerPhone.trim() || isSubmitting || items.length === 0
                   ? 'bg-gray-300 cursor-not-allowed'
                   : 'bg-[#25D366] hover:opacity-90'
               )}

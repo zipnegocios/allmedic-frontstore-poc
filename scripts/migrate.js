@@ -231,10 +231,33 @@ async function migrate() {
         items JSONB NOT NULL,
         total_items INTEGER NOT NULL,
         subtotal DECIMAL(10,2) NOT NULL,
+        discount_pct INTEGER DEFAULT 0,
+        discount_amount DECIMAL(10,2) DEFAULT 0,
+        total DECIMAL(10,2) NOT NULL DEFAULT 0,
         status TEXT NOT NULL DEFAULT 'SENT',
         created_at TIMESTAMPTZ DEFAULT NOW()
       )
     `);
+
+    const leadColumns = await client.query(`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'leads'
+    `);
+    const existingLeadCols = new Set(leadColumns.rows.map(r => r.column_name));
+
+    if (!existingLeadCols.has('discount_pct')) {
+      console.log('    Adding discount_pct column to leads...');
+      await client.query(`ALTER TABLE leads ADD COLUMN discount_pct INTEGER DEFAULT 0`);
+    }
+    if (!existingLeadCols.has('discount_amount')) {
+      console.log('    Adding discount_amount column to leads...');
+      await client.query(`ALTER TABLE leads ADD COLUMN discount_amount DECIMAL(10,2) DEFAULT 0`);
+    }
+    if (!existingLeadCols.has('total')) {
+      console.log('    Adding total column to leads...');
+      await client.query(`ALTER TABLE leads ADD COLUMN total DECIMAL(10,2) NOT NULL DEFAULT 0`);
+      await client.query(`UPDATE leads SET total = subtotal WHERE total = 0`);
+    }
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS banners (

@@ -24,6 +24,9 @@ export const leads = pgTable("leads", {
   items: jsonb("items").notNull(),
   totalItems: integer("total_items").notNull(),
   subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
+  discountPct: integer("discount_pct").default(0),
+  discountAmount: decimal("discount_amount", { precision: 10, scale: 2 }).default("0"),
+  total: decimal("total", { precision: 10, scale: 2 }).notNull().default("0"),
   status: text("status").notNull().default("SENT"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 }, (table) => [
