@@ -12,6 +12,10 @@ import {
   Palette,
   Store,
   LogOut,
+  Boxes,
+  Layers,
+  Building2,
+  FileText,
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 
@@ -23,6 +27,10 @@ const navItems = [
   { href: '/admin/brands', label: 'Marcas', icon: Tag },
   { href: '/admin/colors', label: 'Colores', icon: Palette },
   { href: '/admin/stores', label: 'Sucursales', icon: Store },
+  { href: '/admin/sets', label: 'Sets Corporativos', icon: Boxes },
+  { href: '/admin/set-groups', label: 'Grupos de Sets', icon: Layers },
+  { href: '/admin/corporate-accounts', label: 'Cuentas Corporativas', icon: Building2 },
+  { href: '/admin/quotes', label: 'Cotizaciones', icon: FileText },
 ];
 
 export function AdminSidebar() {

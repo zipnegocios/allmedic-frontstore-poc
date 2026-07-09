@@ -28,10 +28,11 @@ Key characteristics:
 | Styling | Tailwind CSS | 3.4.19 |
 | UI Components | shadcn/ui (New York style) | 50+ components in `src/components/ui/` |
 | Primitives | Radix UI | Various packages (`@radix-ui/react-*`) |
-| ORM | Prisma | 5.22.0 |
-| Database | MySQL | Via `DATABASE_URL` env var |
+| ORM | Drizzle ORM | 0.45.2 |
+| Database | PostgreSQL | Via `DATABASE_URL` env var (pgvector para RAG) |
 | Forms | react-hook-form + zod | 7.70.0 / 4.3.5 |
 | Icons | lucide-react | 0.562.0 |
+| Auth | NextAuth.js | 5.0.0-beta.31 |
 | Build Tool | Turbopack (default) | `next dev` uses Turbopack |
 
 ---
@@ -39,21 +40,26 @@ Key characteristics:
 ## Project Structure
 
 ```
-c:\zip\allmedic-frontstore-poc
+c:\dev\allmedic-frontstore-poc
 ├── src/
 │   ├── app/                    # Next.js App Router pages
+│   │   ├── (store)/           # Public store routes group
+│   │   │   ├── page.tsx       # Home page
+│   │   │   ├── catalogo/      # Product catalog
+│   │   │   ├── p/[slug]/      # Product detail (SSR)
+│   │   │   ├── marcas/        # Brands page
+│   │   │   ├── sucursales/    # Stores page
+│   │   │   └── layout.tsx     # Store layout with providers
+│   │   ├── admin/             # Protected admin routes (NextAuth)
+│   │   │   ├── login/         # Admin login
+│   │   │   └── (dashboard)/   # Protected dashboard routes
 │   │   ├── api/               # API routes
-│   │   │   ├── leads/route.ts
-│   │   │   ├── products/route.ts
-│   │   │   └── search/route.ts
-│   │   ├── catalogo/          # Catalog page (SSG)
-│   │   │   ├── page.tsx
-│   │   │   └── CatalogoContent.tsx
-│   │   ├── marcas/            # Brands page (SSG)
-│   │   ├── p/[slug]/          # Product detail (SSR)
-│   │   ├── sucursales/        # Stores page (SSG)
-│   │   ├── layout.tsx         # Root layout with providers
-│   │   └── page.tsx           # Home page
+│   │   │   ├── auth/          # NextAuth endpoints
+│   │   │   ├── products/      # Product CRUD
+│   │   │   ├── admin/         # Admin endpoints
+│   │   │   ├── leads/         # Lead submission
+│   │   │   └── search/        # Search endpoint
+│   │   └── layout.tsx         # Root layout with metadata
 │   ├── components/
 │   │   ├── ui/                # shadcn/ui components (50+)
 │   │   ├── layout/            # Header, Footer, AppShell, MegaMenu
@@ -62,28 +68,39 @@ c:\zip\allmedic-frontstore-poc
 │   │   ├── cart/              # CartDrawer, CartItem
 │   │   └── home/              # BrandCarousel, Hero, etc.
 │   ├── context/               # CartContext, NotificationContext
-│   ├── hooks/                 # useProductFilter, useDebug, use-mobile
-│   ├── legacy-pages/          # Reusable page content components
+│   ├── hooks/                 # useProductFilter, useDebug, use-mobile, useNotification
+│   ├── legacy-pages/          # Legacy page content (migration in progress)
 │   │   ├── Home.tsx
 │   │   ├── Product.tsx
 │   │   └── Stores.tsx
-│   ├── lib/                   # Utilities, types, Prisma client, data service
+│   ├── lib/                   # Utilities, types, data service
 │   │   ├── data-service.ts    # Single source of truth for data fetching
-│   │   ├── dummy-data.ts      # Legacy fallback data (still referenced in some places)
-│   │   ├── prisma.ts          # PrismaClient singleton
 │   │   ├── types.ts           # Frontend type definitions
 │   │   ├── utils.ts           # `cn()` helper (clsx + tailwind-merge)
-│   │   ├── whatsapp.ts        # WhatsApp message generation & lead registration
-│   │   └── navigation.tsx     # Navigation links
+│   │   ├── whatsapp.ts        # WhatsApp integration
+│   │   ├── uuid.ts            # UUID generation
+│   │   ├── navigation.tsx     # Navigation links
+│   │   └── rules-engine/      # Business rules motor (NEW - Fase 1)
+│   ├── db/                    # Database & ORM (Drizzle + PostgreSQL)
+│   │   ├── schema/            # Drizzle schema definitions
+│   │   │   ├── index.ts       # Re-exports all schemas
+│   │   │   ├── products.ts    # Products, brands, colors, collections
+│   │   │   ├── auth.ts        # Users, accounts, sessions (NextAuth)
+│   │   │   ├── commerce.ts    # Orders, cart items (NEW - Fase 1)
+│   │   │   ├── corporate.ts   # Corporate catalogs (NEW - Fase 1)
+│   │   │   ├── chats.ts       # Chat history
+│   │   │   └── rag.ts         # RAG documents, embeddings
+│   │   ├── migrations/        # Auto-generated Drizzle migrations
+│   │   ├── seed.ts            # Database seeding script
+│   │   ├── migrate.ts         # Migration runner
+│   │   └── index.ts           # Database connection
 │   ├── App.css                # App-specific styles
 │   └── index.css              # Tailwind directives + CSS variables
-├── prisma/
-│   ├── schema.prisma          # Database schema (12 models)
-│   └── seed.ts                # Seed script with demo data
-├── public/images/             # Static assets (products, brands, heroes)
+├── public/images/             # Static assets
 ├── .next/                     # Next.js build output
-├── dist/                      # Legacy Vite build artifact (can be removed)
-└── .claude/                   # Claude Code docs, skills, audits
+├── .claude/                   # Claude Code docs, skills
+├── drizzle.config.ts          # Drizzle ORM configuration
+└── next.config.ts             # Next.js configuration
 ```
 
 ### Path Aliases
@@ -102,10 +119,11 @@ All commands are defined in `package.json`:
 | `npm run build` | Production build |
 | `npm run start` | Production server |
 | `npm run lint` | ESLint check (`eslint .`) |
-| `npm run prisma:migrate` | Run Prisma migrations (`prisma migrate dev`) |
-| `npm run prisma:seed` | Seed the database (`tsx prisma/seed.ts`) |
-| `npm run db:push` | Push schema without migration (`prisma db push`) |
-| `npm run db:studio` | Open Prisma Studio |
+| `npm run db:generate` | Generate Drizzle migration files (`drizzle-kit generate`) |
+| `npm run db:push` | Push schema to database (`drizzle-kit push`) |
+| `npm run db:migrate` | Run migrations if needed (`tsx src/db/migrate.ts`) |
+| `npm run db:seed` | Seed the database (`tsx src/db/seed.ts`) |
+| `npm run db:studio` | Open Drizzle Studio (web UI for database) |
 
 ### Environment Variables
 
@@ -156,31 +174,37 @@ Both are mounted in `src/app/layout.tsx` inside `AppShell`.
 
 ---
 
-## Database Schema (Prisma + MySQL)
+## Database Schema (Drizzle ORM + PostgreSQL)
 
-The schema defines 12 models across 5 domains:
+The schema is defined across multiple files in `src/db/schema/`:
 
-| Domain | Models |
-|--------|--------|
-| **Auth** | `User` (roles: `SUPER_ADMIN`, `CATALOG_MANAGER`) |
-| **Catalog** | `Brand`, `Collection`, `Color`, `Product`, `ProductVariant`, `ProductImage` |
-| **Stores** | `Store` |
-| **Leads/Orders** | `Lead` (statuses: `SENT`, `CONTACTED`, `CONVERTED`, `CANCELLED`) |
-| **CMS** | `Banner` |
-| **Analytics** | `SearchLog`, `WhatsAppClick` |
+| Domain | Tables | File |
+|--------|--------|------|
+| **Auth** | `users`, `accounts`, `sessions`, `verificationTokens` | `auth.ts` |
+| **Catalog** | `brands`, `collections`, `colors`, `products`, `productVariants` | `products.ts` |
+| **Commerce** | `orders`, `orderItems`, `volumeDiscounts`, `cartItems` | `commerce.ts` |
+| **Corporate** | `setGroups`, `corporateSets`, `setItems`, `businessRules`, `corporateAccounts`, `corporateCarts`, `quoteRequests`, `quoteStatusHistory`, `quoteAttachments` | `corporate.ts` (NEW - Fase 1) |
+| **Stores** | `stores` | `products.ts` |
+| **RAG/Chat** | `documents`, `embeddings`, `chats` | `rag.ts`, `chats.ts` |
 
-### Key Product Fields
+### Key Tables
 
-- `slug` (unique), `name`, `description`, `sku`, `category`, `productType`, `gender` (`HOMBRE`/`MUJER`/`UNISEX`)
-- Pricing: `priceNormal` (Decimal), `priceSale` (Decimal), `discountPct`, `discountEnd`
-- Flags: `isNew`, `isBestSeller`, `isActive`
-- Relations: `brand`, `collection`, `variants[]`, `images[]`
-- JSON arrays: `features`, `careInstructions`, `styles`
-- Full-text index on `[name, description]` (Prisma preview feature)
+**`products`** — Product master
+- `id`, `slug` (unique), `name`, `description`, `sku`, `category`, `gender`
+- Pricing: `priceNormal`, `priceSale`, `discountPct`, `discountEnd`
+- NEW (Fase 1): `priceWholesale`, `priceWholesaleSale`, `visibility` (`INDIVIDUAL`|`GROUPS`|`BOTH`)
+- Relations: `brand`, `variants[]`, `collections[]`
 
-### PrismaClient Singleton
+**`productVariants`** — Size/color combinations
+- `id`, `productId`, `size`, `color`, `sku`, `stock`, `imageUrl`
 
-`src/lib/prisma.ts` exports a single PrismaClient instance. In development it is attached to the global object to prevent multiple instances during hot reload.
+**`businessRules`** (NEW - Fase 1) — Business logic engine
+- `id`, `name`, `ruleType`, `scope`, `scopeId`, `config` (JSONB), `isActive`, `priority`, `validFrom`, `validTo`
+- Supports: `MIN_QUANTITY`, `SIZE_MODE`, `PRICE_VISIBILITY`, `INVENTORY_MODE`, `VOLUME_SCALE`, `PROMO`, etc.
+
+### Database Connection
+
+`src/db/index.ts` exports a Drizzle client. Use it via `data-service.ts` or API routes. Direct database queries go through `drizzle-orm` query builder.
 
 ---
 
@@ -271,10 +295,11 @@ There is **no CI/CD, Docker, or GitHub Actions** configured. Deployment is manua
 
 ## Known Issues & Migration Debt
 
-1. **README.md is outdated** — still references Vite + React Router. Use this `AGENTS.md` or `.claude/MIGRATION_SUMMARY.md` for accurate info.
-2. **`src/lib/dummy-data.ts` still exists** and is referenced in some hooks (`useProductFilter.ts`, `Header.tsx` search fallback). Prefer `data-service.ts` for all new work.
-3. **`components.json` has `"rsc": false`** — this was set during the Vite era. New shadcn/ui components may need manual adjustment for Next.js App Router.
-4. **`dist/` folder** is a leftover Vite build artifact and can be removed.
+1. **README.md is outdated** — still references Vite + React Router. Use this `AGENTS.md` for accurate info.
+2. **`src/lib/dummy-data.ts` still exists** and may be referenced in legacy code. Prefer `data-service.ts` for all new work.
+3. **`src/legacy-pages/` directory** contains old page implementations. Gradually migrate to `src/app/` structure.
+4. **Admin routes structure is evolving** — `/admin` dashboard is being built out (products, brands, colors, stores, banners, leads management).
+5. **Drizzle schema in evolution** — `corporate.ts` and `business_rules` will be added in Fase 1 of the corporate catalog feature.
 
 ---
 

@@ -1,63 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
-import { getAdminProductById, updateProductWithRelations, deleteProduct } from '@/lib/admin-data-service';
+import { getAdminSetById, updateSetWithItems, deleteSet } from '@/lib/admin-data-service';
 import { z } from 'zod';
 
-const VariantSchema = z.object({
-  id: z.string().optional(),
-  colorId: z.string().min(1),
-  size: z.string().min(1),
-  fit: z.string().optional(),
-  sku: z.string().min(1),
-  status: z.enum(['AVAILABLE', 'BACKORDER', 'OUT_OF_STOCK']).default('AVAILABLE'),
-  stock: z.number().default(0),
-  minStock: z.number().default(5),
-});
-
-const ImageSchema = z.object({
-  id: z.string().optional(),
-  colorId: z.string().optional(),
-  url: z.string().min(1),
-  alt: z.string().optional(),
+const SetItemSchema = z.object({
+  productId: z.string().min(1),
+  quantityPerSet: z.number().min(1).default(1),
   sortOrder: z.number().default(0),
 });
 
-const UpdateProductSchema = z.object({
-  slug: z.string().min(1).optional(),
+const UpdateSetSchema = z.object({
   name: z.string().min(1).optional(),
+  slug: z.string().min(1).optional(),
   description: z.string().optional(),
-  sku: z.string().optional(),
-  brandId: z.string().min(1).optional(),
-  collectionId: z.string().optional(),
-  category: z.string().min(1).optional(),
-  productType: z.string().optional(),
-  gender: z.string().min(1).optional(),
-  priceNormal: z.string().min(1).optional(),
-  priceSale: z.string().optional(),
-  discountPct: z.number().optional(),
-  discountEnd: z.string().optional().nullable(),
-  priceWholesale: z.string().optional().nullable(),
-  priceWholesaleSale: z.string().optional().nullable(),
-  wholesaleDiscountEnd: z.string().optional().nullable(),
-  visibility: z.enum(['INDIVIDUAL', 'GROUPS', 'BOTH']).optional(),
-  isNew: z.boolean().optional(),
-  isBestSeller: z.boolean().optional(),
+  imageUrl: z.string().optional(),
+  setGroupId: z.string().optional().nullable(),
+  brandId: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
-  features: z.array(z.string()).optional(),
-  careInstructions: z.array(z.string()).optional(),
-  styles: z.array(z.string()).optional(),
-  crossSellId: z.string().optional().nullable(),
-  variants: z.array(VariantSchema).optional(),
-  images: z.array(ImageSchema).optional(),
+  isFeatured: z.boolean().optional(),
+  sortOrder: z.number().optional(),
+  items: z.array(SetItemSchema).optional(),
 });
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAdmin();
     const { id } = await params;
-    const product = await getAdminProductById(id);
-    if (!product) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    return NextResponse.json(product);
+    const set = await getAdminSetById(id);
+    if (!set) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    return NextResponse.json(set);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     if (message === 'Unauthorized') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -71,9 +42,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     await requireAdmin();
     const { id } = await params;
     const body = await request.json();
-    const validated = UpdateProductSchema.parse(body);
-    const product = await updateProductWithRelations(id, validated);
-    return NextResponse.json(product);
+    const validated = UpdateSetSchema.parse(body);
+    const set = await updateSetWithItems(id, validated);
+    return NextResponse.json(set);
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: 'Validation error', details: err.issues }, { status: 400 });
@@ -89,7 +60,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   try {
     await requireAdmin();
     const { id } = await params;
-    await deleteProduct(id);
+    await deleteSet(id);
     return NextResponse.json({ success: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';

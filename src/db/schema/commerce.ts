@@ -1,9 +1,9 @@
-import { pgTable, text, integer, boolean, decimal, timestamp, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, boolean, decimal, timestamp, jsonb, index, uuid as pgUuid } from "drizzle-orm/pg-core";
 import { uuid } from "@/lib/uuid";
 
 // ─── Stores ───
 export const stores = pgTable("stores", {
-  id: text("id").primaryKey().$defaultFn(() => uuid()),
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
   name: text("name").notNull(),
   address: text("address").notNull(),
   phone: text("phone"),
@@ -17,7 +17,7 @@ export const stores = pgTable("stores", {
 
 // ─── Leads ───
 export const leads = pgTable("leads", {
-  id: text("id").primaryKey().$defaultFn(() => uuid()),
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
   customerName: text("customer_name").notNull(),
   customerCity: text("customer_city").notNull(),
   customerPhone: text("customer_phone"),
@@ -36,7 +36,7 @@ export const leads = pgTable("leads", {
 
 // ─── Banners ───
 export const banners = pgTable("banners", {
-  id: text("id").primaryKey().$defaultFn(() => uuid()),
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
   title: text("title").notNull(),
   subtitle: text("subtitle"),
   imageDesktop: text("image_desktop").notNull(),
@@ -49,7 +49,7 @@ export const banners = pgTable("banners", {
 
 // ─── Search Logs ───
 export const searchLogs = pgTable("search_logs", {
-  id: text("id").primaryKey().$defaultFn(() => uuid()),
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
   query: text("query").notNull(),
   results: integer("results").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
@@ -57,7 +57,7 @@ export const searchLogs = pgTable("search_logs", {
 
 // ─── WhatsApp Clicks ───
 export const whatsappClicks = pgTable("whatsapp_clicks", {
-  id: text("id").primaryKey().$defaultFn(() => uuid()),
-  productId: text("product_id"),
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
+  productId: pgUuid("product_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });

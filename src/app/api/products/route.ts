@@ -7,7 +7,7 @@ import {
   productImages as imagesTable,
   colors as colorsTable,
 } from '@/db/schema';
-import { eq, and, or, sql, asc, desc, inArray } from 'drizzle-orm';
+import { eq, and, or, sql, asc, desc, inArray, ne } from 'drizzle-orm';
 import { PRODUCTS as DUMMY_PRODUCTS } from '@/lib/dummy-data';
 
 /**
@@ -26,7 +26,8 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
 
     // Build conditions
-    const conditions = [eq(productsTable.isActive, true)];
+    // Excluye productos "Solo Grupos" — solo existen como piezas de sets corporativos.
+    const conditions = [eq(productsTable.isActive, true), ne(productsTable.visibility, 'GROUPS')];
 
     if (search) {
       const likeQuery = `%${search}%`;

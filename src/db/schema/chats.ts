@@ -1,9 +1,9 @@
-import { pgTable, text, timestamp, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, jsonb, index, uuid as pgUuid } from "drizzle-orm/pg-core";
 import { uuid } from "@/lib/uuid";
 
 // ─── Conversations (Unified Inbox) ───
 export const conversations = pgTable("conversations", {
-  id: text("id").primaryKey().$defaultFn(() => uuid()),
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
   channel: text("channel").notNull(), // 'whatsapp' | 'instagram'
   externalId: text("external_id").notNull(), // WA chat ID or IG thread ID
   customerName: text("customer_name"),
@@ -21,8 +21,8 @@ export const conversations = pgTable("conversations", {
 
 // ─── Messages ───
 export const messages = pgTable("messages", {
-  id: text("id").primaryKey().$defaultFn(() => uuid()),
-  conversationId: text("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
+  conversationId: pgUuid("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
   source: text("source").notNull(), // 'whatsapp' | 'instagram' | 'manual'
   direction: text("direction").notNull(), // 'inbound' | 'outbound'
   content: text("content").notNull(),

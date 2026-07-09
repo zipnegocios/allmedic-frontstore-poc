@@ -47,6 +47,7 @@ coverage/
 .temp/
 .claude/
 .gemini/
+cookies.txt
 
 # ─── Next.js ───────────────────────────────────────────────────────────────
 .next/

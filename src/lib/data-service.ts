@@ -9,7 +9,7 @@ import {
   productImages as imagesTable,
 } from '@/db/schema';
 import type { Product, ProductColor, ProductVariant, Store, Gender, Size, Fit } from './types';
-import { eq, and, or, asc, sql, inArray, gte, lte, type SQL } from 'drizzle-orm';
+import { eq, and, or, asc, sql, inArray, gte, lte, ne, type SQL } from 'drizzle-orm';
 import {
   PRODUCTS as DUMMY_PRODUCTS,
   BRANDS as DUMMY_BRANDS,
@@ -238,7 +238,10 @@ async function fetchProductsWithJoins(whereCondition?: SQL<unknown>) {
 
 export async function getAllProducts(): Promise<Product[]> {
   if (!await checkDbAvailable()) return DUMMY_PRODUCTS;
-  const results = await fetchProductsWithJoins(eq(productsTable.isActive, true));
+  // Excluye productos "Solo Grupos" — solo existen como piezas de sets corporativos.
+  const results = await fetchProductsWithJoins(
+    and(eq(productsTable.isActive, true), ne(productsTable.visibility, 'GROUPS'))
+  );
   return results.length > 0 ? results : DUMMY_PRODUCTS;
 }
 
@@ -255,7 +258,11 @@ export async function getFeaturedProducts(): Promise<Product[]> {
   const results = await db
     .select({ id: productsTable.id })
     .from(productsTable)
-    .where(and(eq(productsTable.isActive, true), eq(productsTable.isBestSeller, true)))
+    .where(and(
+      eq(productsTable.isActive, true),
+      eq(productsTable.isBestSeller, true),
+      ne(productsTable.visibility, 'GROUPS')
+    ))
     .limit(8);
 
   const productIds = results.map(r => r.id);

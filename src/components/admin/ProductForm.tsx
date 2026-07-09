@@ -59,6 +59,10 @@ const ProductFormSchema = z.object({
   priceSale: z.string().optional(),
   discountPct: z.coerce.number().min(0).max(100).optional(),
   discountEnd: z.string().optional(),
+  priceWholesale: z.string().optional(),
+  priceWholesaleSale: z.string().optional(),
+  wholesaleDiscountEnd: z.string().optional(),
+  visibility: z.enum(['INDIVIDUAL', 'GROUPS', 'BOTH']).default('INDIVIDUAL'),
   isNew: z.boolean().default(false),
   isBestSeller: z.boolean().default(false),
   isActive: z.boolean().default(true),
@@ -101,6 +105,12 @@ const SIZES = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '2XL', '3XL', '4XL', '5X
 const FITS = ['Petite', 'Regular', 'Tall', 'Short'];
 const SELECT_EMPTY_VALUE = '__empty__';
 
+const VISIBILITY_OPTIONS = [
+  { value: 'INDIVIDUAL', label: 'Solo Individual', description: 'Visible solo en el catálogo individual (/catalogo)' },
+  { value: 'GROUPS', label: 'Solo Grupos', description: 'Solo disponible como pieza de sets corporativos, no aparece en /catalogo' },
+  { value: 'BOTH', label: 'Ambos', description: 'Visible en el catálogo individual y disponible como pieza de sets' },
+];
+
 const STATUSES = [
   { value: 'AVAILABLE', label: 'Disponible' },
   { value: 'BACKORDER', label: 'Pedido especial' },
@@ -137,6 +147,7 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
       category: '',
       gender: 'UNISEX',
       priceNormal: '',
+      visibility: 'INDIVIDUAL',
       isNew: false,
       isBestSeller: false,
       isActive: true,
@@ -421,6 +432,29 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
                   </div>
                 </div>
 
+                <div className="space-y-2 pt-2">
+                  <Label htmlFor="visibility">Visibilidad *</Label>
+                  <Controller
+                    name="visibility"
+                    control={control}
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar visibilidad" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {VISIBILITY_OPTIONS.map(v => (
+                            <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  <p className="text-xs text-gray-500">
+                    {VISIBILITY_OPTIONS.find(v => v.value === watch('visibility'))?.description}
+                  </p>
+                </div>
+
                 <div className="flex gap-6 pt-2">
                   <div className="flex items-center gap-2">
                     <Controller
@@ -451,6 +485,32 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
                       )}
                     />
                     <Label>Activo</Label>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Precios al Mayor (Catálogo Corporativo) */}
+            <Card>
+              <CardContent className="p-6 space-y-4">
+                <div>
+                  <h3 className="font-semibold">Precios al Mayor</h3>
+                  <p className="text-xs text-gray-500">
+                    Usados para calcular el precio referencial de sets corporativos. Opcionales si el producto es &quot;Solo Individual&quot;.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="priceWholesale">Precio al Mayor</Label>
+                    <Input id="priceWholesale" type="number" step="0.01" {...register('priceWholesale')} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="priceWholesaleSale">Precio al Mayor Rebajado</Label>
+                    <Input id="priceWholesaleSale" type="number" step="0.01" {...register('priceWholesaleSale')} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="wholesaleDiscountEnd">Fin de rebaja al mayor</Label>
+                    <Input id="wholesaleDiscountEnd" type="datetime-local" {...register('wholesaleDiscountEnd')} />
                   </div>
                 </div>
               </CardContent>

@@ -1,10 +1,10 @@
-import { pgTable, text, integer, boolean, decimal, timestamp, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, boolean, decimal, timestamp, jsonb, index, uuid as pgUuid } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { uuid } from "@/lib/uuid";
 
 // ─── Brands ───
 export const brands = pgTable("brands", {
-  id: text("id").primaryKey().$defaultFn(() => uuid()),
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
   name: text("name").notNull().unique(),
   slug: text("slug").notNull().unique(),
   description: text("description"),
@@ -20,10 +20,10 @@ export const brandsRelations = relations(brands, ({ many }) => ({
 
 // ─── Collections ───
 export const collections = pgTable("collections", {
-  id: text("id").primaryKey().$defaultFn(() => uuid()),
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
-  brandId: text("brand_id").notNull().references(() => brands.id),
+  brandId: pgUuid("brand_id").notNull().references(() => brands.id),
 });
 
 export const collectionsRelations = relations(collections, ({ one, many }) => ({
@@ -33,7 +33,7 @@ export const collectionsRelations = relations(collections, ({ one, many }) => ({
 
 // ─── Colors ───
 export const colors = pgTable("colors", {
-  id: text("id").primaryKey().$defaultFn(() => uuid()),
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
   name: text("name").notNull().unique(),
   code: text("code").notNull().unique(),
   hex: text("hex").notNull(),
@@ -45,13 +45,13 @@ export const colorsRelations = relations(colors, ({ many }) => ({
 
 // ─── Products ───
 export const products = pgTable("products", {
-  id: text("id").primaryKey().$defaultFn(() => uuid()),
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
   description: text("description"),
   sku: text("sku"),
-  brandId: text("brand_id").notNull().references(() => brands.id),
-  collectionId: text("collection_id").references(() => collections.id),
+  brandId: pgUuid("brand_id").notNull().references(() => brands.id),
+  collectionId: pgUuid("collection_id").references(() => collections.id),
   category: text("category").notNull(),
   productType: text("product_type"),
   gender: text("gender").notNull(),
@@ -59,10 +59,14 @@ export const products = pgTable("products", {
   priceSale: decimal("price_sale", { precision: 10, scale: 2 }),
   discountPct: integer("discount_pct"),
   discountEnd: timestamp("discount_end", { withTimezone: true }),
+  priceWholesale: decimal("price_wholesale", { precision: 10, scale: 2 }),
+  priceWholesaleSale: decimal("price_wholesale_sale", { precision: 10, scale: 2 }),
+  wholesaleDiscountEnd: timestamp("wholesale_discount_end", { withTimezone: true }),
+  visibility: text("visibility").notNull().default("INDIVIDUAL"),
   isNew: boolean("is_new").default(false),
   isBestSeller: boolean("is_best_seller").default(false),
   isActive: boolean("is_active").default(true),
-  crossSellId: text("cross_sell_id"),
+  crossSellId: pgUuid("cross_sell_id"),
   features: jsonb("features"),
   careInstructions: jsonb("care_instructions"),
   styles: jsonb("styles"),
@@ -84,9 +88,9 @@ export const productsRelations = relations(products, ({ one, many }) => ({
 
 // ─── Product Variants ───
 export const productVariants = pgTable("product_variants", {
-  id: text("id").primaryKey().$defaultFn(() => uuid()),
-  productId: text("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
-  colorId: text("color_id").notNull().references(() => colors.id),
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
+  productId: pgUuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  colorId: pgUuid("color_id").notNull().references(() => colors.id),
   size: text("size").notNull(),
   fit: text("fit"),
   sku: text("sku").notNull().unique(),
@@ -108,9 +112,9 @@ export const productVariantsRelations = relations(productVariants, ({ one }) => 
 
 // ─── Product Images ───
 export const productImages = pgTable("product_images", {
-  id: text("id").primaryKey().$defaultFn(() => uuid()),
-  productId: text("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
-  colorId: text("color_id"),
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
+  productId: pgUuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  colorId: pgUuid("color_id"),
   url: text("url").notNull(),
   alt: text("alt"),
   sortOrder: integer("sort_order").default(0),

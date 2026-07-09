@@ -31,6 +31,12 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
     discountEnd: product.discountEnd
       ? new Date(product.discountEnd).toISOString().slice(0, 16)
       : '',
+    priceWholesale: product.priceWholesale || '',
+    priceWholesaleSale: product.priceWholesaleSale || '',
+    wholesaleDiscountEnd: product.wholesaleDiscountEnd
+      ? new Date(product.wholesaleDiscountEnd).toISOString().slice(0, 16)
+      : '',
+    visibility: (product.visibility as 'INDIVIDUAL' | 'GROUPS' | 'BOTH') || 'INDIVIDUAL',
     isNew: product.isNew ?? false,
     isBestSeller: product.isBestSeller ?? false,
     isActive: product.isActive ?? true,

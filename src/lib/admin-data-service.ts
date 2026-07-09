@@ -8,8 +8,11 @@ import {
   productVariants as variantsTable,
   productImages as imagesTable,
   leads as leadsTable,
+  setGroups as setGroupsTable,
+  corporateSets as corporateSetsTable,
+  setItems as setItemsTable,
 } from '@/db/schema';
-import { eq, and, or, asc, desc, sql, like, type SQL } from 'drizzle-orm';
+import { eq, and, or, asc, desc, sql, like, inArray, type SQL } from 'drizzle-orm';
 
 // ── Products ──
 
@@ -48,6 +51,7 @@ export async function getAdminProducts(opts: {
       priceNormal: productsTable.priceNormal,
       priceSale: productsTable.priceSale,
       discountPct: productsTable.discountPct,
+      visibility: productsTable.visibility,
       isNew: productsTable.isNew,
       isBestSeller: productsTable.isBestSeller,
       isActive: productsTable.isActive,
@@ -145,6 +149,10 @@ interface ProductWithRelationsInput {
   priceSale?: string;
   discountPct?: number;
   discountEnd?: string | null;
+  priceWholesale?: string | null;
+  priceWholesaleSale?: string | null;
+  wholesaleDiscountEnd?: string | null;
+  visibility?: 'INDIVIDUAL' | 'GROUPS' | 'BOTH';
   isNew?: boolean;
   isBestSeller?: boolean;
   isActive?: boolean;
@@ -163,6 +171,7 @@ export async function createProductWithRelations(input: ProductWithRelationsInpu
     const [product] = await tx.insert(productsTable).values({
       ...productData,
       discountEnd: productData.discountEnd ? new Date(productData.discountEnd) : undefined,
+      wholesaleDiscountEnd: productData.wholesaleDiscountEnd ? new Date(productData.wholesaleDiscountEnd) : undefined,
     }).returning();
 
     if (variants.length > 0) {
@@ -199,6 +208,9 @@ export async function updateProductWithRelations(
       const updateData: Record<string, unknown> = { ...productData };
       if (productData.discountEnd !== undefined) {
         updateData.discountEnd = productData.discountEnd ? new Date(productData.discountEnd) : null;
+      }
+      if (productData.wholesaleDiscountEnd !== undefined) {
+        updateData.wholesaleDiscountEnd = productData.wholesaleDiscountEnd ? new Date(productData.wholesaleDiscountEnd) : null;
       }
       await tx.update(productsTable).set(updateData).where(eq(productsTable.id, id));
     }
@@ -358,4 +370,179 @@ export async function updateBanner(id: string, data: Partial<typeof bannersTable
 
 export async function deleteBanner(id: string) {
   await db.delete(bannersTable).where(eq(bannersTable.id, id));
+}
+
+// ── Set Groups (Grupos de Sets Corporativos) ──
+
+export async function getAdminSetGroups() {
+  return db.select().from(setGroupsTable).orderBy(asc(setGroupsTable.sortOrder));
+}
+
+export async function createSetGroup(data: typeof setGroupsTable.$inferInsert) {
+  const [group] = await db.insert(setGroupsTable).values(data).returning();
+  return group;
+}
+
+export async function updateSetGroup(id: string, data: Partial<typeof setGroupsTable.$inferInsert>) {
+  const [group] = await db.update(setGroupsTable).set(data).where(eq(setGroupsTable.id, id)).returning();
+  return group;
+}
+
+export async function deleteSetGroup(id: string) {
+  await db.delete(setGroupsTable).where(eq(setGroupsTable.id, id));
+}
+
+// ── Corporate Sets (Sets Corporativos) ──
+
+export async function getAdminSets() {
+  const rows = await db
+    .select({
+      id: corporateSetsTable.id,
+      name: corporateSetsTable.name,
+      slug: corporateSetsTable.slug,
+      imageUrl: corporateSetsTable.imageUrl,
+      setGroupId: corporateSetsTable.setGroupId,
+      groupName: setGroupsTable.name,
+      brandId: corporateSetsTable.brandId,
+      brandName: brandsTable.name,
+      isActive: corporateSetsTable.isActive,
+      isFeatured: corporateSetsTable.isFeatured,
+      sortOrder: corporateSetsTable.sortOrder,
+    })
+    .from(corporateSetsTable)
+    .leftJoin(setGroupsTable, eq(corporateSetsTable.setGroupId, setGroupsTable.id))
+    .leftJoin(brandsTable, eq(corporateSetsTable.brandId, brandsTable.id))
+    .orderBy(asc(corporateSetsTable.sortOrder));
+
+  const setIds = rows.map(r => r.id);
+  const itemCounts = setIds.length > 0
+    ? await db
+        .select({ setId: setItemsTable.setId, count: sql<number>`count(*)` })
+        .from(setItemsTable)
+        .where(inArray(setItemsTable.setId, setIds))
+        .groupBy(setItemsTable.setId)
+    : [];
+  const countMap = new Map(itemCounts.map(c => [c.setId, Number(c.count)]));
+
+  return rows.map(r => ({ ...r, itemCount: countMap.get(r.id) ?? 0 }));
+}
+
+export async function getAdminSetById(id: string) {
+  const [set] = await db.select().from(corporateSetsTable).where(eq(corporateSetsTable.id, id)).limit(1);
+  if (!set) return null;
+
+  const items = await db
+    .select({
+      id: setItemsTable.id,
+      productId: setItemsTable.productId,
+      quantityPerSet: setItemsTable.quantityPerSet,
+      sortOrder: setItemsTable.sortOrder,
+      productName: productsTable.name,
+      productSlug: productsTable.slug,
+      priceWholesale: productsTable.priceWholesale,
+      priceWholesaleSale: productsTable.priceWholesaleSale,
+      priceNormal: productsTable.priceNormal,
+    })
+    .from(setItemsTable)
+    .leftJoin(productsTable, eq(setItemsTable.productId, productsTable.id))
+    .where(eq(setItemsTable.setId, id))
+    .orderBy(asc(setItemsTable.sortOrder));
+
+  return { ...set, items };
+}
+
+interface SetItemInput {
+  id?: string;
+  productId: string;
+  quantityPerSet: number;
+  sortOrder: number;
+}
+
+interface CorporateSetInput {
+  name: string;
+  slug: string;
+  description?: string;
+  imageUrl?: string;
+  setGroupId?: string | null;
+  brandId?: string | null;
+  isActive?: boolean;
+  isFeatured?: boolean;
+  sortOrder?: number;
+  items?: SetItemInput[];
+}
+
+export async function createSetWithItems(input: CorporateSetInput) {
+  return await db.transaction(async (tx) => {
+    const { items = [], ...setData } = input;
+    const [set] = await tx.insert(corporateSetsTable).values(setData).returning();
+
+    if (items.length > 0) {
+      await tx.insert(setItemsTable).values(
+        items.map(i => ({
+          productId: i.productId,
+          quantityPerSet: i.quantityPerSet,
+          sortOrder: i.sortOrder,
+          setId: set.id,
+        }))
+      );
+    }
+
+    return set;
+  });
+}
+
+export async function updateSetWithItems(id: string, input: Partial<CorporateSetInput>) {
+  return await db.transaction(async (tx) => {
+    const { items, ...setData } = input;
+
+    if (Object.keys(setData).length > 0) {
+      await tx.update(corporateSetsTable).set(setData).where(eq(corporateSetsTable.id, id));
+    }
+
+    if (items !== undefined) {
+      await tx.delete(setItemsTable).where(eq(setItemsTable.setId, id));
+      if (items.length > 0) {
+        await tx.insert(setItemsTable).values(
+          items.map(i => ({
+            productId: i.productId,
+            quantityPerSet: i.quantityPerSet,
+            sortOrder: i.sortOrder,
+            setId: id,
+          }))
+        );
+      }
+    }
+
+    const [set] = await tx.select().from(corporateSetsTable).where(eq(corporateSetsTable.id, id)).limit(1);
+    return set;
+  });
+}
+
+export async function deleteSet(id: string) {
+  await db.delete(corporateSetsTable).where(eq(corporateSetsTable.id, id));
+}
+
+// ── Productos disponibles para armar sets (visibility GROUPS o BOTH) ──
+
+export async function getGroupEligibleProducts() {
+  return db
+    .select({
+      id: productsTable.id,
+      name: productsTable.name,
+      slug: productsTable.slug,
+      priceWholesale: productsTable.priceWholesale,
+      priceWholesaleSale: productsTable.priceWholesaleSale,
+      priceNormal: productsTable.priceNormal,
+      visibility: productsTable.visibility,
+      brandName: brandsTable.name,
+    })
+    .from(productsTable)
+    .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
+    .where(
+      and(
+        eq(productsTable.isActive, true),
+        or(eq(productsTable.visibility, 'GROUPS'), eq(productsTable.visibility, 'BOTH'))
+      )
+    )
+    .orderBy(asc(productsTable.name));
 }

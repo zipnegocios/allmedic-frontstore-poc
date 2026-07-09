@@ -6,7 +6,7 @@ import {
   productImages as imagesTable,
 } from '@/db/schema';
 import { searchLogs as searchLogsTable } from '@/db/schema';
-import { eq, and, or, sql, asc, inArray } from 'drizzle-orm';
+import { eq, and, or, sql, asc, inArray, ne } from 'drizzle-orm';
 import { searchProducts } from '@/lib/dummy-data';
 
 /**
@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
         .where(
           and(
             eq(productsTable.isActive, true),
+            ne(productsTable.visibility, 'GROUPS'),
             or(
               sql`${productsTable.name} ILIKE ${likeQuery}`,
               sql`${productsTable.description} ILIKE ${likeQuery}`,
