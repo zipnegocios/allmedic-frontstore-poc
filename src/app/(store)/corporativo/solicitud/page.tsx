@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { ChevronLeft, AlertCircle } from 'lucide-react';
 import { useCorporateCart } from '@/context/CorporateCartContext';
@@ -11,12 +12,26 @@ const SECTORS = ['Hospital', 'Clínica', 'Consultorio', 'Universidad', 'Farmacia
 
 export default function SolicitudPage() {
   const router = useRouter();
+  const { status: sessionStatus } = useSession();
   const { items, validation, pricing, clearCart } = useCorporateCart();
   const [form, setForm] = useState({
     ruc: '', razonSocial: '', contactName: '', email: '', phone: '', city: '', sector: '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Prellena los datos si el cliente corporativo ya tiene sesión iniciada y cuenta aprobada.
+  useEffect(() => {
+    if (sessionStatus !== 'authenticated') return;
+    fetch('/api/corporate/account/me')
+      .then((res) => res.json())
+      .then((data: { account?: typeof form | null }) => {
+        if (data.account) {
+          setForm((prev) => ({ ...prev, ...data.account }));
+        }
+      })
+      .catch(() => {});
+  }, [sessionStatus]);
 
   function update(field: keyof typeof form, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));

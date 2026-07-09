@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
-import { Search, ShoppingBag, X, ChevronRight, Menu, MapPin, Tag, Home, Grid3X3 } from 'lucide-react';
+import { Search, ShoppingBag, X, ChevronRight, Menu, MapPin, Tag, Home, Grid3X3, Building2 } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 import { searchProducts as defaultSearchProducts } from '@/lib/dummy-data';
 import { MegaMenu } from './MegaMenu';
+import { CorporateNavCTA } from './CorporateNavCTA';
 import type { Product, Store } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -171,6 +172,8 @@ export function Header({ onCartClick, products, brands, stores }: HeaderProps) {
                   {link.label}
                 </Link>
               ))}
+
+              <CorporateNavCTA className="ml-1" />
             </nav>
 
             {/* Actions */}
@@ -266,6 +269,24 @@ export function Header({ onCartClick, products, brands, stores }: HeaderProps) {
                   </li>
                 );
               })}
+              <li>
+                <Link
+                  href="/corporativo"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={cn(
+                    'flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200',
+                    isActive('/corporativo')
+                      ? 'bg-[#111111] text-white'
+                      : 'text-[#333333] hover:bg-[#F5F5F7]'
+                  )}
+                >
+                  <Building2 className="w-5 h-5" strokeWidth={1.5} />
+                  <span className="font-medium">Ventas al Mayor</span>
+                  {isActive('/corporativo') && (
+                    <ChevronRight className="w-4 h-4 ml-auto" strokeWidth={1.5} />
+                  )}
+                </Link>
+              </li>
             </ul>
           </nav>
 

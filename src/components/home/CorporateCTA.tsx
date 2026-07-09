@@ -1,41 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Building2, ShoppingBag } from 'lucide-react';
+import { useAlternatingText } from '@/hooks/useAlternatingText';
 
 const ALTERNATING_TEXTS = ['Ventas al Mayor', 'Compras Corporativas'];
-const INTERVAL_MS = 7000; // entre 5–10s per el plan
 
 export function CorporateCTA() {
-  const [textIndex, setTextIndex] = useState(0);
-  const [fade, setFade] = useState(true);
-
-  useEffect(() => {
-    const prefersReducedMotion =
-      typeof window !== 'undefined' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-    // Con prefers-reduced-motion, alternamos el texto sin animación de fade,
-    // en un intervalo más largo para minimizar el movimiento en pantalla.
-    if (prefersReducedMotion) {
-      const timer = setInterval(() => {
-        setTextIndex((prev) => (prev + 1) % ALTERNATING_TEXTS.length);
-      }, INTERVAL_MS);
-      return () => clearInterval(timer);
-    }
-
-    const timer = setInterval(() => {
-      setFade(false);
-      const switchTimeout = setTimeout(() => {
-        setTextIndex((prev) => (prev + 1) % ALTERNATING_TEXTS.length);
-        setFade(true);
-      }, 300);
-      return () => clearTimeout(switchTimeout);
-    }, INTERVAL_MS);
-
-    return () => clearInterval(timer);
-  }, []);
+  const { text, fade } = useAlternatingText(ALTERNATING_TEXTS);
 
   return (
     <section className="py-16 bg-[#F5F5F7]">
@@ -72,7 +44,7 @@ export function CorporateCTA() {
                   fade ? 'opacity-100' : 'opacity-0'
                 }`}
               >
-                {ALTERNATING_TEXTS[textIndex]}
+                {text}
                 <span className="sr-only"> — Ventas al Mayor y Compras Corporativas</span>
               </h3>
               <p className="text-white/70">

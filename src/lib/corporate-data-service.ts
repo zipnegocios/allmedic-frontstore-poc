@@ -8,8 +8,11 @@ import {
   colors as colorsTable,
   productVariants as variantsTable,
   businessRules as businessRulesTable,
+  corporateAccounts as corporateAccountsTable,
+  quoteRequests as quoteRequestsTable,
+  quoteAttachments as quoteAttachmentsTable,
 } from '@/db/schema';
-import { eq, and, inArray, asc } from 'drizzle-orm';
+import { eq, and, inArray, asc, desc } from 'drizzle-orm';
 import type { BusinessRule } from './rules-engine';
 import type { CorporateSetSummary, CorporateSetDetail, SetPiece, SetGroupSummary } from './corporate-types';
 import type { ProductColor, ProductVariant } from './types';
@@ -275,4 +278,33 @@ export async function getSetMetaByIds(setIds: string[]): Promise<Record<string, 
     .from(corporateSetsTable)
     .where(inArray(corporateSetsTable.id, setIds));
   return Object.fromEntries(rows.map((r) => [r.id, { setGroupId: r.setGroupId, brandId: r.brandId }]));
+}
+
+// ── Portal del cliente corporativo ──
+
+export async function getCorporateAccountByUserId(userId: string) {
+  const [account] = await db
+    .select()
+    .from(corporateAccountsTable)
+    .where(eq(corporateAccountsTable.userId, userId))
+    .limit(1);
+  return account ?? null;
+}
+
+export async function getQuoteRequestsByAccountId(accountId: string) {
+  const quotes = await db
+    .select()
+    .from(quoteRequestsTable)
+    .where(eq(quoteRequestsTable.accountId, accountId))
+    .orderBy(desc(quoteRequestsTable.createdAt));
+
+  const quoteIds = quotes.map((q) => q.id);
+  const attachments = quoteIds.length > 0
+    ? await db.select().from(quoteAttachmentsTable).where(inArray(quoteAttachmentsTable.quoteId, quoteIds))
+    : [];
+
+  return quotes.map((q) => ({
+    ...q,
+    attachments: attachments.filter((a) => a.quoteId === q.id),
+  }));
 }

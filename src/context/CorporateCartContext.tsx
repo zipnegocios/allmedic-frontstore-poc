@@ -1,6 +1,7 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useSession } from 'next-auth/react';
 import {
   resolveRules,
   validateCorporateCart,
@@ -57,6 +58,42 @@ function lineId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function lineKey(l: Pick<CorporateCartLine, 'size' | 'color' | 'pieceSelections'>): string {
+  return `${l.size ?? ''}|${l.color ?? ''}|${JSON.stringify(l.pieceSelections ?? null)}`;
+}
+
+/** Fusiona el carrito del servidor (BD) con el carrito local (localStorage), sumando
+ * cantidades de líneas idénticas — se usa al iniciar sesión para no perder ninguno
+ * de los dos carritos. */
+function mergeCartItems(local: CorporateCartItem[], server: CorporateCartItem[]): CorporateCartItem[] {
+  const merged: CorporateCartItem[] = local.map((item) => ({ ...item, lines: [...item.lines] }));
+
+  for (const serverItem of server) {
+    const localIndex = merged.findIndex((i) => i.setId === serverItem.setId);
+    if (localIndex === -1) {
+      merged.push({ ...serverItem, lines: serverItem.lines.map((l) => ({ ...l, id: lineId() })) });
+      continue;
+    }
+
+    const localItem = merged[localIndex];
+    const linesByKey = new Map(localItem.lines.map((l) => [lineKey(l), l]));
+
+    for (const serverLine of serverItem.lines) {
+      const key = lineKey(serverLine);
+      const existingLine = linesByKey.get(key);
+      if (existingLine) {
+        existingLine.quantity += serverLine.quantity;
+      } else {
+        const newLine = { ...serverLine, id: lineId() };
+        localItem.lines.push(newLine);
+        linesByKey.set(key, newLine);
+      }
+    }
+  }
+
+  return merged;
+}
+
 export function CorporateCartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CorporateCartItem[]>(() => {
     if (typeof window === 'undefined') return [];
@@ -72,10 +109,50 @@ export function CorporateCartProvider({ children }: { children: React.ReactNode 
 
   const [rules, setRules] = useState<BusinessRule[]>([]);
   const [rulesLoading, setRulesLoading] = useState(true);
+  const { data: session, status: sessionStatus } = useSession();
+  const hasMergedRef = useRef(false);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   }, [items]);
+
+  // Al iniciar sesión: fusiona el carrito guardado en BD con el de localStorage
+  // (una sola vez por sesión) y persiste el resultado combinado en el servidor.
+  useEffect(() => {
+    if (sessionStatus !== 'authenticated' || !session?.user || hasMergedRef.current) return;
+    hasMergedRef.current = true;
+
+    fetch('/api/corporate/cart')
+      .then((res) => res.json())
+      .then((data: { items?: CorporateCartItem[] }) => {
+        const serverItems = data.items ?? [];
+        if (serverItems.length === 0) return;
+        setItems((prev) => {
+          const merged = mergeCartItems(prev, serverItems);
+          fetch('/api/corporate/cart', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: merged }),
+          }).catch(() => {});
+          return merged;
+        });
+      })
+      .catch(() => {});
+  }, [sessionStatus, session]);
+
+  // Guarda el carrito en BD (debounced) mientras hay sesión iniciada —
+  // permite continuar la compra desde otro dispositivo.
+  useEffect(() => {
+    if (sessionStatus !== 'authenticated' || !hasMergedRef.current) return;
+    const timer = setTimeout(() => {
+      fetch('/api/corporate/cart', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      }).catch(() => {});
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [items, sessionStatus]);
 
   useEffect(() => {
     let cancelled = false;
