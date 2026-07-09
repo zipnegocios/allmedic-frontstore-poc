@@ -11,6 +11,8 @@ import {
   setGroups as setGroupsTable,
   corporateSets as corporateSetsTable,
   setItems as setItemsTable,
+  quoteRequests as quoteRequestsTable,
+  corporateAccounts as corporateAccountsTable,
 } from '@/db/schema';
 import { eq, and, or, asc, desc, sql, like, inArray, type SQL } from 'drizzle-orm';
 
@@ -545,4 +547,34 @@ export async function getGroupEligibleProducts() {
       )
     )
     .orderBy(asc(productsTable.name));
+}
+
+// ── Quote Requests (Solicitudes de Cotización) — Fase 2: dashboard mínimo de solo lectura ──
+
+export async function getAdminQuotes() {
+  return db
+    .select({
+      id: quoteRequestsTable.id,
+      code: quoteRequestsTable.code,
+      customerData: quoteRequestsTable.customerData,
+      referenceSubtotal: quoteRequestsTable.referenceSubtotal,
+      quotedTotal: quoteRequestsTable.quotedTotal,
+      status: quoteRequestsTable.status,
+      createdAt: quoteRequestsTable.createdAt,
+    })
+    .from(quoteRequestsTable)
+    .orderBy(desc(quoteRequestsTable.createdAt));
+}
+
+export async function getAdminQuoteById(id: string) {
+  const [quote] = await db.select().from(quoteRequestsTable).where(eq(quoteRequestsTable.id, id)).limit(1);
+  if (!quote) return null;
+
+  let account = null;
+  if (quote.accountId) {
+    const [acc] = await db.select().from(corporateAccountsTable).where(eq(corporateAccountsTable.id, quote.accountId)).limit(1);
+    account = acc ?? null;
+  }
+
+  return { ...quote, account };
 }

@@ -9,6 +9,7 @@ import type { ViewMode } from '@/components/catalog/LayoutSwitcher';
 import { LayoutSwitcher } from '@/components/catalog/LayoutSwitcher';
 import { FilterableProductSection } from '@/components/home/FilterableProductSection';
 import { BrandCarousel } from '@/components/home/BrandCarousel';
+import { CorporateCTA } from '@/components/home/CorporateCTA';
 import { cn } from '@/lib/utils';
 import type { Product } from '@/lib/types';
 
@@ -188,6 +189,7 @@ export function Home({ heroSlides, featuredProducts, allProducts, brands }: { he
   return (
     <main className="pt-14 sm:pt-16">
       <HeroCarousel slides={heroSlides} />
+      <CorporateCTA />
       <QuickAccessCards />
       <FilterableProductSection products={allProducts} />
       <BrandCarousel brands={brands} />
