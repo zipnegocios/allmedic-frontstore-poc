@@ -3,6 +3,9 @@ import { getCorporateSetBySlug, getAllBusinessRules } from '@/lib/corporate-data
 import { resolveRules } from '@/lib/rules-engine';
 import { SetDetailContent } from './SetDetailContent';
 
+// Precios y reglas son datos en vivo — nunca pre-renderizar en build-time.
+export const dynamic = 'force-dynamic';
+
 interface SetDetailPageProps {
   params: Promise<{ slug: string }>;
 }

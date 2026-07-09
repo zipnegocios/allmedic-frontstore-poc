@@ -2,6 +2,10 @@ import { getActiveCorporateSets, getActiveSetGroups, getAllBusinessRules } from 
 import { resolveRules } from '@/lib/rules-engine';
 import { CorporativoContent } from './CorporativoContent';
 
+// Precios y reglas son datos en vivo — nunca pre-renderizar en build-time
+// (evita fallos de build cuando DATABASE_URL solo está disponible en runtime, ej. Docker/EasyPanel).
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'Catálogo Corporativo | AllMedic Uniforms',
   description: 'Sets de uniformes médicos para instituciones y compras al mayor.',

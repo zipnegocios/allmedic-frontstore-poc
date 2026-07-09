@@ -566,6 +566,36 @@ export async function getAdminQuotes() {
     .orderBy(desc(quoteRequestsTable.createdAt));
 }
 
+// ── Corporate Accounts (Cuentas Corporativas) ──
+
+export async function getAdminCorporateAccounts(status?: string) {
+  const where = status ? eq(corporateAccountsTable.status, status) : undefined;
+  return db.select().from(corporateAccountsTable).where(where).orderBy(desc(corporateAccountsTable.createdAt));
+}
+
+export async function getAdminCorporateAccountById(id: string) {
+  const [account] = await db.select().from(corporateAccountsTable).where(eq(corporateAccountsTable.id, id)).limit(1);
+  return account ?? null;
+}
+
+export async function updateCorporateAccountStatus(
+  id: string,
+  status: 'APPROVED' | 'REJECTED' | 'SUSPENDED',
+  approvedBy: string
+) {
+  const [account] = await db
+    .update(corporateAccountsTable)
+    .set({
+      status,
+      approvedBy,
+      approvedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(corporateAccountsTable.id, id))
+    .returning();
+  return account;
+}
+
 export async function getAdminQuoteById(id: string) {
   const [quote] = await db.select().from(quoteRequestsTable).where(eq(quoteRequestsTable.id, id)).limit(1);
   if (!quote) return null;
