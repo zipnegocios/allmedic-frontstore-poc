@@ -8,12 +8,15 @@ const FOLDER_PREFIXES: Record<string, string> = {
 
 export type MediaFolder = keyof typeof FOLDER_PREFIXES;
 
+// Dominio público del bucket R2. No es secreto (queda expuesto en cada URL de imagen servida
+// al navegador), así que se usa como fallback fijo: las variables NEXT_PUBLIC_* de Next.js solo
+// se "hornean" en el bundle del cliente si existen en tiempo de BUILD de Docker, y EasyPanel solo
+// inyecta variables de entorno en tiempo de RUNTIME del contenedor — sin este fallback, el bundle
+// del cliente queda con `undefined` para siempre sin importar qué env vars se configuren después.
+const R2_PUBLIC_URL_FALLBACK = "https://media.allmedicuniforms.com";
+
 function getPublicUrl(): string {
-  // NEXT_PUBLIC_R2_PUBLIC_URL (inyectada en next.config.ts desde R2_PUBLIC_URL) está disponible
-  // tanto en servidor como en cliente. R2_PUBLIC_URL es el fallback para scripts standalone (tsx)
-  // que no pasan por el build de Next y por lo tanto no tienen la variable NEXT_PUBLIC_ inyectada.
-  const url = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? process.env.R2_PUBLIC_URL;
-  if (!url) throw new Error("Falta la variable de entorno R2_PUBLIC_URL");
+  const url = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? process.env.R2_PUBLIC_URL ?? R2_PUBLIC_URL_FALLBACK;
   return url.replace(/\/$/, "");
 }
 
