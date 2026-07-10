@@ -4,14 +4,16 @@ const nextConfig: NextConfig = {
   // React 19 with Next.js
   reactStrictMode: true,
 
-  // Image optimization
+  // Image optimization — transformaciones vía Cloudflare Images (edge), no el optimizador de Next.
   images: {
-    unoptimized: true, // For Hostinger/EasyPanel compatibility
+    loader: 'custom',
+    loaderFile: './src/lib/cloudflare-image-loader.ts',
   },
 
   // Environment variables expuestas en build time
   env: {
     NEXT_PUBLIC_WHATSAPP_NUMBER: process.env.VITE_WHATSAPP_NUMBER,
+    NEXT_PUBLIC_R2_PUBLIC_URL: process.env.R2_PUBLIC_URL,
   },
 
   // Use Turbopack (Next.js 16 default)
