@@ -16,12 +16,14 @@ import {
   Layers,
   Building2,
   FileText,
+  Images,
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 
 const navItems = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/products', label: 'Productos', icon: Package },
+  { href: '/admin/media', label: 'Media Library', icon: Images },
   { href: '/admin/leads', label: 'Pedidos', icon: ShoppingCart },
   { href: '/admin/banners', label: 'Banners', icon: ImageIcon },
   { href: '/admin/brands', label: 'Marcas', icon: Tag },

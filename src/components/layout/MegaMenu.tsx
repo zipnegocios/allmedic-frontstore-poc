@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { ChevronLeft, ChevronRight, MapPin, Tag, Package, Store, X } from 'lucide-react';
 import { PRODUCTS as DEFAULT_PRODUCTS, BRANDS as DEFAULT_BRANDS, STORES as DEFAULT_STORES } from '@/lib/dummy-data';
 import type { Product, Store as StoreType } from '@/lib/types';
@@ -221,11 +222,13 @@ export function MegaMenu({ isOpen, onClose, products: productsProp, brands: bran
                           onClick={onClose}
                           className="group"
                         >
-                          <div className="aspect-[3/4] bg-[#F5F5F7] rounded-lg overflow-hidden mb-2 sm:mb-3">
-                            <img
+                          <div className="relative aspect-[3/4] bg-[#F5F5F7] rounded-lg overflow-hidden mb-2 sm:mb-3">
+                            <Image
                               src={product.variants[0]?.images[0] || '/images/placeholder-product.jpg'}
                               alt={product.name}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              fill
+                              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 16vw"
+                              className="object-cover group-hover:scale-105 transition-transform duration-300"
                             />
                           </div>
                           <p className="text-xs text-gray-400 uppercase mb-0.5">{product.brand}</p>

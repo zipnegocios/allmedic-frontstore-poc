@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Eye, Check, X, Clock, Loader2 } from 'lucide-react';
 import type { Product } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
@@ -119,11 +120,13 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
             )}
 
             {/* Image */}
-            <img
+            <Image
               src={displayImage}
               alt={`${product.name} - ${selectedColor?.name || ''}`}
+              fill
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
               className={cn(
-                "w-full h-full object-cover transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]",
+                "object-cover transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]",
                 hasActiveCountdown && "group-hover:scale-105 group-hover:brightness-95",
                 isImageLoading && "opacity-0"
               )}

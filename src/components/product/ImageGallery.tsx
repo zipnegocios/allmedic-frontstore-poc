@@ -1,8 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+const PLACEHOLDER = '/images/placeholder-product.jpg';
 
 interface ImageGalleryProps {
   images: string[];
@@ -14,8 +17,10 @@ export function ImageGallery({ images, productName, brandLogo }: ImageGalleryPro
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isImageLoading, setIsImageLoading] = useState(true);
+  const [mainSrcError, setMainSrcError] = useState(false);
+  const [brandLogoError, setBrandLogoError] = useState(false);
 
-  const displayImages = images.length > 0 ? images : ['/images/placeholder-product.jpg'];
+  const displayImages = images.length > 0 ? images : [PLACEHOLDER];
 
   const handleImageChange = (index: number) => {
     if (index === selectedIndex) return;
@@ -23,6 +28,7 @@ export function ImageGallery({ images, productName, brandLogo }: ImageGalleryPro
     setIsTransitioning(true);
     setTimeout(() => {
       setSelectedIndex(index);
+      setMainSrcError(false);
       setIsTransitioning(false);
     }, 150);
   };
@@ -48,18 +54,21 @@ export function ImageGallery({ images, productName, brandLogo }: ImageGalleryPro
           </div>
         )}
 
-        <img
-          src={displayImages[selectedIndex]}
+        <Image
+          src={mainSrcError ? PLACEHOLDER : displayImages[selectedIndex]}
           alt={`${productName} - Imagen ${selectedIndex + 1}`}
+          fill
+          sizes="(max-width: 768px) 100vw, 50vw"
+          priority={selectedIndex === 0}
           className={cn(
-            'w-full h-full object-cover transition-opacity duration-300',
+            'object-cover transition-opacity duration-300',
             isTransitioning ? 'opacity-0' : 'opacity-100',
             isImageLoading && 'opacity-0'
           )}
           onLoad={() => setIsImageLoading(false)}
-          onError={(e) => {
+          onError={() => {
             setIsImageLoading(false);
-            (e.target as HTMLImageElement).src = '/images/placeholder-product.jpg';
+            setMainSrcError(true);
           }}
         />
 
@@ -95,18 +104,20 @@ export function ImageGallery({ images, productName, brandLogo }: ImageGalleryPro
               key={index}
               onClick={() => handleImageChange(index)}
               className={cn(
-                'flex-shrink-0 w-20 h-20 bg-[#F5F5F7] rounded-lg overflow-hidden border-2 transition-all duration-200',
+                'relative flex-shrink-0 w-20 h-20 bg-[#F5F5F7] rounded-lg overflow-hidden border-2 transition-all duration-200',
                 selectedIndex === index
                   ? 'border-[#111111]'
                   : 'border-transparent hover:border-gray-300'
               )}
             >
-              <img
+              <Image
                 src={image}
                 alt={`${productName} - Miniatura ${index + 1}`}
-                className="w-full h-full object-cover"
+                fill
+                sizes="80px"
+                className="object-cover"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = '/images/placeholder-product.jpg';
+                  (e.target as HTMLImageElement).src = PLACEHOLDER;
                 }}
               />
             </button>
@@ -129,16 +140,18 @@ export function ImageGallery({ images, productName, brandLogo }: ImageGalleryPro
       </div>
 
       {/* Brand Logo - Desktop Only */}
-      {brandLogo && (
+      {brandLogo && !brandLogoError && (
         <div className="hidden md:flex justify-center pt-4 border-t border-[#E5E5E5]">
-          <img
-            src={brandLogo}
-            alt="Brand Logo"
-            className="h-8 w-auto opacity-60 hover:opacity-100 transition-opacity"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
-          />
+          <div className="relative h-8 w-32 opacity-60 hover:opacity-100 transition-opacity">
+            <Image
+              src={brandLogo}
+              alt="Brand Logo"
+              fill
+              sizes="128px"
+              className="object-contain"
+              onError={() => setBrandLogoError(true)}
+            />
+          </div>
         </div>
       )}
     </div>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { Search, ShoppingBag, X, ChevronRight, Menu, MapPin, Tag, Home, Grid3X3, Building2 } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
@@ -370,11 +371,13 @@ export function Header({ onCartClick, products, brands, stores }: HeaderProps) {
                         }}
                         className="flex items-center gap-3 sm:gap-4 p-3 hover:bg-[#F5F5F7] rounded-lg transition-colors"
                       >
-                        <div className="w-12 h-16 sm:w-14 sm:h-18 bg-[#F5F5F7] rounded overflow-hidden flex-shrink-0">
-                          <img
+                        <div className="relative w-12 h-16 sm:w-14 sm:h-18 bg-[#F5F5F7] rounded overflow-hidden flex-shrink-0">
+                          <Image
                             src={product.variants[0]?.images[0] || '/images/placeholder-product.jpg'}
                             alt={product.name}
-                            className="w-full h-full object-cover"
+                            fill
+                            sizes="56px"
+                            className="object-cover"
                           />
                         </div>
                         <div className="flex-1 min-w-0">

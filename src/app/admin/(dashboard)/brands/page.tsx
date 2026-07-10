@@ -8,7 +8,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Tag } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Tag, ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -18,6 +18,8 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { MediaPicker } from '@/components/admin/media/MediaPicker';
+import { resolveMediaUrl } from '@/lib/media';
 
 interface Brand {
   id: string;
@@ -39,6 +41,7 @@ export default function AdminBrandsPage() {
   const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
   const [formData, setFormData] = useState({ name: '', slug: '', description: '', logoUrl: '', isActive: true, sortOrder: 0 });
   const [saving, setSaving] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const fetchBrands = useCallback(async () => {
     setLoading(true);
@@ -234,8 +237,19 @@ export default function AdminBrandsPage() {
               <Input value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
             </div>
             <div className="space-y-2">
-              <Label>Logo URL</Label>
-              <Input value={formData.logoUrl} onChange={e => setFormData({ ...formData, logoUrl: e.target.value })} />
+              <Label>Logo</Label>
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
+                  {formData.logoUrl ? (
+                    <img src={formData.logoUrl} alt="" className="w-full h-full object-contain" />
+                  ) : (
+                    <ImageIcon className="w-5 h-5 text-gray-300" />
+                  )}
+                </div>
+                <Button type="button" size="sm" variant="outline" onClick={() => setPickerOpen(true)}>
+                  {formData.logoUrl ? 'Cambiar logo' : 'Elegir logo'}
+                </Button>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <input type="checkbox" checked={formData.isActive} onChange={e => setFormData({ ...formData, isActive: e.target.checked })} />
@@ -250,6 +264,17 @@ export default function AdminBrandsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <MediaPicker
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        folder="BRANDS"
+        segments={formData.slug ? [formData.slug] : []}
+        onConfirm={(assets) => {
+          if (assets[0]) setFormData((prev) => ({ ...prev, logoUrl: resolveMediaUrl(assets[0].storageKey) }));
+          setPickerOpen(false);
+        }}
+      />
     </div>
   );
 }

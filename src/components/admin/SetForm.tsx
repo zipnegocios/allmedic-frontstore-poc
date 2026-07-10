@@ -20,8 +20,10 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { ArrowLeft, Save, Plus, Trash2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2, AlertTriangle, ImageIcon } from 'lucide-react';
 import Link from 'next/link';
+import { MediaPicker } from '@/components/admin/media/MediaPicker';
+import { resolveMediaUrl } from '@/lib/media';
 
 const SetItemSchema = z.object({
   productId: z.string().min(1, 'Producto requerido'),
@@ -76,6 +78,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
   const [products, setProducts] = useState<EligibleProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const {
     register,
@@ -232,8 +235,19 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="imageUrl">URL de Imagen</Label>
-                <Input id="imageUrl" {...register('imageUrl')} placeholder="https://..." />
+                <Label>Imagen de portada</Label>
+                <div className="flex items-center gap-3">
+                  <div className="w-16 h-12 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0">
+                    {watch('imageUrl') ? (
+                      <img src={watch('imageUrl')} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <ImageIcon className="w-4 h-4 text-gray-300" />
+                    )}
+                  </div>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setPickerOpen(true)}>
+                    {watch('imageUrl') ? 'Cambiar' : 'Elegir imagen'}
+                  </Button>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Grupo de Sets</Label>
@@ -389,6 +403,17 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
           </CardContent>
         </Card>
       </form>
+
+      <MediaPicker
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        folder="SETS"
+        segments={slugValue ? [slugValue] : []}
+        onConfirm={(assets) => {
+          if (assets[0]) setValue('imageUrl', resolveMediaUrl(assets[0].storageKey));
+          setPickerOpen(false);
+        }}
+      />
     </div>
   );
 }

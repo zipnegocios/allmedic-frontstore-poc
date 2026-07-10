@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Plus } from 'lucide-react';
 import type { Product, Size } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -43,12 +44,14 @@ export function CrossSellCard({
         {/* Image */}
         <Link
           href={`/p/${product.slug}`}
-          className="w-20 h-24 bg-[#F5F5F7] rounded-md overflow-hidden flex-shrink-0"
+          className="relative w-20 h-24 bg-[#F5F5F7] rounded-md overflow-hidden flex-shrink-0"
         >
-          <img
+          <Image
             src={displayImage}
             alt={product.name}
-            className="w-full h-full object-cover"
+            fill
+            sizes="80px"
+            className="object-cover"
             onError={(e) => {
               (e.target as HTMLImageElement).src = '/images/placeholder-product.jpg';
             }}

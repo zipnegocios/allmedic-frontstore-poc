@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { X, ShoppingBag, Check, AlertCircle } from 'lucide-react';
 import type { Product, ProductColor, Size, Fit, VariantStatus } from '@/lib/types';
 import { useCart } from '@/context/CartContext';
@@ -147,10 +148,12 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Image */}
         <div className="aspect-[4/5] bg-[#F5F5F7] rounded-lg overflow-hidden relative">
-          <img
+          <Image
             src={displayImage}
             alt={product.name}
-            className="w-full h-full object-cover"
+            fill
+            sizes="(max-width: 768px) 100vw, 50vw"
+            className="object-cover"
             onError={(e) => {
               (e.target as HTMLImageElement).src = '/images/placeholder-product.jpg';
             }}

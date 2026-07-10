@@ -9,7 +9,9 @@ const FOLDER_PREFIXES: Record<string, string> = {
 export type MediaFolder = keyof typeof FOLDER_PREFIXES;
 
 function getPublicUrl(): string {
-  const url = process.env.R2_PUBLIC_URL;
+  // NEXT_PUBLIC_R2_PUBLIC_URL (inyectada en next.config.ts desde R2_PUBLIC_URL) está disponible
+  // tanto en servidor como en cliente, a diferencia de R2_PUBLIC_URL que solo existe en servidor.
+  const url = process.env.NEXT_PUBLIC_R2_PUBLIC_URL;
   if (!url) throw new Error("Falta la variable de entorno R2_PUBLIC_URL");
   return url.replace(/\/$/, "");
 }
@@ -76,3 +78,18 @@ export const MEDIA_ENTITY_TYPES = ["PRODUCT", "SET", "BRAND", "BANNER"] as const
 export type MediaEntityType = (typeof MEDIA_ENTITY_TYPES)[number];
 export const MEDIA_LINK_ROLES = ["GALLERY", "LOGO", "DESKTOP", "MOBILE", "COVER"] as const;
 export type MediaLinkRole = (typeof MEDIA_LINK_ROLES)[number];
+
+export interface MediaAssetSummary {
+  id: string;
+  storageKey: string;
+  fileName: string;
+  folder: string;
+  mimeType: string;
+  sizeBytes: number;
+  width: number | null;
+  height: number | null;
+  altText: string | null;
+  title: string | null;
+  caption: string | null;
+  createdAt: string | null;
+}

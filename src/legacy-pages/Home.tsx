@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
 import { ProductCard } from '@/components/catalog/ProductCard';
 import { ProductListItem } from '@/components/catalog/LayoutSwitcher';
@@ -50,10 +51,14 @@ function HeroCarousel({ slides }: { slides: HeroSlide[] }) {
             index === currentSlide ? 'opacity-100' : 'opacity-0 pointer-events-none'
           )}
         >
-          <div className="absolute inset-0">
-            <div
-              className="w-full h-full bg-cover bg-center"
-              style={{ backgroundImage: `url(${slide.image})`, backgroundColor: '#1a1a1a' }}
+          <div className="absolute inset-0 bg-[#1a1a1a]">
+            <Image
+              src={slide.image}
+              alt={slide.title}
+              fill
+              priority={index === 0}
+              sizes="100vw"
+              className="object-cover object-center"
             />
             <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent" />
           </div>

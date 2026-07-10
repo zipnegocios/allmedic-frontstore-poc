@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { LayoutGrid, Grid2X2, Grid3X3, LayoutTemplate, List, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -102,11 +103,13 @@ export function ProductListItem({ product, onQuickView }: ProductListItemProps) 
   return (
     <div className="group flex gap-4 p-4 bg-white border border-[#E5E5E5] rounded-xl hover:border-[#111111] hover:shadow-md transition-all duration-300">
       {/* Image */}
-      <Link href={`/p/${product.slug}`} className="flex-shrink-0 w-24 h-24 sm:w-32 sm:h-32 bg-[#F5F5F7] rounded-lg overflow-hidden">
-        <img
+      <Link href={`/p/${product.slug}`} className="relative flex-shrink-0 w-24 h-24 sm:w-32 sm:h-32 bg-[#F5F5F7] rounded-lg overflow-hidden">
+        <Image
           src={displayImage}
           alt={product.name}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          fill
+          sizes="128px"
+          className="object-cover group-hover:scale-105 transition-transform duration-500"
           onError={(e) => {
             (e.target as HTMLImageElement).src = '/images/placeholder-product.jpg';
           }}

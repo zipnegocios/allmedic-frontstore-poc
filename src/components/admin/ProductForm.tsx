@@ -21,8 +21,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2, ImageIcon } from 'lucide-react';
 import Link from 'next/link';
+import { MediaPicker } from '@/components/admin/media/MediaPicker';
+import { resolveMediaUrl } from '@/lib/media';
 
 // ─── Schemas ───
 
@@ -128,6 +130,7 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
   const [featureInput, setFeatureInput] = useState('');
   const [careInput, setCareInput] = useState('');
   const [styleInput, setStyleInput] = useState('');
+  const [pickerTargetIndex, setPickerTargetIndex] = useState<number | 'append' | null>(null);
 
   const {
     register,
@@ -754,27 +757,16 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
           <TabsContent value="images" className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold">Imágenes del Producto</h3>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() =>
-                  appendImage({
-                    colorId: '',
-                    url: '',
-                    alt: '',
-                    sortOrder: imageFields.length,
-                  })
-                }
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Agregar Imagen
+              <Button type="button" variant="outline" onClick={() => setPickerTargetIndex('append')}>
+                <ImageIcon className="w-4 h-4 mr-2" />
+                Agregar desde Media Library
               </Button>
             </div>
 
             {imageFields.length === 0 ? (
               <Card>
                 <CardContent className="p-8 text-center text-gray-500">
-                  No hay imágenes. Agrega URLs de imágenes para el producto.
+                  No hay imágenes. Agrega imágenes desde la Media Library.
                 </CardContent>
               </Card>
             ) : (
@@ -796,10 +788,10 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
                           )}
                         </div>
                         <div className="flex-1 space-y-2">
-                          <div>
-                            <Label className="text-xs">URL *</Label>
-                            <Input className="text-xs" {...register(`images.${index}.url`)} placeholder="https://..." />
-                          </div>
+                          <Button type="button" size="sm" variant="outline" onClick={() => setPickerTargetIndex(index)}>
+                            <ImageIcon className="w-3.5 h-3.5 mr-2" />
+                            {watch(`images.${index}.url`) ? 'Cambiar imagen' : 'Elegir imagen'}
+                          </Button>
                           <div>
                             <Label className="text-xs">Alt</Label>
                             <Input className="text-xs" {...register(`images.${index}.alt`)} placeholder="Texto alternativo" />
@@ -854,6 +846,32 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
           </TabsContent>
         </Tabs>
       </form>
+
+      <MediaPicker
+        open={pickerTargetIndex !== null}
+        onClose={() => setPickerTargetIndex(null)}
+        folder="PRODUCTS"
+        segments={slugValue ? [slugValue] : []}
+        multiple={pickerTargetIndex === 'append'}
+        onConfirm={(assets) => {
+          if (pickerTargetIndex === 'append') {
+            assets.forEach((asset, i) => {
+              appendImage({
+                colorId: '',
+                url: resolveMediaUrl(asset.storageKey),
+                alt: asset.altText ?? '',
+                sortOrder: imageFields.length + i,
+              });
+            });
+          } else if (typeof pickerTargetIndex === 'number' && assets[0]) {
+            setValue(`images.${pickerTargetIndex}.url`, resolveMediaUrl(assets[0].storageKey));
+            if (!watch(`images.${pickerTargetIndex}.alt`)) {
+              setValue(`images.${pickerTargetIndex}.alt`, assets[0].altText ?? '');
+            }
+          }
+          setPickerTargetIndex(null);
+        }}
+      />
     </div>
   );
 }
