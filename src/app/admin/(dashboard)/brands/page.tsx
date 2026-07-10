@@ -39,7 +39,7 @@ export default function AdminBrandsPage() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
-  const [formData, setFormData] = useState({ name: '', slug: '', description: '', logoUrl: '', isActive: true, sortOrder: 0 });
+  const [formData, setFormData] = useState({ name: '', slug: '', description: '', logoUrl: '', logoAssetId: '', isActive: true, sortOrder: 0 });
   const [saving, setSaving] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -68,7 +68,7 @@ export default function AdminBrandsPage() {
 
   function openNew() {
     setEditingBrand(null);
-    setFormData({ name: '', slug: '', description: '', logoUrl: '', isActive: true, sortOrder: 0 });
+    setFormData({ name: '', slug: '', description: '', logoUrl: '', logoAssetId: '', isActive: true, sortOrder: 0 });
     setDialogOpen(true);
   }
 
@@ -79,6 +79,7 @@ export default function AdminBrandsPage() {
       slug: brand.slug,
       description: brand.description || '',
       logoUrl: brand.logoUrl || '',
+      logoAssetId: '',
       isActive: brand.isActive,
       sortOrder: brand.sortOrder,
     });
@@ -90,10 +91,12 @@ export default function AdminBrandsPage() {
     try {
       const url = editingBrand ? `/api/admin/brands/${editingBrand.id}` : '/api/admin/brands';
       const method = editingBrand ? 'PATCH' : 'POST';
+      const payload: Record<string, unknown> = { ...formData };
+      if (!payload.logoAssetId) delete payload.logoAssetId;
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error('Failed to save');
       toast.success(editingBrand ? 'Marca actualizada' : 'Marca creada');
@@ -271,7 +274,7 @@ export default function AdminBrandsPage() {
         folder="BRANDS"
         segments={formData.slug ? [formData.slug] : []}
         onConfirm={(assets) => {
-          if (assets[0]) setFormData((prev) => ({ ...prev, logoUrl: resolveMediaUrl(assets[0].storageKey) }));
+          if (assets[0]) setFormData((prev) => ({ ...prev, logoUrl: resolveMediaUrl(assets[0].storageKey), logoAssetId: assets[0].id }));
           setPickerOpen(false);
         }}
       />

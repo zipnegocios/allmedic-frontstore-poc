@@ -88,15 +88,19 @@ c:\dev\allmedic-frontstore-poc
 │   │   │   ├── auth.ts        # Users, accounts, sessions (NextAuth)
 │   │   │   ├── commerce.ts    # Orders, cart items (NEW - Fase 1)
 │   │   │   ├── corporate.ts   # Corporate catalogs (NEW - Fase 1)
+│   │   │   ├── media.ts       # Media Library: media_assets, media_links, tags, comments, audit
 │   │   │   ├── chats.ts       # Chat history
 │   │   │   └── rag.ts         # RAG documents, embeddings
 │   │   ├── migrations/        # Auto-generated Drizzle migrations
-│   │   ├── seed.ts            # Database seeding script
-│   │   ├── migrate.ts         # Migration runner
+│   │   ├── seed.ts            # OBSOLETE — see src/db/seed-corporate.ts + admin panel instead
+│   │   ├── migrate.ts         # Migration runner (legacy raw-SQL bootstrap, superseded by db:push)
 │   │   └── index.ts           # Database connection
 │   ├── App.css                # App-specific styles
 │   └── index.css              # Tailwind directives + CSS variables
-├── public/images/             # Static assets
+├── scripts/
+│   └── migrate-media-to-r2.ts # One-off: migrates local images to R2 + media_assets/media_links
+├── public/images/             # ONLY allmedic_logo_black.png / allmedic_logo_white.png remain here —
+│                               # all other images live in Cloudflare R2 (media.allmedicuniforms.com)
 ├── .next/                     # Next.js build output
 ├── .claude/                   # Claude Code docs, skills
 ├── drizzle.config.ts          # Drizzle ORM configuration
@@ -196,7 +200,13 @@ The schema is defined across multiple files in `src/db/schema/`:
 - Relations: `brand`, `variants[]`, `collections[]`
 
 **`productVariants`** — Size/color combinations
-- `id`, `productId`, `size`, `color`, `sku`, `stock`, `imageUrl`
+- `id`, `productId`, `colorId`, `size`, `fit`, `sku`, `status`, `stock`, `minStock`
+- Images are NOT a column here — resolved via `media_links` (see Media Library below)
+
+**Media Library (`media.ts`)** — `mediaAssets`, `mediaLinks`, `mediaTags`, `mediaAssetTags`, `mediaComments`, `mediaAudit`
+- Single source of truth for ALL images (products, corporate sets, brand logos, banners, site assets) — stored in Cloudflare R2, referenced by `storage_key`
+- `mediaLinks` polymorphically connects an asset to `PRODUCT`/`SET`/`BRAND`/`BANNER` via `entityType`+`entityId`, with a `role` (`GALLERY`/`LOGO`/`DESKTOP`/`MOBILE`/`COVER`) and optional `colorId` (product galleries only)
+- Legacy text-URL columns (`product_images` table, `brands.logo_url`, `banners.image_desktop/mobile`, `corporate_sets.image_url`) were **dropped** — do not recreate them; use `media_links` + `resolveMediaUrl()` from `src/lib/media.ts`
 
 **`businessRules`** (NEW - Fase 1) — Business logic engine
 - `id`, `name`, `ruleType`, `scope`, `scopeId`, `config` (JSONB), `isActive`, `priority`, `validFrom`, `validTo`
@@ -271,12 +281,13 @@ If you add tests, the convention would be to place them next to the files they t
 ### Target: Hostinger Node.js
 
 - Build command: `npm run build && npm start`
-- Images are **unoptimized** (`images.unoptimized: true` in `next.config.ts`) for static-hosting compatibility.
+- Images use a **custom `next/image` loader** (`src/lib/cloudflare-image-loader.ts`) that proxies through Cloudflare Image Transformations — `images.unoptimized` is no longer set.
 - `poweredByHeader: false` for security.
 
 ### Required Environment Variables on Server
 
 - `DATABASE_URL`
+- `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_ENDPOINT`, `R2_PUBLIC_URL` — Cloudflare R2 (Media Library storage)
 - `NEXT_PUBLIC_WHATSAPP_NUMBER` (optional, fallback hardcoded)
 
 There is **no CI/CD, Docker, or GitHub Actions** configured. Deployment is manual.

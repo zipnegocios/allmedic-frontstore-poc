@@ -8,7 +8,6 @@ export const brands = pgTable("brands", {
   name: text("name").notNull().unique(),
   slug: text("slug").notNull().unique(),
   description: text("description"),
-  logoUrl: text("logo_url"),
   isActive: boolean("is_active").default(true),
   sortOrder: integer("sort_order").default(0),
 });
@@ -83,7 +82,6 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   brand: one(brands, { fields: [products.brandId], references: [brands.id] }),
   collection: one(collections, { fields: [products.collectionId], references: [collections.id] }),
   variants: many(productVariants),
-  images: many(productImages),
 }));
 
 // ─── Product Variants ───
@@ -108,20 +106,4 @@ export const productVariants = pgTable("product_variants", {
 export const productVariantsRelations = relations(productVariants, ({ one }) => ({
   product: one(products, { fields: [productVariants.productId], references: [products.id] }),
   color: one(colors, { fields: [productVariants.colorId], references: [colors.id] }),
-}));
-
-// ─── Product Images ───
-export const productImages = pgTable("product_images", {
-  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
-  productId: pgUuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
-  colorId: pgUuid("color_id"),
-  url: text("url").notNull(),
-  alt: text("alt"),
-  sortOrder: integer("sort_order").default(0),
-}, (table) => [
-  index("idx_images_product").on(table.productId),
-]);
-
-export const productImagesRelations = relations(productImages, ({ one }) => ({
-  product: one(products, { fields: [productImages.productId], references: [products.id] }),
 }));

@@ -4,11 +4,13 @@ import {
   products as productsTable,
   brands as brandsTable,
   productVariants as variantsTable,
-  productImages as imagesTable,
+  mediaLinks as mediaLinksTable,
+  mediaAssets as mediaAssetsTable,
   colors as colorsTable,
 } from '@/db/schema';
 import { eq, and, or, sql, asc, desc, inArray, ne } from 'drizzle-orm';
 import { PRODUCTS as DUMMY_PRODUCTS } from '@/lib/dummy-data';
+import { resolveMediaUrl } from '@/lib/media';
 
 /**
  * GET /api/products
@@ -102,18 +104,30 @@ export async function GET(request: NextRequest) {
           .where(inArray(variantsTable.productId, productIds))
       : [];
 
-    const images = productIds.length > 0
+    const imageLinks = productIds.length > 0
       ? await db
           .select({
-            productId: imagesTable.productId,
-            colorId: imagesTable.colorId,
-            url: imagesTable.url,
-            alt: imagesTable.alt,
+            productId: mediaLinksTable.entityId,
+            colorId: mediaLinksTable.colorId,
+            storageKey: mediaAssetsTable.storageKey,
+            altOverride: mediaLinksTable.altOverride,
+            altText: mediaAssetsTable.altText,
           })
-          .from(imagesTable)
-          .where(inArray(imagesTable.productId, productIds))
-          .orderBy(asc(imagesTable.sortOrder))
+          .from(mediaLinksTable)
+          .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
+          .where(and(
+            eq(mediaLinksTable.entityType, 'PRODUCT'),
+            eq(mediaLinksTable.role, 'GALLERY'),
+            inArray(mediaLinksTable.entityId, productIds)
+          ))
+          .orderBy(asc(mediaLinksTable.sortOrder))
       : [];
+    const images = imageLinks.map((i) => ({
+      productId: i.productId,
+      colorId: i.colorId,
+      url: resolveMediaUrl(i.storageKey),
+      alt: i.altOverride ?? i.altText,
+    }));
 
     // Enrich products with variants and images
     const enrichedProducts = products.map(product => ({

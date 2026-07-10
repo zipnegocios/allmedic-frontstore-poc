@@ -7,7 +7,7 @@ const UpdateBrandSchema = z.object({
   name: z.string().min(1).optional(),
   slug: z.string().min(1).optional(),
   description: z.string().optional(),
-  logoUrl: z.string().optional(),
+  logoAssetId: z.string().optional(),
   isActive: z.boolean().optional(),
   sortOrder: z.number().optional(),
 });
@@ -17,8 +17,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     await requireAdmin();
     const { id } = await params;
     const body = await request.json();
-    const validated = UpdateBrandSchema.parse(body);
-    const brand = await updateBrand(id, validated as any);
+    const { logoAssetId, ...validated } = UpdateBrandSchema.parse(body);
+    const brand = await updateBrand(id, validated, logoAssetId);
     return NextResponse.json(brand);
   } catch (err) {
     if (err instanceof z.ZodError) {

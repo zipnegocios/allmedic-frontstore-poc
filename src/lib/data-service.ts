@@ -6,10 +6,12 @@ import {
   stores as storesTable,
   banners as bannersTable,
   productVariants as variantsTable,
-  productImages as imagesTable,
+  mediaLinks as mediaLinksTable,
+  mediaAssets as mediaAssetsTable,
 } from '@/db/schema';
 import type { Product, ProductColor, ProductVariant, Store, Gender, Size, Fit } from './types';
 import { eq, and, or, asc, sql, inArray, gte, lte, ne, type SQL } from 'drizzle-orm';
+import { resolveMediaUrl } from './media';
 import {
   PRODUCTS as DUMMY_PRODUCTS,
   BRANDS as DUMMY_BRANDS,
@@ -209,17 +211,23 @@ async function fetchProductsWithJoins(whereCondition?: SQL<unknown>) {
         .where(inArray(variantsTable.productId, productIds))
     : [];
 
-  const images = productIds.length > 0
+  const imageLinks = productIds.length > 0
     ? await db
         .select({
-          productId: imagesTable.productId,
-          colorId: imagesTable.colorId,
-          url: imagesTable.url,
+          productId: mediaLinksTable.entityId,
+          colorId: mediaLinksTable.colorId,
+          storageKey: mediaAssetsTable.storageKey,
         })
-        .from(imagesTable)
-        .where(inArray(imagesTable.productId, productIds))
-        .orderBy(asc(imagesTable.sortOrder))
+        .from(mediaLinksTable)
+        .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
+        .where(and(
+          eq(mediaLinksTable.entityType, 'PRODUCT'),
+          eq(mediaLinksTable.role, 'GALLERY'),
+          inArray(mediaLinksTable.entityId, productIds)
+        ))
+        .orderBy(asc(mediaLinksTable.sortOrder))
     : [];
+  const images = imageLinks.map((i) => ({ productId: i.productId, colorId: i.colorId, url: resolveMediaUrl(i.storageKey) }));
 
   // Group by product
   return rows.map(product => {
@@ -325,7 +333,6 @@ export async function getBrands(): Promise<Array<{ name: string; slug: string; d
       name: brandsTable.name,
       slug: brandsTable.slug,
       description: brandsTable.description,
-      logoUrl: brandsTable.logoUrl,
     })
     .from(brandsTable)
     .where(eq(brandsTable.isActive, true))
@@ -343,11 +350,25 @@ export async function getBrands(): Promise<Array<{ name: string; slug: string; d
 
   const countMap = new Map(counts.map(c => [c.brandId, c.count]));
 
+  const brandIds = brands.map((b) => b.id);
+  const logoLinks = brandIds.length > 0
+    ? await db
+        .select({ brandId: mediaLinksTable.entityId, storageKey: mediaAssetsTable.storageKey })
+        .from(mediaLinksTable)
+        .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
+        .where(and(
+          eq(mediaLinksTable.entityType, 'BRAND'),
+          eq(mediaLinksTable.role, 'LOGO'),
+          inArray(mediaLinksTable.entityId, brandIds)
+        ))
+    : [];
+  const logoMap = new Map(logoLinks.map((l) => [l.brandId, resolveMediaUrl(l.storageKey)]));
+
   return brands.map(b => ({
     name: b.name,
     slug: b.slug,
     description: b.description,
-    logoUrl: b.logoUrl,
+    logoUrl: logoMap.get(b.id) ?? null,
     productCount: countMap.get(b.id) || 0,
   }));
 }
@@ -416,14 +437,30 @@ export async function getHeroSlides(): Promise<Array<{ id: string; image: string
     }));
   }
 
-  return banners.map(b => ({
-    id: b.id,
-    image: b.imageDesktop,
-    title: b.title,
-    subtitle: b.subtitle ?? undefined,
-    cta: b.ctaText || 'Ver más',
-    ctaLink: b.ctaLink || '/catalogo',
-  }));
+  const bannerIds = banners.map((b) => b.id);
+  const desktopLinks = bannerIds.length > 0
+    ? await db
+        .select({ bannerId: mediaLinksTable.entityId, storageKey: mediaAssetsTable.storageKey })
+        .from(mediaLinksTable)
+        .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
+        .where(and(
+          eq(mediaLinksTable.entityType, 'BANNER'),
+          eq(mediaLinksTable.role, 'DESKTOP'),
+          inArray(mediaLinksTable.entityId, bannerIds)
+        ))
+    : [];
+  const desktopMap = new Map(desktopLinks.map((l) => [l.bannerId, resolveMediaUrl(l.storageKey)]));
+
+  return banners
+    .filter((b) => desktopMap.has(b.id))
+    .map(b => ({
+      id: b.id,
+      image: desktopMap.get(b.id)!,
+      title: b.title,
+      subtitle: b.subtitle ?? undefined,
+      cta: b.ctaText || 'Ver más',
+      ctaLink: b.ctaLink || '/catalogo',
+    }));
 }
 
 export async function filterProducts(filters: {

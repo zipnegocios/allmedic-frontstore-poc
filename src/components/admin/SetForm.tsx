@@ -34,7 +34,8 @@ const SetFormSchema = z.object({
   name: z.string().min(1, 'Nombre requerido'),
   slug: z.string().min(1, 'Slug requerido'),
   description: z.string().optional(),
-  imageUrl: z.string().optional(),
+  coverAssetId: z.string().optional(),
+  imageUrl: z.string().optional(), // solo para previsualización, no se persiste
   setGroupId: z.string().optional(),
   brandId: z.string().optional(),
   isActive: z.boolean().default(true),
@@ -410,7 +411,10 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
         folder="SETS"
         segments={slugValue ? [slugValue] : []}
         onConfirm={(assets) => {
-          if (assets[0]) setValue('imageUrl', resolveMediaUrl(assets[0].storageKey));
+          if (assets[0]) {
+            setValue('coverAssetId', assets[0].id);
+            setValue('imageUrl', resolveMediaUrl(assets[0].storageKey));
+          }
           setPickerOpen(false);
         }}
       />

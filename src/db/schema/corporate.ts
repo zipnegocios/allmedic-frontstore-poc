@@ -26,7 +26,6 @@ export const corporateSets = pgTable("corporate_sets", {
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   description: text("description"),
-  imageUrl: text("image_url"),
   setGroupId: pgUuid("set_group_id").references(() => setGroups.id),
   brandId: pgUuid("brand_id").references(() => brands.id),
   isActive: boolean("is_active").default(true),

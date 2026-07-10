@@ -16,8 +16,8 @@ const VariantSchema = z.object({
 
 const ImageSchema = z.object({
   id: z.string().optional(),
+  assetId: z.string().min(1),
   colorId: z.string().optional(),
-  url: z.string().min(1),
   alt: z.string().optional(),
   sortOrder: z.number().default(0),
 });

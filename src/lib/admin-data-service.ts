@@ -6,15 +6,62 @@ import {
   stores as storesTable,
   banners as bannersTable,
   productVariants as variantsTable,
-  productImages as imagesTable,
   leads as leadsTable,
   setGroups as setGroupsTable,
   corporateSets as corporateSetsTable,
   setItems as setItemsTable,
   quoteRequests as quoteRequestsTable,
   corporateAccounts as corporateAccountsTable,
+  mediaLinks as mediaLinksTable,
+  mediaAssets as mediaAssetsTable,
 } from '@/db/schema';
 import { eq, and, or, asc, desc, sql, like, inArray, type SQL } from 'drizzle-orm';
+import { resolveMediaUrl } from './media';
+
+// ── Helpers de vínculos de un solo medio (marcas/banners/sets) ──
+
+async function replaceSingleLink(
+  entityType: 'BRAND' | 'BANNER' | 'SET',
+  entityId: string,
+  role: string,
+  assetId: string | null | undefined
+) {
+  await db.delete(mediaLinksTable).where(and(
+    eq(mediaLinksTable.entityType, entityType),
+    eq(mediaLinksTable.entityId, entityId),
+    eq(mediaLinksTable.role, role)
+  ));
+  if (assetId) {
+    await db.insert(mediaLinksTable).values({ assetId, entityType, entityId, role });
+  }
+}
+
+async function getSingleLinkUrl(entityType: 'BRAND' | 'BANNER' | 'SET', entityId: string, role: string): Promise<string | null> {
+  const [link] = await db
+    .select({ storageKey: mediaAssetsTable.storageKey })
+    .from(mediaLinksTable)
+    .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
+    .where(and(
+      eq(mediaLinksTable.entityType, entityType),
+      eq(mediaLinksTable.entityId, entityId),
+      eq(mediaLinksTable.role, role)
+    ));
+  return link ? resolveMediaUrl(link.storageKey) : null;
+}
+
+async function getSingleLinksUrlMap(entityType: 'BRAND' | 'BANNER' | 'SET', entityIds: string[], role: string): Promise<Map<string, string>> {
+  if (entityIds.length === 0) return new Map();
+  const links = await db
+    .select({ entityId: mediaLinksTable.entityId, storageKey: mediaAssetsTable.storageKey })
+    .from(mediaLinksTable)
+    .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
+    .where(and(
+      eq(mediaLinksTable.entityType, entityType),
+      eq(mediaLinksTable.role, role),
+      inArray(mediaLinksTable.entityId, entityIds)
+    ));
+  return new Map(links.map((l) => [l.entityId, resolveMediaUrl(l.storageKey)]));
+}
 
 // ── Products ──
 
@@ -96,11 +143,28 @@ export async function getAdminProductById(id: string) {
       .from(variantsTable)
       .leftJoin(colorsTable, eq(variantsTable.colorId, colorsTable.id))
       .where(eq(variantsTable.productId, id)),
-    db.select().from(imagesTable).where(eq(imagesTable.productId, id)).orderBy(asc(imagesTable.sortOrder)),
+    db.select({
+      id: mediaLinksTable.id,
+      assetId: mediaLinksTable.assetId,
+      colorId: mediaLinksTable.colorId,
+      sortOrder: mediaLinksTable.sortOrder,
+      alt: mediaLinksTable.altOverride,
+      storageKey: mediaAssetsTable.storageKey,
+    })
+      .from(mediaLinksTable)
+      .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
+      .where(and(
+        eq(mediaLinksTable.entityType, 'PRODUCT'),
+        eq(mediaLinksTable.entityId, id),
+        eq(mediaLinksTable.role, 'GALLERY')
+      ))
+      .orderBy(asc(mediaLinksTable.sortOrder)),
     db.select().from(brandsTable).where(eq(brandsTable.id, product.brandId)).limit(1),
   ]);
 
-  return { ...product, variants, images, brand: brand[0] ?? null };
+  const imagesWithUrl = images.map((i) => ({ ...i, url: resolveMediaUrl(i.storageKey) }));
+
+  return { ...product, variants, images: imagesWithUrl, brand: brand[0] ?? null };
 }
 
 export async function createProduct(data: typeof productsTable.$inferInsert) {
@@ -131,8 +195,8 @@ interface VariantInput {
 }
 
 interface ImageInput {
+  assetId: string;
   colorId?: string;
-  url: string;
   alt?: string;
   sortOrder: number;
 }
@@ -186,10 +250,15 @@ export async function createProductWithRelations(input: ProductWithRelationsInpu
     }
 
     if (images.length > 0) {
-      await tx.insert(imagesTable).values(
+      await tx.insert(mediaLinksTable).values(
         images.map(i => ({
-          ...i,
-          productId: product.id,
+          assetId: i.assetId,
+          entityType: 'PRODUCT' as const,
+          entityId: product.id,
+          colorId: i.colorId || null,
+          role: 'GALLERY',
+          sortOrder: i.sortOrder,
+          altOverride: i.alt,
         }))
       );
     }
@@ -230,14 +299,23 @@ export async function updateProductWithRelations(
       }
     }
 
-    // Replace images: delete existing, insert new
+    // Replace images: delete existing links, insert new
     if (images !== undefined) {
-      await tx.delete(imagesTable).where(eq(imagesTable.productId, id));
+      await tx.delete(mediaLinksTable).where(and(
+        eq(mediaLinksTable.entityType, 'PRODUCT'),
+        eq(mediaLinksTable.entityId, id),
+        eq(mediaLinksTable.role, 'GALLERY')
+      ));
       if (images.length > 0) {
-        await tx.insert(imagesTable).values(
+        await tx.insert(mediaLinksTable).values(
           images.map(i => ({
-            ...i,
-            productId: id,
+            assetId: i.assetId,
+            entityType: 'PRODUCT' as const,
+            entityId: id,
+            colorId: i.colorId || null,
+            role: 'GALLERY',
+            sortOrder: i.sortOrder,
+            altOverride: i.alt,
           }))
         );
       }
@@ -297,16 +375,25 @@ export async function updateLeadStatus(id: string, status: string) {
 // ── Brands ──
 
 export async function getAdminBrands() {
-  return db.select().from(brandsTable).orderBy(asc(brandsTable.sortOrder));
+  const brands = await db.select().from(brandsTable).orderBy(asc(brandsTable.sortOrder));
+  const logoMap = await getSingleLinksUrlMap('BRAND', brands.map((b) => b.id), 'LOGO');
+  return brands.map((b) => ({ ...b, logoUrl: logoMap.get(b.id) ?? null }));
 }
 
-export async function createBrand(data: typeof brandsTable.$inferInsert) {
+export async function createBrand(data: typeof brandsTable.$inferInsert, logoAssetId?: string) {
   const [brand] = await db.insert(brandsTable).values(data).returning();
+  if (logoAssetId) await replaceSingleLink('BRAND', brand.id, 'LOGO', logoAssetId);
   return brand;
 }
 
-export async function updateBrand(id: string, data: Partial<typeof brandsTable.$inferInsert>) {
-  const [brand] = await db.update(brandsTable).set(data).where(eq(brandsTable.id, id)).returning();
+export async function updateBrand(id: string, data: Partial<typeof brandsTable.$inferInsert>, logoAssetId?: string) {
+  let brand: typeof brandsTable.$inferSelect | undefined;
+  if (Object.keys(data).length > 0) {
+    [brand] = await db.update(brandsTable).set(data).where(eq(brandsTable.id, id)).returning();
+  } else {
+    [brand] = await db.select().from(brandsTable).where(eq(brandsTable.id, id)).limit(1);
+  }
+  if (logoAssetId !== undefined) await replaceSingleLink('BRAND', id, 'LOGO', logoAssetId);
   return brand;
 }
 
@@ -357,16 +444,35 @@ export async function deleteStore(id: string) {
 // ── Banners ──
 
 export async function getAdminBanners() {
-  return db.select().from(bannersTable).orderBy(asc(bannersTable.sortOrder));
+  const banners = await db.select().from(bannersTable).orderBy(asc(bannersTable.sortOrder));
+  const bannerIds = banners.map((b) => b.id);
+  const [desktopMap, mobileMap] = await Promise.all([
+    getSingleLinksUrlMap('BANNER', bannerIds, 'DESKTOP'),
+    getSingleLinksUrlMap('BANNER', bannerIds, 'MOBILE'),
+  ]);
+  return banners.map((b) => ({
+    ...b,
+    imageDesktop: desktopMap.get(b.id) ?? null,
+    imageMobile: mobileMap.get(b.id) ?? null,
+  }));
 }
 
-export async function createBanner(data: typeof bannersTable.$inferInsert) {
+export async function createBanner(data: typeof bannersTable.$inferInsert, desktopAssetId?: string, mobileAssetId?: string) {
   const [banner] = await db.insert(bannersTable).values(data).returning();
+  if (desktopAssetId) await replaceSingleLink('BANNER', banner.id, 'DESKTOP', desktopAssetId);
+  if (mobileAssetId) await replaceSingleLink('BANNER', banner.id, 'MOBILE', mobileAssetId);
   return banner;
 }
 
-export async function updateBanner(id: string, data: Partial<typeof bannersTable.$inferInsert>) {
-  const [banner] = await db.update(bannersTable).set(data).where(eq(bannersTable.id, id)).returning();
+export async function updateBanner(id: string, data: Partial<typeof bannersTable.$inferInsert>, desktopAssetId?: string, mobileAssetId?: string) {
+  let banner: typeof bannersTable.$inferSelect | undefined;
+  if (Object.keys(data).length > 0) {
+    [banner] = await db.update(bannersTable).set(data).where(eq(bannersTable.id, id)).returning();
+  } else {
+    [banner] = await db.select().from(bannersTable).where(eq(bannersTable.id, id)).limit(1);
+  }
+  if (desktopAssetId !== undefined) await replaceSingleLink('BANNER', id, 'DESKTOP', desktopAssetId);
+  if (mobileAssetId !== undefined) await replaceSingleLink('BANNER', id, 'MOBILE', mobileAssetId);
   return banner;
 }
 
@@ -402,7 +508,6 @@ export async function getAdminSets() {
       id: corporateSetsTable.id,
       name: corporateSetsTable.name,
       slug: corporateSetsTable.slug,
-      imageUrl: corporateSetsTable.imageUrl,
       setGroupId: corporateSetsTable.setGroupId,
       groupName: setGroupsTable.name,
       brandId: corporateSetsTable.brandId,
@@ -417,16 +522,19 @@ export async function getAdminSets() {
     .orderBy(asc(corporateSetsTable.sortOrder));
 
   const setIds = rows.map(r => r.id);
-  const itemCounts = setIds.length > 0
-    ? await db
-        .select({ setId: setItemsTable.setId, count: sql<number>`count(*)` })
-        .from(setItemsTable)
-        .where(inArray(setItemsTable.setId, setIds))
-        .groupBy(setItemsTable.setId)
-    : [];
+  const [itemCounts, coverMap] = await Promise.all([
+    setIds.length > 0
+      ? db
+          .select({ setId: setItemsTable.setId, count: sql<number>`count(*)` })
+          .from(setItemsTable)
+          .where(inArray(setItemsTable.setId, setIds))
+          .groupBy(setItemsTable.setId)
+      : Promise.resolve([]),
+    getSingleLinksUrlMap('SET', setIds, 'COVER'),
+  ]);
   const countMap = new Map(itemCounts.map(c => [c.setId, Number(c.count)]));
 
-  return rows.map(r => ({ ...r, itemCount: countMap.get(r.id) ?? 0 }));
+  return rows.map(r => ({ ...r, itemCount: countMap.get(r.id) ?? 0, imageUrl: coverMap.get(r.id) ?? null }));
 }
 
 export async function getAdminSetById(id: string) {
@@ -450,7 +558,9 @@ export async function getAdminSetById(id: string) {
     .where(eq(setItemsTable.setId, id))
     .orderBy(asc(setItemsTable.sortOrder));
 
-  return { ...set, items };
+  const imageUrl = await getSingleLinkUrl('SET', id, 'COVER');
+
+  return { ...set, imageUrl, items };
 }
 
 interface SetItemInput {
@@ -464,7 +574,7 @@ interface CorporateSetInput {
   name: string;
   slug: string;
   description?: string;
-  imageUrl?: string;
+  coverAssetId?: string;
   setGroupId?: string | null;
   brandId?: string | null;
   isActive?: boolean;
@@ -474,8 +584,9 @@ interface CorporateSetInput {
 }
 
 export async function createSetWithItems(input: CorporateSetInput) {
-  return await db.transaction(async (tx) => {
-    const { items = [], ...setData } = input;
+  const { items = [], coverAssetId, ...setData } = input;
+
+  const set = await db.transaction(async (tx) => {
     const [set] = await tx.insert(corporateSetsTable).values(setData).returning();
 
     if (items.length > 0) {
@@ -491,12 +602,15 @@ export async function createSetWithItems(input: CorporateSetInput) {
 
     return set;
   });
+
+  if (coverAssetId) await replaceSingleLink('SET', set.id, 'COVER', coverAssetId);
+  return set;
 }
 
 export async function updateSetWithItems(id: string, input: Partial<CorporateSetInput>) {
-  return await db.transaction(async (tx) => {
-    const { items, ...setData } = input;
+  const { items, coverAssetId, ...setData } = input;
 
+  const set = await db.transaction(async (tx) => {
     if (Object.keys(setData).length > 0) {
       await tx.update(corporateSetsTable).set(setData).where(eq(corporateSetsTable.id, id));
     }
@@ -518,6 +632,9 @@ export async function updateSetWithItems(id: string, input: Partial<CorporateSet
     const [set] = await tx.select().from(corporateSetsTable).where(eq(corporateSetsTable.id, id)).limit(1);
     return set;
   });
+
+  if (coverAssetId !== undefined) await replaceSingleLink('SET', id, 'COVER', coverAssetId);
+  return set;
 }
 
 export async function deleteSet(id: string) {

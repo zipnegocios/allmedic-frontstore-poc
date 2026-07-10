@@ -3,11 +3,13 @@ import { db } from '@/db';
 import {
   products as productsTable,
   brands as brandsTable,
-  productImages as imagesTable,
+  mediaLinks as mediaLinksTable,
+  mediaAssets as mediaAssetsTable,
 } from '@/db/schema';
 import { searchLogs as searchLogsTable } from '@/db/schema';
 import { eq, and, or, sql, asc, inArray, ne } from 'drizzle-orm';
 import { searchProducts } from '@/lib/dummy-data';
+import { resolveMediaUrl } from '@/lib/media';
 
 /**
  * GET /api/search?q=query
@@ -67,14 +69,20 @@ export async function GET(request: NextRequest) {
       if (products.length > 0) {
         // Get first image for each product
         const productIds = products.map(p => p.id);
-        const images = await db
+        const imageLinks = await db
           .select({
-            productId: imagesTable.productId,
-            url: imagesTable.url,
+            productId: mediaLinksTable.entityId,
+            storageKey: mediaAssetsTable.storageKey,
           })
-          .from(imagesTable)
-          .where(inArray(imagesTable.productId, productIds))
-          .orderBy(asc(imagesTable.sortOrder));
+          .from(mediaLinksTable)
+          .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
+          .where(and(
+            eq(mediaLinksTable.entityType, 'PRODUCT'),
+            eq(mediaLinksTable.role, 'GALLERY'),
+            inArray(mediaLinksTable.entityId, productIds)
+          ))
+          .orderBy(asc(mediaLinksTable.sortOrder));
+        const images = imageLinks.map((i) => ({ productId: i.productId, url: resolveMediaUrl(i.storageKey) }));
 
         const enrichedProducts = products.map(product => ({
           ...product,

@@ -39,8 +39,6 @@ export const banners = pgTable("banners", {
   id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
   title: text("title").notNull(),
   subtitle: text("subtitle"),
-  imageDesktop: text("image_desktop").notNull(),
-  imageMobile: text("image_mobile"),
   ctaText: text("cta_text"),
   ctaLink: text("cta_link"),
   sortOrder: integer("sort_order").default(0),

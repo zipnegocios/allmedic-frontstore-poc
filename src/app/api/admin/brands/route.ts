@@ -7,7 +7,7 @@ const CreateBrandSchema = z.object({
   name: z.string().min(1),
   slug: z.string().min(1),
   description: z.string().optional(),
-  logoUrl: z.string().optional(),
+  logoAssetId: z.string().optional(),
   isActive: z.boolean().default(true),
   sortOrder: z.number().default(0),
 });
@@ -51,8 +51,8 @@ export async function POST(request: NextRequest) {
   try {
     await requireAdmin();
     const body = await request.json();
-    const validated = CreateBrandSchema.parse(body);
-    const brand = await createBrand(validated as any);
+    const { logoAssetId, ...validated } = CreateBrandSchema.parse(body);
+    const brand = await createBrand(validated, logoAssetId);
     return NextResponse.json(brand, { status: 201 });
   } catch (err) {
     if (err instanceof z.ZodError) {

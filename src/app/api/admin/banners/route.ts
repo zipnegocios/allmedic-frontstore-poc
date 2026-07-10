@@ -8,6 +8,8 @@ const CreateBannerSchema = z.object({
   subtitle: z.string().optional(),
   imageDesktop: z.string().min(1),
   imageMobile: z.string().optional(),
+  imageDesktopAssetId: z.string().optional(),
+  imageMobileAssetId: z.string().optional(),
   ctaText: z.string().optional(),
   ctaLink: z.string().optional(),
   sortOrder: z.number().default(0),
@@ -53,8 +55,8 @@ export async function POST(request: NextRequest) {
   try {
     await requireAdmin();
     const body = await request.json();
-    const validated = CreateBannerSchema.parse(body);
-    const banner = await createBanner(validated);
+    const { imageDesktopAssetId, imageMobileAssetId, ...validated } = CreateBannerSchema.parse(body);
+    const banner = await createBanner(validated, imageDesktopAssetId, imageMobileAssetId);
     return NextResponse.json(banner, { status: 201 });
   } catch (err) {
     if (err instanceof z.ZodError) {

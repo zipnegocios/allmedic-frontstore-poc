@@ -56,6 +56,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
     })),
     images: product.images.map((i: any) => ({
       id: i.id,
+      assetId: i.assetId,
       colorId: i.colorId || '',
       url: i.url,
       alt: i.alt || '',

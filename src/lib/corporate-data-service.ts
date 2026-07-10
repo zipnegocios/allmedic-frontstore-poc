@@ -11,11 +11,28 @@ import {
   corporateAccounts as corporateAccountsTable,
   quoteRequests as quoteRequestsTable,
   quoteAttachments as quoteAttachmentsTable,
+  mediaLinks as mediaLinksTable,
+  mediaAssets as mediaAssetsTable,
 } from '@/db/schema';
 import { eq, and, inArray, asc, desc } from 'drizzle-orm';
 import type { BusinessRule } from './rules-engine';
 import type { CorporateSetSummary, CorporateSetDetail, SetPiece, SetGroupSummary } from './corporate-types';
 import type { ProductColor, ProductVariant } from './types';
+import { resolveMediaUrl } from './media';
+
+async function getCoverImageMap(setIds: string[]): Promise<Map<string, string>> {
+  if (setIds.length === 0) return new Map();
+  const links = await db
+    .select({ setId: mediaLinksTable.entityId, storageKey: mediaAssetsTable.storageKey })
+    .from(mediaLinksTable)
+    .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
+    .where(and(
+      eq(mediaLinksTable.entityType, 'SET'),
+      eq(mediaLinksTable.role, 'COVER'),
+      inArray(mediaLinksTable.entityId, setIds)
+    ));
+  return new Map(links.map((l) => [l.setId, resolveMediaUrl(l.storageKey)]));
+}
 
 function wholesalePriceOf(priceWholesale: string | null, priceWholesaleSale: string | null): number | null {
   if (priceWholesaleSale) return Number(priceWholesaleSale);
@@ -57,7 +74,6 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
       slug: corporateSetsTable.slug,
       name: corporateSetsTable.name,
       description: corporateSetsTable.description,
-      imageUrl: corporateSetsTable.imageUrl,
       groupName: setGroupsTable.name,
       groupSlug: setGroupsTable.slug,
       brandName: brandsTable.name,
@@ -84,6 +100,8 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
     .leftJoin(productsTable, eq(setItemsTable.productId, productsTable.id))
     .where(inArray(setItemsTable.setId, setIds));
 
+  const coverImages = await getCoverImageMap(setIds);
+
   return rows.map((set) => {
     const setItems = items.filter((i) => i.setId === set.id);
     let referencePrice = 0;
@@ -101,7 +119,7 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
       slug: set.slug,
       name: set.name,
       description: set.description,
-      imageUrl: set.imageUrl,
+      imageUrl: coverImages.get(set.id) ?? null,
       groupName: set.groupName,
       groupSlug: set.groupSlug,
       brandName: set.brandName,
@@ -121,7 +139,6 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
       slug: corporateSetsTable.slug,
       name: corporateSetsTable.name,
       description: corporateSetsTable.description,
-      imageUrl: corporateSetsTable.imageUrl,
       setGroupId: corporateSetsTable.setGroupId,
       brandId: corporateSetsTable.brandId,
       groupName: setGroupsTable.name,
@@ -218,12 +235,14 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
     };
   });
 
+  const coverImages = await getCoverImageMap([set.id]);
+
   return {
     id: set.id,
     slug: set.slug,
     name: set.name,
     description: set.description,
-    imageUrl: set.imageUrl,
+    imageUrl: coverImages.get(set.id) ?? null,
     setGroupId: set.setGroupId,
     brandId: set.brandId,
     groupName: set.groupName,

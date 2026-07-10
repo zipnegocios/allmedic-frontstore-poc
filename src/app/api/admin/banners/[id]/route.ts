@@ -8,6 +8,8 @@ const UpdateBannerSchema = z.object({
   subtitle: z.string().optional(),
   imageDesktop: z.string().min(1).optional(),
   imageMobile: z.string().optional(),
+  imageDesktopAssetId: z.string().optional(),
+  imageMobileAssetId: z.string().optional(),
   ctaText: z.string().optional(),
   ctaLink: z.string().optional(),
   sortOrder: z.number().optional(),
@@ -19,8 +21,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     await requireAdmin();
     const { id } = await params;
     const body = await request.json();
-    const validated = UpdateBannerSchema.parse(body);
-    const banner = await updateBanner(id, validated);
+    const { imageDesktopAssetId, imageMobileAssetId, ...validated } = UpdateBannerSchema.parse(body);
+    const banner = await updateBanner(id, validated, imageDesktopAssetId, imageMobileAssetId);
     return NextResponse.json(banner);
   } catch (err) {
     if (err instanceof z.ZodError) {

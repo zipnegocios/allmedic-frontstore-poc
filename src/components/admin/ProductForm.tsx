@@ -41,8 +41,9 @@ const VariantSchema = z.object({
 
 const ImageSchema = z.object({
   id: z.string().optional(),
+  assetId: z.string().min(1, 'Medio requerido'),
   colorId: z.string().optional(),
-  url: z.string().min(1, 'URL requerida'),
+  url: z.string().optional(), // solo para previsualización en el form, no se persiste
   alt: z.string().optional(),
   sortOrder: z.coerce.number().default(0),
 });
@@ -857,6 +858,7 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
           if (pickerTargetIndex === 'append') {
             assets.forEach((asset, i) => {
               appendImage({
+                assetId: asset.id,
                 colorId: '',
                 url: resolveMediaUrl(asset.storageKey),
                 alt: asset.altText ?? '',
@@ -864,6 +866,7 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
               });
             });
           } else if (typeof pickerTargetIndex === 'number' && assets[0]) {
+            setValue(`images.${pickerTargetIndex}.assetId`, assets[0].id);
             setValue(`images.${pickerTargetIndex}.url`, resolveMediaUrl(assets[0].storageKey));
             if (!watch(`images.${pickerTargetIndex}.alt`)) {
               setValue(`images.${pickerTargetIndex}.alt`, assets[0].altText ?? '');

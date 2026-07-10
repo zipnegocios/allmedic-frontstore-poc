@@ -228,124 +228,49 @@ layout.tsx (Server)
 
 ---
 
-## 3. Gestión de Activos y Media
+## 3. Gestión de Activos y Media (Media Library / Cloudflare R2)
 
-### 3.1 Imágenes de Productos
+> Reemplaza por completo el almacenamiento anterior en `public/images/` (ver historial de git para la versión previa de esta sección). Migración ejecutada vía `scripts/migrate-media-to-r2.ts`.
 
-#### Almacenamiento
-- **Ubicación:** Todas las imágenes de productos se almacenan localmente en **`public/images/`** como archivos estáticos.
-- **Formato de nombres:** `product-{num}-{color}-1.jpg` (ej: `product-1-black-1.jpg`, `product-5-ciel-1.jpg`).
-- **No se usan** servicios externos (Cloudinary, S3, etc.), ni BLOBs/base64 en la base de datos.
+### 3.1 Arquitectura
 
-#### Modelo en Prisma (`prisma/schema.prisma`)
+Todas las imágenes (productos, sets corporativos, marcas, banners, activos de sitio) viven en **Cloudflare R2** (`media.allmedicuniforms.com`) y se referencian desde Postgres a través de dos tablas normalizadas (`src/db/schema/media.ts`), fuente única de verdad — **ya no existen** columnas de texto tipo `url`/`logoUrl`/`imageDesktop`/`imageUrl` en las tablas de dominio:
 
-```prisma
-model ProductImage {
-  id        String  @id @default(cuid())
-  productId String
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  colorId   String? // Null = imagen principal / no asociada a color específico
-  url       String
-  alt       String?
-  sortOrder Int     @default(0)
+```ts
+// media_assets — el archivo físico + SEO base
+media_assets: id, storage_key (único), file_name, folder (PRODUCTS|SETS|BRANDS|BANNERS|SITE),
+  mime_type, size_bytes, width, height, checksum_sha256, alt_text, title, caption, created_by, created_at, updated_at
 
-  @@map("product_images")
-}
+// media_links — vínculo polimórfico entidad↔asset, con SEO contextual y rol
+media_links: id, asset_id (FK RESTRICT), entity_type (PRODUCT|SET|BRAND|BANNER), entity_id,
+  color_id (solo PRODUCT, para galería por color), role (GALLERY|LOGO|DESKTOP|MOBILE|COVER),
+  sort_order, alt_override, title_override, caption_override
+  UNIQUE(entity_type, entity_id, color_id, role, asset_id)
+
+// además: media_tags, media_asset_tags, media_comments, media_audit
 ```
 
-- **`Product` → `ProductImage`** es una relación **1:N** (un producto tiene muchas imágenes).
-- **`colorId`**: permite asociar imágenes a variantes de color específicas. Si es `null`, se considera imagen principal/default.
-- **`url`**: almacena la ruta relativa desde `public/`, ej: `/images/product-1-black-1.jpg`.
+**Regla de resolución de URL:** `resolveMediaUrl(storageKey)` en `src/lib/media.ts` arma `${R2_PUBLIC_URL}/${storageKey}`.
+**Regla de resolución de SEO:** `link.alt_override ?? asset.alt_text` (ídem título/caption) — el override contextual del vínculo gana sobre el valor base del asset.
 
-#### Cómo se Sirven
-- Se usan etiquetas HTML nativas **`<img>`** (NO `next/image` de Next.js).
-- Las URLs son **rutas absolutas relativas** que empiezan con `/images/...` (ej: `/images/product-1-black-1.jpg`).
-- El fallback universal cuando una imagen falla es: **`/images/placeholder-product.jpg`**.
+| Entidad | Rol(es) usados | Ejemplo de lectura |
+|---|---|---|
+| Producto (por color) | `GALLERY` | `data-service.ts` → join `media_links`+`media_assets` filtrando `entityType=PRODUCT, role=GALLERY` |
+| Set corporativo | `COVER` | `corporate-data-service.ts::getCoverImageMap()` |
+| Marca | `LOGO` | `data-service.ts::getBrands()` |
+| Banner | `DESKTOP`, `MOBILE` | `data-service.ts::getHeroSlides()` |
 
-#### Flujo de Datos (DB → UI)
-En `src/lib/data-service.ts`, la función `transformProduct()`:
-1. Lee las imágenes del producto desde Prisma (`product.images`).
-2. Agrupa las URLs por `colorId` en un `Map<string, string[]>`.
-3. Asigna las imágenes correspondientes a cada variante (`variant.images`).
+### 3.2 Subida y transformación de imágenes
 
-Esto permite que al cambiar de color en la UI, se muestre la imagen correspondiente a ese color.
+- **Subida:** URLs prefirmadas (`presignPut` en `src/lib/r2.ts`, SDK `@aws-sdk/client-s3`) — el navegador sube directo a R2 vía `useMediaUpload` (`src/hooks/useMediaUpload.ts`), sin pasar el binario por el servidor Next.
+- **Normalización cliente:** `src/lib/client-image-utils.ts` redimensiona a máx. 2400px y comprime antes de subir; calcula checksum SHA-256 (idempotencia).
+- **Optimización de entrega:** Cloudflare Image Transformations vía loader custom de `next/image` (`src/lib/cloudflare-image-loader.ts`, registrado en `next.config.ts` como `images.loader: 'custom'`). Genera URLs `/cdn-cgi/image/width=...,quality=...,format=auto/...`. **`images.unoptimized` ya NO se usa** — el optimizador nativo de Next está reemplazado por este loader.
+- **Panel admin:** `/admin/media` (Media Library) — galería con filtros, subida drag&drop, detalle con SEO/renombrado/comentarios/auditoría/eliminación (bloqueada si el medio está en uso). Componente `<MediaPicker>` (`src/components/admin/media/MediaPicker.tsx`) es la única puerta de entrada de imágenes en los formularios de productos, sets, marcas y banners — ya no hay inputs de texto para URLs.
+- **API:** `/api/admin/media/*` (`presign`, `confirm`, listado, detalle/edición/borrado, comentarios, `links`, `tags`), todas protegidas por `requireAdmin()`.
 
----
+### 3.3 Logos del sitio (excepción)
 
-### 3.2 Otros Activos Estáticos en `public/images/`
-
-| Categoría | Archivos |
-|-----------|----------|
-| **Logos de la marca** | `allmedic_logo_black.png`, `allmedic_logo_white.png` |
-| **Hero/Banners** | `hero-1.jpg`, `hero-2.jpg`, `hero-3.jpg` |
-| **Categorías** | `category-men.jpg`, `category-women.jpg`, `category-accessories.jpg` |
-| **Logos de marcas** | `brands/adar.png`, `brands/carhartt-liberty.png`, `brands/figs.png`, `brands/greys-anatomy.png`, `brands/healing-hands.png`, `brands/heartsoul.png`, `brands/infinity.png`, `brands/jaanuu.png`, `brands/koi.png`, `brands/landau.png`, `brands/maevn.png`, `brands/mandala.png`, `brands/med-couture.png`, `brands/skechers.png`, `brands/wonderwink.png` |
-| **Imágenes de productos** | ~60 archivos `product-{1-20}-{color}-1.jpg` |
-
-#### Modelo `Banner` en Prisma
-
-```prisma
-model Banner {
-  id           String
-  title        String
-  subtitle     String?
-  imageDesktop String   // Ruta a la imagen (ej: /images/hero-1.jpg)
-  imageMobile  String?  // Versión móvil (opcional)
-  ctaText      String?
-  ctaLink      String?
-  sortOrder    Int      @default(0)
-  isActive     Boolean  @default(true)
-}
-```
-
-#### Modelo `Brand` en Prisma
-
-```prisma
-model Brand {
-  id          String
-  name        String   @unique
-  slug        String   @unique
-  description String?  @db.Text
-  logoUrl     String?  // Ej: /images/brands/figs.png
-  ...
-}
-```
-
----
-
-### 3.3 Configuración de `next.config.ts`
-
-```typescript
-const nextConfig: NextConfig = {
-  reactStrictMode: true,
-  images: {
-    unoptimized: true, // ← Desactiva la optimización de imágenes de Next.js
-  },
-  env: {
-    NEXT_PUBLIC_WHATSAPP_NUMBER: process.env.VITE_WHATSAPP_NUMBER,
-  },
-  turbopack: {},
-  poweredByHeader: false,
-};
-```
-
-**Punto clave:** `images.unoptimized: true` deshabilita completamente el componente `<Image>` optimizado de Next.js. La razón documentada es **"For Hostinger compatibility"** (compatibilidad con el hosting compartido de Hostinger). Como consecuencia, todo el proyecto usa etiquetas `<img>` nativas en lugar de `next/image`.
-
----
-
-### 3.4 Resumen de Patrones de Imagen en el Código
-
-| Componente | Uso de imagen | Fallback |
-|------------|--------------|----------|
-| `ImageGallery` | `<img src={images[index]}>` | `/images/placeholder-product.jpg` |
-| `ProductCard` | `<img src={variantWithColor?.images[0]}>` | `/images/placeholder-product.jpg` |
-| `BrandCarousel` | `<img src={/images/brands/{slug}.png}>` | Texto del nombre de marca |
-| `Header` | `<img src="/images/allmedic_logo_black.png">` | — |
-| `Footer` | `<img src="/images/allmedic_logo_white.png">` | — |
-| `Home (Hero)` | `backgroundImage: url(${slide.image})` | — |
-| `Home (QuickAccess)` | `backgroundImage: url(${card.image})` | — |
-| `MegaMenu` | `<img src={product.variants[0]?.images[0]}>` | `/images/placeholder-product.jpg` |
-| `CartItem` | `<img src={item.image}>` | `/images/placeholder-product.jpg` |
+`allmedic_logo_black.png` y `allmedic_logo_white.png` son los **únicos** archivos que permanecen en `public/images/` (usados directo por `Header`/`Footer` vía `<img>`, sin pasar por R2 ni next/image) — excluidos deliberadamente de la migración.
 
 ---
 
@@ -688,7 +613,7 @@ Usuario escribe "ropa cómoda para hospitales"
 | Checkout/pago | ✅ Solo WhatsApp | Sin pasarela de pago online |
 | Base de datos | ✅ Prisma + MySQL | Modelos completos, 12 tablas |
 | Productos desde DB | ✅ Migrado | `data-service.ts` es la fuente de verdad |
-| Imágenes | ✅ Locales en `public/images/` | Sin CDN; `next/image` deshabilitado |
+| Imágenes | ✅ Cloudflare R2 + Media Library | Ver sección 3; `next/image` con loader custom de Cloudflare Images |
 | SEO / Metadata | ❌ Muy básico | Sin OpenGraph, schema.org, ni JSON-LD |
 | Búsqueda | ⚠️ Básica | Solo LIKE/contains; sin full-text ni semántica |
 | Dummy data | ⚠️ Residual | `dummy-data.ts` aún se referencia en algunos fallbacks |

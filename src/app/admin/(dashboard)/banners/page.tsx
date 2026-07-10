@@ -21,7 +21,7 @@ interface Banner {
   id: string;
   title: string;
   subtitle: string | null;
-  imageDesktop: string;
+  imageDesktop: string | null;
   imageMobile: string | null;
   ctaText: string | null;
   ctaLink: string | null;
@@ -30,7 +30,9 @@ interface Banner {
 }
 
 const EMPTY_FORM = {
-  title: '', subtitle: '', imageDesktop: '', imageMobile: '', ctaText: '', ctaLink: '', sortOrder: 0, isActive: true,
+  title: '', subtitle: '', imageDesktop: '', imageMobile: '',
+  imageDesktopAssetId: '', imageMobileAssetId: '',
+  ctaText: '', ctaLink: '', sortOrder: 0, isActive: true,
 };
 
 export default function AdminBannersPage() {
@@ -79,8 +81,10 @@ export default function AdminBannersPage() {
     setFormData({
       title: banner.title,
       subtitle: banner.subtitle || '',
-      imageDesktop: banner.imageDesktop,
+      imageDesktop: banner.imageDesktop || '',
       imageMobile: banner.imageMobile || '',
+      imageDesktopAssetId: '',
+      imageMobileAssetId: '',
       ctaText: banner.ctaText || '',
       ctaLink: banner.ctaLink || '',
       sortOrder: banner.sortOrder,
@@ -98,10 +102,15 @@ export default function AdminBannersPage() {
     try {
       const url = editingBanner ? `/api/admin/banners/${editingBanner.id}` : '/api/admin/banners';
       const method = editingBanner ? 'PATCH' : 'POST';
+      // Solo se envían los assetId si el usuario eligió una imagen nueva en esta sesión del form;
+      // de lo contrario el backend interpretaría el string vacío como "quitar el vínculo".
+      const payload: Record<string, unknown> = { ...formData };
+      if (!payload.imageDesktopAssetId) delete payload.imageDesktopAssetId;
+      if (!payload.imageMobileAssetId) delete payload.imageMobileAssetId;
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Failed to save');
       toast.success(editingBanner ? 'Banner actualizado' : 'Banner creado');
@@ -308,7 +317,12 @@ export default function AdminBannersPage() {
         folder="BANNERS"
         onConfirm={(assets) => {
           if (pickerTarget && assets[0]) {
-            setFormData((prev) => ({ ...prev, [pickerTarget]: resolveMediaUrl(assets[0].storageKey) }));
+            const assetIdKey = pickerTarget === 'imageDesktop' ? 'imageDesktopAssetId' : 'imageMobileAssetId';
+            setFormData((prev) => ({
+              ...prev,
+              [pickerTarget]: resolveMediaUrl(assets[0].storageKey),
+              [assetIdKey]: assets[0].id,
+            }));
           }
           setPickerTarget(null);
         }}
