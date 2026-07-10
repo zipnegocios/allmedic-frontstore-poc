@@ -73,6 +73,7 @@ export async function GET(request: NextRequest) {
           .select({
             productId: mediaLinksTable.entityId,
             storageKey: mediaAssetsTable.storageKey,
+            mimeType: mediaAssetsTable.mimeType,
           })
           .from(mediaLinksTable)
           .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
@@ -82,7 +83,7 @@ export async function GET(request: NextRequest) {
             inArray(mediaLinksTable.entityId, productIds)
           ))
           .orderBy(asc(mediaLinksTable.sortOrder));
-        const images = imageLinks.map((i) => ({ productId: i.productId, url: resolveMediaUrl(i.storageKey) }));
+        const images = imageLinks.map((i) => ({ productId: i.productId, url: resolveMediaUrl(i.storageKey), mimeType: i.mimeType }));
 
         const enrichedProducts = products.map(product => ({
           ...product,

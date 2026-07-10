@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { ChevronLeft, ChevronRight, MapPin, Tag, Package, Store, X } from 'lucide-react';
 import { PRODUCTS as DEFAULT_PRODUCTS, BRANDS as DEFAULT_BRANDS, STORES as DEFAULT_STORES } from '@/lib/dummy-data';
 import type { Product, Store as StoreType } from '@/lib/types';
+import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 import { cn } from '@/lib/utils';
 
 interface MegaMenuProps {
@@ -223,10 +223,10 @@ export function MegaMenu({ isOpen, onClose, products: productsProp, brands: bran
                           className="group"
                         >
                           <div className="relative aspect-[3/4] bg-[#F5F5F7] rounded-lg overflow-hidden mb-2 sm:mb-3">
-                            <Image
-                              src={product.variants[0]?.images[0] || '/images/placeholder-product.jpg'}
+                            <MediaGridThumb
+                              item={product.variants[0]?.images[0]}
+                              fallback="/images/placeholder-product.jpg"
                               alt={product.name}
-                              fill
                               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 16vw"
                               className="object-cover group-hover:scale-105 transition-transform duration-300"
                             />

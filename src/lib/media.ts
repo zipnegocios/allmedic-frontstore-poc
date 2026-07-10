@@ -75,13 +75,32 @@ export function renameStorageKey(oldKey: string, newFileName: string): string {
   return dir ? `${dir}/${cleanFileName}` : cleanFileName;
 }
 
-export const ALLOWED_MEDIA_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"];
-export const MAX_MEDIA_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+export const ALLOWED_IMAGE_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"];
+export const ALLOWED_VIDEO_MIME_TYPES = ["video/mp4", "video/webm"];
+export const ALLOWED_MEDIA_MIME_TYPES = [...ALLOWED_IMAGE_MIME_TYPES, ...ALLOWED_VIDEO_MIME_TYPES];
+
+export function isVideoMime(mimeType: string): boolean {
+  return mimeType.startsWith("video/");
+}
+
+export const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+export const MAX_VIDEO_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB
+/** @deprecated usar maxSizeForMime(mimeType) — se mantiene por compatibilidad con el límite de imágenes. */
+export const MAX_MEDIA_SIZE_BYTES = MAX_IMAGE_SIZE_BYTES;
+
+export function maxSizeForMime(mimeType: string): number {
+  return isVideoMime(mimeType) ? MAX_VIDEO_SIZE_BYTES : MAX_IMAGE_SIZE_BYTES;
+}
+
+export const MAX_VIDEO_PREVIEW_DURATION_SECONDS = 30;
+
 export const MEDIA_FOLDERS = Object.keys(FOLDER_PREFIXES) as MediaFolder[];
 export const MEDIA_ENTITY_TYPES = ["PRODUCT", "SET", "BRAND", "BANNER"] as const;
 export type MediaEntityType = (typeof MEDIA_ENTITY_TYPES)[number];
 export const MEDIA_LINK_ROLES = ["GALLERY", "LOGO", "DESKTOP", "MOBILE", "COVER"] as const;
 export type MediaLinkRole = (typeof MEDIA_LINK_ROLES)[number];
+/** Folders donde se permite subir video (Sets y Brands siguen solo-imagen). */
+export const VIDEO_ALLOWED_FOLDERS: MediaFolder[] = ["PRODUCTS", "BANNERS"];
 
 export interface MediaAssetSummary {
   id: string;
@@ -92,8 +111,23 @@ export interface MediaAssetSummary {
   sizeBytes: number;
   width: number | null;
   height: number | null;
+  durationSeconds: number | null;
+  previewStartSeconds: number | null;
+  previewDurationSeconds: number | null;
   altText: string | null;
   title: string | null;
   caption: string | null;
   createdAt: string | null;
+}
+
+/** Item de medio ya resuelto (URL pública) para consumo en componentes públicos/admin. */
+export interface MediaItem {
+  url: string;
+  type: 'image' | 'video';
+  mimeType: string;
+  width: number | null;
+  height: number | null;
+  durationSeconds?: number | null;
+  previewStartSeconds?: number | null;
+  previewDurationSeconds?: number | null;
 }

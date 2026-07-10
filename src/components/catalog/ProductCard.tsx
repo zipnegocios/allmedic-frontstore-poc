@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { Eye, Check, X, Clock, Loader2 } from 'lucide-react';
 import type { Product } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { CountdownBadge } from '@/components/ui/CountdownBadge';
 import { QuickViewModal } from './QuickViewModal';
+import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 import { cn } from '@/lib/utils';
 
 interface ProductCardProps {
@@ -41,7 +41,7 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
   
   const selectedColor = product.colors.find(c => c.id === selectedColorId);
   const variantWithColor = product.variants.find(v => v.colorId === selectedColorId);
-  const displayImage = variantWithColor?.images[0] || '/images/placeholder-product.jpg';
+  const displayMedia = variantWithColor?.images[0];
   
   const hasDiscount = product.priceSale && product.priceSale < product.priceNormal;
   const discountPercentage = hasDiscount
@@ -113,28 +113,25 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
             )}
 
             {/* Loading Spinner */}
-            {isImageLoading && (
+            {isImageLoading && displayMedia?.type !== 'video' && (
               <div className="absolute inset-0 flex items-center justify-center bg-[#F5F5F7] z-5">
                 <Loader2 className="w-8 h-8 text-gray-400 animate-spin" strokeWidth={1.5} />
               </div>
             )}
 
-            {/* Image */}
-            <Image
-              src={displayImage}
+            {/* Media (imagen o video en loop mudo dentro de su ventana de preview) */}
+            <MediaGridThumb
+              item={displayMedia}
+              fallback="/images/placeholder-product.jpg"
               alt={`${product.name} - ${selectedColor?.name || ''}`}
-              fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
               className={cn(
                 "object-cover transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]",
                 hasActiveCountdown && "group-hover:scale-105 group-hover:brightness-95",
-                isImageLoading && "opacity-0"
+                isImageLoading && displayMedia?.type !== 'video' && "opacity-0"
               )}
               onLoad={() => setIsImageLoading(false)}
-              onError={(e) => {
-                setIsImageLoading(false);
-                (e.target as HTMLImageElement).src = '/images/placeholder-product.jpg';
-              }}
+              onError={() => setIsImageLoading(false)}
             />
             
             {/* Urgency overlay gradient */}

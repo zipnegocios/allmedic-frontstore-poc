@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, getSessionUserId } from '@/lib/admin-auth';
 import { getMediaAssetDetail, updateMediaAsset, deleteMediaAsset } from '@/lib/media-data-service';
-import { MEDIA_FOLDERS } from '@/lib/media';
+import { MEDIA_FOLDERS, MAX_VIDEO_PREVIEW_DURATION_SECONDS } from '@/lib/media';
 import { z } from 'zod';
 
 const UpdateSchema = z.object({
@@ -11,6 +11,8 @@ const UpdateSchema = z.object({
   folder: z.enum(MEDIA_FOLDERS as [string, ...string[]]).optional(),
   fileName: z.string().min(1).optional(),
   tagIds: z.array(z.string()).optional(),
+  previewStartSeconds: z.number().int().min(0).optional(),
+  previewDurationSeconds: z.number().int().min(1).max(MAX_VIDEO_PREVIEW_DURATION_SECONDS).optional(),
 });
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

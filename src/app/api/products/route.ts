@@ -110,6 +110,7 @@ export async function GET(request: NextRequest) {
             productId: mediaLinksTable.entityId,
             colorId: mediaLinksTable.colorId,
             storageKey: mediaAssetsTable.storageKey,
+            mimeType: mediaAssetsTable.mimeType,
             altOverride: mediaLinksTable.altOverride,
             altText: mediaAssetsTable.altText,
           })
@@ -126,6 +127,7 @@ export async function GET(request: NextRequest) {
       productId: i.productId,
       colorId: i.colorId,
       url: resolveMediaUrl(i.storageKey),
+      mimeType: i.mimeType,
       alt: i.altOverride ?? i.altText,
     }));
 
@@ -198,7 +200,7 @@ export async function GET(request: NextRequest) {
           colorCode: p.colors.find(c => c.id === v.colorId)?.code ?? '',
           colorHex: p.colors.find(c => c.id === v.colorId)?.hex ?? '',
         })),
-        images: p.variants[0]?.images?.[0] ? [{ productId: p.id, colorId: p.variants[0].colorId, url: p.variants[0].images[0], alt: p.name }] : [],
+        images: p.variants[0]?.images?.[0] ? [{ productId: p.id, colorId: p.variants[0].colorId, url: p.variants[0].images[0].url, mimeType: p.variants[0].images[0].mimeType, alt: p.name }] : [],
       })),
       pagination: {
         page,

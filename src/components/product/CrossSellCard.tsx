@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { Plus } from 'lucide-react';
 import type { Product, Size } from '@/lib/types';
+import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 import { cn } from '@/lib/utils';
 
 interface CrossSellCardProps {
@@ -24,7 +24,7 @@ export function CrossSellCard({
   const [showSizeSelector, setShowSizeSelector] = useState(false);
 
   const variantWithColor = product.variants.find(v => v.colorId === selectedColorId);
-  const displayImage = variantWithColor?.images[0] || '/images/placeholder-product.jpg';
+  const displayMedia = variantWithColor?.images[0];
 
   const handleAddClick = () => {
     if (!showSizeSelector) {
@@ -46,15 +46,12 @@ export function CrossSellCard({
           href={`/p/${product.slug}`}
           className="relative w-20 h-24 bg-[#F5F5F7] rounded-md overflow-hidden flex-shrink-0"
         >
-          <Image
-            src={displayImage}
+          <MediaGridThumb
+            item={displayMedia}
+            fallback="/images/placeholder-product.jpg"
             alt={product.name}
-            fill
             sizes="80px"
             className="object-cover"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = '/images/placeholder-product.jpg';
-            }}
           />
         </Link>
 

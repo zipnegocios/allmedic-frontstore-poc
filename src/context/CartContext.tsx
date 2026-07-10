@@ -108,7 +108,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         sku: variant.sku,
         price: product.priceSale || product.priceNormal,
         quantity,
-        image: variant.images[0] || '/images/placeholder-product.jpg',
+        image: variant.images.find((m) => m.type === 'image')?.url || '/images/placeholder-product.jpg',
       };
 
       return [...prev, newItem];

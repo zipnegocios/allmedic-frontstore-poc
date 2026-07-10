@@ -13,6 +13,9 @@ export const mediaAssets = pgTable("media_assets", {
   sizeBytes: integer("size_bytes").notNull(),
   width: integer("width"),
   height: integer("height"),
+  durationSeconds: integer("duration_seconds"), // solo video
+  previewStartSeconds: integer("preview_start_seconds").default(0), // solo video: inicio del clip de portada
+  previewDurationSeconds: integer("preview_duration_seconds").default(3), // solo video: duración del clip (1-30s)
   checksumSha256: text("checksum_sha256"),
   altText: text("alt_text"),
   title: text("title"),

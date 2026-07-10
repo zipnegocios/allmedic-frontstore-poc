@@ -24,6 +24,7 @@ import { toast } from 'sonner';
 import { ArrowLeft, Save, Plus, Trash2, ImageIcon } from 'lucide-react';
 import Link from 'next/link';
 import { MediaPicker } from '@/components/admin/media/MediaPicker';
+import { MediaThumb } from '@/components/admin/media/MediaThumb';
 import { resolveMediaUrl } from '@/lib/media';
 
 // ─── Schemas ───
@@ -44,6 +45,8 @@ const ImageSchema = z.object({
   assetId: z.string().min(1, 'Medio requerido'),
   colorId: z.string().optional(),
   url: z.string().optional(), // solo para previsualización en el form, no se persiste
+  storageKey: z.string().optional(), // solo para previsualización en el form, no se persiste
+  mimeType: z.string().optional(), // solo para previsualización en el form, no se persiste
   alt: z.string().optional(),
   sortOrder: z.coerce.number().default(0),
 });
@@ -314,7 +317,7 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
               )}
             </TabsTrigger>
             <TabsTrigger value="images">
-              Imágenes
+              Medios
               {imageFields.length > 0 && (
                 <Badge variant="secondary" className="ml-2">{imageFields.length}</Badge>
               )}
@@ -754,10 +757,15 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
             )}
           </TabsContent>
 
-          {/* ─── TAB IMÁGENES ─── */}
+          {/* ─── TAB MEDIOS (fotos y videos) ─── */}
           <TabsContent value="images" className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold">Imágenes del Producto</h3>
+              <div>
+                <h3 className="font-semibold">Medios del Producto</h3>
+                <p className="text-xs text-gray-500">
+                  El primer medio (orden 0) es la portada. Si es un video, se reproduce mudo y en loop en tarjetas/catálogo dentro de su ventana de vista previa configurada en la Media Library.
+                </p>
+              </div>
               <Button type="button" variant="outline" onClick={() => setPickerTargetIndex('append')}>
                 <ImageIcon className="w-4 h-4 mr-2" />
                 Agregar desde Media Library
@@ -767,7 +775,7 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
             {imageFields.length === 0 ? (
               <Card>
                 <CardContent className="p-8 text-center text-gray-500">
-                  No hay imágenes. Agrega imágenes desde la Media Library.
+                  No hay medios. Agrega fotos o videos desde la Media Library.
                 </CardContent>
               </Card>
             ) : (
@@ -776,22 +784,21 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
                   <Card key={field.id}>
                     <CardContent className="p-4 space-y-3">
                       <div className="flex items-start gap-3">
-                        <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
-                          {watch(`images.${index}.url`) ? (
-                            <img
-                              src={watch(`images.${index}.url`)}
-                              alt=""
-                              className="w-full h-full object-cover"
-                              onError={(e) => { (e.target as HTMLImageElement).src = ''; }}
+                        <div className="relative w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                          {watch(`images.${index}.storageKey`) ? (
+                            <MediaThumb
+                              storageKey={watch(`images.${index}.storageKey`)!}
+                              mimeType={watch(`images.${index}.mimeType`) ?? ''}
+                              sizes="80px"
                             />
                           ) : (
-                            <span className="text-xs text-gray-400">Sin imagen</span>
+                            <span className="absolute inset-0 flex items-center justify-center text-xs text-gray-400">Sin medio</span>
                           )}
                         </div>
                         <div className="flex-1 space-y-2">
                           <Button type="button" size="sm" variant="outline" onClick={() => setPickerTargetIndex(index)}>
                             <ImageIcon className="w-3.5 h-3.5 mr-2" />
-                            {watch(`images.${index}.url`) ? 'Cambiar imagen' : 'Elegir imagen'}
+                            {watch(`images.${index}.url`) ? 'Cambiar medio' : 'Elegir medio'}
                           </Button>
                           <div>
                             <Label className="text-xs">Alt</Label>
@@ -861,6 +868,8 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
                 assetId: asset.id,
                 colorId: '',
                 url: resolveMediaUrl(asset.storageKey),
+                storageKey: asset.storageKey,
+                mimeType: asset.mimeType,
                 alt: asset.altText ?? '',
                 sortOrder: imageFields.length + i,
               });
@@ -868,6 +877,8 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
           } else if (typeof pickerTargetIndex === 'number' && assets[0]) {
             setValue(`images.${pickerTargetIndex}.assetId`, assets[0].id);
             setValue(`images.${pickerTargetIndex}.url`, resolveMediaUrl(assets[0].storageKey));
+            setValue(`images.${pickerTargetIndex}.storageKey`, assets[0].storageKey);
+            setValue(`images.${pickerTargetIndex}.mimeType`, assets[0].mimeType);
             if (!watch(`images.${pickerTargetIndex}.alt`)) {
               setValue(`images.${pickerTargetIndex}.alt`, assets[0].altText ?? '');
             }

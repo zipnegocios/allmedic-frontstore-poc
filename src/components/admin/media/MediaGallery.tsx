@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import Image from 'next/image';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -10,7 +9,8 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Search, ChevronLeft, ChevronRight, ImageOff, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { resolveMediaUrl, MEDIA_FOLDERS, type MediaAssetSummary } from '@/lib/media';
+import { MEDIA_FOLDERS, type MediaAssetSummary } from '@/lib/media';
+import { MediaThumb } from './MediaThumb';
 
 const FOLDER_LABELS: Record<string, string> = {
   PRODUCTS: 'Productos',
@@ -28,6 +28,7 @@ interface MediaGalleryProps {
   onSelect?: (asset: MediaAssetSummary) => void;
   onAssetClick?: (asset: MediaAssetSummary) => void;
   refreshKey?: number;
+  mediaType?: 'image' | 'video' | 'all';
 }
 
 export function MediaGallery({
@@ -38,12 +39,14 @@ export function MediaGallery({
   onSelect,
   onAssetClick,
   refreshKey = 0,
+  mediaType: fixedMediaType,
 }: MediaGalleryProps) {
   const [assets, setAssets] = useState<MediaAssetSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [q, setQ] = useState('');
   const [folder, setFolder] = useState(fixedFolder ?? 'all');
+  const [mediaType, setMediaType] = useState(fixedMediaType ?? 'all');
   const [unused, setUnused] = useState(false);
   const [loading, setLoading] = useState(true);
   const limit = 24;
@@ -54,6 +57,8 @@ export function MediaGallery({
       const params = new URLSearchParams();
       if (fixedFolder) params.set('folder', fixedFolder);
       else if (folder !== 'all') params.set('folder', folder);
+      const effectiveMediaType = fixedMediaType ?? mediaType;
+      if (effectiveMediaType !== 'all') params.set('mediaType', effectiveMediaType);
       if (q) params.set('q', q);
       if (unused) params.set('unused', 'true');
       params.set('page', String(page));
@@ -69,7 +74,7 @@ export function MediaGallery({
     } finally {
       setLoading(false);
     }
-  }, [fixedFolder, folder, q, unused, page]);
+  }, [fixedFolder, folder, fixedMediaType, mediaType, q, unused, page]);
 
   useEffect(() => { fetchAssets(); }, [fetchAssets, refreshKey]);
 
@@ -97,6 +102,18 @@ export function MediaGallery({
               {MEDIA_FOLDERS.map((f) => (
                 <SelectItem key={f} value={f}>{FOLDER_LABELS[f] ?? f}</SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+        )}
+        {!fixedMediaType && (
+          <Select value={mediaType} onValueChange={(v) => { setMediaType(v as 'image' | 'video' | 'all'); setPage(1); }}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Tipo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Fotos y videos</SelectItem>
+              <SelectItem value="image">Solo fotos</SelectItem>
+              <SelectItem value="video">Solo videos</SelectItem>
             </SelectContent>
           </Select>
         )}
@@ -131,12 +148,12 @@ export function MediaGallery({
                   isSelected ? 'border-[#111111]' : 'border-transparent hover:border-gray-300'
                 )}
               >
-                <Image
-                  src={resolveMediaUrl(asset.storageKey)}
-                  alt={asset.altText ?? asset.fileName}
-                  fill
-                  sizes="200px"
-                  className="object-cover"
+                <MediaThumb
+                  storageKey={asset.storageKey}
+                  mimeType={asset.mimeType}
+                  altText={asset.altText ?? asset.fileName}
+                  previewStart={asset.previewStartSeconds}
+                  previewDuration={asset.previewDurationSeconds}
                 />
                 {isSelected && (
                   <div className="absolute top-1 right-1 bg-[#111111] text-white rounded-full p-1">

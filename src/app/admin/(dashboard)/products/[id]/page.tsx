@@ -59,6 +59,8 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
       assetId: i.assetId,
       colorId: i.colorId || '',
       url: i.url,
+      storageKey: i.storageKey,
+      mimeType: i.mimeType,
       alt: i.alt || '',
       sortOrder: i.sortOrder ?? 0,
     })),

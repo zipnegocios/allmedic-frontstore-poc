@@ -71,8 +71,8 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
   const isOutOfStock = selectedVariant?.status === 'OUT_OF_STOCK';
   const isBackorder = selectedVariant?.status === 'BACKORDER';
 
-  // Get display image
-  const displayImage = selectedVariant?.images[0] || product.variants[0]?.images[0] || '/images/placeholder-product.jpg';
+  // Get display media (decisión: QuickView es vista expandida — video completo con sonido, no loop-preview)
+  const displayMedia = selectedVariant?.images[0] || product.variants[0]?.images[0];
 
   const handleAddToCart = () => {
     if (!selectedColor) {
@@ -146,18 +146,28 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="lg" showCloseButton={false}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Image */}
+        {/* Media */}
         <div className="aspect-[4/5] bg-[#F5F5F7] rounded-lg overflow-hidden relative">
-          <Image
-            src={displayImage}
-            alt={product.name}
-            fill
-            sizes="(max-width: 768px) 100vw, 50vw"
-            className="object-cover"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = '/images/placeholder-product.jpg';
-            }}
-          />
+          {displayMedia?.type === 'video' ? (
+            <video
+              key={displayMedia.url}
+              src={displayMedia.url}
+              controls
+              playsInline
+              className="absolute inset-0 w-full h-full object-contain bg-black"
+            />
+          ) : (
+            <Image
+              src={displayMedia?.url || '/images/placeholder-product.jpg'}
+              alt={product.name}
+              fill
+              sizes="(max-width: 768px) 100vw, 50vw"
+              className="object-cover"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = '/images/placeholder-product.jpg';
+              }}
+            />
+          )}
           
           {/* Status Badge on Image */}
           {selectedVariant && (

@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import Image from 'next/image';
 import { LayoutGrid, Grid2X2, Grid3X3, LayoutTemplate, List, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 
 // View modes: grid-1 (1 col), grid-2 (2 cols), grid-3 (3 cols), grid-4 (4 cols), list
 export type ViewMode = 'grid-1' | 'grid-2' | 'grid-3' | 'grid-4' | 'list';
@@ -97,22 +97,19 @@ interface ProductListItemProps {
 }
 
 export function ProductListItem({ product, onQuickView }: ProductListItemProps) {
-  const displayImage = product.variants[0]?.images[0] || '/images/placeholder-product.jpg';
+  const displayMedia = product.variants[0]?.images[0];
   const hasDiscount = product.priceSale && product.priceSale < product.priceNormal;
-  
+
   return (
     <div className="group flex gap-4 p-4 bg-white border border-[#E5E5E5] rounded-xl hover:border-[#111111] hover:shadow-md transition-all duration-300">
       {/* Image */}
       <Link href={`/p/${product.slug}`} className="relative flex-shrink-0 w-24 h-24 sm:w-32 sm:h-32 bg-[#F5F5F7] rounded-lg overflow-hidden">
-        <Image
-          src={displayImage}
+        <MediaGridThumb
+          item={displayMedia}
+          fallback="/images/placeholder-product.jpg"
           alt={product.name}
-          fill
           sizes="128px"
           className="object-cover group-hover:scale-105 transition-transform duration-500"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = '/images/placeholder-product.jpg';
-          }}
         />
       </Link>
 

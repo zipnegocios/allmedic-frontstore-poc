@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
 import { presignPut } from '@/lib/r2';
-import { buildStorageKey, ALLOWED_MEDIA_MIME_TYPES, MAX_MEDIA_SIZE_BYTES, MEDIA_FOLDERS, type MediaFolder } from '@/lib/media';
+import { buildStorageKey, ALLOWED_MEDIA_MIME_TYPES, MEDIA_FOLDERS, VIDEO_ALLOWED_FOLDERS, isVideoMime, maxSizeForMime, type MediaFolder } from '@/lib/media';
 import { z } from 'zod';
 
 const PresignSchema = z.object({
   folder: z.enum(MEDIA_FOLDERS as [string, ...string[]]),
   fileName: z.string().min(1),
   mimeType: z.enum(ALLOWED_MEDIA_MIME_TYPES as [string, ...string[]]),
-  sizeBytes: z.number().positive().max(MAX_MEDIA_SIZE_BYTES),
+  sizeBytes: z.number().positive(),
   segments: z.array(z.string()).default([]),
+}).refine((v) => v.sizeBytes <= maxSizeForMime(v.mimeType), {
+  message: 'El archivo excede el tamaño máximo permitido para este tipo de medio',
+  path: ['sizeBytes'],
+}).refine((v) => !isVideoMime(v.mimeType) || VIDEO_ALLOWED_FOLDERS.includes(v.folder as MediaFolder), {
+  message: 'Los videos solo se permiten en Productos y Banners',
+  path: ['folder'],
 });
 
 export async function POST(request: NextRequest) {

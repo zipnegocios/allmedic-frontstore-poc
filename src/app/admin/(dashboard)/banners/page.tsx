@@ -15,6 +15,7 @@ import {
 import { Search, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { MediaPicker } from '@/components/admin/media/MediaPicker';
+import { MediaThumb } from '@/components/admin/media/MediaThumb';
 import { resolveMediaUrl } from '@/lib/media';
 
 interface Banner {
@@ -22,7 +23,13 @@ interface Banner {
   title: string;
   subtitle: string | null;
   imageDesktop: string | null;
+  imageDesktopMimeType: string | null;
+  imageDesktopPreviewStart: number | null;
+  imageDesktopPreviewDuration: number | null;
   imageMobile: string | null;
+  imageMobileMimeType: string | null;
+  imageMobilePreviewStart: number | null;
+  imageMobilePreviewDuration: number | null;
   ctaText: string | null;
   ctaLink: string | null;
   sortOrder: number;
@@ -32,6 +39,7 @@ interface Banner {
 const EMPTY_FORM = {
   title: '', subtitle: '', imageDesktop: '', imageMobile: '',
   imageDesktopAssetId: '', imageMobileAssetId: '',
+  imageDesktopMimeType: '', imageMobileMimeType: '',
   ctaText: '', ctaLink: '', sortOrder: 0, isActive: true,
 };
 
@@ -85,6 +93,8 @@ export default function AdminBannersPage() {
       imageMobile: banner.imageMobile || '',
       imageDesktopAssetId: '',
       imageMobileAssetId: '',
+      imageDesktopMimeType: banner.imageDesktopMimeType || '',
+      imageMobileMimeType: banner.imageMobileMimeType || '',
       ctaText: banner.ctaText || '',
       ctaLink: banner.ctaLink || '',
       sortOrder: banner.sortOrder,
@@ -188,9 +198,15 @@ export default function AdminBannersPage() {
                   <TableRow key={banner.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-8 bg-gray-100 rounded overflow-hidden">
+                        <div className="relative w-12 h-8 bg-gray-100 rounded overflow-hidden">
                           {banner.imageDesktop && (
-                            <img src={banner.imageDesktop} alt="" className="w-full h-full object-cover" />
+                            <MediaThumb
+                              url={banner.imageDesktop}
+                              mimeType={banner.imageDesktopMimeType ?? ''}
+                              previewStart={banner.imageDesktopPreviewStart}
+                              previewDuration={banner.imageDesktopPreviewDuration}
+                              sizes="48px"
+                            />
                           )}
                         </div>
                         <div>
@@ -250,33 +266,33 @@ export default function AdminBannersPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Imagen Desktop *</Label>
+              <Label>Medio Desktop * (foto o video)</Label>
               <div className="flex items-center gap-3">
-                <div className="w-24 h-14 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0">
+                <div className="relative w-24 h-14 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0">
                   {formData.imageDesktop ? (
-                    <img src={formData.imageDesktop} alt="" className="w-full h-full object-cover" />
+                    <MediaThumb url={formData.imageDesktop} mimeType={formData.imageDesktopMimeType} sizes="96px" />
                   ) : (
                     <ImageIcon className="w-5 h-5 text-gray-300" />
                   )}
                 </div>
                 <Button type="button" size="sm" variant="outline" onClick={() => setPickerTarget('imageDesktop')}>
-                  {formData.imageDesktop ? 'Cambiar' : 'Elegir imagen'}
+                  {formData.imageDesktop ? 'Cambiar' : 'Elegir medio'}
                 </Button>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label>Imagen Mobile (opcional)</Label>
+              <Label>Medio Mobile (opcional, foto o video)</Label>
               <div className="flex items-center gap-3">
-                <div className="w-24 h-14 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0">
+                <div className="relative w-24 h-14 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0">
                   {formData.imageMobile ? (
-                    <img src={formData.imageMobile} alt="" className="w-full h-full object-cover" />
+                    <MediaThumb url={formData.imageMobile} mimeType={formData.imageMobileMimeType} sizes="96px" />
                   ) : (
                     <ImageIcon className="w-5 h-5 text-gray-300" />
                   )}
                 </div>
                 <Button type="button" size="sm" variant="outline" onClick={() => setPickerTarget('imageMobile')}>
-                  {formData.imageMobile ? 'Cambiar' : 'Elegir imagen'}
+                  {formData.imageMobile ? 'Cambiar' : 'Elegir medio'}
                 </Button>
               </div>
             </div>
@@ -318,10 +334,12 @@ export default function AdminBannersPage() {
         onConfirm={(assets) => {
           if (pickerTarget && assets[0]) {
             const assetIdKey = pickerTarget === 'imageDesktop' ? 'imageDesktopAssetId' : 'imageMobileAssetId';
+            const mimeTypeKey = pickerTarget === 'imageDesktop' ? 'imageDesktopMimeType' : 'imageMobileMimeType';
             setFormData((prev) => ({
               ...prev,
               [pickerTarget]: resolveMediaUrl(assets[0].storageKey),
               [assetIdKey]: assets[0].id,
+              [mimeTypeKey]: assets[0].mimeType,
             }));
           }
           setPickerTarget(null);

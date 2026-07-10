@@ -8,11 +8,13 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const tags = searchParams.get('tags');
 
+    const mediaTypeParam = searchParams.get('mediaType');
     const result = await listMediaAssets({
       folder: searchParams.get('folder') || undefined,
       tags: tags ? tags.split(',').filter(Boolean) : undefined,
       q: searchParams.get('q') || undefined,
       unused: searchParams.get('unused') === 'true',
+      mediaType: mediaTypeParam === 'video' || mediaTypeParam === 'image' ? mediaTypeParam : undefined,
       page: parseInt(searchParams.get('page') || '1'),
       limit: parseInt(searchParams.get('limit') || '30'),
     });

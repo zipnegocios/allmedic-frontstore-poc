@@ -63,6 +63,38 @@ async function getSingleLinksUrlMap(entityType: 'BRAND' | 'BANNER' | 'SET', enti
   return new Map(links.map((l) => [l.entityId, resolveMediaUrl(l.storageKey)]));
 }
 
+interface LinkedMediaInfo {
+  url: string;
+  mimeType: string;
+  previewStartSeconds: number | null;
+  previewDurationSeconds: number | null;
+}
+
+async function getSingleLinksMediaMap(entityType: 'BRAND' | 'BANNER' | 'SET', entityIds: string[], role: string): Promise<Map<string, LinkedMediaInfo>> {
+  if (entityIds.length === 0) return new Map();
+  const links = await db
+    .select({
+      entityId: mediaLinksTable.entityId,
+      storageKey: mediaAssetsTable.storageKey,
+      mimeType: mediaAssetsTable.mimeType,
+      previewStartSeconds: mediaAssetsTable.previewStartSeconds,
+      previewDurationSeconds: mediaAssetsTable.previewDurationSeconds,
+    })
+    .from(mediaLinksTable)
+    .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
+    .where(and(
+      eq(mediaLinksTable.entityType, entityType),
+      eq(mediaLinksTable.role, role),
+      inArray(mediaLinksTable.entityId, entityIds)
+    ));
+  return new Map(links.map((l) => [l.entityId, {
+    url: resolveMediaUrl(l.storageKey),
+    mimeType: l.mimeType,
+    previewStartSeconds: l.previewStartSeconds,
+    previewDurationSeconds: l.previewDurationSeconds,
+  }]));
+}
+
 // ── Products ──
 
 export async function getAdminProducts(opts: {
@@ -150,6 +182,7 @@ export async function getAdminProductById(id: string) {
       sortOrder: mediaLinksTable.sortOrder,
       alt: mediaLinksTable.altOverride,
       storageKey: mediaAssetsTable.storageKey,
+      mimeType: mediaAssetsTable.mimeType,
     })
       .from(mediaLinksTable)
       .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
@@ -447,14 +480,24 @@ export async function getAdminBanners() {
   const banners = await db.select().from(bannersTable).orderBy(asc(bannersTable.sortOrder));
   const bannerIds = banners.map((b) => b.id);
   const [desktopMap, mobileMap] = await Promise.all([
-    getSingleLinksUrlMap('BANNER', bannerIds, 'DESKTOP'),
-    getSingleLinksUrlMap('BANNER', bannerIds, 'MOBILE'),
+    getSingleLinksMediaMap('BANNER', bannerIds, 'DESKTOP'),
+    getSingleLinksMediaMap('BANNER', bannerIds, 'MOBILE'),
   ]);
-  return banners.map((b) => ({
-    ...b,
-    imageDesktop: desktopMap.get(b.id) ?? null,
-    imageMobile: mobileMap.get(b.id) ?? null,
-  }));
+  return banners.map((b) => {
+    const desktop = desktopMap.get(b.id);
+    const mobile = mobileMap.get(b.id);
+    return {
+      ...b,
+      imageDesktop: desktop?.url ?? null,
+      imageDesktopMimeType: desktop?.mimeType ?? null,
+      imageDesktopPreviewStart: desktop?.previewStartSeconds ?? null,
+      imageDesktopPreviewDuration: desktop?.previewDurationSeconds ?? null,
+      imageMobile: mobile?.url ?? null,
+      imageMobileMimeType: mobile?.mimeType ?? null,
+      imageMobilePreviewStart: mobile?.previewStartSeconds ?? null,
+      imageMobilePreviewDuration: mobile?.previewDurationSeconds ?? null,
+    };
+  });
 }
 
 export async function createBanner(data: typeof bannersTable.$inferInsert, desktopAssetId?: string, mobileAssetId?: string) {

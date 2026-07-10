@@ -11,7 +11,7 @@ import { CountdownTimer } from '@/components/product/CountdownTimer';
 import { VolumeDiscountTable } from '@/components/product/VolumeDiscountTable';
 import { VariantSelector } from '@/components/product/VariantSelector';
 import { CrossSellCard } from '@/components/product/CrossSellCard';
-import type { Product as ProductType, ProductColor, Size, Fit, VariantStatus } from '@/lib/types';
+import type { Product as ProductType, ProductColor, Size, Fit, VariantStatus, MediaItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 // Accordion Component
@@ -140,7 +140,9 @@ export function Product({ product, complementaryProduct: complementaryProductPro
 
   // Get images for selected color
   const colorVariant = product.variants.find((v) => v.colorId === selectedColor?.id);
-  const images = colorVariant?.images || ['/images/placeholder-product.jpg'];
+  const images: MediaItem[] = colorVariant?.images && colorVariant.images.length > 0
+    ? colorVariant.images
+    : [{ url: '/images/placeholder-product.jpg', type: 'image', mimeType: 'image/jpeg', width: null, height: null }];
 
   // Get complementary product
   const complementaryProduct = complementaryProductProp;

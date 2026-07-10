@@ -17,10 +17,11 @@ interface MediaPickerProps {
   folder: string;
   segments?: string[];
   multiple?: boolean;
+  mediaType?: 'image' | 'video' | 'all';
   onConfirm: (assets: MediaAssetSummary[]) => void;
 }
 
-export function MediaPicker({ open, onClose, folder, segments = [], multiple = false, onConfirm }: MediaPickerProps) {
+export function MediaPicker({ open, onClose, folder, segments = [], multiple = false, mediaType, onConfirm }: MediaPickerProps) {
   const [selected, setSelected] = useState<MediaAssetSummary[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [tab, setTab] = useState('library');
@@ -37,21 +38,7 @@ export function MediaPicker({ open, onClose, folder, segments = [], multiple = f
   function handleUploaded(results: MediaUploadResult[]) {
     setRefreshKey((k) => k + 1);
     setTab('library');
-    const asAssets = results.map((r) => ({
-      id: r.id,
-      storageKey: r.storageKey,
-      fileName: r.fileName,
-      folder: r.folder,
-      mimeType: '',
-      sizeBytes: 0,
-      width: null,
-      height: null,
-      altText: null,
-      title: null,
-      caption: null,
-      createdAt: null,
-    })) as unknown as MediaAssetSummary[];
-    setSelected(multiple ? [...selected, ...asAssets] : asAssets);
+    setSelected(multiple ? [...selected, ...results] : results);
   }
 
   function handleConfirm() {
@@ -75,6 +62,7 @@ export function MediaPicker({ open, onClose, folder, segments = [], multiple = f
           <TabsContent value="library">
             <MediaGallery
               folder={folder}
+              mediaType={mediaType}
               selectable
               multiple={multiple}
               selectedIds={selected.map((a) => a.id)}

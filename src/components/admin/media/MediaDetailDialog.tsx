@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Trash2, Save, AlertTriangle } from 'lucide-react';
-import { resolveMediaUrl } from '@/lib/media';
+import { resolveMediaUrl, isVideoMime } from '@/lib/media';
+import { VideoPreviewRangeEditor } from './VideoPreviewRangeEditor';
 import { toast } from 'sonner';
 
 interface MediaLinkUsage {
@@ -31,6 +32,9 @@ interface MediaDetail {
     sizeBytes: number;
     width: number | null;
     height: number | null;
+    durationSeconds: number | null;
+    previewStartSeconds: number | null;
+    previewDurationSeconds: number | null;
     altText: string | null;
     title: string | null;
     caption: string | null;
@@ -150,10 +154,22 @@ export function MediaDetailDialog({ assetId, onClose, onChanged }: MediaDetailDi
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-50 mb-4">
-                <Image src={resolveMediaUrl(detail.asset.storageKey)} alt={detail.asset.altText ?? ''} fill className="object-contain" />
+                {isVideoMime(detail.asset.mimeType) ? (
+                  <video
+                    src={resolveMediaUrl(detail.asset.storageKey)}
+                    controls
+                    playsInline
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <Image src={resolveMediaUrl(detail.asset.storageKey)} alt={detail.asset.altText ?? ''} fill className="object-contain" />
+                )}
               </div>
               <div className="text-sm text-gray-500 space-y-1">
                 <p><strong>Dimensiones:</strong> {detail.asset.width ?? '?'} × {detail.asset.height ?? '?'}px</p>
+                {isVideoMime(detail.asset.mimeType) && (
+                  <p><strong>Duración:</strong> {detail.asset.durationSeconds != null ? `${detail.asset.durationSeconds}s` : '?'}</p>
+                )}
                 <p><strong>Peso:</strong> {(detail.asset.sizeBytes / 1024).toFixed(1)} KB</p>
                 <p><strong>Formato:</strong> {detail.asset.mimeType}</p>
                 <p><strong>Carpeta:</strong> {detail.asset.folder}</p>
@@ -199,6 +215,23 @@ export function MediaDetailDialog({ assetId, onClose, onChanged }: MediaDetailDi
                   <Save className="w-4 h-4 mr-2" /> {saving ? 'Guardando...' : 'Guardar cambios'}
                 </Button>
               </div>
+
+              {isVideoMime(detail.asset.mimeType) && (
+                <div className="mt-6">
+                  <h4 className="text-sm font-semibold mb-2">Vista previa en tarjetas y grillas</h4>
+                  <p className="text-xs text-gray-400 mb-2">
+                    Elige qué fragmento del video se reproduce (mudo, en loop) cuando este medio es la portada de un producto o banner.
+                  </p>
+                  <VideoPreviewRangeEditor
+                    assetId={detail.asset.id}
+                    videoUrl={resolveMediaUrl(detail.asset.storageKey)}
+                    durationSeconds={detail.asset.durationSeconds}
+                    initialStart={detail.asset.previewStartSeconds}
+                    initialDuration={detail.asset.previewDurationSeconds}
+                    onSaved={fetchDetail}
+                  />
+                </div>
+              )}
 
               <div className="mt-6">
                 <h4 className="text-sm font-semibold mb-2">Comentarios</h4>

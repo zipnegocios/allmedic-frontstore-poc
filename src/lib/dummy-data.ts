@@ -75,7 +75,13 @@ function generateVariants(
         colorId,
         size,
         fit: fits?.[0],
-        images: [`/images/product-${imgNum}-${colorFile}-1.jpg`],
+        images: [{
+          url: `/images/product-${imgNum}-${colorFile}-1.jpg`,
+          type: 'image',
+          mimeType: 'image/jpeg',
+          width: null,
+          height: null,
+        }],
         status,
       });
     });

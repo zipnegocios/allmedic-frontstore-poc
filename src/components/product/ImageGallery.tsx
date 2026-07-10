@@ -4,11 +4,14 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { MediaGridThumb } from '@/components/media/MediaGridThumb';
+import type { MediaItem } from '@/lib/media';
 
 const PLACEHOLDER = '/images/placeholder-product.jpg';
+const PLACEHOLDER_ITEM: MediaItem = { url: PLACEHOLDER, type: 'image', mimeType: 'image/jpeg', width: null, height: null };
 
 interface ImageGalleryProps {
-  images: string[];
+  images: MediaItem[];
   productName: string;
   brandLogo?: string;
 }
@@ -20,7 +23,9 @@ export function ImageGallery({ images, productName, brandLogo }: ImageGalleryPro
   const [mainSrcError, setMainSrcError] = useState(false);
   const [brandLogoError, setBrandLogoError] = useState(false);
 
-  const displayImages = images.length > 0 ? images : [PLACEHOLDER];
+  const displayImages = images.length > 0 ? images : [PLACEHOLDER_ITEM];
+  const activeItem = displayImages[selectedIndex];
+  const isActiveVideo = activeItem.type === 'video';
 
   const handleImageChange = (index: number) => {
     if (index === selectedIndex) return;
@@ -45,32 +50,43 @@ export function ImageGallery({ images, productName, brandLogo }: ImageGalleryPro
 
   return (
     <div className="space-y-4">
-      {/* Main Image */}
+      {/* Main viewer */}
       <div className="relative aspect-[4/5] bg-[#F5F5F7] overflow-hidden rounded-lg">
         {/* Loading Spinner */}
-        {isImageLoading && (
+        {isImageLoading && !isActiveVideo && (
           <div className="absolute inset-0 flex items-center justify-center bg-[#F5F5F7] z-10">
             <Loader2 className="w-10 h-10 text-gray-400 animate-spin" strokeWidth={1.5} />
           </div>
         )}
 
-        <Image
-          src={mainSrcError ? PLACEHOLDER : displayImages[selectedIndex]}
-          alt={`${productName} - Imagen ${selectedIndex + 1}`}
-          fill
-          sizes="(max-width: 768px) 100vw, 50vw"
-          priority={selectedIndex === 0}
-          className={cn(
-            'object-cover transition-opacity duration-300',
-            isTransitioning ? 'opacity-0' : 'opacity-100',
-            isImageLoading && 'opacity-0'
-          )}
-          onLoad={() => setIsImageLoading(false)}
-          onError={() => {
-            setIsImageLoading(false);
-            setMainSrcError(true);
-          }}
-        />
+        {isActiveVideo ? (
+          // Vista expandida: reproducción completa con sonido disponible (controles nativos), pausado por defecto.
+          <video
+            key={activeItem.url}
+            src={activeItem.url}
+            controls
+            playsInline
+            className="absolute inset-0 w-full h-full object-contain bg-black"
+          />
+        ) : (
+          <Image
+            src={mainSrcError ? PLACEHOLDER : activeItem.url}
+            alt={`${productName} - Imagen ${selectedIndex + 1}`}
+            fill
+            sizes="(max-width: 768px) 100vw, 50vw"
+            priority={selectedIndex === 0}
+            className={cn(
+              'object-cover transition-opacity duration-300',
+              isTransitioning ? 'opacity-0' : 'opacity-100',
+              isImageLoading && 'opacity-0'
+            )}
+            onLoad={() => setIsImageLoading(false)}
+            onError={() => {
+              setIsImageLoading(false);
+              setMainSrcError(true);
+            }}
+          />
+        )}
 
         {/* Navigation Arrows (Mobile) */}
         {displayImages.length > 1 && (
@@ -96,10 +112,10 @@ export function ImageGallery({ images, productName, brandLogo }: ImageGalleryPro
         </div>
       </div>
 
-      {/* Thumbnails */}
+      {/* Thumbnails — siempre estáticas (video en loop mudo dentro de su ventana de preview) */}
       {displayImages.length > 1 && (
         <div className="hidden md:flex gap-2 overflow-x-auto pb-2">
-          {displayImages.slice(0, 4).map((image, index) => (
+          {displayImages.slice(0, 4).map((item, index) => (
             <button
               key={index}
               onClick={() => handleImageChange(index)}
@@ -110,15 +126,12 @@ export function ImageGallery({ images, productName, brandLogo }: ImageGalleryPro
                   : 'border-transparent hover:border-gray-300'
               )}
             >
-              <Image
-                src={image}
+              <MediaGridThumb
+                item={item}
+                fallback={PLACEHOLDER}
                 alt={`${productName} - Miniatura ${index + 1}`}
-                fill
                 sizes="80px"
                 className="object-cover"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = PLACEHOLDER;
-                }}
               />
             </button>
           ))}

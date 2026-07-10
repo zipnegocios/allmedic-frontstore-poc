@@ -1,8 +1,12 @@
+import type { MediaItem } from './media';
+
 export type Size = 'XXS' | 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL' | '2XL' | '3XL' | '4XL' | '5XL' | 'OS';
 export type Fit = 'Petite' | 'Regular' | 'Tall' | 'Short';
 export type Gender = 'Mujer' | 'Hombre' | 'Unisex';
 export type VariantStatus = 'AVAILABLE' | 'BACKORDER' | 'OUT_OF_STOCK';
 export type Category = 'Camisas' | 'Pantalones' | 'Chaquetas' | 'Conjuntos' | 'Accesorios' | 'Batas';
+
+export type { MediaItem };
 
 export interface ProductColor {
   id: string;
@@ -17,7 +21,7 @@ export interface ProductVariant {
   colorId: string;
   size: Size;
   fit?: Fit;
-  images: string[];
+  images: MediaItem[];
   status: VariantStatus;
 }
 

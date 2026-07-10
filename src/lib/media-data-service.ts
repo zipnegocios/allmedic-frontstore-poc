@@ -28,13 +28,16 @@ export async function listMediaAssets(opts: {
   tags?: string[];
   q?: string;
   unused?: boolean;
+  mediaType?: 'image' | 'video' | 'all';
   page?: number;
   limit?: number;
 }) {
-  const { folder, tags, q, unused, page = 1, limit = 30 } = opts;
+  const { folder, tags, q, unused, mediaType, page = 1, limit = 30 } = opts;
   const conditions: SQL<unknown>[] = [];
 
   if (folder) conditions.push(eq(mediaAssetsTable.folder, folder));
+  if (mediaType === 'video') conditions.push(ilike(mediaAssetsTable.mimeType, 'video/%'));
+  if (mediaType === 'image') conditions.push(ilike(mediaAssetsTable.mimeType, 'image/%'));
   if (q) {
     conditions.push(or(
       ilike(mediaAssetsTable.fileName, `%${q}%`),
@@ -87,6 +90,9 @@ export async function confirmMediaUpload(input: {
   width?: number;
   height?: number;
   checksumSha256?: string;
+  durationSeconds?: number;
+  previewStartSeconds?: number;
+  previewDurationSeconds?: number;
   userId?: string;
 }) {
   const head = await headObject(input.key);
@@ -101,6 +107,9 @@ export async function confirmMediaUpload(input: {
     width: input.width,
     height: input.height,
     checksumSha256: input.checksumSha256,
+    durationSeconds: input.durationSeconds,
+    previewStartSeconds: input.previewStartSeconds ?? 0,
+    previewDurationSeconds: input.previewDurationSeconds ?? (input.durationSeconds ? Math.min(3, input.durationSeconds) : 3),
     createdBy: input.userId,
   }).returning();
 
@@ -168,6 +177,8 @@ export async function updateMediaAsset(id: string, input: {
   folder?: string;
   fileName?: string;
   tagIds?: string[];
+  previewStartSeconds?: number;
+  previewDurationSeconds?: number;
   userId?: string;
 }) {
   const [current] = await db.select().from(mediaAssetsTable).where(eq(mediaAssetsTable.id, id));
@@ -178,6 +189,16 @@ export async function updateMediaAsset(id: string, input: {
   if (input.title !== undefined) updates.title = input.title;
   if (input.caption !== undefined) updates.caption = input.caption;
   if (input.folder !== undefined) updates.folder = input.folder;
+
+  if (input.previewStartSeconds !== undefined || input.previewDurationSeconds !== undefined) {
+    const start = input.previewStartSeconds ?? current.previewStartSeconds ?? 0;
+    const duration = input.previewDurationSeconds ?? current.previewDurationSeconds ?? 3;
+    if (current.durationSeconds != null && start + duration > current.durationSeconds) {
+      throw new Error('La ventana de vista previa excede la duración del video');
+    }
+    updates.previewStartSeconds = start;
+    updates.previewDurationSeconds = duration;
+  }
 
   if (input.fileName && input.fileName !== current.fileName) {
     const newKey = renameStorageKey(current.storageKey, input.fileName);

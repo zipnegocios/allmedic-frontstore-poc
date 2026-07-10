@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ArrowRight, Volume2, VolumeX } from 'lucide-react';
 import { ProductCard } from '@/components/catalog/ProductCard';
 import { ProductListItem } from '@/components/catalog/LayoutSwitcher';
 import type { ViewMode } from '@/components/catalog/LayoutSwitcher';
@@ -11,16 +11,71 @@ import { LayoutSwitcher } from '@/components/catalog/LayoutSwitcher';
 import { FilterableProductSection } from '@/components/home/FilterableProductSection';
 import { BrandCarousel } from '@/components/home/BrandCarousel';
 import { CorporateCTA } from '@/components/home/CorporateCTA';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/utils';
-import type { Product } from '@/lib/types';
+import type { Product, MediaItem } from '@/lib/types';
 
 interface HeroSlide {
   id: string;
-  image: string;
+  desktopMedia: MediaItem;
+  mobileMedia: MediaItem | null;
   title: string;
   subtitle?: string;
   cta: string;
   ctaLink: string;
+}
+
+// Un slide individual del hero: decide imagen/video y desktop/mobile, con botón de sonido para video.
+function HeroSlideMedia({ slide, isActive, priority }: { slide: HeroSlide; isActive: boolean; priority: boolean }) {
+  const isMobile = useMediaQuery('(max-width: 767px)');
+  const media = (isMobile && slide.mobileMedia) ? slide.mobileMedia : slide.desktopMedia;
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [muted, setMuted] = useState(true);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (isActive) {
+      video.play().catch(() => {});
+    } else {
+      video.pause();
+    }
+  }, [isActive]);
+
+  if (media.type === 'video') {
+    return (
+      <>
+        <video
+          ref={videoRef}
+          src={media.url}
+          autoPlay
+          muted={muted}
+          loop
+          playsInline
+          className="absolute inset-0 w-full h-full object-cover object-center"
+        />
+        <button
+          type="button"
+          onClick={() => setMuted((m) => !m)}
+          className="absolute bottom-6 right-6 z-20 w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/40 transition-all"
+          aria-label={muted ? 'Activar sonido' : 'Silenciar'}
+        >
+          {muted ? <VolumeX className="w-5 h-5 text-white" strokeWidth={1.5} /> : <Volume2 className="w-5 h-5 text-white" strokeWidth={1.5} />}
+        </button>
+      </>
+    );
+  }
+
+  return (
+    <Image
+      src={media.url}
+      alt={slide.title}
+      fill
+      priority={priority}
+      sizes="100vw"
+      className="object-cover object-center"
+    />
+  );
 }
 
 // Hero Carousel Component
@@ -52,14 +107,7 @@ function HeroCarousel({ slides }: { slides: HeroSlide[] }) {
           )}
         >
           <div className="absolute inset-0 bg-[#1a1a1a]">
-            <Image
-              src={slide.image}
-              alt={slide.title}
-              fill
-              priority={index === 0}
-              sizes="100vw"
-              className="object-cover object-center"
-            />
+            <HeroSlideMedia slide={slide} isActive={index === currentSlide} priority={index === 0} />
             <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent" />
           </div>
           <div className="relative h-full flex items-center">

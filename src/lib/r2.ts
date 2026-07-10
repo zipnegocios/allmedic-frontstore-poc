@@ -26,12 +26,18 @@ function getBucket(): string {
   return getEnv("R2_BUCKET");
 }
 
-export async function presignPut(key: string, mimeType: string, maxSizeBytes: number): Promise<string> {
+export async function presignPut(
+  key: string,
+  mimeType: string,
+  sizeBytes: number,
+  cacheControl = "public, max-age=31536000, immutable"
+): Promise<string> {
   const command = new PutObjectCommand({
     Bucket: getBucket(),
     Key: key,
     ContentType: mimeType,
-    ContentLength: maxSizeBytes,
+    ContentLength: sizeBytes,
+    CacheControl: cacheControl,
   });
   return getSignedUrl(getClient(), command, { expiresIn: 15 * 60 });
 }

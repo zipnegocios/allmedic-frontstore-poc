@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { UploadCloud } from 'lucide-react';
 import { useMediaUpload, type MediaUploadResult } from '@/hooks/useMediaUpload';
-import { MEDIA_FOLDERS, ALLOWED_MEDIA_MIME_TYPES } from '@/lib/media';
+import { MEDIA_FOLDERS, ALLOWED_MEDIA_MIME_TYPES, maxSizeForMime } from '@/lib/media';
 import { toast } from 'sonner';
 
 const FOLDER_LABELS: Record<string, string> = {
@@ -32,11 +32,21 @@ export function MediaUploadPanel({ folder, segments = [], onUploaded, showFolder
 
   async function handleFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return;
-    const files = Array.from(fileList).filter((f) => ALLOWED_MEDIA_MIME_TYPES.includes(f.type));
-    if (files.length === 0) {
-      toast.error('Solo se permiten imágenes JPEG, PNG, WebP o AVIF');
-      return;
+    const allFiles = Array.from(fileList);
+
+    const validType = allFiles.filter((f) => ALLOWED_MEDIA_MIME_TYPES.includes(f.type));
+    const rejectedType = allFiles.filter((f) => !ALLOWED_MEDIA_MIME_TYPES.includes(f.type));
+    if (rejectedType.length > 0) {
+      toast.error(`Formato no soportado: ${rejectedType.map((f) => f.name).join(', ')}`);
     }
+
+    const files = validType.filter((f) => f.size <= maxSizeForMime(f.type));
+    const oversized = validType.filter((f) => f.size > maxSizeForMime(f.type));
+    if (oversized.length > 0) {
+      toast.error(`Excede el tamaño máximo (${oversized.map((f) => f.name).join(', ')})`);
+    }
+
+    if (files.length === 0) return;
     setSubmitting(true);
     try {
       const results = await uploadFiles(files, folder, segments);
@@ -82,8 +92,8 @@ export function MediaUploadPanel({ folder, segments = [], onUploaded, showFolder
         }`}
       >
         <UploadCloud className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-        <p className="text-sm text-gray-500">Arrastra imágenes aquí o haz clic para seleccionar</p>
-        <p className="text-xs text-gray-400 mt-1">JPEG, PNG, WebP o AVIF — máx. 10MB</p>
+        <p className="text-sm text-gray-500">Arrastra imágenes o videos aquí o haz clic para seleccionar</p>
+        <p className="text-xs text-gray-400 mt-1">JPEG, PNG, WebP, AVIF (máx. 10MB) o video MP4/WebM (máx. 100MB)</p>
         <input
           ref={inputRef}
           type="file"

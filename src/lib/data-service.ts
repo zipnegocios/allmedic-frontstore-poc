@@ -11,7 +11,7 @@ import {
 } from '@/db/schema';
 import type { Product, ProductColor, ProductVariant, Store, Gender, Size, Fit } from './types';
 import { eq, and, or, asc, sql, inArray, gte, lte, ne, type SQL } from 'drizzle-orm';
-import { resolveMediaUrl } from './media';
+import { resolveMediaUrl, isVideoMime, type MediaItem } from './media';
 import {
   PRODUCTS as DUMMY_PRODUCTS,
   BRANDS as DUMMY_BRANDS,
@@ -100,6 +100,12 @@ function transformProduct(dbProduct: {
   images: Array<{
     colorId: string | null;
     url: string;
+    mimeType: string;
+    width: number | null;
+    height: number | null;
+    durationSeconds: number | null;
+    previewStartSeconds: number | null;
+    previewDurationSeconds: number | null;
   }>;
 }): Product {
   // Build color list from unique variant colors
@@ -111,11 +117,20 @@ function transformProduct(dbProduct: {
   }
 
   // Build image lookup by colorId
-  const imagesByColor = new Map<string, string[]>();
+  const imagesByColor = new Map<string, MediaItem[]>();
   for (const img of dbProduct.images) {
     const key = img.colorId || '_default';
     if (!imagesByColor.has(key)) imagesByColor.set(key, []);
-    imagesByColor.get(key)!.push(img.url);
+    imagesByColor.get(key)!.push({
+      url: img.url,
+      type: isVideoMime(img.mimeType) ? 'video' : 'image',
+      mimeType: img.mimeType,
+      width: img.width,
+      height: img.height,
+      durationSeconds: img.durationSeconds,
+      previewStartSeconds: img.previewStartSeconds,
+      previewDurationSeconds: img.previewDurationSeconds,
+    });
   }
 
   // Build unique sizes
@@ -217,6 +232,12 @@ async function fetchProductsWithJoins(whereCondition?: SQL<unknown>) {
           productId: mediaLinksTable.entityId,
           colorId: mediaLinksTable.colorId,
           storageKey: mediaAssetsTable.storageKey,
+          mimeType: mediaAssetsTable.mimeType,
+          width: mediaAssetsTable.width,
+          height: mediaAssetsTable.height,
+          durationSeconds: mediaAssetsTable.durationSeconds,
+          previewStartSeconds: mediaAssetsTable.previewStartSeconds,
+          previewDurationSeconds: mediaAssetsTable.previewDurationSeconds,
         })
         .from(mediaLinksTable)
         .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
@@ -227,7 +248,17 @@ async function fetchProductsWithJoins(whereCondition?: SQL<unknown>) {
         ))
         .orderBy(asc(mediaLinksTable.sortOrder))
     : [];
-  const images = imageLinks.map((i) => ({ productId: i.productId, colorId: i.colorId, url: resolveMediaUrl(i.storageKey) }));
+  const images = imageLinks.map((i) => ({
+    productId: i.productId,
+    colorId: i.colorId,
+    url: resolveMediaUrl(i.storageKey),
+    mimeType: i.mimeType,
+    width: i.width,
+    height: i.height,
+    durationSeconds: i.durationSeconds,
+    previewStartSeconds: i.previewStartSeconds,
+    previewDurationSeconds: i.previewDurationSeconds,
+  }));
 
   // Group by product
   return rows.map(product => {
@@ -409,53 +440,83 @@ export async function getStores(): Promise<Store[]> {
   })) : DUMMY_STORES;
 }
 
-export async function getHeroSlides(): Promise<Array<{ id: string; image: string; title: string; subtitle?: string; cta: string; ctaLink: string }>> {
-  if (!await checkDbAvailable()) {
-    return DUMMY_HERO_SLIDES.map(s => ({
-      id: String(s.id),
-      image: s.image,
-      title: s.title,
-      subtitle: s.subtitle,
-      cta: s.cta,
-      ctaLink: s.ctaLink,
-    }));
-  }
+interface HeroSlideData {
+  id: string;
+  desktopMedia: MediaItem;
+  mobileMedia: MediaItem | null;
+  title: string;
+  subtitle?: string;
+  cta: string;
+  ctaLink: string;
+}
+
+function dummyHeroSlides(): HeroSlideData[] {
+  return DUMMY_HERO_SLIDES.map(s => ({
+    id: String(s.id),
+    desktopMedia: { url: s.image, type: 'image', mimeType: 'image/jpeg', width: null, height: null },
+    mobileMedia: null,
+    title: s.title,
+    subtitle: s.subtitle,
+    cta: s.cta,
+    ctaLink: s.ctaLink,
+  }));
+}
+
+export async function getHeroSlides(): Promise<HeroSlideData[]> {
+  if (!await checkDbAvailable()) return dummyHeroSlides();
+
   const banners = await db
     .select()
     .from(bannersTable)
     .where(eq(bannersTable.isActive, true))
     .orderBy(asc(bannersTable.sortOrder));
 
-  if (banners.length === 0) {
-    return DUMMY_HERO_SLIDES.map(s => ({
-      id: String(s.id),
-      image: s.image,
-      title: s.title,
-      subtitle: s.subtitle,
-      cta: s.cta,
-      ctaLink: s.ctaLink,
-    }));
-  }
+  if (banners.length === 0) return dummyHeroSlides();
 
   const bannerIds = banners.map((b) => b.id);
-  const desktopLinks = bannerIds.length > 0
-    ? await db
-        .select({ bannerId: mediaLinksTable.entityId, storageKey: mediaAssetsTable.storageKey })
-        .from(mediaLinksTable)
-        .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
-        .where(and(
-          eq(mediaLinksTable.entityType, 'BANNER'),
-          eq(mediaLinksTable.role, 'DESKTOP'),
-          inArray(mediaLinksTable.entityId, bannerIds)
-        ))
-    : [];
-  const desktopMap = new Map(desktopLinks.map((l) => [l.bannerId, resolveMediaUrl(l.storageKey)]));
+  const mediaCols = {
+    bannerId: mediaLinksTable.entityId,
+    storageKey: mediaAssetsTable.storageKey,
+    mimeType: mediaAssetsTable.mimeType,
+    width: mediaAssetsTable.width,
+    height: mediaAssetsTable.height,
+    durationSeconds: mediaAssetsTable.durationSeconds,
+    previewStartSeconds: mediaAssetsTable.previewStartSeconds,
+    previewDurationSeconds: mediaAssetsTable.previewDurationSeconds,
+  };
+  const [desktopLinks, mobileLinks] = bannerIds.length > 0
+    ? await Promise.all([
+        db.select(mediaCols).from(mediaLinksTable)
+          .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
+          .where(and(eq(mediaLinksTable.entityType, 'BANNER'), eq(mediaLinksTable.role, 'DESKTOP'), inArray(mediaLinksTable.entityId, bannerIds))),
+        db.select(mediaCols).from(mediaLinksTable)
+          .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
+          .where(and(eq(mediaLinksTable.entityType, 'BANNER'), eq(mediaLinksTable.role, 'MOBILE'), inArray(mediaLinksTable.entityId, bannerIds))),
+      ])
+    : [[], []];
+
+  function toMediaItem(l: (typeof desktopLinks)[number]): MediaItem {
+    return {
+      url: resolveMediaUrl(l.storageKey),
+      type: isVideoMime(l.mimeType) ? 'video' : 'image',
+      mimeType: l.mimeType,
+      width: l.width,
+      height: l.height,
+      durationSeconds: l.durationSeconds,
+      previewStartSeconds: l.previewStartSeconds,
+      previewDurationSeconds: l.previewDurationSeconds,
+    };
+  }
+
+  const desktopMap = new Map(desktopLinks.map((l) => [l.bannerId, toMediaItem(l)]));
+  const mobileMap = new Map(mobileLinks.map((l) => [l.bannerId, toMediaItem(l)]));
 
   return banners
     .filter((b) => desktopMap.has(b.id))
     .map(b => ({
       id: b.id,
-      image: desktopMap.get(b.id)!,
+      desktopMedia: desktopMap.get(b.id)!,
+      mobileMedia: mobileMap.get(b.id) ?? null,
       title: b.title,
       subtitle: b.subtitle ?? undefined,
       cta: b.ctaText || 'Ver más',
