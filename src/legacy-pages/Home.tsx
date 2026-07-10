@@ -116,9 +116,9 @@ function HeroCarousel({ slides }: { slides: HeroSlide[] }) {
 // Quick Access Cards Component
 function QuickAccessCards() {
   const cards = [
-    { title: 'Damas', image: '/images/category-women.jpg', link: '/catalogo?gender=Mujer' },
-    { title: 'Caballeros', image: '/images/category-men.jpg', link: '/catalogo?gender=Hombre' },
-    { title: 'Accesorios', image: '/images/category-accessories.jpg', link: '/catalogo?category=Accesorios' },
+    { title: 'Damas', image: 'https://media.allmedicuniforms.com/site/category-women.jpg', link: '/catalogo?gender=Mujer' },
+    { title: 'Caballeros', image: 'https://media.allmedicuniforms.com/site/category-men.jpg', link: '/catalogo?gender=Hombre' },
+    { title: 'Accesorios', image: 'https://media.allmedicuniforms.com/site/category-accessories.jpg', link: '/catalogo?category=Accesorios' },
   ];
 
   return (

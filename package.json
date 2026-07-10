@@ -14,7 +14,9 @@
     "db:seed": "tsx src/db/seed.ts",
     "db:seed:corporate": "tsx src/db/seed-corporate.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx src/db/migrate.ts"
+    "db:migrate": "tsx src/db/migrate.ts",
+    "media:migrate": "tsx scripts/migrate-media-to-r2.ts",
+    "media:migrate:dry-run": "tsx scripts/migrate-media-to-r2.ts --dry-run"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",
@@ -70,6 +72,7 @@
     "react-resizable-panels": "^4.2.2",
     "recharts": "^2.15.4",
     "resend": "^6.17.2",
+    "sharp": "^0.35.3",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
     "uuid": "^14.0.0",

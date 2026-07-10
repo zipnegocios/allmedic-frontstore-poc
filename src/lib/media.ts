@@ -10,8 +10,9 @@ export type MediaFolder = keyof typeof FOLDER_PREFIXES;
 
 function getPublicUrl(): string {
   // NEXT_PUBLIC_R2_PUBLIC_URL (inyectada en next.config.ts desde R2_PUBLIC_URL) está disponible
-  // tanto en servidor como en cliente, a diferencia de R2_PUBLIC_URL que solo existe en servidor.
-  const url = process.env.NEXT_PUBLIC_R2_PUBLIC_URL;
+  // tanto en servidor como en cliente. R2_PUBLIC_URL es el fallback para scripts standalone (tsx)
+  // que no pasan por el build de Next y por lo tanto no tienen la variable NEXT_PUBLIC_ inyectada.
+  const url = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? process.env.R2_PUBLIC_URL;
   if (!url) throw new Error("Falta la variable de entorno R2_PUBLIC_URL");
   return url.replace(/\/$/, "");
 }
