@@ -26,18 +26,16 @@ function getBucket(): string {
   return getEnv("R2_BUCKET");
 }
 
-export async function presignPut(
-  key: string,
-  mimeType: string,
-  sizeBytes: number,
-  cacheControl = "public, max-age=31536000, immutable"
-): Promise<string> {
+export async function presignPut(key: string, mimeType: string, sizeBytes: number): Promise<string> {
+  // No se firma Cache-Control aquí: el bucket R2 solo permite Content-Type/Content-Length
+  // en su política CORS (ver plan de imágenes), y cualquier header adicional en la firma
+  // obliga al navegador a incluirlo en el preflight — si no está en AllowedHeaders del bucket,
+  // el preflight falla con CORS y la subida se bloquea por completo.
   const command = new PutObjectCommand({
     Bucket: getBucket(),
     Key: key,
     ContentType: mimeType,
     ContentLength: sizeBytes,
-    CacheControl: cacheControl,
   });
   return getSignedUrl(getClient(), command, { expiresIn: 15 * 60 });
 }

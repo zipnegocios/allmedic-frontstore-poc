@@ -50,7 +50,6 @@ export function useMediaUpload() {
       setUploads((prev) => ({ ...prev, [key]: { ...prev[key], progress: 20, status: 'uploading' } }));
 
       const mimeType = blob.type || file.type;
-      const cacheControl = 'public, max-age=31536000, immutable';
       const presignRes = await fetch('/api/admin/media/presign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -61,7 +60,7 @@ export function useMediaUpload() {
 
       const putRes = await fetch(url, {
         method: 'PUT',
-        headers: { 'Content-Type': mimeType, 'Cache-Control': cacheControl },
+        headers: { 'Content-Type': mimeType },
         body: blob,
       });
       if (!putRes.ok) throw new Error('Falló la subida a R2');
