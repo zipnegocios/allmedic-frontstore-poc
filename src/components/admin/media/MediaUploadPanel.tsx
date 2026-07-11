@@ -6,6 +6,7 @@ import { Progress } from '@/components/ui/progress';
 import { UploadCloud } from 'lucide-react';
 import { useMediaUpload, type MediaUploadResult } from '@/hooks/useMediaUpload';
 import { MEDIA_FOLDERS, ALLOWED_MEDIA_MIME_TYPES, VIDEO_ALLOWED_FOLDERS, maxSizeForMime, isVideoMime, type MediaFolder } from '@/lib/media';
+import { formatBytes, formatSpeed, formatEta } from '@/lib/format-transfer';
 import { toast } from 'sonner';
 
 const FOLDER_LABELS: Record<string, string> = {
@@ -112,16 +113,37 @@ export function MediaUploadPanel({ folder, segments = [], onUploaded, showFolder
       </div>
 
       {uploadList.length > 0 && (
-        <div className="mt-4 space-y-2">
-          {uploadList.map(([key, u]) => (
-            <div key={key} className="flex items-center gap-3 text-sm">
-              <span className="flex-1 truncate">{u.fileName}</span>
-              <Progress value={u.progress} className="w-32" />
-              <span className="text-xs text-gray-500 w-20 text-right">
-                {u.status === 'error' ? 'Error' : u.status === 'done' ? 'Listo' : 'Subiendo...'}
-              </span>
-            </div>
-          ))}
+        <div className="mt-4 space-y-3">
+          {uploadList.map(([key, u]) => {
+            const statusLabel =
+              u.status === 'error' ? 'Error' :
+              u.status === 'done' ? 'Listo' :
+              u.status === 'processing' ? 'Procesando...' :
+              u.status === 'confirming' ? 'Confirmando...' :
+              'Subiendo...';
+            const detailParts = [
+              u.status === 'uploading' && u.totalBytes > 0 ? `${formatBytes(u.loadedBytes)} / ${formatBytes(u.totalBytes)}` : null,
+              u.status === 'uploading' ? formatSpeed(u.speedBytesPerSec) : null,
+              u.status === 'uploading' && u.etaSeconds > 0 ? `~${formatEta(u.etaSeconds)} restante` : null,
+            ].filter(Boolean);
+
+            return (
+              <div key={key} className="text-sm">
+                <div className="flex items-center gap-3">
+                  <span className="flex-1 truncate">{u.fileName}</span>
+                  <span className="text-xs text-gray-500 w-12 text-right">{Math.round(u.progress)}%</span>
+                  <span className="text-xs text-gray-500 w-24 text-right">{statusLabel}</span>
+                </div>
+                <Progress value={u.progress} className="w-full mt-1" />
+                {detailParts.length > 0 && (
+                  <p className="text-xs text-gray-400 mt-0.5">{detailParts.join(' · ')}</p>
+                )}
+                {u.status === 'error' && u.error && (
+                  <p className="text-xs text-red-500 mt-0.5">{u.error}</p>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 

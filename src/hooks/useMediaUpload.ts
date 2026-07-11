@@ -10,9 +10,64 @@ export type MediaUploadResult = MediaAssetSummary;
 
 interface UploadState {
   fileName: string;
-  progress: number; // 0-100
+  progress: number; // 0-100, ponderado por etapa
   status: 'pending' | 'processing' | 'uploading' | 'confirming' | 'done' | 'error';
   error?: string;
+  loadedBytes: number;
+  totalBytes: number;
+  speedBytesPerSec: number;
+  etaSeconds: number;
+}
+
+const INITIAL_UPLOAD_STATE: Omit<UploadState, 'fileName'> = {
+  progress: 0,
+  status: 'pending',
+  loadedBytes: 0,
+  totalBytes: 0,
+  speedBytesPerSec: 0,
+  etaSeconds: 0,
+};
+
+/** Sube un blob a una URL prefirmada de R2 vía XHR (fetch no expone progreso de subida). */
+function putWithProgress(
+  url: string,
+  blob: Blob,
+  mimeType: string,
+  onProgress: (loaded: number, total: number, speedBytesPerSec: number) => void
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', url);
+    xhr.setRequestHeader('Content-Type', mimeType);
+
+    let lastTime = performance.now();
+    let lastLoaded = 0;
+    let smoothedSpeed = 0;
+
+    xhr.upload.onprogress = (e) => {
+      if (!e.lengthComputable) return;
+      const now = performance.now();
+      const dt = (now - lastTime) / 1000;
+      const dBytes = e.loaded - lastLoaded;
+      if (dt > 0.05) {
+        const instantSpeed = dBytes / dt;
+        // Media móvil exponencial para suavizar picos de la red.
+        smoothedSpeed = smoothedSpeed === 0 ? instantSpeed : smoothedSpeed * 0.7 + instantSpeed * 0.3;
+        lastTime = now;
+        lastLoaded = e.loaded;
+      }
+      onProgress(e.loaded, e.total, smoothedSpeed);
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else reject(new Error(`Falló la subida a R2 (status ${xhr.status})`));
+    };
+    xhr.onerror = () => reject(new Error('Falló la subida a R2'));
+    xhr.onabort = () => reject(new Error('Subida cancelada'));
+
+    xhr.send(blob);
+  });
 }
 
 export function useMediaUpload() {
@@ -24,7 +79,7 @@ export function useMediaUpload() {
     segments: string[] = []
   ): Promise<MediaUploadResult> => {
     const key = `${file.name}-${Date.now()}`;
-    setUploads((prev) => ({ ...prev, [key]: { fileName: file.name, progress: 0, status: 'processing' } }));
+    setUploads((prev) => ({ ...prev, [key]: { fileName: file.name, ...INITIAL_UPLOAD_STATE, status: 'processing' } }));
 
     try {
       const isVideo = file.type.startsWith('video/');
@@ -47,7 +102,7 @@ export function useMediaUpload() {
       }
 
       const checksum = await sha256Hex(blob);
-      setUploads((prev) => ({ ...prev, [key]: { ...prev[key], progress: 20, status: 'uploading' } }));
+      setUploads((prev) => ({ ...prev, [key]: { ...prev[key], progress: 5, status: 'uploading', totalBytes: blob.size } }));
 
       const mimeType = blob.type || file.type;
       const presignRes = await fetch('/api/admin/media/presign', {
@@ -58,13 +113,24 @@ export function useMediaUpload() {
       if (!presignRes.ok) throw new Error((await presignRes.json()).error || 'No se pudo generar la URL de subida');
       const { url, key: storageKey } = await presignRes.json();
 
-      const putRes = await fetch(url, {
-        method: 'PUT',
-        headers: { 'Content-Type': mimeType },
-        body: blob,
+      await putWithProgress(url, blob, mimeType, (loaded, total, speedBytesPerSec) => {
+        const uploadPct = total > 0 ? loaded / total : 0;
+        const remaining = total - loaded;
+        const etaSeconds = speedBytesPerSec > 0 ? remaining / speedBytesPerSec : 0;
+        setUploads((prev) => ({
+          ...prev,
+          [key]: {
+            ...prev[key],
+            progress: 5 + uploadPct * 90,
+            loadedBytes: loaded,
+            totalBytes: total,
+            speedBytesPerSec,
+            etaSeconds,
+          },
+        }));
       });
-      if (!putRes.ok) throw new Error('Falló la subida a R2');
-      setUploads((prev) => ({ ...prev, [key]: { ...prev[key], progress: 80, status: 'confirming' } }));
+
+      setUploads((prev) => ({ ...prev, [key]: { ...prev[key], progress: 95, status: 'confirming', speedBytesPerSec: 0, etaSeconds: 0 } }));
 
       const confirmRes = await fetch('/api/admin/media/confirm', {
         method: 'POST',
