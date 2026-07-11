@@ -8,7 +8,9 @@ const ConfirmSchema = z.object({
   key: z.string().min(1),
   fileName: z.string().min(1),
   folder: z.enum(MEDIA_FOLDERS as [string, ...string[]]),
-  mimeType: z.enum(ALLOWED_MEDIA_MIME_TYPES as [string, ...string[]]),
+  mimeType: z.enum(ALLOWED_MEDIA_MIME_TYPES as [string, ...string[]], {
+    message: 'Tipo de archivo no soportado. Solo se permiten JPEG, PNG, WebP, AVIF, MP4 o WebM.',
+  }),
   sizeBytes: z.number().positive(),
   width: z.number().optional(),
   height: z.number().optional(),
@@ -41,7 +43,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(asset, { status: 201 });
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Validation error', details: err.issues }, { status: 400 });
+      return NextResponse.json({ error: err.issues[0]?.message || 'Validation error', details: err.issues }, { status: 400 });
     }
     const message = err instanceof Error ? err.message : 'Unknown error';
     return NextResponse.json({ error: message }, { status: 500 });

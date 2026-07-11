@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { UploadCloud } from 'lucide-react';
 import { useMediaUpload, type MediaUploadResult } from '@/hooks/useMediaUpload';
-import { MEDIA_FOLDERS, ALLOWED_MEDIA_MIME_TYPES, maxSizeForMime } from '@/lib/media';
+import { MEDIA_FOLDERS, ALLOWED_MEDIA_MIME_TYPES, VIDEO_ALLOWED_FOLDERS, maxSizeForMime, isVideoMime, type MediaFolder } from '@/lib/media';
 import { toast } from 'sonner';
 
 const FOLDER_LABELS: Record<string, string> = {
@@ -40,10 +40,17 @@ export function MediaUploadPanel({ folder, segments = [], onUploaded, showFolder
       toast.error(`Formato no soportado: ${rejectedType.map((f) => f.name).join(', ')}`);
     }
 
-    const files = validType.filter((f) => f.size <= maxSizeForMime(f.type));
+    const sized = validType.filter((f) => f.size <= maxSizeForMime(f.type));
     const oversized = validType.filter((f) => f.size > maxSizeForMime(f.type));
     if (oversized.length > 0) {
       toast.error(`Excede el tamaño máximo (${oversized.map((f) => f.name).join(', ')})`);
+    }
+
+    const folderAllowsVideo = VIDEO_ALLOWED_FOLDERS.includes(folder as MediaFolder);
+    const files = folderAllowsVideo ? sized : sized.filter((f) => !isVideoMime(f.type));
+    const videoRejectedByFolder = folderAllowsVideo ? [] : sized.filter((f) => isVideoMime(f.type));
+    if (videoRejectedByFolder.length > 0) {
+      toast.error(`Los videos solo se permiten en Productos y Banners. Cambia la carpeta destino para subir: ${videoRejectedByFolder.map((f) => f.name).join(', ')}`);
     }
 
     if (files.length === 0) return;
