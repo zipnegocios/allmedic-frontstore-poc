@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
-import { ChevronLeft, AlertCircle } from 'lucide-react';
+import { ChevronLeft, AlertCircle, Gift } from 'lucide-react';
 import { useCorporateCart } from '@/context/CorporateCartContext';
 import { cn } from '@/lib/utils';
 
@@ -231,9 +231,21 @@ export default function SolicitudPage() {
             </div>
           )}
           {pricing.promoDiscountAmount > 0 && (
-            <div className="flex justify-between text-sm text-[#34C759]">
-              <span>Descuento por promoción</span>
-              <span>-${pricing.promoDiscountAmount.toFixed(2)}</span>
+            <div>
+              <div className="flex justify-between text-sm text-[#34C759]">
+                <span>Descuento por promoción</span>
+                <span>-${pricing.promoDiscountAmount.toFixed(2)}</span>
+              </div>
+              {pricing.promoBreakdown.length > 1 && (
+                <div className="pl-3 mt-1 space-y-0.5">
+                  {pricing.promoBreakdown.map((p, idx) => (
+                    <div key={idx} className="flex justify-between text-xs text-gray-400">
+                      <span>{p.ruleName}</span>
+                      <span>-${p.amount.toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           <div className="flex justify-between text-base font-bold pt-2 border-t border-[#E5E5E5]">
@@ -244,6 +256,17 @@ export default function SolicitudPage() {
             Precio referencial — sujeto a cotización formal por nuestro equipo de ventas.
           </p>
         </div>
+
+        {pricing.promoNotes.length > 0 && (
+          <div className="space-y-2 mb-6">
+            {pricing.promoNotes.map((note, idx) => (
+              <div key={idx} className="flex items-start gap-2 text-sm text-[#34C759] bg-green-50 rounded-lg px-4 py-3">
+                <Gift className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <span>{note}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {error && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 mb-4">

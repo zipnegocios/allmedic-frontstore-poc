@@ -55,6 +55,28 @@ const DEFAULT_CONFIG_BY_TYPE: Record<RuleTypeKey, Record<string, unknown>> = {
   VOLUME_DISCOUNT_RETAIL: { tiers: [{ minItems: 3, pct: 10 }] },
 };
 
+const PROMO_KIND_LABELS: Record<string, string> = {
+  N_PLUS_ONE: 'N + 1 (ej. 13 + 1 gratis)',
+  PERCENT_OFF: 'Porcentaje de descuento',
+  FIXED_AMOUNT_OFF: 'Monto fijo por unidad',
+  FIXED_PRICE: 'Precio fijo promocional',
+  NTH_UNIT_PCT: 'Descuento en la N-ésima unidad',
+  THRESHOLD_DISCOUNT: 'Descuento por umbral de compra',
+  GIFT: 'Regalo (informativo)',
+  COMBO: 'Combo entre dos sets',
+};
+
+const DEFAULT_PROMO_CONFIG_BY_KIND: Record<string, Record<string, unknown>> = {
+  N_PLUS_ONE: { kind: 'N_PLUS_ONE', buy: 13, free: 1 },
+  PERCENT_OFF: { kind: 'PERCENT_OFF', pct: 10 },
+  FIXED_AMOUNT_OFF: { kind: 'FIXED_AMOUNT_OFF', amountPerUnit: 5 },
+  FIXED_PRICE: { kind: 'FIXED_PRICE', price: 10 },
+  NTH_UNIT_PCT: { kind: 'NTH_UNIT_PCT', n: 2, pct: 50 },
+  THRESHOLD_DISCOUNT: { kind: 'THRESHOLD_DISCOUNT', minSubtotal: 500, pct: 10 },
+  GIFT: { kind: 'GIFT', minQty: 12, description: '' },
+  COMBO: { kind: 'COMBO', triggerSetId: '', triggerMinQty: 1, targetSetId: '', pct: 10 },
+};
+
 export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
   const router = useRouter();
   const [name, setName] = useState(initial?.name ?? '');
@@ -134,6 +156,16 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
     setConfig((prev) => ({ ...prev, ...patch }));
   }
 
+  // COMBO cruza dos sets del carrito y se configura únicamente en ámbito GLOBAL (los dos sets
+  // ya van en la config) — fuerza el ámbito y bloquea el selector mientras esté seleccionado.
+  const comboLocked = ruleType === 'PROMO' && config.kind === 'COMBO';
+  useEffect(() => {
+    if (comboLocked && scope !== 'GLOBAL') {
+      setScope('GLOBAL');
+      setScopeId(null);
+    }
+  }, [comboLocked, scope]);
+
   async function handleSubmit() {
     if (!name.trim()) {
       toast.error('El nombre es requerido');
@@ -142,6 +174,33 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
     if (scope !== 'GLOBAL' && !scopeId) {
       toast.error('Selecciona un ámbito específico o cambia a Global');
       return;
+    }
+
+    if (ruleType === 'PROMO') {
+      if (config.kind === 'THRESHOLD_DISCOUNT') {
+        const hasPct = config.pct !== undefined && config.pct !== null && config.pct !== '';
+        const hasAmount = config.amount !== undefined && config.amount !== null && config.amount !== '';
+        if (hasPct === hasAmount) {
+          toast.error('Elige exactamente una forma de descuento: porcentaje o monto fijo');
+          return;
+        }
+      }
+      if (config.kind === 'GIFT') {
+        const hasMinQty = config.minQty !== undefined && config.minQty !== null && config.minQty !== '';
+        const hasMinSubtotal = config.minSubtotal !== undefined && config.minSubtotal !== null && config.minSubtotal !== '';
+        if (!hasMinQty && !hasMinSubtotal) {
+          toast.error('Define al menos una condición: cantidad mínima o subtotal mínimo');
+          return;
+        }
+        if (!String(config.description ?? '').trim()) {
+          toast.error('Describe el regalo — el equipo de ventas necesita saber qué honrar');
+          return;
+        }
+      }
+      if (config.kind === 'COMBO' && (!config.triggerSetId || !config.targetSetId)) {
+        toast.error('Selecciona el set disparador y el set objetivo del combo');
+        return;
+      }
     }
 
     const hasErrors = conflicts.some((c) => c.severity === 'ERROR');
@@ -217,7 +276,11 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
 
           <div>
             <Label className="mb-1 block">Ámbito</Label>
-            <Select value={scope} onValueChange={(v) => { setScope(v as Scope); setScopeId(null); }}>
+            <Select
+              value={scope}
+              onValueChange={(v) => { setScope(v as Scope); setScopeId(null); }}
+              disabled={comboLocked}
+            >
               <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="GLOBAL">Global (todo el catálogo)</SelectItem>
@@ -227,6 +290,7 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
                 <SelectItem value="PRODUCT" disabled>Producto específico (sin efecto aún)</SelectItem>
               </SelectContent>
             </Select>
+            {comboLocked && <p className="text-xs text-gray-400 mt-1">Combo solo se configura en ámbito Global — los dos sets van en la configuración.</p>}
           </div>
 
           {scope !== 'GLOBAL' && scope !== 'PRODUCT' && (
@@ -269,7 +333,7 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
 
         <div className="border-t border-[#E5E5E5] pt-6">
           <h4 className="font-medium mb-3">Configuración de la regla</h4>
-          <RuleConfigFields ruleType={ruleType} config={config} onChange={updateConfig} setConfig={setConfig} />
+          <RuleConfigFields ruleType={ruleType} config={config} onChange={updateConfig} setConfig={setConfig} sets={sets} />
         </div>
 
         <RuleConflictsPanel
@@ -302,11 +366,13 @@ function RuleConfigFields({
   config,
   onChange,
   setConfig,
+  sets,
 }: {
   ruleType: RuleTypeKey;
   config: Record<string, unknown>;
   onChange: (patch: Record<string, unknown>) => void;
   setConfig: (c: Record<string, unknown>) => void;
+  sets: ScopeOption[];
 }) {
   switch (ruleType) {
     case 'MIN_QUANTITY':
@@ -456,28 +522,176 @@ function RuleConfigFields({
       );
     }
 
-    case 'PROMO':
+    case 'PROMO': {
+      const kind = String(config.kind ?? 'N_PLUS_ONE');
+      function handleKindChange(next: string) {
+        setConfig(DEFAULT_PROMO_CONFIG_BY_KIND[next] ?? { kind: next });
+      }
       return (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="space-y-4">
           <div>
-            <Label className="mb-1 block">Tipo</Label>
-            <Select value={String(config.kind ?? 'N_PLUS_ONE')} onValueChange={(v) => onChange({ kind: v })}>
+            <Label className="mb-1 block">Tipo de promoción</Label>
+            <Select value={kind} onValueChange={handleKindChange}>
               <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="N_PLUS_ONE">N + 1 (ej. 13+1)</SelectItem>
+                {Object.entries(PROMO_KIND_LABELS).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
-          <div>
-            <Label className="mb-1 block">Compra (buy)</Label>
-            <Input type="number" value={Number(config.buy ?? 0)} onChange={(e) => onChange({ buy: Number(e.target.value) })} />
-          </div>
-          <div>
-            <Label className="mb-1 block">Gratis (free)</Label>
-            <Input type="number" value={Number(config.free ?? 0)} onChange={(e) => onChange({ free: Number(e.target.value) })} />
-          </div>
+
+          {kind === 'N_PLUS_ONE' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="mb-1 block">Compra (buy)</Label>
+                <Input type="number" value={Number(config.buy ?? 0)} onChange={(e) => onChange({ buy: Number(e.target.value) })} />
+              </div>
+              <div>
+                <Label className="mb-1 block">Gratis (free)</Label>
+                <Input type="number" value={Number(config.free ?? 0)} onChange={(e) => onChange({ free: Number(e.target.value) })} />
+              </div>
+            </div>
+          )}
+
+          {kind === 'PERCENT_OFF' && (
+            <div>
+              <Label className="mb-1 block">Porcentaje de descuento</Label>
+              <Input type="number" value={Number(config.pct ?? 0)} onChange={(e) => onChange({ pct: Number(e.target.value) })} />
+            </div>
+          )}
+
+          {kind === 'FIXED_AMOUNT_OFF' && (
+            <div>
+              <Label className="mb-1 block">Monto fijo por unidad ($)</Label>
+              <Input type="number" value={Number(config.amountPerUnit ?? 0)} onChange={(e) => onChange({ amountPerUnit: Number(e.target.value) })} />
+            </div>
+          )}
+
+          {kind === 'FIXED_PRICE' && (
+            <div>
+              <Label className="mb-1 block">Precio promocional por set ($)</Label>
+              <Input type="number" value={Number(config.price ?? 0)} onChange={(e) => onChange({ price: Number(e.target.value) })} />
+              <p className="text-xs text-gray-400 mt-1">Si este precio es mayor o igual al precio normal, no se descuenta nada.</p>
+            </div>
+          )}
+
+          {kind === 'NTH_UNIT_PCT' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="mb-1 block">Cada N unidades (n)</Label>
+                <Input type="number" min={2} value={Number(config.n ?? 2)} onChange={(e) => onChange({ n: Number(e.target.value) })} />
+              </div>
+              <div>
+                <Label className="mb-1 block">% de descuento en esa unidad</Label>
+                <Input type="number" value={Number(config.pct ?? 0)} onChange={(e) => onChange({ pct: Number(e.target.value) })} />
+              </div>
+            </div>
+          )}
+
+          {kind === 'THRESHOLD_DISCOUNT' && (
+            <div className="space-y-3">
+              <div>
+                <Label className="mb-1 block">Subtotal mínimo del contexto ($)</Label>
+                <Input type="number" value={Number(config.minSubtotal ?? 0)} onChange={(e) => onChange({ minSubtotal: Number(e.target.value) })} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="mb-1 block">Porcentaje de descuento</Label>
+                  <Input
+                    type="number"
+                    value={config.pct === undefined ? '' : Number(config.pct)}
+                    onChange={(e) => onChange({ pct: e.target.value === '' ? undefined : Number(e.target.value), amount: undefined })}
+                    placeholder="Ej. 10"
+                  />
+                </div>
+                <div>
+                  <Label className="mb-1 block">Monto fijo ($)</Label>
+                  <Input
+                    type="number"
+                    value={config.amount === undefined ? '' : Number(config.amount)}
+                    onChange={(e) => onChange({ amount: e.target.value === '' ? undefined : Number(e.target.value), pct: undefined })}
+                    placeholder="Ej. 50"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-400">Completa exactamente uno de los dos campos — el otro se limpia automáticamente.</p>
+            </div>
+          )}
+
+          {kind === 'GIFT' && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="mb-1 block">Cantidad mínima (sets)</Label>
+                  <Input
+                    type="number"
+                    value={config.minQty === undefined ? '' : Number(config.minQty)}
+                    onChange={(e) => onChange({ minQty: e.target.value === '' ? undefined : Number(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <Label className="mb-1 block">Subtotal mínimo ($)</Label>
+                  <Input
+                    type="number"
+                    value={config.minSubtotal === undefined ? '' : Number(config.minSubtotal)}
+                    onChange={(e) => onChange({ minSubtotal: e.target.value === '' ? undefined : Number(e.target.value) })}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label className="mb-1 block">Descripción del regalo</Label>
+                <Input
+                  value={String(config.description ?? '')}
+                  onChange={(e) => onChange({ description: e.target.value })}
+                  placeholder="Ej. 12 gorros quirúrgicos de cortesía"
+                />
+              </div>
+              <p className="text-xs text-amber-600">No tiene efecto monetario — solo genera un aviso en el carrito y en la cotización para que ventas lo honre.</p>
+            </div>
+          )}
+
+          {kind === 'COMBO' && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="mb-1 block">Set disparador</Label>
+                  <Select value={String(config.triggerSetId ?? '')} onValueChange={(v) => onChange({ triggerSetId: v })}>
+                    <SelectTrigger className="w-full"><SelectValue placeholder="Selecciona un set..." /></SelectTrigger>
+                    <SelectContent>
+                      {sets.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="mb-1 block">Cantidad mínima del disparador</Label>
+                  <Input type="number" value={Number(config.triggerMinQty ?? 1)} onChange={(e) => onChange({ triggerMinQty: Number(e.target.value) })} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="mb-1 block">Set objetivo (recibe el descuento)</Label>
+                  <Select value={String(config.targetSetId ?? '')} onValueChange={(v) => onChange({ targetSetId: v })}>
+                    <SelectTrigger className="w-full"><SelectValue placeholder="Selecciona un set..." /></SelectTrigger>
+                    <SelectContent>
+                      {sets.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="mb-1 block">% de descuento en el set objetivo</Label>
+                  <Input type="number" value={Number(config.pct ?? 0)} onChange={(e) => onChange({ pct: Number(e.target.value) })} />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       );
+    }
 
     case 'COLOR_RESTRICTION':
       return (

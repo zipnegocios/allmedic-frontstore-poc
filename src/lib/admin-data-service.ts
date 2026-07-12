@@ -20,6 +20,7 @@ import {
 } from '@/db/schema';
 import { eq, and, or, asc, desc, sql, like, inArray, type SQL } from 'drizzle-orm';
 import { resolveMediaUrl } from './media';
+import type { BusinessRule, RuleConflict } from '@/lib/rules-engine';
 
 // ── Helpers de vínculos de un solo medio (marcas/banners/sets) ──
 
@@ -573,6 +574,49 @@ export async function deleteSetGroup(id: string) {
 }
 
 // ── Corporate Sets (Sets Corporativos) ──
+
+/** Existencia y estado activo de un conjunto de sets por id — usado por la validación de
+ * conflictos de PROMO COMBO (`triggerSetId`/`targetSetId`), que necesita datos reales de BD
+ * y por eso vive en la capa de rutas, no en `rules-engine/conflicts.ts` (módulo puro). */
+export async function getSetActiveStatusByIds(ids: string[]): Promise<Map<string, boolean>> {
+  if (ids.length === 0) return new Map();
+  const rows = await db
+    .select({ id: corporateSetsTable.id, isActive: corporateSetsTable.isActive })
+    .from(corporateSetsTable)
+    .where(inArray(corporateSetsTable.id, ids));
+  return new Map(rows.map((r) => [r.id, r.isActive ?? false]));
+}
+
+/**
+ * Verifica que `triggerSetId`/`targetSetId` de una PROMO COMBO existan y estén activos —
+ * requiere BD, así que vive aquí (capa de datos del panel admin) y no en
+ * `rules-engine/conflicts.ts`, que es un módulo puro sin acceso a base de datos (ver comentario
+ * de límite de diseño en ese archivo). Se llama solo cuando `candidate.ruleType === 'PROMO'` y
+ * `config.kind === 'COMBO'`. Vive fuera de `rule-config-schemas.ts` porque ese módulo lo importa
+ * también `RuleForm.tsx` (componente cliente) — traer `db` ahí rompería el bundle del navegador.
+ */
+export async function checkComboSetsExist(candidate: BusinessRule): Promise<RuleConflict[]> {
+  const config = candidate.config as { triggerSetId?: string; targetSetId?: string };
+  const ids = [config.triggerSetId, config.targetSetId].filter((id): id is string => !!id);
+  if (ids.length === 0) return [];
+
+  const statusById = await getSetActiveStatusByIds(ids);
+  const conflicts: RuleConflict[] = [];
+
+  if (config.triggerSetId && !statusById.has(config.triggerSetId)) {
+    conflicts.push({ severity: 'ERROR', code: 'COMBO_SET_NOT_FOUND', message: 'El set disparador de este combo ya no existe.' });
+  } else if (config.triggerSetId && statusById.get(config.triggerSetId) === false) {
+    conflicts.push({ severity: 'ERROR', code: 'COMBO_SET_INACTIVE', message: 'El set disparador de este combo está inactivo.' });
+  }
+
+  if (config.targetSetId && !statusById.has(config.targetSetId)) {
+    conflicts.push({ severity: 'ERROR', code: 'COMBO_SET_NOT_FOUND', message: 'El set objetivo de este combo ya no existe.' });
+  } else if (config.targetSetId && statusById.get(config.targetSetId) === false) {
+    conflicts.push({ severity: 'ERROR', code: 'COMBO_SET_INACTIVE', message: 'El set objetivo de este combo está inactivo.' });
+  }
+
+  return conflicts;
+}
 
 export async function getAdminSets() {
   const rows = await db

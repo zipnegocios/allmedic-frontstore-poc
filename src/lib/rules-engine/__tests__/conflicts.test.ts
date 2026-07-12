@@ -138,11 +138,51 @@ describe("detectConflicts — semánticas entre tipos", () => {
     expect(conflicts.some((c) => c.code === "RANGE_EXCLUDES_MULTIPLES" && c.severity === "ERROR")).toBe(true);
   });
 
-  it("PROMO_UNREACHABLE: WARNING si buy supera el máximo permitido", () => {
+  it("PROMO_UNREACHABLE: WARNING si buy supera el máximo permitido (N_PLUS_ONE)", () => {
     const existing = [rule({ id: "e1", ruleType: "QUANTITY_RANGE", scope: "SET", scopeId: "set-a", config: { min: 1, max: 10 } })];
     const candidateRule = candidate({ ruleType: "PROMO", scope: "SET", scopeId: "set-a", config: { kind: "N_PLUS_ONE", buy: 13, free: 1 } });
     const conflicts = detectConflicts(candidateRule, existing);
     expect(conflicts.some((c) => c.code === "PROMO_UNREACHABLE" && c.severity === "WARNING")).toBe(true);
+  });
+
+  it("PROMO_UNREACHABLE: no aplica a tipos de PROMO sin campo 'buy' (ej. PERCENT_OFF)", () => {
+    const existing = [rule({ id: "e1", ruleType: "QUANTITY_RANGE", scope: "SET", scopeId: "set-a", config: { min: 1, max: 10 } })];
+    const candidateRule = candidate({ ruleType: "PROMO", scope: "SET", scopeId: "set-a", config: { kind: "PERCENT_OFF", pct: 20 } });
+    const conflicts = detectConflicts(candidateRule, existing);
+    expect(conflicts.some((c) => c.code === "PROMO_UNREACHABLE")).toBe(false);
+  });
+
+  it("PROMO_DOUBLE_DISCOUNT: WARNING si FIXED_PRICE coexiste con PERCENT_OFF en el mismo ámbito", () => {
+    const existing = [rule({ id: "e1", ruleType: "PROMO", scope: "SET", scopeId: "set-a", config: { kind: "PERCENT_OFF", pct: 10 } })];
+    const candidateRule = candidate({ ruleType: "PROMO", scope: "SET", scopeId: "set-a", config: { kind: "FIXED_PRICE", price: 50 } });
+    const conflicts = detectConflicts(candidateRule, existing);
+    expect(conflicts.some((c) => c.code === "PROMO_DOUBLE_DISCOUNT" && c.severity === "WARNING")).toBe(true);
+  });
+
+  it("PROMO_DOUBLE_DISCOUNT: WARNING también en la dirección inversa (candidato PERCENT_OFF vs FIXED_PRICE existente)", () => {
+    const existing = [rule({ id: "e1", ruleType: "PROMO", scope: "GLOBAL", config: { kind: "FIXED_PRICE", price: 50 } })];
+    const candidateRule = candidate({ ruleType: "PROMO", scope: "GLOBAL", config: { kind: "FIXED_AMOUNT_OFF", amountPerUnit: 5 } });
+    const conflicts = detectConflicts(candidateRule, existing);
+    expect(conflicts.some((c) => c.code === "PROMO_DOUBLE_DISCOUNT" && c.severity === "WARNING")).toBe(true);
+  });
+
+  it("PROMO_DOUBLE_DISCOUNT: sin conflicto entre dos PERCENT_OFF (no involucra FIXED_PRICE)", () => {
+    const existing = [rule({ id: "e1", ruleType: "PROMO", scope: "GLOBAL", config: { kind: "PERCENT_OFF", pct: 10 } })];
+    const candidateRule = candidate({ ruleType: "PROMO", scope: "GLOBAL", config: { kind: "PERCENT_OFF", pct: 5 } });
+    const conflicts = detectConflicts(candidateRule, existing);
+    expect(conflicts.some((c) => c.code === "PROMO_DOUBLE_DISCOUNT")).toBe(false);
+  });
+
+  it("DISCOUNT_ON_HIDDEN_PRICES: no aplica a PROMO GIFT (sin efecto monetario que ocultar)", () => {
+    const existing = [
+      rule({ id: "e1", ruleType: "PRICE_VISIBILITY", scope: "GLOBAL", config: { showPrices: false, catalog: "CORPORATE" } }),
+    ];
+    const candidateRule = candidate({
+      ruleType: "PROMO", scope: "GLOBAL",
+      config: { kind: "GIFT", minQty: 12, description: "Regalo de cortesía" },
+    });
+    const conflicts = detectConflicts(candidateRule, existing);
+    expect(conflicts.some((c) => c.code === "DISCOUNT_ON_HIDDEN_PRICES")).toBe(false);
   });
 
   it("TIERS_BELOW_MIN: WARNING si algún tramo queda bajo el mínimo efectivo", () => {

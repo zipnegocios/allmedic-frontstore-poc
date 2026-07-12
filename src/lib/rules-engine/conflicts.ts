@@ -264,8 +264,10 @@ function detectSemantic(candidate: BusinessRule, existingRules: BusinessRule[], 
     }
   }
 
-  // PROMO_UNREACHABLE (candidato PROMO vs QUANTITY_RANGE existentes, y viceversa)
-  if (candidate.ruleType === "PROMO") {
+  // PROMO_UNREACHABLE (candidato PROMO N_PLUS_ONE vs QUANTITY_RANGE existentes, y viceversa)
+  // Solo aplica a N_PLUS_ONE — es el único tipo con un campo "buy" (cantidad exigida) que
+  // pueda quedar fuera de un rango de cantidad. Los otros 7 tipos no tienen ese campo.
+  if (candidate.ruleType === "PROMO" && c.kind === "N_PLUS_ONE") {
     const buy = Number(c.buy);
     for (const other of relevantRulesOfType(candidate, existingRules, "QUANTITY_RANGE", now)) {
       const max = (other.config as Record<string, unknown>).max;
@@ -284,7 +286,9 @@ function detectSemantic(candidate: BusinessRule, existingRules: BusinessRule[], 
     const max = c.max;
     if (max !== null && max !== undefined) {
       for (const other of relevantRulesOfType(candidate, existingRules, "PROMO", now)) {
-        const buy = Number((other.config as Record<string, unknown>).buy);
+        const otherConfig = other.config as Record<string, unknown>;
+        if (otherConfig.kind !== "N_PLUS_ONE") continue;
+        const buy = Number(otherConfig.buy);
         if (buy > Number(max)) {
           conflicts.push({
             severity: "WARNING",
@@ -294,6 +298,39 @@ function detectSemantic(candidate: BusinessRule, existingRules: BusinessRule[], 
             conflictingRuleName: other.name,
           });
         }
+      }
+    }
+  }
+
+  // PROMO_DOUBLE_DISCOUNT (candidato FIXED_PRICE vs PERCENT_OFF/FIXED_AMOUNT_OFF en el mismo
+  // contexto, y viceversa) — combinar un precio fijo con un descuento porcentual/monto fijo sobre
+  // ESE MISMO precio ya rebajado no es necesariamente un error, pero casi siempre es un despiste
+  // del admin (dos promos "compitiendo" por el mismo margen) — se advierte, no se bloquea.
+  const STACKABLE_WITH_FIXED_PRICE = ["PERCENT_OFF", "FIXED_AMOUNT_OFF"];
+  if (candidate.ruleType === "PROMO" && c.kind === "FIXED_PRICE") {
+    for (const other of relevantRulesOfType(candidate, existingRules, "PROMO", now)) {
+      const otherKind = (other.config as Record<string, unknown>).kind;
+      if (typeof otherKind === "string" && STACKABLE_WITH_FIXED_PRICE.includes(otherKind)) {
+        conflicts.push({
+          severity: "WARNING",
+          code: "PROMO_DOUBLE_DISCOUNT",
+          message: `Esta promoción fija un precio promocional, pero "${other.name}" aplica un descuento adicional sobre el mismo contexto — el cliente recibiría dos descuentos acumulados sobre el mismo set.`,
+          conflictingRuleId: other.id,
+          conflictingRuleName: other.name,
+        });
+      }
+    }
+  }
+  if (candidate.ruleType === "PROMO" && typeof c.kind === "string" && STACKABLE_WITH_FIXED_PRICE.includes(c.kind)) {
+    for (const other of relevantRulesOfType(candidate, existingRules, "PROMO", now)) {
+      if ((other.config as Record<string, unknown>).kind === "FIXED_PRICE") {
+        conflicts.push({
+          severity: "WARNING",
+          code: "PROMO_DOUBLE_DISCOUNT",
+          message: `"${other.name}" ya fija un precio promocional en este contexto — esta promoción aplicaría un descuento adicional sobre ese precio, acumulando dos descuentos sobre el mismo set.`,
+          conflictingRuleId: other.id,
+          conflictingRuleName: other.name,
+        });
       }
     }
   }
@@ -359,8 +396,11 @@ function detectSemantic(candidate: BusinessRule, existingRules: BusinessRule[], 
   }
 
   // DISCOUNT_ON_HIDDEN_PRICES (descuentos vs PRICE_VISIBILITY oculto, en ambas direcciones)
+  // PROMO GIFT queda fuera: es informativa, no tiene efecto monetario que "ocultar".
   const DISCOUNT_TYPES: RuleType[] = ["VOLUME_SCALE", "PROMO", "VOLUME_DISCOUNT_RETAIL"];
-  if (DISCOUNT_TYPES.includes(candidate.ruleType)) {
+  const isMonetaryPromo = (rule: BusinessRule) =>
+    rule.ruleType !== "PROMO" || (rule.config as Record<string, unknown>).kind !== "GIFT";
+  if (DISCOUNT_TYPES.includes(candidate.ruleType) && isMonetaryPromo(candidate)) {
     for (const other of relevantRulesOfType(candidate, existingRules, "PRICE_VISIBILITY", now)) {
       const showPrices = (other.config as Record<string, unknown>).showPrices;
       if (showPrices === false) {
@@ -377,6 +417,7 @@ function detectSemantic(candidate: BusinessRule, existingRules: BusinessRule[], 
   if (candidate.ruleType === "PRICE_VISIBILITY" && c.showPrices === false) {
     for (const discountType of DISCOUNT_TYPES) {
       for (const other of relevantRulesOfType(candidate, existingRules, discountType, now)) {
+        if (!isMonetaryPromo(other)) continue;
         conflicts.push({
           severity: "WARNING",
           code: "DISCOUNT_ON_HIDDEN_PRICES",

@@ -94,7 +94,7 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
       { title: "Mínimo en piezas", config: { min: 100, countUnit: "PIECES" }, explanation: "Exige 100 piezas reales en total, sin importar cuántos sets distintos las componen." },
     ],
     interactions: [
-      "Si además existe una regla de Rango de cantidad (QUANTITY_RANGE) con un máximo menor a este mínimo en el mismo ámbito, ninguna cantidad satisface ambas reglas a la vez — el detector de conflictos de la Fase 4 marca esto como error.",
+      "Si además existe una regla de Rango de cantidad (QUANTITY_RANGE) con un máximo menor a este mínimo en el mismo ámbito, ninguna cantidad satisface ambas reglas a la vez — el detector de conflictos marca esto como error.",
     ],
     warnings: [
       "Los ámbitos Set, Grupo de Sets y Marca se muestran como texto informativo en la ficha del set correspondiente ('Compra mínima: N sets'), pero NO se aplican al validar el envío del carrito — el mínimo que realmente bloquea el botón de envío siempre es el de ámbito Global, sin importar cuántos ámbitos más específicos hayas creado.",
@@ -254,7 +254,7 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
       { title: "Solo avisar", config: { mode: "INFORMATIVE" }, explanation: "Deja que el cliente envíe la solicitud igual (el modelo de negocio es de cotización referencial), pero alerta al equipo de ventas para que ajuste la cotización final." },
     ],
     interactions: [
-      "Si Cantidad mínima (ámbito Global) exige más unidades de las que el stock real permite bajo 'Bloquear', ningún carrito puede enviarse — el detector de conflictos de la Fase 4 NO evalúa esto automáticamente porque no tiene acceso al stock en tiempo real (es un módulo puro, sin BD); revisa manualmente el stock disponible antes de combinar un mínimo alto con 'Bloquear'.",
+      "Si Cantidad mínima (ámbito Global) exige más unidades de las que el stock real permite bajo 'Bloquear', ningún carrito puede enviarse — el detector de conflictos NO evalúa esto automáticamente porque no tiene acceso al stock en tiempo real (es un módulo puro, sin BD); revisa manualmente el stock disponible antes de combinar un mínimo alto con 'Bloquear'.",
     ],
     warnings: [
       "La disponibilidad agregada por talla que se muestra en la ficha del set es una foto del momento de la carga de la página — no se recalcula mientras el cliente edita el carrito, así que puede quedar desactualizada si hay compras simultáneas.",
@@ -295,29 +295,77 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
   PROMO: {
     ruleType: "PROMO",
     title: "Promoción",
-    summary: "Promociones tipo 'compra N y llévate M gratis' sobre un set del catálogo corporativo.",
+    summary: "8 tipos de promoción sobre el catálogo corporativo: por ítem, por umbral de carrito, informativas y cruzadas entre sets.",
     detail:
-      "Se resuelve por set individual (igual que Solo múltiplos o Rango de cantidad) — una promoción de " +
-      "ámbito Set solo descuenta en ese set, no en el resto del carrito. Si hay varias promociones activas " +
-      "aplicables al mismo set, se acumulan. El descuento se calcula sobre la cantidad total de sets " +
-      "pedidos de ese set: por cada bloque completo de 'buy' unidades alcanzado, se descuenta el precio " +
-      "de 'free' unidades del total. Se muestra en el carrito como 'Descuento por promoción'.",
+      "El campo 'kind' determina qué forma toma la promoción — cada tipo tiene sus propios campos de " +
+      "configuración (ver abajo) y se calcula de forma distinta dentro de `computeCartPricing`. Los 5 " +
+      "primeros tipos (N + 1, Porcentaje, Monto fijo, Precio fijo, N-ésima unidad) se resuelven POR SET " +
+      "individual, igual que Solo múltiplos o Rango de cantidad — una promoción de ámbito Set solo " +
+      "descuenta en ese set. 'Descuento por umbral' se evalúa sobre el subtotal agregado de todos los " +
+      "sets dentro del ámbito de la regla (Global = todo el carrito; Marca/Grupo/Set = solo esos sets) y " +
+      "se aplica UNA sola vez, no por cada set. 'Combo' cruza dos sets distintos y solo existe en ámbito " +
+      "Global. 'Regalo' es puramente informativa: no cambia ningún precio, solo agrega un aviso. Si hay " +
+      "varias promociones activas y aplicables al mismo contexto, se acumulan (multi-instancia), con un " +
+      "tope: el descuento de cada set nunca supera su propio subtotal, y el total del carrito nunca queda " +
+      "negativo. El resultado se muestra en el carrito como 'Descuento por promoción', con un desglose " +
+      "por regla debajo cuando hay más de una aplicada a la vez.\n\n" +
+      "Orden de aplicación dentro de `computeCartPricing`: (1) los 5 tipos por ítem, (2) Combo, " +
+      "(3) Descuento por umbral, (4) Regalo (no toca montos). La Escala por volumen (VOLUME_SCALE) se " +
+      "calcula antes que todo esto y no cambia.",
     appliesTo: ["CORPORATE"],
     supportedScopes: ["GLOBAL", "BRAND", "SET_GROUP", "SET"],
     defaultBehavior: "Sin ninguna regla activa, no se aplica ninguna promoción.",
     fields: [
-      { key: "kind", label: "Tipo de promoción", description: "Actualmente solo existe el tipo 'N + 1' (compra N, llévate 1 más gratis).", example: "N_PLUS_ONE" },
-      { key: "buy", label: "Compra (buy)", description: "Cantidad que el cliente debe comprar (dentro del mismo set) para activar un ciclo de la promoción.", example: "13" },
-      { key: "free", label: "Gratis (free)", description: "Cantidad de unidades adicionales gratuitas por cada bloque de 'buy' alcanzado.", example: "1" },
+      {
+        key: "kind",
+        label: "Tipo de promoción",
+        description: "Determina la forma de la promoción y qué campos de configuración aplican.",
+        options: [
+          { value: "N_PLUS_ONE", label: "N + 1", description: "Por cada bloque completo de 'buy' unidades del set, 'free' unidades salen gratis." },
+          { value: "PERCENT_OFF", label: "Porcentaje de descuento", description: "Descuenta 'pct'% del subtotal de la línea de ese set." },
+          { value: "FIXED_AMOUNT_OFF", label: "Monto fijo por unidad", description: "Descuenta 'amountPerUnit' por cada unidad del set, topado al subtotal de la línea." },
+          { value: "FIXED_PRICE", label: "Precio fijo promocional", description: "Fija el precio por set en 'price' — nunca encarece si 'price' es mayor o igual al precio normal." },
+          { value: "NTH_UNIT_PCT", label: "Descuento en la N-ésima unidad", description: "Cada bloque completo de 'n' unidades incluye 1 unidad con 'pct'% de descuento (ej. 2da unidad al 50%)." },
+          { value: "THRESHOLD_DISCOUNT", label: "Descuento por umbral de compra", description: "Si el subtotal del contexto de la regla alcanza 'minSubtotal', aplica 'pct'% o 'amount' fijo — una sola vez." },
+          { value: "GIFT", label: "Regalo (informativo)", description: "Si se cumple 'minQty' y/o 'minSubtotal', agrega 'description' como aviso — no cambia ningún precio." },
+          { value: "COMBO", label: "Combo entre dos sets", description: "Si el carrito tiene 'triggerMinQty' o más de 'triggerSetId', descuenta 'pct'% del subtotal de 'targetSetId'." },
+        ],
+      },
+      { key: "buy", label: "Compra (N + 1)", description: "Cantidad que el cliente debe comprar del set para activar un ciclo de la promoción.", example: "13" },
+      { key: "free", label: "Gratis (N + 1)", description: "Unidades adicionales gratuitas por cada bloque de 'buy' alcanzado.", example: "1" },
+      { key: "pct", label: "Porcentaje", description: "Usado por Porcentaje de descuento, N-ésima unidad, Combo, y opcionalmente por Umbral.", example: "10" },
+      { key: "amountPerUnit", label: "Monto fijo por unidad", description: "Descuento en dólares por cada unidad del set (Monto fijo por unidad).", example: "5" },
+      { key: "price", label: "Precio promocional", description: "Precio por set de la promoción Precio fijo promocional.", example: "45" },
+      { key: "n", label: "Cada N unidades", description: "Tamaño del bloque para N-ésima unidad (mínimo 2).", example: "2" },
+      { key: "minSubtotal", label: "Subtotal mínimo", description: "Condición de subtotal para Umbral de compra y/o Regalo.", example: "500" },
+      { key: "amount", label: "Monto fijo (umbral)", description: "Descuento en dólares de Umbral de compra, alternativo a 'pct' (exactamente uno de los dos).", example: "50" },
+      { key: "minQty", label: "Cantidad mínima (regalo)", description: "Condición de cantidad de sets para Regalo — opcional, puede combinarse o sustituirse por 'minSubtotal'.", example: "12" },
+      { key: "description", label: "Descripción del regalo", description: "Texto libre que ve el cliente y el equipo de ventas — obligatorio para Regalo.", example: "12 gorros quirúrgicos de cortesía" },
+      { key: "triggerSetId", label: "Set disparador (combo)", description: "El set cuya cantidad en el carrito activa el combo." },
+      { key: "triggerMinQty", label: "Cantidad mínima del disparador (combo)", description: "Unidades mínimas del set disparador para activar el combo.", example: "5" },
+      { key: "targetSetId", label: "Set objetivo (combo)", description: "El set que recibe el descuento cuando el combo se activa." },
     ],
     examples: [
-      { title: "13 + 1", config: { kind: "N_PLUS_ONE", buy: 13, free: 1 }, explanation: "Por cada 13 unidades compradas de ese set, 1 es gratis. Con 26 unidades, se descuentan 2." },
+      { title: "13 + 1", config: { kind: "N_PLUS_ONE", buy: 13, free: 1 }, explanation: "Con 26 unidades del set a $10 c/u: 2 ciclos de 13 → 2 gratis → $20 de descuento." },
+      { title: "20% de descuento", config: { kind: "PERCENT_OFF", pct: 20 }, explanation: "10 unidades a $10 c/u = subtotal $100 → 20% = $20 de descuento." },
+      { title: "$3 menos por unidad", config: { kind: "FIXED_AMOUNT_OFF", amountPerUnit: 3 }, explanation: "10 unidades → $3 × 10 = $30 de descuento (nunca más que el subtotal de la línea)." },
+      { title: "Precio fijo $45", config: { kind: "FIXED_PRICE", price: 45 }, explanation: "Si el precio normal es $50: 10 unidades × ($50 − $45) = $50 de descuento." },
+      { title: "2da unidad al 50%", config: { kind: "NTH_UNIT_PCT", n: 2, pct: 50 }, explanation: "6 unidades a $10 c/u → 3 ciclos de 2 → 3 × $10 × 50% = $15 de descuento." },
+      { title: "Umbral $500 → 10%", config: { kind: "THRESHOLD_DISCOUNT", minSubtotal: 500, pct: 10 }, explanation: "Si el subtotal del contexto llega a $600, aplica 10% = $60, una sola vez (no por set)." },
+      { title: "Regalo por volumen", config: { kind: "GIFT", minQty: 12, description: "12 gorros quirúrgicos de cortesía" }, explanation: "Con 12+ sets en el contexto, aparece el aviso en el carrito y en notas internas de la cotización — no cambia el total." },
+      { title: "Combo camisa + pantalón", config: { kind: "COMBO", triggerSetId: "<id-set-camisas>", triggerMinQty: 5, targetSetId: "<id-set-pantalones>", pct: 15 }, explanation: "Con 5+ unidades del set disparador en el carrito, el set objetivo recibe 15% de descuento sobre su propio subtotal." },
     ],
     interactions: [
-      "Si el ámbito de esta promoción exige más unidades (buy) que el máximo permitido por Rango de cantidad en el mismo contexto, la promoción nunca se activa — el detector de conflictos lo advierte.",
-      "Si Visibilidad de precios oculta el precio en el contexto donde esta promoción aplica, el cliente no ve el descuento reflejado (el total sigue siendo correcto, pero no hay forma de mostrar 'ahorraste $X' sin mostrar precios).",
+      "N + 1: si el ámbito de esta promoción exige más unidades (buy) que el máximo permitido por Rango de cantidad en el mismo contexto, la promoción nunca se activa — el detector de conflictos lo advierte.",
+      "Precio fijo promocional combinado con Porcentaje de descuento o Monto fijo por unidad en el mismo contexto acumula dos descuentos sobre el mismo set — el detector de conflictos lo advierte como una posible doble rebaja no intencional (no la bloquea, porque puede ser deliberada).",
+      "Si Visibilidad de precios oculta el precio en el contexto donde una promoción con efecto monetario aplica, el cliente no ve el descuento reflejado — el detector de conflictos lo advierte. Regalo queda fuera de esta advertencia porque no tiene efecto monetario.",
+      "Combo valida en el servidor (al guardar) que 'triggerSetId' y 'targetSetId' existan y estén activos — si alguno no existe o está inactivo, el guardado se bloquea con error. Esta verificación necesita base de datos, así que vive en la capa de rutas del panel admin, no en el detector de conflictos puro.",
     ],
-    warnings: [],
+    warnings: [
+      "Regalo (GIFT) no tiene ningún efecto en el precio — es responsabilidad del equipo de ventas honrarlo manualmente al elaborar la cotización real. La nota queda registrada en el carrito, en la solicitud enviada y en las notas internas de la cotización.",
+      "Descuento por umbral de compra no se puede combinar por diseño con Rango de cantidad para detectar 'umbral inalcanzable': el detector de conflictos es un módulo puro sin precios ni acceso a base de datos, así que no puede convertir un máximo de unidades en un subtotal en dólares. Revisa manualmente que el umbral configurado sea alcanzable dado el precio real de los sets del contexto.",
+      "El desglose por regla ('promoBreakdown') no incluye Regalo — al no tener efecto monetario, solo aparece en los avisos ('promoNotes'), nunca en la lista de montos descontados.",
+    ],
   },
 
   COLOR_RESTRICTION: {

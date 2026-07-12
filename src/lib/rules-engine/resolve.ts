@@ -12,6 +12,7 @@ import type {
   InventoryModeConfig,
   VolumeScaleConfig,
   PromoConfig,
+  ResolvedPromo,
   ColorRestrictionConfig,
   VolumeDiscountRetailConfig,
 } from "./types";
@@ -30,7 +31,10 @@ function toDate(value?: Date | string | null): Date | null {
   return value instanceof Date ? value : new Date(value);
 }
 
-function isRuleActive(rule: BusinessRule, now: Date): boolean {
+/** Exportada para uso fuera de la resolución jerárquica normal — `pricing.ts` la reutiliza para
+ * los tipos de PROMO de nivel carrito (THRESHOLD_DISCOUNT, GIFT, COMBO), que se evalúan contra
+ * `allRules` directamente en vez de vía `resolveRules`. */
+export function isRuleActive(rule: BusinessRule, now: Date): boolean {
   if (!rule.isActive) return false;
   const from = toDate(rule.validFrom);
   const to = toDate(rule.validTo);
@@ -120,7 +124,7 @@ export function resolveRules(
       (priceVisibilityRule?.config as unknown as PriceVisibilityConfig) ?? DEFAULT_PRICE_VISIBILITY,
     inventoryMode: (inventoryModeRule?.config as unknown as InventoryModeConfig) ?? DEFAULT_INVENTORY_MODE,
     volumeScale: (volumeScaleRule?.config as unknown as VolumeScaleConfig) ?? null,
-    promos: promoRules.map((r) => r.config as unknown as PromoConfig),
+    promos: promoRules.map((r): ResolvedPromo => ({ id: r.id, name: r.name, config: r.config as unknown as PromoConfig })),
     colorRestrictions: colorRestrictionRules.map((r) => r.config as unknown as ColorRestrictionConfig),
     volumeDiscountRetail:
       (volumeDiscountRetailRule?.config as unknown as VolumeDiscountRetailConfig) ?? null,

@@ -13,7 +13,10 @@ const CONFIG_KEYS: Record<RuleType, string[]> = {
   PRICE_VISIBILITY: ["showPrices", "catalog"],
   INVENTORY_MODE: ["mode"],
   VOLUME_SCALE: ["tiers"],
-  PROMO: ["kind", "buy", "free"],
+  PROMO: [
+    "kind", "buy", "free", "pct", "amountPerUnit", "price", "n",
+    "minSubtotal", "amount", "minQty", "description", "triggerSetId", "triggerMinQty", "targetSetId",
+  ],
   COLOR_RESTRICTION: ["colorCode", "min"],
   VOLUME_DISCOUNT_RETAIL: ["tiers"],
 };
@@ -52,10 +55,12 @@ describe("RULE_DOCS", () => {
     }
   });
 
-  it("PROMO se corrigió en la Fase 3: ya no está en la lista de tipos muertos", () => {
+  it("PROMO se corrigió en la Fase 3 y se amplió a 8 tipos después: ya no está en la lista de tipos muertos", () => {
     expect(RULE_DOCS.PROMO.appliesTo).toEqual(["CORPORATE"]);
     expect(RULE_DOCS.PROMO.supportedScopes.length).toBeGreaterThan(0);
-    expect(RULE_DOCS.PROMO.warnings).toEqual([]);
+    // Los warnings actuales documentan límites de diseño honestos (ej. GIFT sin efecto
+    // monetario), no funcionalidad rota — a diferencia de los tipos ❌ Muertos de arriba.
+    expect(RULE_DOCS.PROMO.examples.length).toBeGreaterThanOrEqual(8);
   });
 
   it("INVENTORY_MODE se implementó: ya no está en la lista de tipos muertos", () => {

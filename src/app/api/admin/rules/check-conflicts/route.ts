@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/admin-auth';
-import { getAdminRules } from '@/lib/admin-data-service';
+import { getAdminRules, checkComboSetsExist } from '@/lib/admin-data-service';
 import { detectConflicts, type BusinessRule } from '@/lib/rules-engine';
 import { RULE_CONFIG_SCHEMAS, toBusinessRule } from '@/lib/rule-config-schemas';
 
@@ -45,6 +45,9 @@ export async function POST(request: NextRequest) {
     };
 
     const conflicts = detectConflicts(candidate, allRules.map(toBusinessRule));
+    if (candidate.ruleType === 'PROMO' && (candidate.config as { kind?: string }).kind === 'COMBO') {
+      conflicts.push(...(await checkComboSetsExist(candidate)));
+    }
     return NextResponse.json({ conflicts });
   } catch (err) {
     if (err instanceof z.ZodError) {

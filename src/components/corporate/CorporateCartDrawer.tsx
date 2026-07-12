@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from 'react';
 import Link from 'next/link';
-import { X, Building2, AlertCircle, Trash2, Minus, Plus } from 'lucide-react';
+import { X, Building2, AlertCircle, Trash2, Minus, Plus, Gift } from 'lucide-react';
 import { useCorporateCart } from '@/context/CorporateCartContext';
 import { cn } from '@/lib/utils';
 
@@ -213,9 +213,21 @@ export function CorporateCartDrawer({ isOpen, onClose }: CorporateCartDrawerProp
                     </div>
                   )}
                   {pricing.promoDiscountAmount > 0 && (
-                    <div className="flex justify-between text-sm text-[#34C759]">
-                      <span>Descuento por promoción</span>
-                      <span>-${pricing.promoDiscountAmount.toFixed(2)}</span>
+                    <div>
+                      <div className="flex justify-between text-sm text-[#34C759]">
+                        <span>Descuento por promoción</span>
+                        <span>-${pricing.promoDiscountAmount.toFixed(2)}</span>
+                      </div>
+                      {pricing.promoBreakdown.length > 1 && (
+                        <div className="pl-3 mt-1 space-y-0.5">
+                          {pricing.promoBreakdown.map((p, idx) => (
+                            <div key={idx} className="flex justify-between text-xs text-gray-400">
+                              <span>{p.ruleName}</span>
+                              <span>-${p.amount.toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                   <div className="flex justify-between text-lg font-bold pt-2 border-t border-[#E5E5E5]">
@@ -225,6 +237,17 @@ export function CorporateCartDrawer({ isOpen, onClose }: CorporateCartDrawerProp
                   <p className="text-xs text-gray-400">
                     Precio referencial — sujeto a cotización. El equipo de ventas confirmará los valores finales.
                   </p>
+
+                  {pricing.promoNotes.length > 0 && (
+                    <div className="space-y-1.5">
+                      {pricing.promoNotes.map((note, idx) => (
+                        <div key={idx} className="flex items-start gap-2 text-xs text-[#34C759] bg-green-50 rounded-lg px-3 py-2">
+                          <Gift className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                          <span>{note}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   <Link
                     href="/corporativo/solicitud"

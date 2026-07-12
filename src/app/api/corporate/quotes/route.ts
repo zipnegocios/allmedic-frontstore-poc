@@ -116,9 +116,16 @@ export async function POST(request: NextRequest) {
 
     const code = await generateQuoteCode();
 
-    const internalNotes = informativeIssues.length > 0
-      ? `Avisos de inventario al momento de la solicitud:\n${informativeIssues.map((i) => `- ${i.message}`).join('\n')}`
-      : null;
+    const noteBlocks: string[] = [];
+    if (informativeIssues.length > 0) {
+      noteBlocks.push(`Avisos de inventario al momento de la solicitud:\n${informativeIssues.map((i) => `- ${i.message}`).join('\n')}`);
+    }
+    if (pricing.promoNotes.length > 0) {
+      // GIFT no tiene efecto monetario — la nota queda en internalNotes para que ventas la honre
+      // al elaborar la cotización real (regla de oro del proyecto: el snapshot vive en el servidor).
+      noteBlocks.push(`Regalos/promociones informativas a honrar:\n${pricing.promoNotes.map((n) => `- ${n}`).join('\n')}`);
+    }
+    const internalNotes = noteBlocks.length > 0 ? noteBlocks.join('\n\n') : null;
 
     const [quote] = await db
       .insert(quoteRequests)
@@ -139,6 +146,7 @@ export async function POST(request: NextRequest) {
         id: quote.id,
         referenceSubtotal: pricing.total,
         warnings: informativeIssues.map((i) => i.message),
+        promoNotes: pricing.promoNotes,
       },
       { status: 201 }
     );

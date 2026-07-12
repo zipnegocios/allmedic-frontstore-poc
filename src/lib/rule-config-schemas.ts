@@ -30,10 +30,46 @@ export const RULE_CONFIG_SCHEMAS = {
   VOLUME_SCALE: z.object({
     tiers: z.array(z.object({ minQty: z.number().int().positive(), discountPct: z.number().min(0).max(100) })).min(1),
   }),
-  PROMO: z.object({
-    kind: z.string().min(1),
-    buy: z.number().int().positive(),
-    free: z.number().int().positive(),
+  // PROMO: unión discriminada por `kind` — 8 tipos. Los refinamientos cruzados (THRESHOLD_DISCOUNT:
+  // exactamente uno de pct/amount; GIFT: al menos una condición) se validan con `.superRefine` sobre
+  // la unión completa, no dentro de cada miembro — z.discriminatedUnion exige que cada miembro sea
+  // un z.object "plano" (sin .refine propio) para poder indexar por el discriminante.
+  PROMO: z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('N_PLUS_ONE'), buy: z.number().int().positive(), free: z.number().int().positive() }),
+    z.object({ kind: z.literal('PERCENT_OFF'), pct: z.number().min(0).max(100) }),
+    z.object({ kind: z.literal('FIXED_AMOUNT_OFF'), amountPerUnit: z.number().positive() }),
+    z.object({ kind: z.literal('FIXED_PRICE'), price: z.number().positive() }),
+    z.object({ kind: z.literal('NTH_UNIT_PCT'), n: z.number().int().min(2), pct: z.number().min(0).max(100) }),
+    z.object({
+      kind: z.literal('THRESHOLD_DISCOUNT'),
+      minSubtotal: z.number().positive(),
+      pct: z.number().min(0).max(100).optional(),
+      amount: z.number().positive().optional(),
+    }),
+    z.object({
+      kind: z.literal('GIFT'),
+      minQty: z.number().int().positive().optional(),
+      minSubtotal: z.number().positive().optional(),
+      description: z.string().min(1),
+    }),
+    z.object({
+      kind: z.literal('COMBO'),
+      triggerSetId: z.string().min(1),
+      triggerMinQty: z.number().int().positive(),
+      targetSetId: z.string().min(1),
+      pct: z.number().min(0).max(100),
+    }),
+  ]).superRefine((val, ctx) => {
+    if (val.kind === 'THRESHOLD_DISCOUNT') {
+      const hasPct = val.pct !== undefined;
+      const hasAmount = val.amount !== undefined;
+      if (hasPct === hasAmount) {
+        ctx.addIssue({ code: 'custom', message: 'THRESHOLD_DISCOUNT requiere exactamente uno de "pct" o "amount"' });
+      }
+    }
+    if (val.kind === 'GIFT' && val.minQty === undefined && val.minSubtotal === undefined) {
+      ctx.addIssue({ code: 'custom', message: 'GIFT requiere al menos una condición: "minQty" o "minSubtotal"' });
+    }
   }),
   COLOR_RESTRICTION: z.object({
     colorCode: z.string().min(1),

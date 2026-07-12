@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/admin-auth';
-import { getAdminRuleById, updateRule, deleteRule, getAdminRules } from '@/lib/admin-data-service';
+import { getAdminRuleById, updateRule, deleteRule, getAdminRules, checkComboSetsExist } from '@/lib/admin-data-service';
 import { validateRuleConfig, toBusinessRule } from '@/lib/rule-config-schemas';
 import { detectConflicts, type BusinessRule } from '@/lib/rules-engine';
 
@@ -62,6 +62,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       };
       const existingRules = (await getAdminRules()).map(toBusinessRule);
       const conflicts = detectConflicts(candidate, existingRules);
+      if (candidate.ruleType === 'PROMO' && (candidate.config as { kind?: string }).kind === 'COMBO') {
+        conflicts.push(...(await checkComboSetsExist(candidate)));
+      }
       const errors = conflicts.filter((c) => c.severity === 'ERROR');
       if (errors.length > 0) {
         return NextResponse.json({ error: 'La regla tiene conflictos que impiden guardarla', conflicts: errors }, { status: 409 });
