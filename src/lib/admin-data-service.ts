@@ -278,6 +278,8 @@ export async function createProductWithRelations(input: ProductWithRelationsInpu
       priceSale: emptyToNull(productData.priceSale),
       priceWholesale: emptyToNull(productData.priceWholesale),
       priceWholesaleSale: emptyToNull(productData.priceWholesaleSale),
+      collectionId: emptyToNull(productData.collectionId),
+      crossSellId: emptyToNull(productData.crossSellId),
       discountEnd: productData.discountEnd ? new Date(productData.discountEnd) : undefined,
       wholesaleDiscountEnd: productData.wholesaleDiscountEnd ? new Date(productData.wholesaleDiscountEnd) : undefined,
     }).returning();
@@ -327,6 +329,12 @@ export async function updateProductWithRelations(
       }
       if (productData.priceWholesaleSale !== undefined) {
         updateData.priceWholesaleSale = emptyToNull(productData.priceWholesaleSale);
+      }
+      if (productData.collectionId !== undefined) {
+        updateData.collectionId = emptyToNull(productData.collectionId);
+      }
+      if (productData.crossSellId !== undefined) {
+        updateData.crossSellId = emptyToNull(productData.crossSellId);
       }
       if (productData.discountEnd !== undefined) {
         updateData.discountEnd = productData.discountEnd ? new Date(productData.discountEnd) : null;
