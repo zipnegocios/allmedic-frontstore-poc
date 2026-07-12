@@ -19,8 +19,17 @@ const CreateSetSchema = z.object({
   isActive: z.boolean().default(true),
   isFeatured: z.boolean().default(false),
   sortOrder: z.number().default(0),
+  priceManual: z.string().optional().nullable(),
+  priceManualSale: z.string().optional().nullable(),
+  manualDiscountEnd: z.string().optional().nullable(),
   items: z.array(SetItemSchema).default([]),
-});
+}).refine(
+  (data) => !data.priceManualSale || !data.priceManual || Number(data.priceManualSale) < Number(data.priceManual),
+  { message: 'El precio manual rebajado debe ser menor al precio manual', path: ['priceManualSale'] }
+).refine(
+  (data) => !data.manualDiscountEnd || !!data.priceManualSale,
+  { message: 'La fecha de fin de rebaja requiere un precio manual rebajado', path: ['manualDiscountEnd'] }
+);
 
 export async function GET() {
   try {

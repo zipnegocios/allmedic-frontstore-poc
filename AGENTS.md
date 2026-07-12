@@ -212,6 +212,11 @@ The schema is defined across multiple files in `src/db/schema/`:
 - `id`, `name`, `ruleType`, `scope`, `scopeId`, `config` (JSONB), `isActive`, `priority`, `validFrom`, `validTo`
 - Supports: `MIN_QUANTITY`, `SIZE_MODE`, `PRICE_VISIBILITY`, `INVENTORY_MODE`, `VOLUME_SCALE`, `PROMO`, etc.
 
+**`corporateSets`** — Corporate set (bundle) master
+- `id`, `name`, `slug` (unique), `description`, `setGroupId`, `brandId`, `isActive`, `isFeatured`, `sortOrder`
+- Precio híbrido: `priceManual`, `priceManualSale`, `manualDiscountEnd` — todos nullable; `priceManual: null` (comportamiento por defecto) significa "precio automático" (suma de `priceWholesale`/`priceWholesaleSale` de las piezas × `quantityPerSet`, calculada en `src/lib/set-pricing.ts` + `corporate-data-service.ts`). Un `priceManual` no nulo reemplaza esa suma en los 3 puntos de resolución de precio del servidor (`getActiveCorporateSets`, `getCorporateSetBySlug`, `getSetPricesByIds`) — el motor de pricing puro (`computeCartPricing`) nunca sabe cuál de los dos orígenes produjo el valor, solo recibe el precio ya resuelto.
+- Admin panel del set (`SetForm.tsx`, `/admin/sets/[id]`) es un "ensamblador": embebe `ProductForm` (crear/editar una pieza sin salir del set, drawer a pantalla casi completa) y `RuleForm` (crear/editar reglas de ámbito Set del set actual) — ambos componentes aceptan `embedded`/`onSaved`/`onCancel` para funcionar tanto en su página propia como en un drawer.
+
 ### Database Connection
 
 `src/db/index.ts` exports a Drizzle client. Use it via `data-service.ts` or API routes. Direct database queries go through `drizzle-orm` query builder.
@@ -301,6 +306,7 @@ There is **no CI/CD, Docker, or GitHub Actions** configured. Deployment is manua
 3. **Environment files are gitignored** — `.env` and `.env.local` contain secrets.
 4. **Drizzle queries are parameterized** — no raw SQL injection risk (avoid `sql.raw` with untrusted input).
 5. **Zod validation** is used on the `/api/leads` POST endpoint.
+6. **Standalone scripts read credentials from `DATABASE_URL`** — never hardcode connection strings (fixed in `scripts/db-check.cjs`; if you add a new one-off script, follow the same pattern used in `src/db/migrate.ts`).
 
 ---
 

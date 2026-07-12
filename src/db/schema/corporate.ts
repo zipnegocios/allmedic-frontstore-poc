@@ -28,6 +28,11 @@ export const corporateSets = pgTable("corporate_sets", {
   description: text("description"),
   setGroupId: pgUuid("set_group_id").references(() => setGroups.id),
   brandId: pgUuid("brand_id").references(() => brands.id),
+  // Precio manual del set (override) — null significa "automático": suma de precios al
+  // mayor de las piezas × cantidad, tal como se calculaba antes de este campo.
+  priceManual: decimal("price_manual", { precision: 10, scale: 2 }),
+  priceManualSale: decimal("price_manual_sale", { precision: 10, scale: 2 }),
+  manualDiscountEnd: timestamp("manual_discount_end", { withTimezone: true }),
   isActive: boolean("is_active").default(true),
   isFeatured: boolean("is_featured").default(false),
   sortOrder: integer("sort_order").default(0),

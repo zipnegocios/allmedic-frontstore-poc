@@ -19,6 +19,7 @@ import type { BusinessRule, InventoryStockSnapshot, SetPieceInfo } from './rules
 import type { CorporateSetSummary, CorporateSetDetail, SetPiece, SetGroupSummary } from './corporate-types';
 import type { ProductColor, ProductVariant } from './types';
 import { resolveMediaUrl, isVideoMime, type MediaItem } from './media';
+import { effectiveManualPrice } from './set-pricing';
 
 async function getCoverImageMap(setIds: string[]): Promise<Map<string, string>> {
   if (setIds.length === 0) return new Map();
@@ -81,6 +82,9 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
       brandId: corporateSetsTable.brandId,
       isFeatured: corporateSetsTable.isFeatured,
       sortOrder: corporateSetsTable.sortOrder,
+      priceManual: corporateSetsTable.priceManual,
+      priceManualSale: corporateSetsTable.priceManualSale,
+      manualDiscountEnd: corporateSetsTable.manualDiscountEnd,
     })
     .from(corporateSetsTable)
     .leftJoin(setGroupsTable, eq(corporateSetsTable.setGroupId, setGroupsTable.id))
@@ -107,7 +111,7 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
 
   return rows.map((set) => {
     const setItems = items.filter((i) => i.setId === set.id);
-    let referencePrice = 0;
+    let autoPrice = 0;
     let hasMissingPrices = false;
     for (const item of setItems) {
       const price = wholesalePriceOf(item.priceWholesale, item.priceWholesaleSale);
@@ -115,8 +119,11 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
         hasMissingPrices = true;
         continue;
       }
-      referencePrice += price * (item.quantityPerSet ?? 1);
+      autoPrice += price * (item.quantityPerSet ?? 1);
     }
+    const manualPrice = effectiveManualPrice(set.priceManual, set.priceManualSale, set.manualDiscountEnd);
+    const referencePrice = manualPrice ?? autoPrice;
+    if (manualPrice !== null) hasMissingPrices = false;
     return {
       id: set.id,
       slug: set.slug,
@@ -131,7 +138,7 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
       productIds: Array.from(new Set(setItems.map((i) => i.productId).filter((id): id is string => !!id))),
       isFeatured: set.isFeatured ?? false,
       pieceCount: setItems.length,
-      referencePrice: setItems.length > 0 ? referencePrice : null,
+      referencePrice: setItems.length > 0 || manualPrice !== null ? referencePrice : null,
       hasMissingPrices,
     };
   });
@@ -151,6 +158,9 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
       groupSlug: setGroupsTable.slug,
       brandName: brandsTable.name,
       isFeatured: corporateSetsTable.isFeatured,
+      priceManual: corporateSetsTable.priceManual,
+      priceManualSale: corporateSetsTable.priceManualSale,
+      manualDiscountEnd: corporateSetsTable.manualDiscountEnd,
     })
     .from(corporateSetsTable)
     .leftJoin(setGroupsTable, eq(corporateSetsTable.setGroupId, setGroupsTable.id))
@@ -288,6 +298,9 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
 
   const coverImages = await getCoverImageMap([set.id]);
 
+  const manualPrice = effectiveManualPrice(set.priceManual, set.priceManualSale, set.manualDiscountEnd);
+  const effectiveHasMissingPrices = manualPrice !== null ? false : hasMissingPrices;
+
   return {
     id: set.id,
     slug: set.slug,
@@ -302,26 +315,41 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
     productIds: pieces.map((p) => p.productId),
     isFeatured: set.isFeatured ?? false,
     pieceCount: pieces.length,
-    referencePrice: pieces.length > 0 ? referencePrice : null,
-    hasMissingPrices,
+    referencePrice: pieces.length > 0 || manualPrice !== null ? (manualPrice ?? referencePrice) : null,
+    hasMissingPrices: effectiveHasMissingPrices,
     pieces,
   };
 }
 
 // ── Precios de sets por ID (para calcular pricing del carrito en servidor) ──
+// Es el único punto de entrada del precio por set hacia `computeCartPricing` — un precio
+// manual (override) del set reemplaza aquí la suma automática; el resto del motor de pricing
+// (VOLUME_SCALE, PROMO) no necesita ningún cambio porque todos consumen este valor ya resuelto.
 export async function getSetPricesByIds(setIds: string[]): Promise<Record<string, { pricePerSet: number; hasMissingPrices: boolean }>> {
   if (setIds.length === 0) return {};
 
-  const items = await db
-    .select({
-      setId: setItemsTable.setId,
-      quantityPerSet: setItemsTable.quantityPerSet,
-      priceWholesale: productsTable.priceWholesale,
-      priceWholesaleSale: productsTable.priceWholesaleSale,
-    })
-    .from(setItemsTable)
-    .leftJoin(productsTable, eq(setItemsTable.productId, productsTable.id))
-    .where(inArray(setItemsTable.setId, setIds));
+  const [items, setRows] = await Promise.all([
+    db
+      .select({
+        setId: setItemsTable.setId,
+        quantityPerSet: setItemsTable.quantityPerSet,
+        priceWholesale: productsTable.priceWholesale,
+        priceWholesaleSale: productsTable.priceWholesaleSale,
+      })
+      .from(setItemsTable)
+      .leftJoin(productsTable, eq(setItemsTable.productId, productsTable.id))
+      .where(inArray(setItemsTable.setId, setIds)),
+    db
+      .select({
+        id: corporateSetsTable.id,
+        priceManual: corporateSetsTable.priceManual,
+        priceManualSale: corporateSetsTable.priceManualSale,
+        manualDiscountEnd: corporateSetsTable.manualDiscountEnd,
+      })
+      .from(corporateSetsTable)
+      .where(inArray(corporateSetsTable.id, setIds)),
+  ]);
+  const manualById = new Map(setRows.map((s) => [s.id, s]));
 
   const result: Record<string, { pricePerSet: number; hasMissingPrices: boolean }> = {};
   for (const setId of setIds) {
@@ -336,7 +364,12 @@ export async function getSetPricesByIds(setIds: string[]): Promise<Record<string
       }
       pricePerSet += price * (item.quantityPerSet ?? 1);
     }
-    result[setId] = { pricePerSet, hasMissingPrices };
+    const manual = manualById.get(setId);
+    const manualPrice = manual ? effectiveManualPrice(manual.priceManual, manual.priceManualSale, manual.manualDiscountEnd) : null;
+    result[setId] = {
+      pricePerSet: manualPrice ?? pricePerSet,
+      hasMissingPrices: manualPrice !== null ? false : hasMissingPrices,
+    };
   }
   return result;
 }

@@ -99,6 +99,14 @@ interface Color {
 interface ProductFormProps {
   productId?: string;
   initialData?: ProductFormData;
+  /** Modo embebido (ej. drawer del ensamblador de sets): sin encabezado de página propio,
+   * sin `router.push` — el guardado/cancelación se comunican vía `onSaved`/`onCancel`. */
+  embedded?: boolean;
+  /** Visibilidad preseleccionada en modo creación embebida (ej. "GROUPS" al crear una pieza
+   * desde el ensamblador de sets). Sin efecto si `initialData` ya trae una visibilidad. */
+  initialVisibility?: ProductFormData['visibility'];
+  onSaved?: (product: { id: string } & Record<string, unknown>) => void;
+  onCancel?: () => void;
 }
 
 const CATEGORIES = ['Camisas', 'Pantalones', 'Chaquetas', 'Conjuntos', 'Accesorios', 'Batas'];
@@ -125,7 +133,14 @@ const STATUSES = [
 
 // ─── Component ───
 
-export default function ProductForm({ productId, initialData }: ProductFormProps) {
+export default function ProductForm({
+  productId,
+  initialData,
+  embedded = false,
+  initialVisibility,
+  onSaved,
+  onCancel,
+}: ProductFormProps) {
   const router = useRouter();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [colors, setColors] = useState<Color[]>([]);
@@ -154,7 +169,7 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
       category: '',
       gender: 'UNISEX',
       priceNormal: '',
-      visibility: 'INDIVIDUAL',
+      visibility: initialVisibility ?? 'INDIVIDUAL',
       isNew: false,
       isBestSeller: false,
       isActive: true,
@@ -231,7 +246,12 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
         const err = await res.json();
         throw new Error(err.error || 'Error al guardar');
       }
+      const saved = await res.json();
       toast.success(productId ? 'Producto actualizado' : 'Producto creado');
+      if (embedded) {
+        onSaved?.(saved);
+        return;
+      }
       router.push('/admin/products');
       router.refresh();
     } catch (err) {
@@ -283,27 +303,40 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
   }
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className={embedded ? '' : 'p-8 max-w-5xl'}>
       <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-4">
-          <Link href="/admin/products">
-            <Button variant="outline" size="sm">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Volver
+        {embedded ? (
+          <h2 className="text-xl font-bold text-[#111111]">
+            {productId ? 'Editar producto' : 'Nuevo producto'}
+          </h2>
+        ) : (
+          <div className="flex items-center gap-4">
+            <Link href="/admin/products">
+              <Button variant="outline" size="sm">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Volver
+              </Button>
+            </Link>
+            <h1 className="text-3xl font-bold text-[#111111]">
+              {productId ? 'Editar Producto' : 'Nuevo Producto'}
+            </h1>
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          {embedded && (
+            <Button type="button" variant="outline" onClick={() => onCancel?.()}>
+              Cancelar
             </Button>
-          </Link>
-          <h1 className="text-3xl font-bold text-[#111111]">
-            {productId ? 'Editar Producto' : 'Nuevo Producto'}
-          </h1>
+          )}
+          <Button
+            onClick={() => handleSubmit(onSubmit)()}
+            disabled={saving}
+            className="bg-[#111111]"
+          >
+            <Save className="w-4 h-4 mr-2" />
+            {saving ? 'Guardando...' : 'Guardar'}
+          </Button>
         </div>
-        <Button
-          onClick={() => handleSubmit(onSubmit)()}
-          disabled={saving}
-          className="bg-[#111111]"
-        >
-          <Save className="w-4 h-4 mr-2" />
-          {saving ? 'Guardando...' : 'Guardar'}
-        </Button>
       </div>
 
       <form onSubmit={(e) => { e.preventDefault(); handleSubmit(onSubmit)(); }}>
@@ -460,6 +493,12 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
                   <p className="text-xs text-gray-500">
                     {VISIBILITY_OPTIONS.find(v => v.value === watch('visibility'))?.description}
                   </p>
+                  {embedded && watch('visibility') === 'INDIVIDUAL' && (
+                    <p className="text-xs text-amber-600 bg-amber-50 rounded px-2 py-1.5">
+                      Con visibilidad &quot;Solo Individual&quot; este producto no aparecerá como pieza elegible en
+                      ningún set corporativo — cámbiala a &quot;Solo Grupos&quot; o &quot;Ambos&quot; si vas a usarlo aquí.
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex gap-6 pt-2">

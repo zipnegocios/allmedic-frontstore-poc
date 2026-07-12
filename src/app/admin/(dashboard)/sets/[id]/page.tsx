@@ -23,6 +23,11 @@ export default async function EditSetPage({ params }: EditSetPageProps) {
     brandId: set.brandId || '',
     isActive: set.isActive ?? true,
     isFeatured: set.isFeatured ?? false,
+    priceManual: set.priceManual ?? '',
+    priceManualSale: set.priceManualSale ?? '',
+    manualDiscountEnd: set.manualDiscountEnd
+      ? new Date(set.manualDiscountEnd).toISOString().slice(0, 16)
+      : '',
     items: set.items.map((i) => ({
       productId: i.productId,
       quantityPerSet: i.quantityPerSet ?? 1,

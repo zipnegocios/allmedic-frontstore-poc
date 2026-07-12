@@ -34,6 +34,14 @@ interface RuleFormProps {
     isActive: boolean;
     priority: number;
   };
+  /** Modo embebido (ej. drawer del ensamblador de sets): sin `router.push` al guardar —
+   * el guardado/cancelación se comunican vía `onSaved`/`onCancel`. */
+  embedded?: boolean;
+  /** Fija y bloquea el ámbito a un Set concreto (usado por el ensamblador de sets: solo
+   * permite crear/editar reglas de ámbito SET sobre el set que se está editando). */
+  lockedScope?: { scope: 'SET'; scopeId: string };
+  onSaved?: () => void;
+  onCancel?: () => void;
 }
 
 // Ámbitos sin efecto real para tipos concretos — se deshabilitan en el selector en vez de
@@ -82,12 +90,12 @@ const DEFAULT_PROMO_CONFIG_BY_KIND: Record<string, Record<string, unknown>> = {
   COMBO: { kind: 'COMBO', triggerSetId: '', triggerMinQty: 1, targetSetId: '', pct: 10 },
 };
 
-export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
+export function RuleForm({ mode, ruleId, initial, embedded = false, lockedScope, onSaved, onCancel }: RuleFormProps) {
   const router = useRouter();
   const [name, setName] = useState(initial?.name ?? '');
   const [ruleType, setRuleType] = useState<RuleTypeKey>(initial?.ruleType ?? 'MIN_QUANTITY');
-  const [scope, setScope] = useState<Scope>(initial?.scope ?? 'GLOBAL');
-  const [scopeId, setScopeId] = useState<string | null>(initial?.scopeId ?? null);
+  const [scope, setScope] = useState<Scope>(initial?.scope ?? lockedScope?.scope ?? 'GLOBAL');
+  const [scopeId, setScopeId] = useState<string | null>(initial?.scopeId ?? lockedScope?.scopeId ?? null);
   const [config, setConfig] = useState<Record<string, unknown>>(initial?.config ?? DEFAULT_CONFIG_BY_TYPE.MIN_QUANTITY);
   const [isActive, setIsActive] = useState(initial?.isActive ?? true);
   const [priority, setPriority] = useState(initial?.priority ?? 0);
@@ -175,12 +183,16 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
   // únicamente en ámbito Global: se fuerza el ámbito y se bloquea el selector.
   const comboLocked = ruleType === 'PROMO' && config.kind === 'COMBO';
   const scopeForcedGlobal = comboLocked || ruleType === 'VOLUME_DISCOUNT_RETAIL';
+  const scopeSelectDisabled = scopeForcedGlobal || Boolean(lockedScope);
   useEffect(() => {
     if (scopeForcedGlobal && scope !== 'GLOBAL') {
       setScope('GLOBAL');
       setScopeId(null);
+    } else if (lockedScope && (scope !== lockedScope.scope || scopeId !== lockedScope.scopeId)) {
+      setScope(lockedScope.scope);
+      setScopeId(lockedScope.scopeId);
     }
-  }, [scopeForcedGlobal, scope]);
+  }, [scopeForcedGlobal, scope, scopeId, lockedScope]);
 
   async function handleSubmit() {
     if (!name.trim()) {
@@ -250,6 +262,10 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
       }
 
       toast.success(mode === 'create' ? 'Regla creada' : 'Regla actualizada');
+      if (embedded) {
+        onSaved?.();
+        return;
+      }
       router.push('/admin/rules');
       router.refresh();
     } catch (err) {
@@ -294,7 +310,7 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
             <Select
               value={scope}
               onValueChange={(v) => { setScope(v as Scope); setScopeId(null); }}
-              disabled={scopeForcedGlobal}
+              disabled={scopeSelectDisabled}
             >
               <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -308,6 +324,9 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
             {comboLocked && <p className="text-xs text-gray-400 mt-1">Combo solo se configura en ámbito Global — los dos sets van en la configuración.</p>}
             {!comboLocked && ruleType === 'VOLUME_DISCOUNT_RETAIL' && (
               <p className="text-xs text-gray-400 mt-1">Descuento por volumen (individual) es un único descuento sobre todo el carrito retail — solo aplica en ámbito Global.</p>
+            )}
+            {lockedScope && (
+              <p className="text-xs text-gray-400 mt-1">Esta regla se crea con ámbito Set, fijado a este set — cámbialo desde el panel de reglas si necesitas otro ámbito.</p>
             )}
           </div>
 
@@ -367,16 +386,23 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
           onAcknowledgeChange={setWarningsAcknowledged}
         />
 
-        <Button
-          onClick={handleSubmit}
-          disabled={
-            saving ||
-            conflicts.some((c) => c.severity === 'ERROR') ||
-            (conflicts.some((c) => c.severity === 'WARNING') && !warningsAcknowledged)
-          }
-        >
-          {saving ? 'Guardando...' : mode === 'create' ? 'Crear regla' : 'Guardar cambios'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={handleSubmit}
+            disabled={
+              saving ||
+              conflicts.some((c) => c.severity === 'ERROR') ||
+              (conflicts.some((c) => c.severity === 'WARNING') && !warningsAcknowledged)
+            }
+          >
+            {saving ? 'Guardando...' : mode === 'create' ? 'Crear regla' : 'Guardar cambios'}
+          </Button>
+          {embedded && (
+            <Button type="button" variant="outline" onClick={() => onCancel?.()}>
+              Cancelar
+            </Button>
+          )}
+        </div>
       </CardContent>
     </Card>
 

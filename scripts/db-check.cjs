@@ -1,14 +1,18 @@
 const { Pool } = require('pg');
 
+if (!process.env.DATABASE_URL) {
+  console.error('Falta la variable de entorno DATABASE_URL.');
+  process.exit(1);
+}
+
 const pool = new Pool({
-  connectionString: 'postgres://amuUser:AllMedic2026ProjectNtte@31.220.56.1:5435/amuData?sslmode=disable',
+  connectionString: process.env.DATABASE_URL,
 });
 
 async function main() {
   try {
     console.log('=== CONECTANDO A LA BASE DE DATOS ===');
-    console.log('Host: 31.220.56.1:5435');
-    console.log('Database: amuData');
+    console.log('Usando DATABASE_URL del entorno.');
     console.log('');
 
     // 1. Verificar tablas existentes

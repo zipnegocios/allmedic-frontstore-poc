@@ -40,7 +40,7 @@ async function replaceSingleLink(
   }
 }
 
-async function getSingleLinkUrl(entityType: 'BRAND' | 'BANNER' | 'SET', entityId: string, role: string): Promise<string | null> {
+async function getSingleLinkUrl(entityType: 'BRAND' | 'BANNER' | 'SET' | 'PRODUCT', entityId: string, role: string): Promise<string | null> {
   const [link] = await db
     .select({ storageKey: mediaAssetsTable.storageKey })
     .from(mediaLinksTable)
@@ -53,7 +53,7 @@ async function getSingleLinkUrl(entityType: 'BRAND' | 'BANNER' | 'SET', entityId
   return link ? resolveMediaUrl(link.storageKey) : null;
 }
 
-async function getSingleLinksUrlMap(entityType: 'BRAND' | 'BANNER' | 'SET', entityIds: string[], role: string): Promise<Map<string, string>> {
+async function getSingleLinksUrlMap(entityType: 'BRAND' | 'BANNER' | 'SET' | 'PRODUCT', entityIds: string[], role: string): Promise<Map<string, string>> {
   if (entityIds.length === 0) return new Map();
   const links = await db
     .select({ entityId: mediaLinksTable.entityId, storageKey: mediaAssetsTable.storageKey })
@@ -712,14 +712,22 @@ interface CorporateSetInput {
   isActive?: boolean;
   isFeatured?: boolean;
   sortOrder?: number;
+  /** Precio manual del set (override) — `undefined`/ausente no toca el valor guardado;
+   * `null` lo apaga explícitamente y vuelve a la suma automática de piezas. */
+  priceManual?: string | null;
+  priceManualSale?: string | null;
+  manualDiscountEnd?: string | null;
   items?: SetItemInput[];
 }
 
 export async function createSetWithItems(input: CorporateSetInput) {
-  const { items = [], coverAssetId, ...setData } = input;
+  const { items = [], coverAssetId, manualDiscountEnd, ...setData } = input;
 
   const set = await db.transaction(async (tx) => {
-    const [set] = await tx.insert(corporateSetsTable).values(setData).returning();
+    const [set] = await tx.insert(corporateSetsTable).values({
+      ...setData,
+      manualDiscountEnd: manualDiscountEnd ? new Date(manualDiscountEnd) : undefined,
+    }).returning();
 
     if (items.length > 0) {
       await tx.insert(setItemsTable).values(
@@ -740,11 +748,16 @@ export async function createSetWithItems(input: CorporateSetInput) {
 }
 
 export async function updateSetWithItems(id: string, input: Partial<CorporateSetInput>) {
-  const { items, coverAssetId, ...setData } = input;
+  const { items, coverAssetId, manualDiscountEnd, ...setData } = input;
 
   const set = await db.transaction(async (tx) => {
-    if (Object.keys(setData).length > 0) {
-      await tx.update(corporateSetsTable).set(setData).where(eq(corporateSetsTable.id, id));
+    if (Object.keys(setData).length > 0 || manualDiscountEnd !== undefined) {
+      await tx.update(corporateSetsTable).set({
+        ...setData,
+        ...(manualDiscountEnd !== undefined
+          ? { manualDiscountEnd: manualDiscountEnd ? new Date(manualDiscountEnd) : null }
+          : {}),
+      }).where(eq(corporateSetsTable.id, id));
     }
 
     if (items !== undefined) {
@@ -775,8 +788,13 @@ export async function deleteSet(id: string) {
 
 // ── Productos disponibles para armar sets (visibility GROUPS o BOTH) ──
 
+/**
+ * Productos elegibles como pieza de un set (visibility GROUPS o BOTH), con el resumen de
+ * variantes (colores/tallas) y la portada — usado por el selector con búsqueda del ensamblador
+ * de sets para mostrar advertencias inline sin consultas adicionales por pieza.
+ */
 export async function getGroupEligibleProducts() {
-  return db
+  const products = await db
     .select({
       id: productsTable.id,
       name: productsTable.name,
@@ -796,6 +814,46 @@ export async function getGroupEligibleProducts() {
       )
     )
     .orderBy(asc(productsTable.name));
+
+  const productIds = products.map((p) => p.id);
+  if (productIds.length === 0) return [];
+
+  const [variants, coverMap] = await Promise.all([
+    db
+      .select({
+        productId: variantsTable.productId,
+        size: variantsTable.size,
+        status: variantsTable.status,
+        colorId: colorsTable.id,
+        colorName: colorsTable.name,
+        colorHex: colorsTable.hex,
+      })
+      .from(variantsTable)
+      .leftJoin(colorsTable, eq(variantsTable.colorId, colorsTable.id))
+      .where(inArray(variantsTable.productId, productIds)),
+    getSingleLinksUrlMap('PRODUCT', productIds, 'GALLERY'),
+  ]);
+
+  return products.map((p) => {
+    const productVariants = variants.filter((v) => v.productId === p.id);
+    const colorMap = new Map<string, { id: string; name: string; hex: string }>();
+    const sizeSet = new Set<string>();
+    let hasActiveVariant = false;
+    for (const v of productVariants) {
+      if (v.colorId && !colorMap.has(v.colorId)) {
+        colorMap.set(v.colorId, { id: v.colorId, name: v.colorName ?? '', hex: v.colorHex ?? '' });
+      }
+      sizeSet.add(v.size);
+      if (v.status === 'AVAILABLE') hasActiveVariant = true;
+    }
+    return {
+      ...p,
+      imageUrl: coverMap.get(p.id) ?? null,
+      colors: Array.from(colorMap.values()),
+      sizes: Array.from(sizeSet),
+      hasActiveVariant,
+    };
+  });
 }
 
 // ── Quote Requests (Solicitudes de Cotización) — Fase 2: dashboard mínimo de solo lectura ──
