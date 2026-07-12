@@ -17,6 +17,7 @@ import {
   Building2,
   FileText,
   Images,
+  Settings2,
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 
@@ -33,6 +34,7 @@ const navItems = [
   { href: '/admin/set-groups', label: 'Grupos de Sets', icon: Layers },
   { href: '/admin/corporate-accounts', label: 'Cuentas Corporativas', icon: Building2 },
   { href: '/admin/quotes', label: 'Cotizaciones', icon: FileText },
+  { href: '/admin/rules', label: 'Motor de Reglas', icon: Settings2 },
 ];
 
 export function AdminSidebar() {

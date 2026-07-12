@@ -14,6 +14,7 @@ import {
   quoteStatusHistory as quoteStatusHistoryTable,
   quoteAttachments as quoteAttachmentsTable,
   corporateAccounts as corporateAccountsTable,
+  businessRules as businessRulesTable,
   mediaLinks as mediaLinksTable,
   mediaAssets as mediaAssetsTable,
 } from '@/db/schema';
@@ -855,4 +856,62 @@ export async function getQuoteStatusHistory(quoteId: string) {
     .from(quoteStatusHistoryTable)
     .where(eq(quoteStatusHistoryTable.quoteId, quoteId))
     .orderBy(desc(quoteStatusHistoryTable.createdAt));
+}
+
+// ── Business Rules (Motor de Reglas) ──
+
+export async function getAdminRules(filters?: { ruleType?: string; scope?: string }) {
+  const conditions: SQL[] = [];
+  if (filters?.ruleType) conditions.push(eq(businessRulesTable.ruleType, filters.ruleType));
+  if (filters?.scope) conditions.push(eq(businessRulesTable.scope, filters.scope));
+
+  return db
+    .select()
+    .from(businessRulesTable)
+    .where(conditions.length ? and(...conditions) : undefined)
+    .orderBy(desc(businessRulesTable.priority), desc(businessRulesTable.createdAt));
+}
+
+export async function getAdminRuleById(id: string) {
+  const [rule] = await db.select().from(businessRulesTable).where(eq(businessRulesTable.id, id)).limit(1);
+  return rule ?? null;
+}
+
+export async function createRule(data: {
+  name: string;
+  ruleType: string;
+  scope: string;
+  scopeId: string | null;
+  config: unknown;
+  priority?: number;
+  validFrom?: Date | null;
+  validTo?: Date | null;
+}) {
+  const [rule] = await db.insert(businessRulesTable).values(data).returning();
+  return rule;
+}
+
+export async function updateRule(
+  id: string,
+  changes: Partial<{
+    name: string;
+    scope: string;
+    scopeId: string | null;
+    config: unknown;
+    isActive: boolean;
+    priority: number;
+    validFrom: Date | null;
+    validTo: Date | null;
+  }>
+) {
+  const [rule] = await db
+    .update(businessRulesTable)
+    .set({ ...changes, updatedAt: new Date() })
+    .where(eq(businessRulesTable.id, id))
+    .returning();
+  return rule;
+}
+
+export async function deleteRule(id: string) {
+  await db.delete(businessRulesTable).where(eq(businessRulesTable.id, id));
 }
