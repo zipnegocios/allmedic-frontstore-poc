@@ -11,6 +11,8 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { RULE_TYPE_LABELS, type RuleTypeKey } from '@/lib/rule-config-schemas';
 import { RuleDocPanel } from './RuleDocPanel';
+import { RuleConflictsPanel } from './RuleConflictsPanel';
+import type { RuleConflict } from '@/lib/rules-engine';
 import { Trash2, Plus } from 'lucide-react';
 
 type Scope = 'GLOBAL' | 'BRAND' | 'SET_GROUP' | 'SET' | 'PRODUCT';
@@ -68,6 +70,10 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
   const [setGroups, setSetGroups] = useState<ScopeOption[]>([]);
   const [sets, setSets] = useState<ScopeOption[]>([]);
 
+  const [conflicts, setConflicts] = useState<RuleConflict[]>([]);
+  const [checkingConflicts, setCheckingConflicts] = useState(false);
+  const [warningsAcknowledged, setWarningsAcknowledged] = useState(false);
+
   useEffect(() => {
     Promise.all([
       fetch('/api/admin/brands?limit=1000').then((r) => (r.ok ? r.json() : { brands: [] })),
@@ -79,6 +85,45 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
       setSets((s.sets ?? []).map((x: { id: string; name: string }) => ({ id: x.id, name: x.name })));
     }).catch(() => {});
   }, []);
+
+  // Verificación proactiva de conflictos: debounce ~600ms tras cualquier cambio relevante.
+  useEffect(() => {
+    setWarningsAcknowledged(false); // un cambio nuevo invalida cualquier confirmación previa
+    if (scope !== 'GLOBAL' && !scopeId) {
+      setConflicts([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setCheckingConflicts(true);
+      try {
+        const res = await fetch('/api/admin/rules/check-conflicts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: mode === 'edit' ? ruleId : '',
+            name,
+            ruleType,
+            scope,
+            scopeId: scope === 'GLOBAL' ? null : scopeId,
+            config,
+            priority,
+            isActive,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setConflicts(data.conflicts ?? []);
+        }
+      } catch {
+        // Fallback silencioso: si la verificación falla, no bloquea al admin — el
+        // servidor igual re-valida ERRORs al guardar (regla de oro del proyecto).
+      } finally {
+        setCheckingConflicts(false);
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ruleType, scope, scopeId, priority, config, isActive]);
 
   function handleRuleTypeChange(next: RuleTypeKey) {
     setRuleType(next);
@@ -96,6 +141,17 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
     }
     if (scope !== 'GLOBAL' && !scopeId) {
       toast.error('Selecciona un ámbito específico o cambia a Global');
+      return;
+    }
+
+    const hasErrors = conflicts.some((c) => c.severity === 'ERROR');
+    const hasUnacknowledgedWarnings = conflicts.some((c) => c.severity === 'WARNING') && !warningsAcknowledged;
+    if (hasErrors) {
+      toast.error('Resuelve los conflictos marcados en rojo antes de guardar');
+      return;
+    }
+    if (hasUnacknowledgedWarnings) {
+      toast.error('Confirma que entiendes las advertencias antes de guardar');
       return;
     }
 
@@ -216,7 +272,21 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
           <RuleConfigFields ruleType={ruleType} config={config} onChange={updateConfig} setConfig={setConfig} />
         </div>
 
-        <Button onClick={handleSubmit} disabled={saving}>
+        <RuleConflictsPanel
+          conflicts={conflicts}
+          checking={checkingConflicts}
+          warningsAcknowledged={warningsAcknowledged}
+          onAcknowledgeChange={setWarningsAcknowledged}
+        />
+
+        <Button
+          onClick={handleSubmit}
+          disabled={
+            saving ||
+            conflicts.some((c) => c.severity === 'ERROR') ||
+            (conflicts.some((c) => c.severity === 'WARNING') && !warningsAcknowledged)
+          }
+        >
           {saving ? 'Guardando...' : mode === 'create' ? 'Crear regla' : 'Guardar cambios'}
         </Button>
       </CardContent>

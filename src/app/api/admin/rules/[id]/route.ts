@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/admin-auth';
-import { getAdminRuleById, updateRule, deleteRule } from '@/lib/admin-data-service';
-import { validateRuleConfig } from '@/lib/rule-config-schemas';
+import { getAdminRuleById, updateRule, deleteRule, getAdminRules } from '@/lib/admin-data-service';
+import { validateRuleConfig, toBusinessRule } from '@/lib/rule-config-schemas';
+import { detectConflicts, type BusinessRule } from '@/lib/rules-engine';
 
 const PatchRuleSchema = z.object({
   name: z.string().min(1).optional(),
@@ -42,6 +43,30 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const config = body.config !== undefined
       ? validateRuleConfig(existing.ruleType, body.config)
       : undefined;
+
+    // Doble validación en servidor: solo si la regla resultante queda activa —
+    // desactivar una regla siempre debe permitirse, incluso para resolver un conflicto.
+    const resultingIsActive = body.isActive ?? existing.isActive ?? true;
+    if (resultingIsActive) {
+      const candidate: BusinessRule = {
+        id: existing.id,
+        name: body.name ?? existing.name,
+        ruleType: existing.ruleType as BusinessRule['ruleType'],
+        scope: (body.scope ?? existing.scope) as BusinessRule['scope'],
+        scopeId: body.scopeId !== undefined ? body.scopeId : existing.scopeId,
+        config: (config ?? existing.config) as Record<string, unknown>,
+        isActive: true,
+        priority: body.priority ?? existing.priority ?? 0,
+        validFrom: body.validFrom !== undefined ? (body.validFrom ? new Date(body.validFrom) : null) : existing.validFrom,
+        validTo: body.validTo !== undefined ? (body.validTo ? new Date(body.validTo) : null) : existing.validTo,
+      };
+      const existingRules = (await getAdminRules()).map(toBusinessRule);
+      const conflicts = detectConflicts(candidate, existingRules);
+      const errors = conflicts.filter((c) => c.severity === 'ERROR');
+      if (errors.length > 0) {
+        return NextResponse.json({ error: 'La regla tiene conflictos que impiden guardarla', conflicts: errors }, { status: 409 });
+      }
+    }
 
     const rule = await updateRule(id, {
       ...(body.name !== undefined ? { name: body.name } : {}),

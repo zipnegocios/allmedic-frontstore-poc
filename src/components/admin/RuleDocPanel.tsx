@@ -174,6 +174,7 @@ export function RuleDocPanel({ ruleType, scope, onApplyExample }: RuleDocPanelPr
             <p className="text-xs text-gray-500 leading-relaxed">{HIERARCHY_DOC.detail}</p>
             <p className="text-xs text-gray-500 leading-relaxed mt-2">{HIERARCHY_DOC.validityWindows}</p>
             <p className="text-xs text-gray-500 leading-relaxed mt-2">{HIERARCHY_DOC.multiInstance}</p>
+            <p className="text-xs text-gray-500 leading-relaxed mt-2">{HIERARCHY_DOC.conflictDetection}</p>
           </div>
         </div>
       </CardContent>

@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Pencil, Trash2, Settings2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Settings2, CheckCircle2, AlertTriangle, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { RULE_TYPE_LABELS, type RuleTypeKey } from '@/lib/rule-config-schemas';
 
@@ -21,6 +21,39 @@ interface AdminRule {
   scopeId: string | null;
   isActive: boolean;
   priority: number;
+  conflictErrors: number;
+  conflictWarnings: number;
+}
+
+function HealthBadge({ rule }: { rule: AdminRule }) {
+  if (!rule.isActive) {
+    return <span className="text-xs text-gray-400">—</span>;
+  }
+  if (rule.conflictErrors > 0) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 text-xs text-red-600"
+        title={`${rule.conflictErrors} conflicto(s) grave(s) — el resultado de esta regla es indefinido`}
+      >
+        <AlertCircle className="w-4 h-4" /> {rule.conflictErrors}
+      </span>
+    );
+  }
+  if (rule.conflictWarnings > 0) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 text-xs text-amber-600"
+        title={`${rule.conflictWarnings} advertencia(s) — revisa la edición de esta regla para más detalle`}
+      >
+        <AlertTriangle className="w-4 h-4" /> {rule.conflictWarnings}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-xs text-green-600" title="Sin conflictos detectados">
+      <CheckCircle2 className="w-4 h-4" />
+    </span>
+  );
 }
 
 const SCOPE_LABELS: Record<string, string> = {
@@ -103,6 +136,7 @@ export default function AdminRulesPage() {
                 <TableHead>Tipo</TableHead>
                 <TableHead>Ámbito</TableHead>
                 <TableHead>Prioridad</TableHead>
+                <TableHead>Salud</TableHead>
                 <TableHead>Activa</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
@@ -110,11 +144,11 @@ export default function AdminRulesPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">Cargando...</TableCell>
+                  <TableCell colSpan={7} className="text-center py-8">Cargando...</TableCell>
                 </TableRow>
               ) : rules.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                  <TableCell colSpan={7} className="text-center py-8 text-gray-500">
                     <Settings2 className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                     No hay reglas de negocio registradas
                   </TableCell>
@@ -128,6 +162,7 @@ export default function AdminRulesPage() {
                     </TableCell>
                     <TableCell>{SCOPE_LABELS[rule.scope] ?? rule.scope}</TableCell>
                     <TableCell>{rule.priority}</TableCell>
+                    <TableCell><HealthBadge rule={rule} /></TableCell>
                     <TableCell>
                       <Switch checked={rule.isActive} onCheckedChange={() => handleToggleActive(rule)} />
                     </TableCell>

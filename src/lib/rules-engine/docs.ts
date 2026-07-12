@@ -49,6 +49,14 @@ export const HIERARCHY_DOC = {
     "más específica reemplace a las demás, TODAS las reglas activas y aplicables de ese tipo se " +
     "acumulan (por ejemplo, puedes tener dos promociones distintas vigentes al mismo tiempo sobre " +
     "el mismo set).",
+  conflictDetection:
+    "Al crear o editar una regla, el sistema verifica automáticamente si entra en conflicto con " +
+    "otras reglas existentes (duplicados en el mismo ámbito, mínimos que contradicen rangos o " +
+    "múltiplos, promociones inalcanzables, descuentos sobre precios ocultos, etc.). Los conflictos " +
+    "graves (rojo) impiden guardar; las advertencias (ámbar) requieren tu confirmación explícita; " +
+    "los avisos informativos (azul) no bloquean nada. El servidor vuelve a verificar los conflictos " +
+    "graves al guardar, aunque el formulario ya los haya mostrado — nunca se puede saltar esa " +
+    "verificación desde el navegador.",
 } as const;
 
 export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
