@@ -1,4 +1,4 @@
-import type { BusinessRule, CorporateCart, PricingResult, SetPriceInfo } from "./types";
+import type { BusinessRule, CorporateCart, PricingResult, SetMeta, SetPriceInfo } from "./types";
 import { resolveRules } from "./resolve";
 
 function round2(n: number): number {
@@ -6,14 +6,15 @@ function round2(n: number): number {
 }
 
 /**
- * Calcula subtotales, escala de volumen y total referencial de un carrito corporativo.
- * Se usa IDÉNTICO en cliente (preview) y servidor (fuente de verdad) — sin efectos
- * secundarios, solo funciones puras sobre los datos recibidos.
+ * Calcula subtotales, escala de volumen, promociones y total referencial de un
+ * carrito corporativo. Se usa IDÉNTICO en cliente (preview) y servidor (fuente de
+ * verdad) — sin efectos secundarios, solo funciones puras sobre los datos recibidos.
  */
 export function computeCartPricing(
   cart: CorporateCart,
   setPrices: Record<string, SetPriceInfo>,
   allRules: BusinessRule[],
+  setMeta: Record<string, SetMeta> = {},
   now: Date = new Date()
 ): PricingResult {
   const lines = cart.items.map((item) => {
@@ -49,13 +50,38 @@ export function computeCartPricing(
   }
 
   const volumeDiscountAmount = round2(subtotalBeforeDiscount * (volumeDiscountPct / 100));
-  const total = round2(subtotalBeforeDiscount - volumeDiscountAmount);
+
+  // PROMO (ej. N_PLUS_ONE): resuelta POR ÍTEM (setId/setGroupId/brandId), a diferencia
+  // de la escala de volumen que es GLOBAL — así una promo de ámbito SET solo descuenta
+  // en el set al que pertenece. Los tipos multi-instancia (varias promos activas a la
+  // vez) se acumulan, como documenta HIERARCHY_DOC.
+  let promoDiscountAmount = 0;
+  for (const item of cart.items) {
+    const meta = setMeta[item.setId] ?? {};
+    const itemResolved = resolveRules(
+      allRules,
+      { setId: item.setId, setGroupId: meta.setGroupId, brandId: meta.brandId },
+      now
+    );
+    const itemQty = item.lines.reduce((sum, line) => sum + line.quantity, 0);
+    const unitPrice = setPrices[item.setId]?.pricePerSet ?? 0;
+    for (const promo of itemResolved.promos) {
+      if (promo.kind === "N_PLUS_ONE" && promo.buy > 0) {
+        const cycles = Math.floor(itemQty / promo.buy);
+        promoDiscountAmount += cycles * promo.free * unitPrice;
+      }
+    }
+  }
+  promoDiscountAmount = round2(promoDiscountAmount);
+
+  const total = round2(subtotalBeforeDiscount - volumeDiscountAmount - promoDiscountAmount);
 
   return {
     lines,
     subtotalBeforeDiscount,
     volumeDiscountPct,
     volumeDiscountAmount,
+    promoDiscountAmount,
     total,
     hasMissingPrices,
   };

@@ -31,6 +31,8 @@ export function SetDetailContent({ set, sizeMode, minQuantity, showPrices }: Set
   const [perPieceQuantity, setPerPieceQuantity] = useState<number>(minQuantity);
   const [perPieceSizes, setPerPieceSizes] = useState<Record<string, string>>({});
 
+  const piecesPerSet = set.pieces.reduce((sum, p) => sum + p.quantityPerSet, 0);
+
   const setCartItemBase = {
     setId: set.id,
     setSlug: set.slug,
@@ -41,6 +43,7 @@ export function SetDetailContent({ set, sizeMode, minQuantity, showPrices }: Set
     brandId: set.brandId,
     unitPrice: set.referencePrice ?? 0,
     hasMissingPrices: set.hasMissingPrices,
+    piecesPerSet,
   };
 
   function handleAddMatrix() {

@@ -128,6 +128,52 @@ describe("validateCorporateCart — mínimo de sets", () => {
     expect(result.totalSets).toBe(12);
     expect(result.canSubmit).toBe(true);
   });
+
+  it("countUnit por defecto (SETS) reporta countUnit: 'SETS' en el resultado", () => {
+    const cart: CorporateCart = {
+      items: [{ setId: "set-1", sizeMode: "MATRIX", lines: [{ size: "M", quantity: 12 }] }],
+    };
+    const result = validateCorporateCart(cart, rules);
+    expect(result.countUnit).toBe("SETS");
+  });
+});
+
+describe("validateCorporateCart — mínimo con countUnit: PIECES", () => {
+  const rules = [rule({ ruleType: "MIN_QUANTITY", scope: "GLOBAL", config: { min: 24, countUnit: "PIECES" } })];
+
+  it("cuenta piezas reales (quantity de sets × piezas por set), no sets", () => {
+    // set-1 tiene 2 piezas por set (ej. camisa + pantalón); 10 sets = 20 piezas, bajo el mínimo de 24
+    const cart: CorporateCart = {
+      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 10 }] }],
+    };
+    const setMeta = { "set-1": { piecesPerSet: 2 } };
+    const result = validateCorporateCart(cart, rules, setMeta);
+    expect(result.countUnit).toBe("PIECES");
+    expect(result.totalSets).toBe(20); // 10 sets * 2 piezas
+    expect(result.canSubmit).toBe(false);
+    expect(result.setsRemaining).toBe(4);
+    expect(result.violations.some((v) => v.code === "MIN_QUANTITY")).toBe(true);
+    expect(result.violations[0].message).toContain("piezas");
+  });
+
+  it("permite el envío cuando las piezas reales alcanzan el mínimo", () => {
+    const cart: CorporateCart = {
+      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 12 }] }],
+    };
+    const setMeta = { "set-1": { piecesPerSet: 2 } };
+    const result = validateCorporateCart(cart, rules, setMeta);
+    expect(result.totalSets).toBe(24); // 12 sets * 2 piezas
+    expect(result.canSubmit).toBe(true);
+  });
+
+  it("sin piecesPerSet en setMeta, asume 1 pieza por set (fallback seguro, no rompe)", () => {
+    const cart: CorporateCart = {
+      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 24 }] }],
+    };
+    const result = validateCorporateCart(cart, rules, {});
+    expect(result.totalSets).toBe(24);
+    expect(result.canSubmit).toBe(true);
+  });
 });
 
 describe("validateCorporateCart — matriz de tallas (SIZE_MODE)", () => {
@@ -235,6 +281,97 @@ describe("computeCartPricing — escala de volumen", () => {
       []
     );
     expect(result.hasMissingPrices).toBe(true);
+  });
+
+  it("promoDiscountAmount es 0 cuando no hay reglas PROMO", () => {
+    const cart: CorporateCart = {
+      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 12 }] }],
+    };
+    const result = computeCartPricing(cart, { "set-1": { pricePerSet: 10, hasMissingPrices: false } }, []);
+    expect(result.promoDiscountAmount).toBe(0);
+  });
+});
+
+describe("computeCartPricing — PROMO (N_PLUS_ONE)", () => {
+  it("aplica 13+1: cada 13 unidades del set, 1 sale gratis", () => {
+    const rules = [
+      rule({ ruleType: "PROMO", scope: "SET", scopeId: "set-1", config: { kind: "N_PLUS_ONE", buy: 13, free: 1 } }),
+    ];
+    const cart: CorporateCart = {
+      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 26 }] }],
+    };
+    const result = computeCartPricing(
+      cart,
+      { "set-1": { pricePerSet: 10, hasMissingPrices: false } },
+      rules,
+      { "set-1": {} }
+    );
+    // 26 unidades -> 2 ciclos de 13 -> 2 gratis -> 2 * 10 = 20 de descuento
+    expect(result.promoDiscountAmount).toBe(20);
+    expect(result.subtotalBeforeDiscount).toBe(260);
+    expect(result.total).toBe(240);
+  });
+
+  it("no aplica la promo si la cantidad no alcanza un ciclo completo de 'buy'", () => {
+    const rules = [
+      rule({ ruleType: "PROMO", scope: "SET", scopeId: "set-1", config: { kind: "N_PLUS_ONE", buy: 13, free: 1 } }),
+    ];
+    const cart: CorporateCart = {
+      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 12 }] }],
+    };
+    const result = computeCartPricing(
+      cart,
+      { "set-1": { pricePerSet: 10, hasMissingPrices: false } },
+      rules,
+      { "set-1": {} }
+    );
+    expect(result.promoDiscountAmount).toBe(0);
+  });
+
+  it("una promo de ámbito SET no afecta a otro set sin esa regla", () => {
+    const rules = [
+      rule({ ruleType: "PROMO", scope: "SET", scopeId: "set-1", config: { kind: "N_PLUS_ONE", buy: 13, free: 1 } }),
+    ];
+    const cart: CorporateCart = {
+      items: [
+        { setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 13 }] },
+        { setId: "set-2", sizeMode: "NO_SIZES", lines: [{ quantity: 13 }] },
+      ],
+    };
+    const result = computeCartPricing(
+      cart,
+      {
+        "set-1": { pricePerSet: 10, hasMissingPrices: false },
+        "set-2": { pricePerSet: 10, hasMissingPrices: false },
+      },
+      rules,
+      { "set-1": {}, "set-2": {} }
+    );
+    // Solo set-1 tiene la promo activa: 1 ciclo de 13 -> 1 gratis -> 10 de descuento
+    expect(result.promoDiscountAmount).toBe(10);
+  });
+
+  it("una promo GLOBAL aplica a todos los sets del carrito (acumulable)", () => {
+    const rules = [
+      rule({ ruleType: "PROMO", scope: "GLOBAL", config: { kind: "N_PLUS_ONE", buy: 10, free: 1 } }),
+    ];
+    const cart: CorporateCart = {
+      items: [
+        { setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 10 }] },
+        { setId: "set-2", sizeMode: "NO_SIZES", lines: [{ quantity: 10 }] },
+      ],
+    };
+    const result = computeCartPricing(
+      cart,
+      {
+        "set-1": { pricePerSet: 5, hasMissingPrices: false },
+        "set-2": { pricePerSet: 8, hasMissingPrices: false },
+      },
+      rules,
+      { "set-1": {}, "set-2": {} }
+    );
+    // set-1: 1 ciclo * $5 = $5 ; set-2: 1 ciclo * $8 = $8 -> total $13
+    expect(result.promoDiscountAmount).toBe(13);
   });
 });
 

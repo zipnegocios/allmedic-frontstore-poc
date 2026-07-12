@@ -10,6 +10,7 @@ import {
   type ValidationResult,
   type PricingResult,
   type SizeMode,
+  type CountUnit,
 } from '@/lib/rules-engine';
 
 export interface CorporateCartLine {
@@ -30,6 +31,9 @@ export interface CorporateCartItem {
   brandId: string | null;
   unitPrice: number;
   hasMissingPrices: boolean;
+  /** Suma de quantityPerSet de todas las piezas del set — usado por MIN_QUANTITY
+   * cuando la regla activa tiene countUnit: "PIECES". */
+  piecesPerSet: number;
   lines: CorporateCartLine[];
 }
 
@@ -48,6 +52,7 @@ interface CorporateCartContextType {
   validation: ValidationResult;
   pricing: PricingResult;
   globalMinQuantity: number;
+  globalCountUnit: CountUnit;
 }
 
 const CorporateCartContext = createContext<CorporateCartContextType | undefined>(undefined);
@@ -238,7 +243,7 @@ export function CorporateCartProvider({ children }: { children: React.ReactNode 
   const setMeta = useMemo(
     () =>
       Object.fromEntries(
-        items.map((i) => [i.setId, { setGroupId: i.setGroupId, brandId: i.brandId }])
+        items.map((i) => [i.setId, { setGroupId: i.setGroupId, brandId: i.brandId, piecesPerSet: i.piecesPerSet }])
       ),
     [items]
   );
@@ -274,11 +279,13 @@ export function CorporateCartProvider({ children }: { children: React.ReactNode 
   );
 
   const pricing = useMemo(
-    () => computeCartPricing(cartForEngine, setPrices, rules),
-    [cartForEngine, setPrices, rules]
+    () => computeCartPricing(cartForEngine, setPrices, rules, setMeta),
+    [cartForEngine, setPrices, rules, setMeta]
   );
 
-  const globalMinQuantity = useMemo(() => resolveRules(rules, {}).minQuantity.min, [rules]);
+  const globalMinQuantityConfig = useMemo(() => resolveRules(rules, {}).minQuantity, [rules]);
+  const globalMinQuantity = globalMinQuantityConfig.min;
+  const globalCountUnit = globalMinQuantityConfig.countUnit;
 
   return (
     <CorporateCartContext.Provider
@@ -294,6 +301,7 @@ export function CorporateCartProvider({ children }: { children: React.ReactNode 
         validation,
         pricing,
         globalMinQuantity,
+        globalCountUnit,
       }}
     >
       {children}

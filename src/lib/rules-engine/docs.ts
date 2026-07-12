@@ -76,20 +76,20 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
         description: "En qué unidad se mide el mínimo.",
         options: [
           { value: "SETS", label: "Sets", description: "Cuenta la cantidad total de sets del carrito (suma de todas las líneas de todos los sets)." },
-          { value: "PIECES", label: "Piezas", description: "Cuenta piezas individuales en vez de sets completos. Aún no implementado (ver advertencia)." },
+          { value: "PIECES", label: "Piezas", description: "Cuenta piezas individuales reales: cada set del carrito aporta tantas piezas como suman sus componentes (ej. un set de camisa + pantalón aporta 2 piezas por unidad)." },
         ],
       },
     ],
     examples: [
       { title: "Mínimo estándar", config: { min: 12, countUnit: "SETS" }, explanation: "El comportamiento por defecto del sistema — mínimo de 12 sets." },
       { title: "Mínimo reducido para institución piloto", config: { min: 6, countUnit: "SETS" }, explanation: "Útil para negociaciones especiales, pero recuerda que en ámbitos distintos a Global es solo informativo (ver advertencia)." },
+      { title: "Mínimo en piezas", config: { min: 100, countUnit: "PIECES" }, explanation: "Exige 100 piezas reales en total, sin importar cuántos sets distintos las componen." },
     ],
     interactions: [
       "Si además existe una regla de Rango de cantidad (QUANTITY_RANGE) con un máximo menor a este mínimo en el mismo ámbito, ninguna cantidad satisface ambas reglas a la vez — el detector de conflictos de la Fase 4 marca esto como error.",
     ],
     warnings: [
       "Los ámbitos Set, Grupo de Sets y Marca se muestran como texto informativo en la ficha del set correspondiente ('Compra mínima: N sets'), pero NO se aplican al validar el envío del carrito — el mínimo que realmente bloquea el botón de envío siempre es el de ámbito Global, sin importar cuántos ámbitos más específicos hayas creado.",
-      "La unidad 'Piezas' (countUnit: PIECES) todavía no se implementa: el sistema siempre cuenta en Sets sin importar esta opción.",
     ],
   },
 
@@ -276,25 +276,27 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
     title: "Promoción",
     summary: "Promociones tipo 'compra N y llévate M gratis' sobre un set del catálogo corporativo.",
     detail:
-      "Esta regla está definida en el motor y en el panel, pero todavía no se aplica en el cálculo de " +
-      "precios del carrito corporativo — crearla no produce ningún descuento visible por ahora.",
-    appliesTo: [],
-    supportedScopes: [],
-    defaultBehavior: "No tiene efecto en el cálculo de precios actualmente, sin importar la configuración.",
+      "Se resuelve por set individual (igual que Solo múltiplos o Rango de cantidad) — una promoción de " +
+      "ámbito Set solo descuenta en ese set, no en el resto del carrito. Si hay varias promociones activas " +
+      "aplicables al mismo set, se acumulan. El descuento se calcula sobre la cantidad total de sets " +
+      "pedidos de ese set: por cada bloque completo de 'buy' unidades alcanzado, se descuenta el precio " +
+      "de 'free' unidades del total. Se muestra en el carrito como 'Descuento por promoción'.",
+    appliesTo: ["CORPORATE"],
+    supportedScopes: ["GLOBAL", "BRAND", "SET_GROUP", "SET"],
+    defaultBehavior: "Sin ninguna regla activa, no se aplica ninguna promoción.",
     fields: [
       { key: "kind", label: "Tipo de promoción", description: "Actualmente solo existe el tipo 'N + 1' (compra N, llévate 1 más gratis).", example: "N_PLUS_ONE" },
-      { key: "buy", label: "Compra (buy)", description: "Cantidad que el cliente debe comprar para activar la promoción.", example: "13" },
+      { key: "buy", label: "Compra (buy)", description: "Cantidad que el cliente debe comprar (dentro del mismo set) para activar un ciclo de la promoción.", example: "13" },
       { key: "free", label: "Gratis (free)", description: "Cantidad de unidades adicionales gratuitas por cada bloque de 'buy' alcanzado.", example: "1" },
     ],
     examples: [
-      { title: "13 + 1", config: { kind: "N_PLUS_ONE", buy: 13, free: 1 }, explanation: "Por cada 13 unidades compradas, 1 es gratis." },
+      { title: "13 + 1", config: { kind: "N_PLUS_ONE", buy: 13, free: 1 }, explanation: "Por cada 13 unidades compradas de ese set, 1 es gratis. Con 26 unidades, se descuentan 2." },
     ],
     interactions: [
       "Si el ámbito de esta promoción exige más unidades (buy) que el máximo permitido por Rango de cantidad en el mismo contexto, la promoción nunca se activa — el detector de conflictos de la Fase 4 lo advierte.",
+      "Si Visibilidad de precios oculta el precio en el contexto donde esta promoción aplica, el cliente no ve el descuento reflejado (el total sigue siendo correcto, pero no hay forma de mostrar 'ahorraste $X' sin mostrar precios).",
     ],
-    warnings: [
-      "Esta regla está definida pero aún no tiene efecto en el cálculo de precios del carrito corporativo — se activará en una fase futura.",
-    ],
+    warnings: [],
   },
 
   COLOR_RESTRICTION: {

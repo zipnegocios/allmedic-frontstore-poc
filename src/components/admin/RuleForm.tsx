@@ -34,6 +34,12 @@ interface RuleFormProps {
   };
 }
 
+// Tipos confirmados como ❌ Muertos en docs/audits/AUDITORIA-motor-reglas.md: no existe
+// ningún flujo que pueda hacerlos tener efecto (ej. COLOR_RESTRICTION no tiene selector
+// de color en ningún modo del carrito corporativo). Se deshabilitan en vez de fingir que
+// funcionan — ver RuleDocPanel para la explicación completa por tipo.
+const DISABLED_RULE_TYPES: RuleTypeKey[] = ['COLOR_RESTRICTION'];
+
 const DEFAULT_CONFIG_BY_TYPE: Record<RuleTypeKey, Record<string, unknown>> = {
   MIN_QUANTITY: { min: 12, countUnit: 'SETS' },
   MULTIPLES_ONLY: { multipleOf: 6 },
@@ -144,7 +150,9 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
               <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {(Object.keys(RULE_TYPE_LABELS) as RuleTypeKey[]).map((t) => (
-                  <SelectItem key={t} value={t}>{RULE_TYPE_LABELS[t]}</SelectItem>
+                  <SelectItem key={t} value={t} disabled={DISABLED_RULE_TYPES.includes(t)}>
+                    {RULE_TYPE_LABELS[t]}{DISABLED_RULE_TYPES.includes(t) ? ' (sin efecto aún)' : ''}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -160,7 +168,7 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
                 <SelectItem value="BRAND">Marca</SelectItem>
                 <SelectItem value="SET_GROUP">Grupo de Sets</SelectItem>
                 <SelectItem value="SET">Set específico</SelectItem>
-                <SelectItem value="PRODUCT">Producto específico</SelectItem>
+                <SelectItem value="PRODUCT" disabled>Producto específico (sin efecto aún)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -316,8 +324,8 @@ function RuleConfigFields({
           <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="IGNORE">Ignorar stock</SelectItem>
-            <SelectItem value="BLOCK">Bloquear si no hay stock</SelectItem>
-            <SelectItem value="INFORMATIVE">Solo informativo</SelectItem>
+            <SelectItem value="BLOCK" disabled>Bloquear si no hay stock (próximamente)</SelectItem>
+            <SelectItem value="INFORMATIVE" disabled>Solo informativo (próximamente)</SelectItem>
           </SelectContent>
         </Select>
       );

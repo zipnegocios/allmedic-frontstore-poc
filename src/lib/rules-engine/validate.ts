@@ -11,6 +11,10 @@ function pluralSets(n: number): string {
   return n === 1 ? "set" : "sets";
 }
 
+function pluralPieces(n: number): string {
+  return n === 1 ? "pieza" : "piezas";
+}
+
 /**
  * Valida un carrito corporativo completo contra el motor de reglas.
  * Devuelve violaciones en español, orientadas a la acción, y si se puede enviar la solicitud.
@@ -31,13 +35,28 @@ export function validateCorporateCart(
 
   // ── MIN_QUANTITY (resuelto a nivel GLOBAL — mínimo de carrito completo) ──
   const globalResolved = resolveRules(allRules, {}, now);
-  const minRequired = globalResolved.minQuantity.min;
-  const setsRemaining = Math.max(0, minRequired - totalSets);
+  const { min: minRequired, countUnit } = globalResolved.minQuantity;
 
-  if (totalSets < minRequired) {
+  // countUnit: "PIECES" convierte la cantidad de sets de cada línea a piezas reales
+  // usando `piecesPerSet` de `setMeta` (suma de quantityPerSet de las piezas del set).
+  // Sin dato disponible, asume 1 pieza por set (fallback seguro — nunca bloquea de más).
+  const totalForMinCheck =
+    countUnit === "PIECES"
+      ? cart.items.reduce((sum, item) => {
+          const itemQty = item.lines.reduce((lineSum, line) => lineSum + line.quantity, 0);
+          const piecesPerSet = setMeta[item.setId]?.piecesPerSet ?? 1;
+          return sum + itemQty * piecesPerSet;
+        }, 0)
+      : totalSets;
+
+  const setsRemaining = Math.max(0, minRequired - totalForMinCheck);
+  const unitLabel = countUnit === "PIECES" ? pluralPieces(setsRemaining) : pluralSets(setsRemaining);
+  const unitLabelRequired = countUnit === "PIECES" ? pluralPieces(minRequired) : pluralSets(minRequired);
+
+  if (totalForMinCheck < minRequired) {
     violations.push({
       code: "MIN_QUANTITY",
-      message: `Agrega ${setsRemaining} ${pluralSets(setsRemaining)} más para alcanzar el mínimo de ${minRequired} ${pluralSets(minRequired)}.`,
+      message: `Agrega ${setsRemaining} ${unitLabel} más para alcanzar el mínimo de ${minRequired} ${unitLabelRequired}.`,
     });
   }
 
@@ -131,8 +150,9 @@ export function validateCorporateCart(
   return {
     canSubmit: violations.length === 0,
     violations,
-    totalSets,
+    totalSets: totalForMinCheck,
     minRequired,
     setsRemaining,
+    countUnit,
   };
 }

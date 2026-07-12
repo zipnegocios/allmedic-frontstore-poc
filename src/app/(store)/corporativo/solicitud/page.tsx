@@ -200,7 +200,7 @@ export default function SolicitudPage() {
         <div className="rounded-lg bg-[#F5F5F7] p-4 mb-6 space-y-2">
           <h3 className="font-semibold text-sm mb-2">Resumen de tu solicitud</h3>
           <div className="flex justify-between text-sm">
-            <span className="text-gray-500">Sets totales</span>
+            <span className="text-gray-500">{validation.countUnit === 'PIECES' ? 'Piezas totales' : 'Sets totales'}</span>
             <span className="font-medium">{validation.totalSets}</span>
           </div>
           <div className="flex justify-between text-sm">
@@ -211,6 +211,12 @@ export default function SolicitudPage() {
             <div className="flex justify-between text-sm text-[#34C759]">
               <span>Escala de volumen ({pricing.volumeDiscountPct}%)</span>
               <span>-${pricing.volumeDiscountAmount.toFixed(2)}</span>
+            </div>
+          )}
+          {pricing.promoDiscountAmount > 0 && (
+            <div className="flex justify-between text-sm text-[#34C759]">
+              <span>Descuento por promoción</span>
+              <span>-${pricing.promoDiscountAmount.toFixed(2)}</span>
             </div>
           )}
           <div className="flex justify-between text-base font-bold pt-2 border-t border-[#E5E5E5]">

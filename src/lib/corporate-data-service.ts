@@ -289,14 +289,31 @@ export async function getSetPricesByIds(setIds: string[]): Promise<Record<string
   return result;
 }
 
-// ── Metadata de sets (setGroupId, brandId) para el motor de reglas ──
-export async function getSetMetaByIds(setIds: string[]): Promise<Record<string, { setGroupId: string | null; brandId: string | null }>> {
+// ── Metadata de sets (setGroupId, brandId, piezas por set) para el motor de reglas ──
+export async function getSetMetaByIds(
+  setIds: string[]
+): Promise<Record<string, { setGroupId: string | null; brandId: string | null; piecesPerSet: number }>> {
   if (setIds.length === 0) return {};
-  const rows = await db
-    .select({ id: corporateSetsTable.id, setGroupId: corporateSetsTable.setGroupId, brandId: corporateSetsTable.brandId })
-    .from(corporateSetsTable)
-    .where(inArray(corporateSetsTable.id, setIds));
-  return Object.fromEntries(rows.map((r) => [r.id, { setGroupId: r.setGroupId, brandId: r.brandId }]));
+
+  const [setRows, itemRows] = await Promise.all([
+    db
+      .select({ id: corporateSetsTable.id, setGroupId: corporateSetsTable.setGroupId, brandId: corporateSetsTable.brandId })
+      .from(corporateSetsTable)
+      .where(inArray(corporateSetsTable.id, setIds)),
+    db
+      .select({ setId: setItemsTable.setId, quantityPerSet: setItemsTable.quantityPerSet })
+      .from(setItemsTable)
+      .where(inArray(setItemsTable.setId, setIds)),
+  ]);
+
+  const piecesBySet = new Map<string, number>();
+  for (const item of itemRows) {
+    piecesBySet.set(item.setId, (piecesBySet.get(item.setId) ?? 0) + (item.quantityPerSet ?? 1));
+  }
+
+  return Object.fromEntries(
+    setRows.map((r) => [r.id, { setGroupId: r.setGroupId, brandId: r.brandId, piecesPerSet: piecesBySet.get(r.id) ?? 1 }])
+  );
 }
 
 // ── Portal del cliente corporativo ──

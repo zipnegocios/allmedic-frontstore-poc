@@ -135,6 +135,9 @@ export interface CorporateCart {
 export interface SetMeta {
   setGroupId?: string | null;
   brandId?: string | null;
+  /** Suma de `quantityPerSet` de todas las piezas del set — usado por MIN_QUANTITY
+   * cuando `countUnit: "PIECES"` para convertir sets a piezas reales. */
+  piecesPerSet?: number;
 }
 
 // ─── Resultado de validación ───
@@ -150,6 +153,10 @@ export interface ValidationResult {
   totalSets: number;
   minRequired: number;
   setsRemaining: number;
+  /** Unidad en la que están expresados `totalSets`/`minRequired`/`setsRemaining` —
+   * "SETS" (comportamiento histórico) o "PIECES" cuando la regla MIN_QUANTITY activa
+   * usa countUnit: "PIECES". La UI debe usar esta unidad para las etiquetas, no asumir "sets". */
+  countUnit: CountUnit;
 }
 
 // ─── Resultado de precios ───
@@ -170,6 +177,7 @@ export interface PricingResult {
   subtotalBeforeDiscount: number;
   volumeDiscountPct: number;
   volumeDiscountAmount: number;
+  promoDiscountAmount: number;
   total: number;
   hasMissingPrices: boolean;
 }

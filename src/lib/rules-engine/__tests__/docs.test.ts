@@ -41,14 +41,21 @@ describe("RULE_DOCS", () => {
     expect(doc.defaultBehavior.length).toBeGreaterThan(0);
   });
 
-  it("los tipos marcados como muertos en la auditoría documentan appliesTo/supportedScopes vacíos", () => {
-    // INVENTORY_MODE, PROMO y COLOR_RESTRICTION están confirmados como ❌ Muerta
-    // en docs/audits/AUDITORIA-motor-reglas.md — su doc debe ser honesta al respecto.
-    for (const ruleType of ["INVENTORY_MODE", "PROMO", "COLOR_RESTRICTION"] as RuleType[]) {
+  it("los tipos que siguen muertos tras la Fase 3 documentan appliesTo/supportedScopes vacíos", () => {
+    // INVENTORY_MODE y COLOR_RESTRICTION siguen ❌ Muerta tras la Fase 3 (decisión de negocio:
+    // no vale la pena construir un motor de inventario ni un selector de color en esta fase).
+    // PROMO se corrigió en la Fase 3 y salió de esta lista — ver test siguiente.
+    for (const ruleType of ["INVENTORY_MODE", "COLOR_RESTRICTION"] as RuleType[]) {
       expect(RULE_DOCS[ruleType].appliesTo).toEqual([]);
       expect(RULE_DOCS[ruleType].supportedScopes).toEqual([]);
       expect(RULE_DOCS[ruleType].warnings.length).toBeGreaterThan(0);
     }
+  });
+
+  it("PROMO se corrigió en la Fase 3: ya no está en la lista de tipos muertos", () => {
+    expect(RULE_DOCS.PROMO.appliesTo).toEqual(["CORPORATE"]);
+    expect(RULE_DOCS.PROMO.supportedScopes.length).toBeGreaterThan(0);
+    expect(RULE_DOCS.PROMO.warnings).toEqual([]);
   });
 
   it("select fields declaran una opción por cada valor válido del tipo union correspondiente", () => {

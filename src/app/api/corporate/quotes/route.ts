@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Precios recalculados en servidor — nunca se usa el precio enviado por el cliente.
-    const pricing = computeCartPricing(cart, setPrices, rules);
+    const pricing = computeCartPricing(cart, setPrices, rules, setMeta);
 
     const session = await auth().catch(() => null);
     let accountId: string | null = null;

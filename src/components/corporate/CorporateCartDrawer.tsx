@@ -20,8 +20,13 @@ function ClientOnly({ children, fallback = null }: { children: React.ReactNode; 
   return mounted ? <>{children}</> : <>{fallback}</>;
 }
 
+function unitLabel(countUnit: 'SETS' | 'PIECES', n: number): string {
+  if (countUnit === 'PIECES') return n === 1 ? 'pieza' : 'piezas';
+  return n === 1 ? 'set' : 'sets';
+}
+
 export function CorporateCartDrawer({ isOpen, onClose }: CorporateCartDrawerProps) {
-  const { items, updateLineQuantity, removeLine, validation, pricing, rulesLoading, globalMinQuantity } = useCorporateCart();
+  const { items, updateLineQuantity, removeLine, validation, pricing, rulesLoading, globalMinQuantity, globalCountUnit } = useCorporateCart();
 
   const progressPct = Math.min(100, (validation.totalSets / Math.max(1, validation.minRequired)) * 100);
 
@@ -59,7 +64,7 @@ export function CorporateCartDrawer({ isOpen, onClose }: CorporateCartDrawerProp
                 <Building2 className="w-16 h-16 text-gray-300 mb-4" strokeWidth={1.5} />
                 <p className="text-gray-500 mb-2">Tu carrito corporativo está vacío</p>
                 <p className="text-sm text-gray-400">
-                  Mínimo de compra: {globalMinQuantity} sets
+                  Mínimo de compra: {globalMinQuantity} {unitLabel(globalCountUnit, globalMinQuantity)}
                 </p>
                 <Link
                   href="/corporativo"
@@ -75,7 +80,7 @@ export function CorporateCartDrawer({ isOpen, onClose }: CorporateCartDrawerProp
                 <div className="px-6 py-4 border-b border-[#E5E5E5] bg-[#F5F5F7]">
                   <div className="flex justify-between text-sm mb-2">
                     <span className="text-gray-600">
-                      {validation.totalSets} de {validation.minRequired} sets
+                      {validation.totalSets} de {validation.minRequired} {unitLabel(validation.countUnit, validation.minRequired)}
                     </span>
                     {validation.setsRemaining > 0 ? (
                       <span className="font-medium text-[#FF9500]">
@@ -178,6 +183,12 @@ export function CorporateCartDrawer({ isOpen, onClose }: CorporateCartDrawerProp
                       <span>-${pricing.volumeDiscountAmount.toFixed(2)}</span>
                     </div>
                   )}
+                  {pricing.promoDiscountAmount > 0 && (
+                    <div className="flex justify-between text-sm text-[#34C759]">
+                      <span>Descuento por promoción</span>
+                      <span>-${pricing.promoDiscountAmount.toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-lg font-bold pt-2 border-t border-[#E5E5E5]">
                     <span>Total referencial</span>
                     <span>${pricing.total.toFixed(2)}</span>
@@ -202,7 +213,7 @@ export function CorporateCartDrawer({ isOpen, onClose }: CorporateCartDrawerProp
                   >
                     {validation.canSubmit
                       ? 'Solicitar cotización'
-                      : `${validation.setsRemaining === 1 ? 'Falta' : 'Faltan'} ${validation.setsRemaining} ${validation.setsRemaining === 1 ? 'set' : 'sets'} para el mínimo`}
+                      : `${validation.setsRemaining === 1 ? 'Falta' : 'Faltan'} ${validation.setsRemaining} ${unitLabel(validation.countUnit, validation.setsRemaining)} para el mínimo`}
                   </Link>
                 </div>
               </>
