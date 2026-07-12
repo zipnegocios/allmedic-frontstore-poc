@@ -37,6 +37,18 @@ const globalRulesData = [
     scope: "GLOBAL",
     config: { showPrices: true, catalog: "BOTH" },
   },
+  {
+    name: "Descuento por volumen — catálogo individual (default)",
+    ruleType: "VOLUME_DISCOUNT_RETAIL",
+    scope: "GLOBAL",
+    config: {
+      tiers: [
+        { minItems: 3, pct: 10 },
+        { minItems: 5, pct: 15 },
+        { minItems: 10, pct: 20 },
+      ],
+    },
+  },
 ];
 
 async function seedGlobalRules() {

@@ -21,14 +21,39 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
-// Default volume discounts
-const VOLUME_DISCOUNTS: VolumeDiscount[] = [
+// Defaults — usados como fallback si la regla de negocio no carga (ver useEffect abajo).
+// Mismos valores que la regla GLOBAL `VOLUME_DISCOUNT_RETAIL` sembrada en seed-corporate.ts,
+// para que el comportamiento no cambie si el fetch falla.
+const DEFAULT_VOLUME_DISCOUNTS: VolumeDiscount[] = [
   { quantity: 3, minQty: 3, discount: 10, discountPct: 10, label: '3+ unidades' },
   { quantity: 5, minQty: 5, discount: 15, discountPct: 15, label: '5+ unidades' },
   { quantity: 10, minQty: 10, discount: 20, discountPct: 20, label: '10+ unidades' },
 ];
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
+  const [volumeDiscounts, setVolumeDiscounts] = useState<VolumeDiscount[]>(DEFAULT_VOLUME_DISCOUNTS);
+
+  useEffect(() => {
+    fetch('/api/rules/volume-discount-retail')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { tiers?: Array<{ minItems: number; pct: number }> } | null) => {
+        if (data?.tiers?.length) {
+          setVolumeDiscounts(
+            data.tiers.map((t) => ({
+              quantity: t.minItems,
+              minQty: t.minItems,
+              discount: t.pct,
+              discountPct: t.pct,
+              label: `${t.minItems}+ unidades`,
+            }))
+          );
+        }
+      })
+      .catch(() => {
+        // Fallback silencioso: se mantienen los DEFAULT_VOLUME_DISCOUNTS ya cargados en el estado inicial.
+      });
+  }, []);
+
   const [items, setItems] = useState<CartItem[]>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('cart');
@@ -62,14 +87,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const subtotal = totalPrice;
 
   const getActiveVolumeDiscount = useCallback((): VolumeDiscount | null => {
-    const sortedDiscounts = [...VOLUME_DISCOUNTS].sort((a, b) => b.minQty - a.minQty);
+    const sortedDiscounts = [...volumeDiscounts].sort((a, b) => b.minQty - a.minQty);
     return sortedDiscounts.find(d => totalItems >= d.minQty) || null;
-  }, [totalItems]);
+  }, [totalItems, volumeDiscounts]);
 
   const getNextVolumeTier = useCallback((): VolumeDiscount | null => {
-    const sortedDiscounts = [...VOLUME_DISCOUNTS].sort((a, b) => a.minQty - b.minQty);
+    const sortedDiscounts = [...volumeDiscounts].sort((a, b) => a.minQty - b.minQty);
     return sortedDiscounts.find(d => totalItems < d.minQty) || null;
-  }, [totalItems]);
+  }, [totalItems, volumeDiscounts]);
 
   const addItem = useCallback((
     product: Product,

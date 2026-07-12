@@ -237,3 +237,22 @@ describe("computeCartPricing — escala de volumen", () => {
     expect(result.hasMissingPrices).toBe(true);
   });
 });
+
+describe("resolveRules — VOLUME_DISCOUNT_RETAIL (descuento catálogo individual)", () => {
+  it("resuelve VOLUME_DISCOUNT_RETAIL desde una regla GLOBAL", () => {
+    const rules = [
+      rule({
+        ruleType: "VOLUME_DISCOUNT_RETAIL",
+        scope: "GLOBAL",
+        config: { tiers: [{ minItems: 3, pct: 10 }] },
+      }),
+    ];
+    const resolved = resolveRules(rules, {}, new Date());
+    expect(resolved.volumeDiscountRetail?.tiers).toEqual([{ minItems: 3, pct: 10 }]);
+  });
+
+  it("devuelve null cuando no hay regla VOLUME_DISCOUNT_RETAIL activa", () => {
+    const resolved = resolveRules([], {}, new Date());
+    expect(resolved.volumeDiscountRetail).toBeNull();
+  });
+});
