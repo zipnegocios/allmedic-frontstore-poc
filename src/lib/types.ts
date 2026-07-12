@@ -8,6 +8,11 @@ export type Category = 'Camisas' | 'Pantalones' | 'Chaquetas' | 'Conjuntos' | 'A
 
 export type { MediaItem };
 
+export interface BrandNavItem {
+  name: string;
+  logoUrl: string | null;
+}
+
 export interface ProductColor {
   id: string;
   name: string;

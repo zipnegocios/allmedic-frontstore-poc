@@ -1,6 +1,6 @@
 import { Footer } from '@/components/layout/Footer';
 import { Home } from '@/legacy-pages/Home';
-import { getFeaturedProducts, getHeroSlides, getAllProducts, getBrandNames } from '@/lib/data-service';
+import { getFeaturedProducts, getHeroSlides, getAllProducts, getBrandsForNav } from '@/lib/data-service';
 import { getStores } from '@/lib/data-service';
 
 export default async function HomePage() {
@@ -9,7 +9,7 @@ export default async function HomePage() {
     getHeroSlides(),
     getStores(),
     getAllProducts(),
-    getBrandNames(),
+    getBrandsForNav(),
   ]);
 
   return (

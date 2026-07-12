@@ -3,12 +3,12 @@
 import { useState } from 'react';
 import { Header } from './Header';
 import { CartDrawer } from '@/components/cart/CartDrawer';
-import type { Product, Store } from '@/lib/types';
+import type { Product, Store, BrandNavItem } from '@/lib/types';
 
 interface AppShellProps {
   children: React.ReactNode;
   products?: Product[];
-  brands?: string[];
+  brands?: BrandNavItem[];
   stores?: Store[];
 }
 

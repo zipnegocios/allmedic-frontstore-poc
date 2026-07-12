@@ -13,7 +13,7 @@ import { BrandCarousel } from '@/components/home/BrandCarousel';
 import { CorporateCTA } from '@/components/home/CorporateCTA';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/utils';
-import type { Product, MediaItem } from '@/lib/types';
+import type { Product, MediaItem, BrandNavItem } from '@/lib/types';
 
 interface HeroSlide {
   id: string;
@@ -238,7 +238,7 @@ function FeaturedProductsSection({ products }: { products: Product[] }) {
 }
 
 // Main Home Page
-export function Home({ heroSlides, featuredProducts, allProducts, brands }: { heroSlides: HeroSlide[]; featuredProducts: Product[]; allProducts?: Product[]; brands?: string[] }) {
+export function Home({ heroSlides, featuredProducts, allProducts, brands }: { heroSlides: HeroSlide[]; featuredProducts: Product[]; allProducts?: Product[]; brands?: BrandNavItem[] }) {
   return (
     <main className="pt-14 sm:pt-16">
       <HeroCarousel slides={heroSlides} />

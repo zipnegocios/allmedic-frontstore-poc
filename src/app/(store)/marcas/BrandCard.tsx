@@ -8,6 +8,7 @@ interface BrandCardProps {
     slug: string;
     name: string;
     productCount: number;
+    logoUrl: string | null;
   };
 }
 
@@ -18,22 +19,28 @@ export function BrandCard({ brand }: BrandCardProps) {
       className="group bg-[#F5F5F7] rounded-xl p-6 sm:p-8 hover:bg-[#111111] transition-all duration-300"
     >
       <div className="aspect-square max-w-[80px] sm:max-w-[100px] mx-auto mb-4 flex items-center justify-center">
-        <img
-          src={`/images/brands/${brand.slug}.png`}
-          alt={brand.name}
-          className="max-w-full max-h-full object-contain group-hover:scale-110 transition-transform duration-300"
-          onError={(e) => {
-            const target = e.target as HTMLImageElement;
-            target.style.display = 'none';
-            const parent = target.parentElement;
-            if (parent) {
-              const fallback = document.createElement('div');
-              fallback.className = 'text-lg sm:text-xl font-bold text-[#111111] group-hover:text-white text-center transition-colors';
-              fallback.textContent = brand.name;
-              parent.appendChild(fallback);
-            }
-          }}
-        />
+        {brand.logoUrl ? (
+          <img
+            src={brand.logoUrl}
+            alt={brand.name}
+            className="max-w-full max-h-full object-contain group-hover:scale-110 transition-transform duration-300"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              target.style.display = 'none';
+              const parent = target.parentElement;
+              if (parent) {
+                const fallback = document.createElement('div');
+                fallback.className = 'text-lg sm:text-xl font-bold text-[#111111] group-hover:text-white text-center transition-colors';
+                fallback.textContent = brand.name;
+                parent.appendChild(fallback);
+              }
+            }}
+          />
+        ) : (
+          <span className="text-lg sm:text-xl font-bold text-[#111111] group-hover:text-white text-center transition-colors">
+            {brand.name}
+          </span>
+        )}
       </div>
 
       <h3 className="text-base sm:text-lg font-semibold text-[#111111] group-hover:text-white text-center mb-2 transition-colors">

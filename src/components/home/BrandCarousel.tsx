@@ -3,8 +3,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { BRANDS as DEFAULT_BRANDS } from '@/lib/dummy-data';
+import { BRANDS as DUMMY_BRAND_NAMES } from '@/lib/dummy-data';
+import type { BrandNavItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
+
+const DEFAULT_BRANDS: BrandNavItem[] = DUMMY_BRAND_NAMES.map((name) => ({ name, logoUrl: null }));
 
 // Featured brands with descriptions
 const BRAND_INFO: Record<string, { description: string; featured: boolean }> = {
@@ -25,7 +28,7 @@ const BRAND_INFO: Record<string, { description: string; featured: boolean }> = {
   'Mandala': { description: 'Arte y espiritualidad', featured: false },
 };
 
-export function BrandCarousel({ brands: brandsProp }: { brands?: string[] } = {}) {
+export function BrandCarousel({ brands: brandsProp }: { brands?: BrandNavItem[] } = {}) {
   const BRANDS = brandsProp || DEFAULT_BRANDS;
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -178,13 +181,12 @@ export function BrandCarousel({ brands: brandsProp }: { brands?: string[] } = {}
             }}
           >
             {BRANDS.map((brand, index) => {
-              const info = BRAND_INFO[brand] || { description: '', featured: false };
-              const logoPath = `/images/brands/${brand.toLowerCase().replace(/\s+/g, '-').replace(/'/g, '')}.png`;
-              
+              const info = BRAND_INFO[brand.name] || { description: '', featured: false };
+
               return (
                 <Link
-                  key={brand}
-                  href={`/catalogo?brand=${encodeURIComponent(brand)}`}
+                  key={brand.name}
+                  href={`/catalogo?brand=${encodeURIComponent(brand.name)}`}
                   className={cn(
                     'flex-shrink-0 group relative',
                     'w-[calc(50%-6px)] sm:w-[calc(33.333%-11px)] lg:w-[calc(20%-13px)]'
@@ -201,28 +203,34 @@ export function BrandCarousel({ brands: brandsProp }: { brands?: string[] } = {}
                   )}>
                     {/* Logo */}
                     <div className="aspect-square max-w-[80px] sm:max-w-[100px] mx-auto mb-3 sm:mb-4 flex items-center justify-center">
-                      <img
-                        src={logoPath}
-                        alt={brand}
-                        className="max-w-full max-h-full object-contain transition-transform duration-300 group-hover:scale-110"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                          const parent = target.parentElement;
-                          if (parent) {
-                            const fallback = document.createElement('div');
-                            fallback.className = 'text-lg sm:text-xl font-bold text-[#111111] text-center';
-                            fallback.textContent = brand;
-                            parent.appendChild(fallback);
-                          }
-                        }}
-                      />
+                      {brand.logoUrl ? (
+                        <img
+                          src={brand.logoUrl}
+                          alt={brand.name}
+                          className="max-w-full max-h-full object-contain transition-transform duration-300 group-hover:scale-110"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            const parent = target.parentElement;
+                            if (parent) {
+                              const fallback = document.createElement('div');
+                              fallback.className = 'text-lg sm:text-xl font-bold text-[#111111] text-center';
+                              fallback.textContent = brand.name;
+                              parent.appendChild(fallback);
+                            }
+                          }}
+                        />
+                      ) : (
+                        <span className="text-lg sm:text-xl font-bold text-[#111111] text-center">
+                          {brand.name}
+                        </span>
+                      )}
                     </div>
 
                     {/* Info */}
                     <div className="text-center">
                       <h3 className="text-sm sm:text-base font-semibold text-[#111111] mb-1 truncate">
-                        {brand}
+                        {brand.name}
                       </h3>
                       <p className="text-xs text-gray-400 line-clamp-1">
                         {info.description}

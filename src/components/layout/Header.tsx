@@ -9,13 +9,13 @@ import { searchProducts as defaultSearchProducts } from '@/lib/dummy-data';
 import { MegaMenu } from './MegaMenu';
 import { CorporateNavCTA } from './CorporateNavCTA';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
-import type { Product, Store } from '@/lib/types';
+import type { Product, Store, BrandNavItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 interface HeaderProps {
   onCartClick: () => void;
   products?: Product[];
-  brands?: string[];
+  brands?: BrandNavItem[];
   stores?: Store[];
 }
 

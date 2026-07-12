@@ -9,7 +9,7 @@ import {
   mediaLinks as mediaLinksTable,
   mediaAssets as mediaAssetsTable,
 } from '@/db/schema';
-import type { Product, ProductColor, ProductVariant, Store, Gender, Size, Fit } from './types';
+import type { Product, ProductColor, ProductVariant, Store, Gender, Size, Fit, BrandNavItem } from './types';
 import { eq, and, or, asc, sql, inArray, gte, lte, ne, type SQL } from 'drizzle-orm';
 import { resolveMediaUrl, isVideoMime, type MediaItem } from './media';
 import {
@@ -413,6 +413,12 @@ export async function getBrandNames(): Promise<string[]> {
     .orderBy(asc(brandsTable.sortOrder));
 
   return brands.map(b => b.name);
+}
+
+/** Marcas para navegación (header/mega-menu/home): nombre + logo real de R2, sin conteo de productos. */
+export async function getBrandsForNav(): Promise<BrandNavItem[]> {
+  const brands = await getBrands();
+  return brands.map((b) => ({ name: b.name, logoUrl: b.logoUrl }));
 }
 
 export async function getColors(): Promise<ProductColor[]> {

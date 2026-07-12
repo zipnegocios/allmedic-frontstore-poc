@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, MapPin, Tag, Package, Store, X } from 'lucide-react';
 import { PRODUCTS as DEFAULT_PRODUCTS, BRANDS as DEFAULT_BRANDS, STORES as DEFAULT_STORES } from '@/lib/dummy-data';
-import type { Product, Store as StoreType } from '@/lib/types';
+import type { Product, Store as StoreType, BrandNavItem } from '@/lib/types';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 import { cn } from '@/lib/utils';
 
@@ -12,13 +12,15 @@ interface MegaMenuProps {
   isOpen: boolean;
   onClose: () => void;
   products?: Product[];
-  brands?: string[];
+  brands?: BrandNavItem[];
   stores?: StoreType[];
 }
 
+const DEFAULT_BRAND_NAV_ITEMS: BrandNavItem[] = DEFAULT_BRANDS.map((name) => ({ name, logoUrl: null }));
+
 export function MegaMenu({ isOpen, onClose, products: productsProp, brands: brandsProp, stores: storesProp }: MegaMenuProps) {
   const PRODUCTS = productsProp || DEFAULT_PRODUCTS;
-  const BRANDS = brandsProp || DEFAULT_BRANDS;
+  const BRANDS = brandsProp || DEFAULT_BRAND_NAV_ITEMS;
   const STORES = storesProp || DEFAULT_STORES;
 
   // Get featured products (best sellers)
@@ -68,15 +70,16 @@ export function MegaMenu({ isOpen, onClose, products: productsProp, brands: bran
         };
       case 'brands':
         return {
-          sections: [{ 
-            title: 'Nuestras Marcas', 
-            items: BRANDS.map(brand => ({ 
-              id: brand, 
-              name: brand, 
-              slug: brand.toLowerCase().replace(/\s+/g, '-'),
-              productCount: PRODUCTS.filter(p => p.brand === brand).length
-            })), 
-            type: 'brand' as const 
+          sections: [{
+            title: 'Nuestras Marcas',
+            items: BRANDS.map(brand => ({
+              id: brand.name,
+              name: brand.name,
+              slug: brand.name.toLowerCase().replace(/\s+/g, '-'),
+              logoUrl: brand.logoUrl,
+              productCount: PRODUCTS.filter(p => p.brand === brand.name).length
+            })),
+            type: 'brand' as const
           }]
         };
       case 'stores':
@@ -251,22 +254,28 @@ export function MegaMenu({ isOpen, onClose, products: productsProp, brands: bran
                           className="group bg-[#F5F5F7] rounded-xl p-4 sm:p-6 hover:bg-[#111111] transition-colors"
                         >
                           <div className="aspect-square max-w-[60px] sm:max-w-[80px] mx-auto mb-3 flex items-center justify-center">
-                            <img
-                              src={`/images/brands/${brand.name.toLowerCase().replace(/\s+/g, '-').replace(/'/g, '')}.png`}
-                              alt={brand.name}
-                              className="max-w-full max-h-full object-contain group-hover:scale-110 transition-transform"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
-                                const parent = target.parentElement;
-                                if (parent) {
-                                  const fallback = document.createElement('div');
-                                  fallback.className = 'text-lg font-bold text-[#111111] group-hover:text-white text-center';
-                                  fallback.textContent = brand.name;
-                                  parent.appendChild(fallback);
-                                }
-                              }}
-                            />
+                            {brand.logoUrl ? (
+                              <img
+                                src={brand.logoUrl}
+                                alt={brand.name}
+                                className="max-w-full max-h-full object-contain group-hover:scale-110 transition-transform"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                  const parent = target.parentElement;
+                                  if (parent) {
+                                    const fallback = document.createElement('div');
+                                    fallback.className = 'text-lg font-bold text-[#111111] group-hover:text-white text-center';
+                                    fallback.textContent = brand.name;
+                                    parent.appendChild(fallback);
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <span className="text-lg font-bold text-[#111111] group-hover:text-white text-center">
+                                {brand.name}
+                              </span>
+                            )}
                           </div>
                           <p className="text-sm font-semibold text-[#111111] group-hover:text-white text-center mb-1">
                             {brand.name}
