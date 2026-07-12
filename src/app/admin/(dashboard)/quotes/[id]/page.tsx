@@ -5,7 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { QuoteEditPanel } from '@/components/admin/QuoteEditPanel';
-import { ArrowLeft } from 'lucide-react';
+import { QuoteAttachmentUpload } from '@/components/admin/QuoteAttachmentUpload';
+import { ArrowLeft, Download } from 'lucide-react';
+
+const ATTACHMENT_TYPE_LABELS: Record<string, string> = {
+  COTIZACION: 'Cotización',
+  FACTURA: 'Factura',
+  NOTA_ENTREGA: 'Nota de Entrega',
+  OTRO: 'Otro',
+};
 
 interface QuoteDetailPageProps {
   params: Promise<{ id: string }>;
@@ -126,6 +134,32 @@ export default async function QuoteDetailPage({ params }: QuoteDetailPageProps) 
               </div>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardContent className="p-6">
+          <h3 className="font-semibold mb-4">Adjuntos</h3>
+          <QuoteAttachmentUpload quoteId={quote.id} />
+          {quote.attachments.length > 0 ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {quote.attachments.map((att) => (
+                <a
+                  key={att.id}
+                  href={att.fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs px-3 py-1.5 border border-[#E5E5E5] rounded-full hover:bg-[#F5F5F7] transition-colors"
+                >
+                  <Download className="w-3 h-3" />
+                  {ATTACHMENT_TYPE_LABELS[att.type] || att.type}
+                  {att.fileName && ` — ${att.fileName}`}
+                </a>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 mt-4">Sin adjuntos todavía.</p>
+          )}
         </CardContent>
       </Card>
 

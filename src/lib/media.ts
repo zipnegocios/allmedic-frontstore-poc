@@ -46,7 +46,7 @@ export function resolveSeo(link: SeoOverride, asset: SeoBase) {
   };
 }
 
-function slugifySegment(input: string): string {
+export function slugifySegment(input: string): string {
   return input
     .toLowerCase()
     .normalize("NFD")

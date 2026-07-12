@@ -12,6 +12,7 @@ import {
   setItems as setItemsTable,
   quoteRequests as quoteRequestsTable,
   quoteStatusHistory as quoteStatusHistoryTable,
+  quoteAttachments as quoteAttachmentsTable,
   corporateAccounts as corporateAccountsTable,
   mediaLinks as mediaLinksTable,
   mediaAssets as mediaAssetsTable,
@@ -793,9 +794,28 @@ export async function getAdminQuoteById(id: string) {
     account = acc ?? null;
   }
 
-  const history = await getQuoteStatusHistory(id);
+  const [history, attachments] = await Promise.all([
+    getQuoteStatusHistory(id),
+    getQuoteAttachments(id),
+  ]);
 
-  return { ...quote, account, history };
+  return { ...quote, account, history, attachments };
+}
+
+export async function addQuoteAttachment(
+  quoteId: string,
+  data: { type: string; fileName: string; fileUrl: string; uploadedBy: string }
+) {
+  const [attachment] = await db.insert(quoteAttachmentsTable).values({ quoteId, ...data }).returning();
+  return attachment;
+}
+
+export async function getQuoteAttachments(quoteId: string) {
+  return db
+    .select()
+    .from(quoteAttachmentsTable)
+    .where(eq(quoteAttachmentsTable.quoteId, quoteId))
+    .orderBy(desc(quoteAttachmentsTable.createdAt));
 }
 
 export async function updateQuote(
