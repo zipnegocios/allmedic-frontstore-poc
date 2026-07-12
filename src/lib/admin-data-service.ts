@@ -234,6 +234,12 @@ interface ImageInput {
   sortOrder: number;
 }
 
+/** Postgres rechaza '' para columnas decimal/numeric: el formulario envía '' cuando el campo queda vacío. */
+function emptyToNull(value: string | null | undefined): string | null | undefined {
+  if (value === undefined) return undefined;
+  return value === '' ? null : value;
+}
+
 interface ProductWithRelationsInput {
   slug: string;
   name: string;
@@ -269,6 +275,9 @@ export async function createProductWithRelations(input: ProductWithRelationsInpu
 
     const [product] = await tx.insert(productsTable).values({
       ...productData,
+      priceSale: emptyToNull(productData.priceSale),
+      priceWholesale: emptyToNull(productData.priceWholesale),
+      priceWholesaleSale: emptyToNull(productData.priceWholesaleSale),
       discountEnd: productData.discountEnd ? new Date(productData.discountEnd) : undefined,
       wholesaleDiscountEnd: productData.wholesaleDiscountEnd ? new Date(productData.wholesaleDiscountEnd) : undefined,
     }).returning();
@@ -310,6 +319,15 @@ export async function updateProductWithRelations(
     // Update product base
     if (Object.keys(productData).length > 0) {
       const updateData: Record<string, unknown> = { ...productData };
+      if (productData.priceSale !== undefined) {
+        updateData.priceSale = emptyToNull(productData.priceSale);
+      }
+      if (productData.priceWholesale !== undefined) {
+        updateData.priceWholesale = emptyToNull(productData.priceWholesale);
+      }
+      if (productData.priceWholesaleSale !== undefined) {
+        updateData.priceWholesaleSale = emptyToNull(productData.priceWholesaleSale);
+      }
       if (productData.discountEnd !== undefined) {
         updateData.discountEnd = productData.discountEnd ? new Date(productData.discountEnd) : null;
       }
