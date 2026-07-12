@@ -6,6 +6,7 @@ import { useCart } from '@/context/CartContext';
 import { CartItemComponent } from './CartItem';
 import { Modal } from '@/components/ui/Modal';
 import { generateWhatsAppMessage, openWhatsApp, registerLead } from '@/lib/whatsapp';
+import { usePriceVisibility } from '@/context/PriceVisibilityContext';
 import { cn } from '@/lib/utils';
 
 interface CartDrawerProps {
@@ -21,6 +22,7 @@ function ClientOnly({ children, fallback = null }: { children: React.ReactNode; 
 
 export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
   const { items, totalItems, subtotal, updateQuantity, removeItem, getActiveVolumeDiscount, getNextVolumeTier, clearCart } = useCart();
+  const showPrices = usePriceVisibility();
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [customerName, setCustomerName] = useState('');
   const [customerCity, setCustomerCity] = useState('');
@@ -166,22 +168,24 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                   )}
 
                   {/* Subtotal */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Subtotal</span>
-                      <span className="font-medium">${subtotal.toFixed(2)}</span>
-                    </div>
-                    {discountAmount > 0 && (
-                      <div className="flex justify-between text-sm text-[#34C759]">
-                        <span>Descuento ({activeDiscount?.discountPct}%)</span>
-                        <span>-${discountAmount.toFixed(2)}</span>
+                  {showPrices && (
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Subtotal</span>
+                        <span className="font-medium">${subtotal.toFixed(2)}</span>
                       </div>
-                    )}
-                    <div className="flex justify-between text-lg font-bold pt-2 border-t border-[#E5E5E5]">
-                      <span>Total estimado</span>
-                      <span>${finalTotal.toFixed(2)}</span>
+                      {discountAmount > 0 && (
+                        <div className="flex justify-between text-sm text-[#34C759]">
+                          <span>Descuento ({activeDiscount?.discountPct}%)</span>
+                          <span>-${discountAmount.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-lg font-bold pt-2 border-t border-[#E5E5E5]">
+                        <span>Total estimado</span>
+                        <span>${finalTotal.toFixed(2)}</span>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Checkout Button */}
                   <button
@@ -275,20 +279,24 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                 <span className="text-gray-500">Total de items:</span>
                 <span className="font-medium">{totalItems}</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Subtotal:</span>
-                <span className="font-medium">${subtotal.toFixed(2)}</span>
-              </div>
-              {discountAmount > 0 && (
-                <div className="flex justify-between text-sm text-[#34C759]">
-                  <span>Descuento ({activeDiscount?.discountPct}%):</span>
-                  <span>-${discountAmount.toFixed(2)}</span>
-                </div>
+              {showPrices && (
+                <>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Subtotal:</span>
+                    <span className="font-medium">${subtotal.toFixed(2)}</span>
+                  </div>
+                  {discountAmount > 0 && (
+                    <div className="flex justify-between text-sm text-[#34C759]">
+                      <span>Descuento ({activeDiscount?.discountPct}%):</span>
+                      <span>-${discountAmount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between border-t border-[#E5E5E5] pt-2 text-base font-bold">
+                    <span>Total estimado:</span>
+                    <span>${finalTotal.toFixed(2)}</span>
+                  </div>
+                </>
               )}
-              <div className="flex justify-between border-t border-[#E5E5E5] pt-2 text-base font-bold">
-                <span>Total estimado:</span>
-                <span>${finalTotal.toFixed(2)}</span>
-              </div>
             </div>
             <button
               onClick={handleCheckout}

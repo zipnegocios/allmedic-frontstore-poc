@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import type { Product, Size } from '@/lib/types';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
+import { usePriceVisibility } from '@/context/PriceVisibilityContext';
 import { cn } from '@/lib/utils';
 
 interface CrossSellCardProps {
@@ -22,6 +23,7 @@ export function CrossSellCard({
 }: CrossSellCardProps) {
   const [selectedSize, setSelectedSize] = useState<Size | undefined>();
   const [showSizeSelector, setShowSizeSelector] = useState(false);
+  const showPrices = usePriceVisibility();
 
   const variantWithColor = product.variants.find(v => v.colorId === selectedColorId);
   const displayMedia = variantWithColor?.images[0];
@@ -63,9 +65,11 @@ export function CrossSellCard({
               {product.name}
             </h4>
           </Link>
-          <p className="text-sm font-bold text-[#111111] mt-1">
-            ${(product.priceSale || product.priceNormal).toFixed(2)}
-          </p>
+          {showPrices && (
+            <p className="text-sm font-bold text-[#111111] mt-1">
+              ${(product.priceSale || product.priceNormal).toFixed(2)}
+            </p>
+          )}
 
           {/* Color Swatches */}
           <div className="flex flex-wrap gap-1 mt-2">

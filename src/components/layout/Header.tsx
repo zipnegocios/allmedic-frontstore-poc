@@ -9,6 +9,7 @@ import { searchProducts as defaultSearchProducts } from '@/lib/dummy-data';
 import { MegaMenu } from './MegaMenu';
 import { CorporateNavCTA } from './CorporateNavCTA';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
+import { usePriceVisibility } from '@/context/PriceVisibilityContext';
 import type { Product, Store, BrandNavItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -28,6 +29,7 @@ const navLinks = [
 
 export function Header({ onCartClick, products, brands, stores }: HeaderProps) {
   const { totalItems } = useCart();
+  const showPrices = usePriceVisibility();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -384,11 +386,13 @@ export function Header({ onCartClick, products, brands, stores }: HeaderProps) {
                           <p className="text-xs text-gray-400 uppercase">{product.brand}</p>
                           <p className="text-sm font-medium text-[#111111] truncate">{product.name}</p>
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm font-medium">
-                            ${(product.priceSale || product.priceNormal).toFixed(2)}
-                          </p>
-                        </div>
+                        {showPrices && (
+                          <div className="text-right">
+                            <p className="text-sm font-medium">
+                              ${(product.priceSale || product.priceNormal).toFixed(2)}
+                            </p>
+                          </div>
+                        )}
                         <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" strokeWidth={1.5} />
                       </Link>
                     ))}

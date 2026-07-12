@@ -7,6 +7,7 @@ import type { Product, ProductColor, Size, Fit, VariantStatus } from '@/lib/type
 import { useCart } from '@/context/CartContext';
 import { useNotificationContext } from '@/context/NotificationContext';
 import { Modal } from '@/components/ui/Modal';
+import { usePriceVisibility } from '@/context/PriceVisibilityContext';
 import { cn } from '@/lib/utils';
 
 interface QuickViewModalProps {
@@ -18,6 +19,7 @@ interface QuickViewModalProps {
 export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps) {
   const { addItem } = useCart();
   const { showSuccess, showError, showWarning } = useNotificationContext();
+  const showPrices = usePriceVisibility();
   const [selectedColor, setSelectedColor] = useState<ProductColor | null>(null);
   const [selectedSize, setSelectedSize] = useState<Size | null>(null);
   const [selectedFit, setSelectedFit] = useState<Fit | null>(null);
@@ -201,25 +203,27 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
           </div>
 
           {/* Price */}
-          <div className="flex items-baseline gap-3 mb-6">
-            {hasDiscount ? (
-              <>
+          {showPrices && (
+            <div className="flex items-baseline gap-3 mb-6">
+              {hasDiscount ? (
+                <>
+                  <span className="text-2xl font-bold text-[#111111]">
+                    ${product.priceSale?.toFixed(2)}
+                  </span>
+                  <span className="text-lg text-gray-400 line-through">
+                    ${product.priceNormal.toFixed(2)}
+                  </span>
+                  <span className="px-2 py-0.5 bg-[#FF3B30] text-white text-xs font-bold rounded">
+                    -{discountPercentage}%
+                  </span>
+                </>
+              ) : (
                 <span className="text-2xl font-bold text-[#111111]">
-                  ${product.priceSale?.toFixed(2)}
-                </span>
-                <span className="text-lg text-gray-400 line-through">
                   ${product.priceNormal.toFixed(2)}
                 </span>
-                <span className="px-2 py-0.5 bg-[#FF3B30] text-white text-xs font-bold rounded">
-                  -{discountPercentage}%
-                </span>
-              </>
-            ) : (
-              <span className="text-2xl font-bold text-[#111111]">
-                ${product.priceNormal.toFixed(2)}
-              </span>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           {/* Color Selector */}
           <div className="mb-4">

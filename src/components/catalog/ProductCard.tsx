@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { CountdownBadge } from '@/components/ui/CountdownBadge';
 import { QuickViewModal } from './QuickViewModal';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
+import { usePriceVisibility } from '@/context/PriceVisibilityContext';
 import { cn } from '@/lib/utils';
 
 interface ProductCardProps {
@@ -43,6 +44,7 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
   const variantWithColor = product.variants.find(v => v.colorId === selectedColorId);
   const displayMedia = variantWithColor?.images[0];
   
+  const showPrices = usePriceVisibility();
   const hasDiscount = product.priceSale && product.priceSale < product.priceNormal;
   const discountPercentage = hasDiscount
     ? Math.round(((product.priceNormal - product.priceSale!) / product.priceNormal) * 100)
@@ -178,22 +180,24 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
           </Link>
 
           {/* Price */}
-          <div className="flex items-center gap-2 mb-3">
-            {hasDiscount ? (
-              <>
+          {showPrices && (
+            <div className="flex items-center gap-2 mb-3">
+              {hasDiscount ? (
+                <>
+                  <span className="text-sm font-bold text-[#111111]">
+                    ${product.priceSale?.toFixed(2)}
+                  </span>
+                  <span className="text-sm text-gray-400 line-through">
+                    ${product.priceNormal.toFixed(2)}
+                  </span>
+                </>
+              ) : (
                 <span className="text-sm font-bold text-[#111111]">
-                  ${product.priceSale?.toFixed(2)}
-                </span>
-                <span className="text-sm text-gray-400 line-through">
                   ${product.priceNormal.toFixed(2)}
                 </span>
-              </>
-            ) : (
-              <span className="text-sm font-bold text-[#111111]">
-                ${product.priceNormal.toFixed(2)}
-              </span>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           {/* Color Swatches */}
           {product.colors.length > 1 && (

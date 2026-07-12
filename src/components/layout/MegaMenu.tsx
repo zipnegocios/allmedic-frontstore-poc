@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, MapPin, Tag, Package, Store, X } from 'lucid
 import { PRODUCTS as DEFAULT_PRODUCTS, BRANDS as DEFAULT_BRANDS, STORES as DEFAULT_STORES } from '@/lib/dummy-data';
 import type { Product, Store as StoreType, BrandNavItem } from '@/lib/types';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
+import { usePriceVisibility } from '@/context/PriceVisibilityContext';
 import { cn } from '@/lib/utils';
 
 interface MegaMenuProps {
@@ -19,6 +20,7 @@ interface MegaMenuProps {
 const DEFAULT_BRAND_NAV_ITEMS: BrandNavItem[] = DEFAULT_BRANDS.map((name) => ({ name, logoUrl: null }));
 
 export function MegaMenu({ isOpen, onClose, products: productsProp, brands: brandsProp, stores: storesProp }: MegaMenuProps) {
+  const showPrices = usePriceVisibility();
   const PRODUCTS = productsProp || DEFAULT_PRODUCTS;
   const BRANDS = brandsProp || DEFAULT_BRAND_NAV_ITEMS;
   const STORES = storesProp || DEFAULT_STORES;
@@ -236,9 +238,11 @@ export function MegaMenu({ isOpen, onClose, products: productsProp, brands: bran
                           </div>
                           <p className="text-xs text-gray-400 uppercase mb-0.5">{product.brand}</p>
                           <p className="text-sm font-medium text-[#111111] line-clamp-2 group-hover:underline">{product.name}</p>
-                          <p className="text-sm font-semibold mt-1">
-                            ${(product.priceSale || product.priceNormal).toFixed(2)}
-                          </p>
+                          {showPrices && (
+                            <p className="text-sm font-semibold mt-1">
+                              ${(product.priceSale || product.priceNormal).toFixed(2)}
+                            </p>
+                          )}
                         </Link>
                       ))}
                     </div>

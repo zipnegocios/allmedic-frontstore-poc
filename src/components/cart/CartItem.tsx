@@ -1,5 +1,6 @@
 import { Minus, Plus, X } from 'lucide-react';
 import type { CartItem as CartItemType } from '@/lib/types';
+import { usePriceVisibility } from '@/context/PriceVisibilityContext';
 
 interface CartItemProps {
   item: CartItemType;
@@ -8,6 +9,7 @@ interface CartItemProps {
 }
 
 export function CartItemComponent({ item, onUpdateQuantity, onRemove }: CartItemProps) {
+  const showPrices = usePriceVisibility();
   return (
     <div className="flex gap-4 py-4 border-b border-[#E5E5E5]">
       {/* Image */}
@@ -73,14 +75,16 @@ export function CartItemComponent({ item, onUpdateQuantity, onRemove }: CartItem
           </div>
 
           {/* Price */}
-          <div className="text-right">
-            <p className="text-sm font-bold text-[#111111]">
-              ${(item.price * item.quantity).toFixed(2)}
-            </p>
-            <p className="text-xs text-gray-400">
-              ${item.price.toFixed(2)} c/u
-            </p>
-          </div>
+          {showPrices && (
+            <div className="text-right">
+              <p className="text-sm font-bold text-[#111111]">
+                ${(item.price * item.quantity).toFixed(2)}
+              </p>
+              <p className="text-xs text-gray-400">
+                ${item.price.toFixed(2)} c/u
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

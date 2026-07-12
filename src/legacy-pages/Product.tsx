@@ -11,6 +11,7 @@ import { CountdownTimer } from '@/components/product/CountdownTimer';
 import { VolumeDiscountTable } from '@/components/product/VolumeDiscountTable';
 import { VariantSelector } from '@/components/product/VariantSelector';
 import { CrossSellCard } from '@/components/product/CrossSellCard';
+import { usePriceVisibility } from '@/context/PriceVisibilityContext';
 import type { Product as ProductType, ProductColor, Size, Fit, VariantStatus, MediaItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -96,6 +97,7 @@ function AvailabilityStatus({ status }: { status: VariantStatus | undefined }) {
 export function Product({ product, complementaryProduct: complementaryProductProp }: { product?: ProductType; complementaryProduct?: ProductType }) {
   const { addItem } = useCart();
   const { showSuccess, showError, showWarning } = useNotificationContext();
+  const showPrices = usePriceVisibility();
 
   // State with initializers
   const [selectedColor, setSelectedColor] = useState<ProductColor | undefined>(() => product?.colors[0]);
@@ -302,13 +304,15 @@ export function Product({ product, complementaryProduct: complementaryProductPro
           </div>
 
           {/* Price Display */}
-          <div className="mb-4">
-            <PriceDisplay
-              priceNormal={product.priceNormal}
-              priceSale={product.priceSale}
-              discountPct={product.discountPct}
-            />
-          </div>
+          {showPrices && (
+            <div className="mb-4">
+              <PriceDisplay
+                priceNormal={product.priceNormal}
+                priceSale={product.priceSale}
+                discountPct={product.discountPct}
+              />
+            </div>
+          )}
 
           {/* Countdown */}
           {product.discountEnd && new Date(product.discountEnd) > new Date() && (
@@ -337,7 +341,7 @@ export function Product({ product, complementaryProduct: complementaryProductPro
           </button>
 
           {/* Volume Discounts */}
-          {product.volumeDiscounts && product.volumeDiscounts.length > 0 && (
+          {showPrices && product.volumeDiscounts && product.volumeDiscounts.length > 0 && (
             <div className="mt-6">
               <VolumeDiscountTable
                 discounts={product.volumeDiscounts}
@@ -372,13 +376,15 @@ export function Product({ product, complementaryProduct: complementaryProductPro
             </h1>
 
             {/* Price */}
-            <div className="mb-4">
-              <PriceDisplay
-                priceNormal={product.priceNormal}
-                priceSale={product.priceSale}
-                discountPct={product.discountPct}
-              />
-            </div>
+            {showPrices && (
+              <div className="mb-4">
+                <PriceDisplay
+                  priceNormal={product.priceNormal}
+                  priceSale={product.priceSale}
+                  discountPct={product.discountPct}
+                />
+              </div>
+            )}
 
             {/* Countdown */}
             {product.discountEnd && new Date(product.discountEnd) > new Date() && (
