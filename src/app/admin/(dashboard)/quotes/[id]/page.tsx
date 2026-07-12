@@ -4,6 +4,7 @@ import { getAdminQuoteById } from '@/lib/admin-data-service';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { QuoteEditPanel } from '@/components/admin/QuoteEditPanel';
 import { ArrowLeft } from 'lucide-react';
 
 interface QuoteDetailPageProps {
@@ -127,6 +128,14 @@ export default async function QuoteDetailPage({ params }: QuoteDetailPageProps) 
           </div>
         </CardContent>
       </Card>
+
+      <QuoteEditPanel
+        quoteId={quote.id}
+        currentStatus={quote.status}
+        currentQuotedTotal={quote.quotedTotal}
+        currentInternalNotes={quote.internalNotes}
+        history={quote.history}
+      />
     </div>
   );
 }

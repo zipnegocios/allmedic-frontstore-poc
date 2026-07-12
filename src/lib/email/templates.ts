@@ -100,3 +100,30 @@ export function accountRejectedEmail(params: { contactName: string; razonSocial:
     ),
   };
 }
+
+const QUOTE_STATUS_MESSAGES: Record<string, string> = {
+  IN_REVIEW: 'Tu solicitud está siendo revisada por nuestro equipo de ventas.',
+  QUOTED: 'Ya tenemos una cotización lista para ti. Revisa los detalles en tu portal.',
+  SENT: 'Te hemos enviado la cotización formal.',
+  APPROVED: '¡Tu cotización fue aprobada! Nuestro equipo se pondrá en contacto para coordinar la entrega.',
+  REJECTED: 'Tu solicitud de cotización no pudo ser procesada. Contáctanos para más detalles.',
+  CLOSED: 'Tu solicitud ha sido cerrada.',
+};
+
+export function quoteStatusChangedEmail(params: { contactName: string; code: string; newStatus: string }): {
+  subject: string;
+  html: string;
+} {
+  const { contactName, code, newStatus } = params;
+  return {
+    subject: `Actualización de tu cotización ${code} — AllMedic Uniforms`,
+    html: wrap(
+      'Actualización de tu Cotización',
+      `
+        <p>Hola ${contactName},</p>
+        <p>${QUOTE_STATUS_MESSAGES[newStatus] ?? 'El estado de tu solicitud cambió.'}</p>
+        <p>Código de solicitud: <strong>${code}</strong></p>
+      `
+    ),
+  };
+}

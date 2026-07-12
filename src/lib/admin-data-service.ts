@@ -11,6 +11,7 @@ import {
   corporateSets as corporateSetsTable,
   setItems as setItemsTable,
   quoteRequests as quoteRequestsTable,
+  quoteStatusHistory as quoteStatusHistoryTable,
   corporateAccounts as corporateAccountsTable,
   mediaLinks as mediaLinksTable,
   mediaAssets as mediaAssetsTable,
@@ -792,5 +793,46 @@ export async function getAdminQuoteById(id: string) {
     account = acc ?? null;
   }
 
-  return { ...quote, account };
+  const history = await getQuoteStatusHistory(id);
+
+  return { ...quote, account, history };
+}
+
+export async function updateQuote(
+  id: string,
+  changes: {
+    quotedItems?: unknown;
+    quotedTotal?: string;
+    status?: string;
+    internalNotes?: string;
+  },
+  changedBy: string,
+  note?: string
+) {
+  const [current] = await db.select().from(quoteRequestsTable).where(eq(quoteRequestsTable.id, id)).limit(1);
+  if (!current) return null;
+
+  const [updated] = await db
+    .update(quoteRequestsTable)
+    .set({ ...changes, updatedAt: new Date() })
+    .where(eq(quoteRequestsTable.id, id))
+    .returning();
+
+  let historyEntry = null;
+  if (changes.status && changes.status !== current.status) {
+    [historyEntry] = await db
+      .insert(quoteStatusHistoryTable)
+      .values({ quoteId: id, fromStatus: current.status, toStatus: changes.status, changedBy, note })
+      .returning();
+  }
+
+  return { quote: updated, historyEntry };
+}
+
+export async function getQuoteStatusHistory(quoteId: string) {
+  return db
+    .select()
+    .from(quoteStatusHistoryTable)
+    .where(eq(quoteStatusHistoryTable.quoteId, quoteId))
+    .orderBy(desc(quoteStatusHistoryTable.createdAt));
 }

@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { FileText, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { QUOTE_STATUS_LABELS } from '@/lib/quote-status';
 
 interface AdminQuote {
   id: string;
@@ -20,16 +21,6 @@ interface AdminQuote {
   status: string;
   createdAt: string;
 }
-
-const STATUS_LABELS: Record<string, { label: string; variant: 'outline' | 'secondary' | 'destructive' }> = {
-  RECEIVED: { label: 'Recibida', variant: 'secondary' },
-  IN_REVIEW: { label: 'En revisión', variant: 'outline' },
-  QUOTED: { label: 'Cotizada', variant: 'outline' },
-  SENT: { label: 'Enviada', variant: 'outline' },
-  APPROVED: { label: 'Aprobada', variant: 'outline' },
-  REJECTED: { label: 'Rechazada', variant: 'destructive' },
-  CLOSED: { label: 'Cerrada', variant: 'secondary' },
-};
 
 export default function AdminQuotesPage() {
   const [quotes, setQuotes] = useState<AdminQuote[]>([]);
@@ -87,7 +78,7 @@ export default function AdminQuotesPage() {
                 </TableRow>
               ) : (
                 quotes.map((q) => {
-                  const statusInfo = STATUS_LABELS[q.status] || { label: q.status, variant: 'secondary' as const };
+                  const statusInfo = QUOTE_STATUS_LABELS[q.status] || { label: q.status, variant: 'secondary' as const };
                   return (
                     <TableRow key={q.id}>
                       <TableCell><code className="text-sm bg-gray-100 px-2 py-1 rounded">{q.code}</code></TableCell>
