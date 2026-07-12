@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { getCorporateSetBySlug, getAllBusinessRules } from '@/lib/corporate-data-service';
+import { getCorporateSetBySlug, getAllBusinessRules, getInventorySnapshotByProductIds } from '@/lib/corporate-data-service';
 import { resolveRules } from '@/lib/rules-engine';
 import { SetDetailContent } from './SetDetailContent';
 
@@ -28,12 +28,20 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
     resolved.priceVisibility.showPrices &&
     (resolved.priceVisibility.catalog === 'CORPORATE' || resolved.priceVisibility.catalog === 'BOTH');
 
+  const inventoryMode = resolved.inventoryMode.mode;
+  const stockSnapshot =
+    inventoryMode !== 'IGNORE'
+      ? await getInventorySnapshotByProductIds(set.pieces.map((p) => p.productId))
+      : {};
+
   return (
     <SetDetailContent
       set={set}
       sizeMode={resolved.sizeMode.mode}
       minQuantity={resolved.minQuantity.min}
       showPrices={showPrices}
+      inventoryMode={inventoryMode}
+      stockSnapshot={stockSnapshot}
     />
   );
 }

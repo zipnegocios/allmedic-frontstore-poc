@@ -41,11 +41,11 @@ describe("RULE_DOCS", () => {
     expect(doc.defaultBehavior.length).toBeGreaterThan(0);
   });
 
-  it("los tipos que siguen muertos tras la Fase 3 documentan appliesTo/supportedScopes vacíos", () => {
-    // INVENTORY_MODE y COLOR_RESTRICTION siguen ❌ Muerta tras la Fase 3 (decisión de negocio:
-    // no vale la pena construir un motor de inventario ni un selector de color en esta fase).
-    // PROMO se corrigió en la Fase 3 y salió de esta lista — ver test siguiente.
-    for (const ruleType of ["INVENTORY_MODE", "COLOR_RESTRICTION"] as RuleType[]) {
+  it("los tipos que siguen muertos tras el motor de inventario documentan appliesTo/supportedScopes vacíos", () => {
+    // COLOR_RESTRICTION sigue ❌ Muerta (decisión de negocio: no vale la pena construir un
+    // selector de color en esta fase). PROMO e INVENTORY_MODE se corrigieron y salieron de
+    // esta lista — ver tests siguientes.
+    for (const ruleType of ["COLOR_RESTRICTION"] as RuleType[]) {
       expect(RULE_DOCS[ruleType].appliesTo).toEqual([]);
       expect(RULE_DOCS[ruleType].supportedScopes).toEqual([]);
       expect(RULE_DOCS[ruleType].warnings.length).toBeGreaterThan(0);
@@ -56,6 +56,12 @@ describe("RULE_DOCS", () => {
     expect(RULE_DOCS.PROMO.appliesTo).toEqual(["CORPORATE"]);
     expect(RULE_DOCS.PROMO.supportedScopes.length).toBeGreaterThan(0);
     expect(RULE_DOCS.PROMO.warnings).toEqual([]);
+  });
+
+  it("INVENTORY_MODE se implementó: ya no está en la lista de tipos muertos", () => {
+    expect(RULE_DOCS.INVENTORY_MODE.appliesTo).toEqual(["CORPORATE"]);
+    expect(RULE_DOCS.INVENTORY_MODE.supportedScopes.length).toBeGreaterThan(0);
+    expect(RULE_DOCS.INVENTORY_MODE.examples.length).toBeGreaterThan(0);
   });
 
   it("select fields declaran una opción por cada valor válido del tipo union correspondiente", () => {

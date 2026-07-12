@@ -6,18 +6,40 @@ import Link from 'next/link';
 import { Building2, ChevronLeft, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCorporateCart } from '@/context/CorporateCartContext';
-import type { CorporateSetDetail } from '@/lib/corporate-types';
-import type { SizeMode } from '@/lib/rules-engine';
+import type { CorporateSetDetail, SetPiece } from '@/lib/corporate-types';
+import type { InventoryModeValue, InventoryStockSnapshot, SizeMode } from '@/lib/rules-engine';
 
 interface SetDetailContentProps {
   set: CorporateSetDetail;
   sizeMode: SizeMode;
   minQuantity: number;
   showPrices: boolean;
+  inventoryMode: InventoryModeValue;
+  stockSnapshot: InventoryStockSnapshot;
 }
 
-export function SetDetailContent({ set, sizeMode, minQuantity, showPrices }: SetDetailContentProps) {
+/** Sets completos que se pueden armar en `size` (MATRIX) — limitado por la pieza más escasa. */
+function availableSetsForSize(pieces: SetPiece[], stockSnapshot: InventoryStockSnapshot, size: string): number {
+  if (pieces.length === 0) return 0;
+  return Math.min(
+    ...pieces.map((p) => Math.floor((stockSnapshot[`${p.productId}::${size}`] ?? 0) / p.quantityPerSet))
+  );
+}
+
+/** Sets completos que se pueden armar sin importar talla (NO_SIZES) — limitado por la pieza más escasa. */
+function availableSetsNoSizes(pieces: SetPiece[], stockSnapshot: InventoryStockSnapshot): number {
+  if (pieces.length === 0) return 0;
+  return Math.min(...pieces.map((p) => Math.floor((stockSnapshot[p.productId] ?? 0) / p.quantityPerSet)));
+}
+
+/** Sets completos de UNA pieza específica en la talla elegida (PER_PIECE). */
+function availableForPieceSize(piece: SetPiece, size: string, stockSnapshot: InventoryStockSnapshot): number {
+  return Math.floor((stockSnapshot[`${piece.productId}::${size}`] ?? 0) / piece.quantityPerSet);
+}
+
+export function SetDetailContent({ set, sizeMode, minQuantity, showPrices, inventoryMode, stockSnapshot }: SetDetailContentProps) {
   const { addLine } = useCorporateCart();
+  const showAvailability = inventoryMode !== 'IGNORE';
 
   // ── MATRIX: tallas comunes a todas las piezas (el set completo va en la misma talla) ──
   const commonSizes = useMemo(() => {
@@ -170,6 +192,11 @@ export function SetDetailContent({ set, sizeMode, minQuantity, showPrices }: Set
                           className="w-full text-center border border-[#E5E5E5] rounded px-1 py-1 text-sm"
                           placeholder="0"
                         />
+                        {showAvailability && (
+                          <span className="text-[11px] text-gray-400 block mt-1">
+                            {availableSetsForSize(set.pieces, stockSnapshot, size)} disp.
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -198,6 +225,11 @@ export function SetDetailContent({ set, sizeMode, minQuantity, showPrices }: Set
                   />
                   <span className="text-sm text-gray-500">sets</span>
                 </div>
+                {showAvailability && (
+                  <p className="text-xs text-gray-400 mb-4">
+                    Disponibilidad: {availableSetsNoSizes(set.pieces, stockSnapshot)} sets
+                  </p>
+                )}
                 <button
                   onClick={handleAddNoSizes}
                   className="w-full px-6 py-3 bg-[#111111] text-white font-medium rounded-full hover:opacity-90 transition-opacity"
@@ -214,16 +246,23 @@ export function SetDetailContent({ set, sizeMode, minQuantity, showPrices }: Set
                   {set.pieces.map((p) => (
                     <div key={p.setItemId} className="flex items-center justify-between border border-[#E5E5E5] rounded-lg p-3">
                       <span className="text-sm">{p.productName}</span>
-                      <select
-                        value={perPieceSizes[p.productId] || ''}
-                        onChange={(e) => setPerPieceSizes((prev) => ({ ...prev, [p.productId]: e.target.value }))}
-                        className="border border-[#E5E5E5] rounded-lg px-2 py-1 text-sm"
-                      >
-                        <option value="">Talla</option>
-                        {p.availableSizes.map((s) => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={perPieceSizes[p.productId] || ''}
+                          onChange={(e) => setPerPieceSizes((prev) => ({ ...prev, [p.productId]: e.target.value }))}
+                          className="border border-[#E5E5E5] rounded-lg px-2 py-1 text-sm"
+                        >
+                          <option value="">Talla</option>
+                          {p.availableSizes.map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                        {showAvailability && perPieceSizes[p.productId] && (
+                          <span className="text-[11px] text-gray-400">
+                            {availableForPieceSize(p, perPieceSizes[p.productId], stockSnapshot)} disp.
+                          </span>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>

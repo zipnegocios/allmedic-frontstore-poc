@@ -14,8 +14,8 @@ import {
   mediaLinks as mediaLinksTable,
   mediaAssets as mediaAssetsTable,
 } from '@/db/schema';
-import { eq, and, inArray, asc, desc } from 'drizzle-orm';
-import type { BusinessRule } from './rules-engine';
+import { eq, and, inArray, asc, desc, sql } from 'drizzle-orm';
+import type { BusinessRule, InventoryStockSnapshot, SetPieceInfo } from './rules-engine';
 import type { CorporateSetSummary, CorporateSetDetail, SetPiece, SetGroupSummary } from './corporate-types';
 import type { ProductColor, ProductVariant } from './types';
 import { resolveMediaUrl } from './media';
@@ -314,6 +314,63 @@ export async function getSetMetaByIds(
   return Object.fromEntries(
     setRows.map((r) => [r.id, { setGroupId: r.setGroupId, brandId: r.brandId, piecesPerSet: piecesBySet.get(r.id) ?? 1 }])
   );
+}
+
+// ── Composición de sets (productos + cantidad por set) — para INVENTORY_MODE ──
+export async function getSetPiecesByIds(setIds: string[]): Promise<Record<string, SetPieceInfo[]>> {
+  const result: Record<string, SetPieceInfo[]> = {};
+  for (const setId of setIds) result[setId] = [];
+  if (setIds.length === 0) return result;
+
+  const rows = await db
+    .select({
+      setId: setItemsTable.setId,
+      productId: setItemsTable.productId,
+      productName: productsTable.name,
+      quantityPerSet: setItemsTable.quantityPerSet,
+    })
+    .from(setItemsTable)
+    .leftJoin(productsTable, eq(setItemsTable.productId, productsTable.id))
+    .where(inArray(setItemsTable.setId, setIds));
+
+  for (const row of rows) {
+    result[row.setId].push({
+      productId: row.productId,
+      productName: row.productName ?? undefined,
+      quantityPerSet: row.quantityPerSet ?? 1,
+    });
+  }
+  return result;
+}
+
+// ── Snapshot agregado de stock (variantes activas) — para INVENTORY_MODE ──
+// Una sola consulta con GROUP BY por producto+talla; se calcula también el total por
+// producto (sin talla) para sets con SIZE_MODE: NO_SIZES. Claves compatibles con
+// `checkInventory` del motor de reglas: "productId::size" y "productId" (total).
+export async function getInventorySnapshotByProductIds(productIds: string[]): Promise<InventoryStockSnapshot> {
+  if (productIds.length === 0) return {};
+
+  const rows = await db
+    .select({
+      productId: variantsTable.productId,
+      size: variantsTable.size,
+      stock: sql<number>`coalesce(sum(${variantsTable.stock}), 0)`,
+    })
+    .from(variantsTable)
+    .where(and(inArray(variantsTable.productId, productIds), eq(variantsTable.status, 'AVAILABLE')))
+    .groupBy(variantsTable.productId, variantsTable.size);
+
+  const snapshot: InventoryStockSnapshot = {};
+  const totalsByProduct = new Map<string, number>();
+  for (const row of rows) {
+    const stock = Number(row.stock);
+    snapshot[`${row.productId}::${row.size}`] = stock;
+    totalsByProduct.set(row.productId, (totalsByProduct.get(row.productId) ?? 0) + stock);
+  }
+  for (const [productId, total] of totalsByProduct) {
+    snapshot[productId] = total;
+  }
+  return snapshot;
 }
 
 // ── Portal del cliente corporativo ──

@@ -8,8 +8,10 @@ import {
   getAllBusinessRules,
   getSetMetaByIds,
   getSetPricesByIds,
+  getSetPiecesByIds,
+  getInventorySnapshotByProductIds,
 } from '@/lib/corporate-data-service';
-import { validateCorporateCart, computeCartPricing } from '@/lib/rules-engine';
+import { validateCorporateCart, computeCartPricing, checkInventory, type SetMeta } from '@/lib/rules-engine';
 
 const CartLineSchema = z.object({
   size: z.string().optional(),
@@ -63,10 +65,11 @@ export async function POST(request: NextRequest) {
     const { customerData, cart } = validated;
 
     const setIds = cart.items.map((i) => i.setId);
-    const [rules, setMeta, setPrices] = await Promise.all([
+    const [rules, setMeta, setPrices, setPieces] = await Promise.all([
       getAllBusinessRules(),
       getSetMetaByIds(setIds),
       getSetPricesByIds(setIds),
+      getSetPiecesByIds(setIds),
     ]);
 
     // Re-validación en servidor: si el carrito no cumple las reglas, se rechaza.
@@ -77,6 +80,25 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // INVENTORY_MODE: se resuelve por set y se compara contra un snapshot de stock real.
+    const setMetaWithPieces: Record<string, SetMeta> = Object.fromEntries(
+      setIds.map((id) => [id, { ...setMeta[id], pieces: setPieces[id] ?? [] }])
+    );
+    const productIds = Array.from(new Set(Object.values(setPieces).flat().map((p) => p.productId)));
+    const stockSnapshot = await getInventorySnapshotByProductIds(productIds);
+    const inventoryIssues = checkInventory(cart, rules, setMetaWithPieces, stockSnapshot);
+    const blockIssues = inventoryIssues.filter((i) => i.severity === 'BLOCK');
+    if (blockIssues.length > 0) {
+      return NextResponse.json(
+        {
+          error: 'La solicitud excede el stock disponible',
+          violations: blockIssues.map((i) => ({ code: i.code, message: i.message, setId: i.setId })),
+        },
+        { status: 400 }
+      );
+    }
+    const informativeIssues = inventoryIssues.filter((i) => i.severity === 'INFORMATIVE');
 
     // Precios recalculados en servidor — nunca se usa el precio enviado por el cliente.
     const pricing = computeCartPricing(cart, setPrices, rules, setMeta);
@@ -94,6 +116,10 @@ export async function POST(request: NextRequest) {
 
     const code = await generateQuoteCode();
 
+    const internalNotes = informativeIssues.length > 0
+      ? `Avisos de inventario al momento de la solicitud:\n${informativeIssues.map((i) => `- ${i.message}`).join('\n')}`
+      : null;
+
     const [quote] = await db
       .insert(quoteRequests)
       .values({
@@ -103,10 +129,19 @@ export async function POST(request: NextRequest) {
         items: cart.items,
         referenceSubtotal: pricing.total.toFixed(2),
         status: 'RECEIVED',
+        internalNotes,
       })
       .returning();
 
-    return NextResponse.json({ code: quote.code, id: quote.id, referenceSubtotal: pricing.total }, { status: 201 });
+    return NextResponse.json(
+      {
+        code: quote.code,
+        id: quote.id,
+        referenceSubtotal: pricing.total,
+        warnings: informativeIssues.map((i) => i.message),
+      },
+      { status: 201 }
+    );
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: 'Validation error', details: err.issues }, { status: 400 });

@@ -394,8 +394,8 @@ function RuleConfigFields({
           <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="IGNORE">Ignorar stock</SelectItem>
-            <SelectItem value="BLOCK" disabled>Bloquear si no hay stock (próximamente)</SelectItem>
-            <SelectItem value="INFORMATIVE" disabled>Solo informativo (próximamente)</SelectItem>
+            <SelectItem value="BLOCK">Bloquear si no hay stock</SelectItem>
+            <SelectItem value="INFORMATIVE">Solo informativo</SelectItem>
           </SelectContent>
         </Select>
       );

@@ -125,7 +125,7 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
       { title: "Grupos de 6", config: { multipleOf: 6 }, explanation: "Útil para sets que se empacan de 6 en 6." },
     ],
     interactions: [
-      "Si el mínimo de cantidad (Rango de cantidad o Cantidad mínima) no es en sí mismo múltiplo de este valor, el mínimo real que percibe el cliente es el siguiente múltiplo hacia arriba — el detector de conflictos de la Fase 4 lo advierte.",
+      "Si el mínimo de cantidad (Rango de cantidad o Cantidad mínima) no es en sí mismo múltiplo de este valor, el mínimo real que percibe el cliente es el siguiente múltiplo hacia arriba — el detector de conflictos lo advierte.",
     ],
     warnings: [],
   },
@@ -212,7 +212,7 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
       { title: "Ocultar solo en corporativo", config: { showPrices: false, catalog: "CORPORATE" }, explanation: "El catálogo individual sigue mostrando precio normalmente; solo el corporativo pasa a referencial sin cifra." },
     ],
     interactions: [
-      "Si existen reglas de descuento (Escala por volumen, Promoción, Descuento por volumen individual) activas en un contexto donde esta regla oculta el precio, el cliente nunca ve el beneficio del descuento — el detector de conflictos de la Fase 4 lo advierte.",
+      "Si existen reglas de descuento (Escala por volumen, Promoción, Descuento por volumen individual) activas en un contexto donde esta regla oculta el precio, el cliente nunca ve el beneficio del descuento — el detector de conflictos lo advierte.",
     ],
     warnings: [
       "En los listados (grid de /catalogo y grid de /corporativo) SOLO se evalúa el ámbito Global — una regla de ámbito Marca, Grupo de Sets o Set no cambia lo que se ve en las tarjetas del listado. Esos ámbitos más específicos únicamente tienen efecto dentro de la ficha de detalle de un set corporativo (/corporativo/s/[slug]). Esto puede producir una inconsistencia visible: el precio aparece en la tarjeta del listado y desaparece al entrar al detalle del set.",
@@ -222,30 +222,43 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
   INVENTORY_MODE: {
     ruleType: "INVENTORY_MODE",
     title: "Modo de inventario",
-    summary: "Define cómo debería comportarse el catálogo corporativo respecto al stock disponible.",
+    summary: "Define si el carrito corporativo debe bloquear, avisar o ignorar cuando la cantidad pedida excede el stock real de una talla/producto.",
     detail:
-      "Esta regla está definida en el motor pero todavía no tiene ningún efecto en el catálogo — " +
-      "ningún flujo del sitio consulta esta configuración todavía. Se deja documentada para cuando " +
-      "se implemente el control de inventario en ventas corporativas.",
-    appliesTo: [],
-    supportedScopes: [],
-    defaultBehavior: "No tiene efecto en el sistema actualmente, sin importar el valor configurado.",
+      "Se resuelve por set (mismo patrón que Promoción o Solo múltiplos). La demanda se agrega por " +
+      "producto y talla: si dos sets distintos del carrito piden la misma talla del mismo producto, " +
+      "sus cantidades se suman antes de comparar contra el stock disponible — solo participan en esa " +
+      "suma los sets cuyo modo efectivo no sea 'Ignorar'. El stock se calcula sumando las variantes " +
+      "activas (status disponible) del producto; cuando el set no maneja tallas (Modo de tallas: Sin " +
+      "tallas), se compara contra el stock total del producto sin distinguir talla. Con 'Bloquear', el " +
+      "envío de la solicitud se rechaza (400) indicando qué producto/talla excede el stock y por " +
+      "cuánto. Con 'Solo informativo', la solicitud se envía igual, pero el aviso queda registrado en " +
+      "las notas internas de la cotización para el equipo de ventas y se muestra como advertencia en " +
+      "el carrito antes de enviar.",
+    appliesTo: ["CORPORATE"],
+    supportedScopes: ["GLOBAL", "BRAND", "SET_GROUP", "SET"],
+    defaultBehavior: "Sin ninguna regla activa, el modo es 'Ignorar stock' — coherente con el modelo de cotización referencial del negocio.",
     fields: [
       {
         key: "mode",
         label: "Modo",
-        description: "Comportamiento deseado frente al stock (planificado, no implementado todavía).",
+        description: "Comportamiento frente al stock disponible.",
         options: [
-          { value: "IGNORE", label: "Ignorar stock", description: "El carrito corporativo no considera el inventario — coherente con el modelo de cotización referencial del negocio." },
-          { value: "BLOCK", label: "Bloquear si no hay stock", description: "Planificado: impediría enviar la solicitud si excede el stock disponible. Aún no implementado." },
-          { value: "INFORMATIVE", label: "Solo informativo", description: "Planificado: mostraría una advertencia no bloqueante. Aún no implementado." },
+          { value: "IGNORE", label: "Ignorar stock", description: "El carrito corporativo no considera el inventario para este contexto — el cliente puede pedir cualquier cantidad." },
+          { value: "BLOCK", label: "Bloquear si no hay stock", description: "Impide enviar la solicitud si la demanda de algún producto/talla excede el stock disponible; muestra el motivo exacto." },
+          { value: "INFORMATIVE", label: "Solo informativo", description: "Permite enviar la solicitud igual, pero muestra una advertencia no bloqueante y la registra en notas internas para ventas." },
         ],
       },
     ],
-    examples: [],
-    interactions: [],
+    examples: [
+      { title: "Bloquear por marca", config: { mode: "BLOCK" }, explanation: "Útil en una Marca o Set con stock ajustado — impide sobrevender antes de que ventas confirme reposición." },
+      { title: "Solo avisar", config: { mode: "INFORMATIVE" }, explanation: "Deja que el cliente envíe la solicitud igual (el modelo de negocio es de cotización referencial), pero alerta al equipo de ventas para que ajuste la cotización final." },
+    ],
+    interactions: [
+      "Si Cantidad mínima (ámbito Global) exige más unidades de las que el stock real permite bajo 'Bloquear', ningún carrito puede enviarse — el detector de conflictos de la Fase 4 NO evalúa esto automáticamente porque no tiene acceso al stock en tiempo real (es un módulo puro, sin BD); revisa manualmente el stock disponible antes de combinar un mínimo alto con 'Bloquear'.",
+    ],
     warnings: [
-      "Esta regla está definida pero aún no tiene efecto en el catálogo — se activará en una fase futura. Por ahora, crearla no cambia ningún comportamiento visible.",
+      "La disponibilidad agregada por talla que se muestra en la ficha del set es una foto del momento de la carga de la página — no se recalcula mientras el cliente edita el carrito, así que puede quedar desactualizada si hay compras simultáneas.",
+      "Cuando el carrito no especifica color (caso normal en el flujo corporativo), el stock se suma entre TODOS los colores disponibles de esa talla — la regla no distingue por color.",
     ],
   },
 
@@ -272,7 +285,7 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
       { title: "Dos tramos", config: { tiers: [{ minQty: 12, discountPct: 0 }, { minQty: 50, discountPct: 8 }] }, explanation: "0% hasta 49 sets, 8% desde 50 sets en adelante." },
     ],
     interactions: [
-      "Tramos con un 'mínimo de sets' por debajo del mínimo efectivo de Cantidad mínima nunca se alcanzan en la práctica (el carrito no puede enviarse antes de cumplir ese mínimo) — el detector de conflictos de la Fase 4 lo advierte.",
+      "Tramos con un 'mínimo de sets' por debajo del mínimo efectivo de Cantidad mínima nunca se alcanzan en la práctica (el carrito no puede enviarse antes de cumplir ese mínimo) — el detector de conflictos lo advierte.",
     ],
     warnings: [
       "Solo el ámbito Global tiene efecto — una regla de ámbito Marca, Grupo de Sets o Set se puede crear y guardar, pero el cálculo de precios del carrito nunca la resuelve con ese contexto específico; el resultado es idéntico a no tener esa regla.",
@@ -301,7 +314,7 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
       { title: "13 + 1", config: { kind: "N_PLUS_ONE", buy: 13, free: 1 }, explanation: "Por cada 13 unidades compradas de ese set, 1 es gratis. Con 26 unidades, se descuentan 2." },
     ],
     interactions: [
-      "Si el ámbito de esta promoción exige más unidades (buy) que el máximo permitido por Rango de cantidad en el mismo contexto, la promoción nunca se activa — el detector de conflictos de la Fase 4 lo advierte.",
+      "Si el ámbito de esta promoción exige más unidades (buy) que el máximo permitido por Rango de cantidad en el mismo contexto, la promoción nunca se activa — el detector de conflictos lo advierte.",
       "Si Visibilidad de precios oculta el precio en el contexto donde esta promoción aplica, el cliente no ve el descuento reflejado (el total sigue siendo correcto, pero no hay forma de mostrar 'ahorraste $X' sin mostrar precios).",
     ],
     warnings: [],
