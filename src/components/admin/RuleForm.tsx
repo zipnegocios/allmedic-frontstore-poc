@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { RULE_TYPE_LABELS, type RuleTypeKey } from '@/lib/rule-config-schemas';
+import { RuleDocPanel } from './RuleDocPanel';
 import { Trash2, Plus } from 'lucide-react';
 
 type Scope = 'GLOBAL' | 'BRAND' | 'SET_GROUP' | 'SET' | 'PRODUCT';
@@ -128,6 +129,7 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
   };
 
   return (
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6 items-start">
     <Card>
       <CardContent className="p-6 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -211,6 +213,9 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
         </Button>
       </CardContent>
     </Card>
+
+    <RuleDocPanel ruleType={ruleType} scope={scope} onApplyExample={setConfig} />
+    </div>
   );
 }
 
