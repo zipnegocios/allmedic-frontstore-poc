@@ -70,8 +70,8 @@
 
 ### 9. `COLOR_RESTRICTION` — ✅ Funciona completo
 
-- `SetDetailContent.tsx` calcula los colores comunes a todas las piezas del set con al menos una variante activa, y muestra un selector de color (visible en los 3 modos de talla) cuando existe al menos un color en común. El color elegido se guarda en `line.color` — una elección por línea del carrito, no por pieza individual.
-- Con `line.color` poblado, la validación de `validate.ts` (`if (line.color)` contra `resolved.colorRestrictions`) tiene efecto real: bloquea el envío si la cantidad de esa línea es menor al mínimo exigido para ese color.
+- El armador de combinaciones (`SetDetailContent.tsx`) muestra un selector de color POR PIEZA, poblado con los colores que tienen al menos una variante activa de esa pieza. El color elegido se guarda en `pieceSelections[].color` (una entrada por pieza), no a nivel de línea.
+- `validate.ts` evalúa `COLOR_RESTRICTION` por fila × pieza: las unidades de una pieza en un color, dentro de una combinación, son `cantidadDeSets × quantityPerSet` de esa pieza — bloquea el envío nombrando pieza, color y mínimo exigido.
 - El panel (`RuleForm.tsx`) usa un selector de color poblado desde la tabla `colors` real (vía `/api/admin/colors`), no texto libre.
 - Los 5 ámbitos (`GLOBAL`, `BRAND`, `SET_GROUP`, `SET`, `PRODUCT`) tienen efecto real.
 
@@ -176,7 +176,7 @@ Cierra los hallazgos pendientes de esta auditoría: `MIN_QUANTITY` contextual, `
 
 **PRICE_VISIBILITY por ítem:** `PriceVisibilityContext` pasó de recibir un booleano ya resuelto en servidor a recibir las reglas `PRICE_VISIBILITY` completas — cada componente que muestra un precio (`ProductCard`, `QuickViewModal`, `CrossSellCard`, `CartItem`, ficha de producto) resuelve su propia visibilidad en memoria con `resolveRules(rules, { brandId, productId })`. El grid corporativo (`CorporativoContent`) hace lo mismo por set. Los componentes de chrome (`Header`, `MegaMenu`) y el resumen agregado del carrito individual siguen llamando al hook sin argumentos (ámbito Global únicamente) — no representan un único producto.
 
-**COLOR_RESTRICTION:** `SetDetailContent.tsx` calcula los colores comunes a todas las piezas del set con variantes activas y muestra un selector (una elección por línea, no por pieza) en los 3 modos de talla. `RuleForm.tsx` reemplaza el campo de texto libre `colorCode` por un selector poblado desde `/api/admin/colors`.
+**COLOR_RESTRICTION:** el armador de combinaciones (`SetDetailContent.tsx`) muestra un selector de color por cada pieza del set, con los colores que tienen variante activa de esa pieza. `RuleForm.tsx` reemplaza el campo de texto libre `colorCode` por un selector poblado desde `/api/admin/colors`.
 
 **Panel admin (`RuleForm.tsx`):** el ámbito "Producto específico" pasa de deshabilitado a un selector de productos reales (`/api/admin/products/lite`, endpoint nuevo y liviano — el existente `/api/admin/products` trae variantes e imágenes completas, demasiado pesado para un dropdown). Queda deshabilitado únicamente para `INVENTORY_MODE` (no tocado esta sesión) y forzado a Global para `VOLUME_DISCOUNT_RETAIL` (diseño intencional, igual que `PROMO` `COMBO`).
 

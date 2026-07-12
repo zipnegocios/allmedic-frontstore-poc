@@ -52,6 +52,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
       showPrices={showPrices}
       inventoryMode={inventoryMode}
       stockSnapshot={stockSnapshot}
+      colorRestrictions={resolved.colorRestrictions}
     />
   );
 }

@@ -19,9 +19,11 @@ const CartItemSchema = z.object({
   lines: z.array(
     z.object({
       id: z.string(),
-      size: z.string().optional(),
-      color: z.string().optional(),
-      pieceSelections: z.array(z.object({ productId: z.string(), size: z.string() })).optional(),
+      pieceSelections: z.array(z.object({
+        productId: z.string(),
+        size: z.string().optional(),
+        color: z.string().optional(),
+      })),
       quantity: z.number(),
     })
   ),

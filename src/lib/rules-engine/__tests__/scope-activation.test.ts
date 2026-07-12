@@ -71,8 +71,8 @@ describe("validateCorporateCart — MIN_QUANTITY contextual", () => {
     };
     const cart: CorporateCart = {
       items: [
-        { setId: "set-figs", setName: "Set FIGS", sizeMode: "NO_SIZES", lines: [{ quantity: 8 }] },
-        { setId: "set-other", setName: "Set Other", sizeMode: "NO_SIZES", lines: [{ quantity: 5 }] },
+        { setId: "set-figs", setName: "Set FIGS", sizeMode: "NO_SIZES", lines: [{ quantity: 8, pieceSelections: [{ productId: "prod-1" }] }] },
+        { setId: "set-other", setName: "Set Other", sizeMode: "NO_SIZES", lines: [{ quantity: 5, pieceSelections: [{ productId: "prod-1" }] }] },
       ],
     };
     const result = validateCorporateCart(cart, rules, setMeta);
@@ -87,7 +87,7 @@ describe("validateCorporateCart — MIN_QUANTITY contextual", () => {
       rule({ id: "b", name: "Mínimo FIGS", ruleType: "MIN_QUANTITY", scope: "BRAND", scopeId: "brand-figs", config: { min: 5, countUnit: "SETS" } }),
     ];
     const setMeta: Record<string, SetMeta> = { "set-figs": { brandId: "brand-figs" } };
-    const cart: CorporateCart = { items: [{ setId: "set-figs", setName: "Set FIGS", sizeMode: "NO_SIZES", lines: [{ quantity: 10 }] }] };
+    const cart: CorporateCart = { items: [{ setId: "set-figs", setName: "Set FIGS", sizeMode: "NO_SIZES", lines: [{ quantity: 10, pieceSelections: [{ productId: "prod-1" }] }] }] };
     const result = validateCorporateCart(cart, rules, setMeta);
     expect(result.canSubmit).toBe(true);
   });
@@ -97,7 +97,7 @@ describe("validateCorporateCart — MIN_QUANTITY contextual", () => {
       rule({ id: "b", name: "Mínimo piezas Marca X", ruleType: "MIN_QUANTITY", scope: "BRAND", scopeId: "brand-x", config: { min: 20, countUnit: "PIECES" } }),
     ];
     const setMeta: Record<string, SetMeta> = { "set-x": { brandId: "brand-x", piecesPerSet: 2 } };
-    const cart: CorporateCart = { items: [{ setId: "set-x", setName: "Set X", sizeMode: "NO_SIZES", lines: [{ quantity: 8 }] }] };
+    const cart: CorporateCart = { items: [{ setId: "set-x", setName: "Set X", sizeMode: "NO_SIZES", lines: [{ quantity: 8, pieceSelections: [{ productId: "prod-1" }] }] }] };
     const result = validateCorporateCart(cart, rules, setMeta);
     // 8 sets * 2 piezas = 16 piezas < 20 -> viola
     expect(result.canSubmit).toBe(false);
@@ -122,8 +122,8 @@ describe("computeCartPricing — VOLUME_SCALE por ítem, sin acumulación", () =
     const setMeta: Record<string, SetMeta> = { "set-a": { brandId: "brand-a" }, "set-b": { brandId: "brand-b" } };
     const cart: CorporateCart = {
       items: [
-        { setId: "set-a", sizeMode: "NO_SIZES", lines: [{ quantity: 5 }] }, // marca A: qty 5 alcanza el tramo
-        { setId: "set-b", sizeMode: "NO_SIZES", lines: [{ quantity: 5 }] }, // marca B: sin regla, no descuenta
+        { setId: "set-a", sizeMode: "NO_SIZES", lines: [{ quantity: 5, pieceSelections: [{ productId: "prod-1" }] }] }, // marca A: qty 5 alcanza el tramo
+        { setId: "set-b", sizeMode: "NO_SIZES", lines: [{ quantity: 5, pieceSelections: [{ productId: "prod-2" }] }] }, // marca B: sin regla, no descuenta
       ],
     };
     const result = computeCartPricing(cart, { "set-a": PRICE_10, "set-b": PRICE_10 }, rules, setMeta);
@@ -138,7 +138,7 @@ describe("computeCartPricing — VOLUME_SCALE por ítem, sin acumulación", () =
       rule({ id: "vs-global", ruleType: "VOLUME_SCALE", scope: "GLOBAL", config: { tiers: [{ minQty: 1, discountPct: 5 }] } }),
       rule({ id: "vs-set", ruleType: "VOLUME_SCALE", scope: "SET", scopeId: "set-a", config: { tiers: [{ minQty: 1, discountPct: 15 }] } }),
     ];
-    const cart: CorporateCart = { items: [{ setId: "set-a", sizeMode: "NO_SIZES", lines: [{ quantity: 5 }] }] };
+    const cart: CorporateCart = { items: [{ setId: "set-a", sizeMode: "NO_SIZES", lines: [{ quantity: 5, pieceSelections: [{ productId: "prod-1" }] }] }] };
     const result = computeCartPricing(cart, { "set-a": PRICE_10 }, rules, {});
     // Si se acumularan, sería 5+15=20%; ganando solo la más específica, debe ser 15% = $7.5 sobre $50
     expect(result.volumeDiscountAmount).toBe(7.5);
@@ -147,31 +147,50 @@ describe("computeCartPricing — VOLUME_SCALE por ítem, sin acumulación", () =
 
   it("GLOBAL sin ninguna regla más específica se comporta igual que antes (sobre el carrito completo)", () => {
     const rules = [rule({ ruleType: "VOLUME_SCALE", scope: "GLOBAL", config: { tiers: [{ minQty: 10, discountPct: 8 }] } })];
-    const cart: CorporateCart = { items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 60 }] }] };
+    const cart: CorporateCart = { items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 60, pieceSelections: [{ productId: "prod-1" }] }] }] };
     const result = computeCartPricing(cart, { "set-1": PRICE_10 }, rules, {});
     expect(result.volumeDiscountPct).toBe(8);
     expect(result.volumeDiscountAmount).toBe(48);
   });
 });
 
-describe("validateCorporateCart — COLOR_RESTRICTION", () => {
-  it("línea con el color restringido bajo el mínimo -> violación", () => {
+describe("validateCorporateCart — COLOR_RESTRICTION por fila × pieza (armador)", () => {
+  it("combinación con el color restringido bajo el mínimo -> violación, nombrando la pieza", () => {
     const rules = [rule({ ruleType: "COLOR_RESTRICTION", scope: "GLOBAL", config: { colorCode: "PINK", min: 6 } })];
-    const cart: CorporateCart = { items: [{ setId: "set-1", sizeMode: "MATRIX", lines: [{ size: "M", color: "PINK", quantity: 3 }] }] };
-    const result = validateCorporateCart(cart, rules, {});
+    const setMeta: Record<string, SetMeta> = { "set-1": { pieces: [{ productId: "prod-1", productName: "Camisa", quantityPerSet: 1 }] } };
+    const cart: CorporateCart = {
+      items: [{ setId: "set-1", sizeMode: "MATRIX", lines: [{ quantity: 3, pieceSelections: [{ productId: "prod-1", size: "M", color: "PINK" }] }] }],
+    };
+    const result = validateCorporateCart(cart, rules, setMeta);
     expect(result.violations.some((v) => v.code === "COLOR_RESTRICTION")).toBe(true);
+    expect(result.violations.find((v) => v.code === "COLOR_RESTRICTION")?.message).toContain("Camisa");
   });
 
-  it("línea con un color distinto al restringido -> sin efecto", () => {
+  it("combinación que alcanza el mínimo (cantidad × quantityPerSet) -> sin violación", () => {
     const rules = [rule({ ruleType: "COLOR_RESTRICTION", scope: "GLOBAL", config: { colorCode: "PINK", min: 6 } })];
-    const cart: CorporateCart = { items: [{ setId: "set-1", sizeMode: "MATRIX", lines: [{ size: "M", color: "BLUE", quantity: 1 }] }] };
+    const setMeta: Record<string, SetMeta> = { "set-1": { pieces: [{ productId: "prod-1", quantityPerSet: 2 }] } };
+    const cart: CorporateCart = {
+      // 3 sets * 2 piezas/set = 6 unidades — alcanza el mínimo exacto.
+      items: [{ setId: "set-1", sizeMode: "MATRIX", lines: [{ quantity: 3, pieceSelections: [{ productId: "prod-1", size: "M", color: "PINK" }] }] }],
+    };
+    const result = validateCorporateCart(cart, rules, setMeta);
+    expect(result.violations.some((v) => v.code === "COLOR_RESTRICTION")).toBe(false);
+  });
+
+  it("pieza con un color distinto al restringido -> sin efecto", () => {
+    const rules = [rule({ ruleType: "COLOR_RESTRICTION", scope: "GLOBAL", config: { colorCode: "PINK", min: 6 } })];
+    const cart: CorporateCart = {
+      items: [{ setId: "set-1", sizeMode: "MATRIX", lines: [{ quantity: 1, pieceSelections: [{ productId: "prod-1", size: "M", color: "BLUE" }] }] }],
+    };
     const result = validateCorporateCart(cart, rules, {});
     expect(result.violations.some((v) => v.code === "COLOR_RESTRICTION")).toBe(false);
   });
 
-  it("línea sin color -> sin efecto (la restricción no se evalúa)", () => {
+  it("pieza sin color elegido -> sin efecto (la restricción no se evalúa)", () => {
     const rules = [rule({ ruleType: "COLOR_RESTRICTION", scope: "GLOBAL", config: { colorCode: "PINK", min: 6 } })];
-    const cart: CorporateCart = { items: [{ setId: "set-1", sizeMode: "MATRIX", lines: [{ size: "M", quantity: 1 }] }] };
+    const cart: CorporateCart = {
+      items: [{ setId: "set-1", sizeMode: "MATRIX", lines: [{ quantity: 1, pieceSelections: [{ productId: "prod-1", size: "M" }] }] }],
+    };
     const result = validateCorporateCart(cart, rules, {});
     expect(result.violations.some((v) => v.code === "COLOR_RESTRICTION")).toBe(false);
   });
@@ -180,7 +199,9 @@ describe("validateCorporateCart — COLOR_RESTRICTION", () => {
     const rules = [rule({ ruleType: "COLOR_RESTRICTION", scope: "PRODUCT", scopeId: "prod-a", config: { colorCode: "PINK", min: 6 } })];
     const setMetaWith: Record<string, SetMeta> = { "set-1": { pieces: [{ productId: "prod-a", quantityPerSet: 1 }] } };
     const setMetaWithout: Record<string, SetMeta> = { "set-1": { pieces: [{ productId: "prod-z", quantityPerSet: 1 }] } };
-    const cart: CorporateCart = { items: [{ setId: "set-1", sizeMode: "MATRIX", lines: [{ size: "M", color: "PINK", quantity: 3 }] }] };
+    const cart: CorporateCart = {
+      items: [{ setId: "set-1", sizeMode: "MATRIX", lines: [{ quantity: 3, pieceSelections: [{ productId: "prod-a", size: "M", color: "PINK" }] }] }],
+    };
     expect(validateCorporateCart(cart, rules, setMetaWith).violations.some((v) => v.code === "COLOR_RESTRICTION")).toBe(true);
     expect(validateCorporateCart(cart, rules, setMetaWithout).violations.some((v) => v.code === "COLOR_RESTRICTION")).toBe(false);
   });

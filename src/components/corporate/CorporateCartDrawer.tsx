@@ -137,9 +137,16 @@ export function CorporateCartDrawer({ isOpen, onClose }: CorporateCartDrawerProp
                         {item.lines.map((line) => (
                           <div key={line.id} className="flex items-center justify-between text-sm bg-[#F5F5F7] rounded-lg px-3 py-2">
                             <div>
-                              {line.size && <span className="font-medium">Talla {line.size}</span>}
-                              {line.color && <span className="ml-2 text-gray-500">{line.color}</span>}
-                              {!line.size && !line.color && <span className="text-gray-500">Set completo</span>}
+                              {line.pieceSelections.length > 0 ? (
+                                <span className="text-xs text-gray-600">
+                                  {line.pieceSelections
+                                    .map((s) => [s.size, s.color].filter(Boolean).join(' / '))
+                                    .filter(Boolean)
+                                    .join(' · ') || 'Set completo'}
+                                </span>
+                              ) : (
+                                <span className="text-gray-500">Set completo</span>
+                              )}
                             </div>
                             <div className="flex items-center gap-2">
                               <button

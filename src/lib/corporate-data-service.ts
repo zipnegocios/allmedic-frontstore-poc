@@ -18,7 +18,7 @@ import { eq, and, inArray, asc, desc, sql } from 'drizzle-orm';
 import type { BusinessRule, InventoryStockSnapshot, SetPieceInfo } from './rules-engine';
 import type { CorporateSetSummary, CorporateSetDetail, SetPiece, SetGroupSummary } from './corporate-types';
 import type { ProductColor, ProductVariant } from './types';
-import { resolveMediaUrl } from './media';
+import { resolveMediaUrl, isVideoMime, type MediaItem } from './media';
 
 async function getCoverImageMap(setIds: string[]): Promise<Map<string, string>> {
   if (setIds.length === 0) return new Map();
@@ -196,6 +196,32 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
         .where(inArray(variantsTable.productId, productIds))
     : [];
 
+  // Imágenes por producto+color — mismo patrón que el catálogo individual (`data-service.ts`,
+  // `fetchProductsWithJoins`): permite que el armador cambie las fotos de una pieza según el
+  // color elegido, igual que la ficha de producto individual.
+  const imageLinks = productIds.length > 0
+    ? await db
+        .select({
+          productId: mediaLinksTable.entityId,
+          colorId: mediaLinksTable.colorId,
+          storageKey: mediaAssetsTable.storageKey,
+          mimeType: mediaAssetsTable.mimeType,
+          width: mediaAssetsTable.width,
+          height: mediaAssetsTable.height,
+          durationSeconds: mediaAssetsTable.durationSeconds,
+          previewStartSeconds: mediaAssetsTable.previewStartSeconds,
+          previewDurationSeconds: mediaAssetsTable.previewDurationSeconds,
+        })
+        .from(mediaLinksTable)
+        .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
+        .where(and(
+          eq(mediaLinksTable.entityType, 'PRODUCT'),
+          eq(mediaLinksTable.role, 'GALLERY'),
+          inArray(mediaLinksTable.entityId, productIds)
+        ))
+        .orderBy(asc(mediaLinksTable.sortOrder))
+    : [];
+
   let referencePrice = 0;
   let hasMissingPrices = false;
 
@@ -217,13 +243,32 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
       sizeSet.add(v.size);
     }
 
+    // Imágenes de esta pieza agrupadas por color — mismo criterio que retail: fallback a
+    // imágenes sin color asignado ('_default') si el color no tiene imágenes propias.
+    const productImageLinks = imageLinks.filter((i) => i.productId === item.productId);
+    const imagesByColor = new Map<string, MediaItem[]>();
+    for (const img of productImageLinks) {
+      const key = img.colorId || '_default';
+      if (!imagesByColor.has(key)) imagesByColor.set(key, []);
+      imagesByColor.get(key)!.push({
+        url: resolveMediaUrl(img.storageKey),
+        type: isVideoMime(img.mimeType) ? 'video' : 'image',
+        mimeType: img.mimeType,
+        width: img.width,
+        height: img.height,
+        durationSeconds: img.durationSeconds,
+        previewStartSeconds: img.previewStartSeconds,
+        previewDurationSeconds: img.previewDurationSeconds,
+      });
+    }
+
     const mappedVariants: ProductVariant[] = productVariants.map((v) => ({
       id: v.id,
       sku: v.sku,
       colorId: v.colorId,
       size: v.size as ProductVariant['size'],
       fit: (v.fit as ProductVariant['fit']) || undefined,
-      images: [],
+      images: imagesByColor.get(v.colorId) || imagesByColor.get('_default') || [],
       status: v.status as ProductVariant['status'],
     }));
 
@@ -351,9 +396,10 @@ export async function getSetPiecesByIds(setIds: string[]): Promise<Record<string
 }
 
 // ── Snapshot agregado de stock (variantes activas) — para INVENTORY_MODE ──
-// Una sola consulta con GROUP BY por producto+talla; se calcula también el total por
-// producto (sin talla) para sets con SIZE_MODE: NO_SIZES. Claves compatibles con
-// `checkInventory` del motor de reglas: "productId::size" y "productId" (total).
+// Una sola consulta con GROUP BY por producto+talla+color; se calculan también los totales
+// por producto+talla (todos los colores) y por producto (sin talla, para NO_SIZES). Claves
+// compatibles con `checkInventory` del motor de reglas: "productId::size::colorCode",
+// "productId::size" y "productId" (ver comentario de `InventoryStockSnapshot` en types.ts).
 export async function getInventorySnapshotByProductIds(productIds: string[]): Promise<InventoryStockSnapshot> {
   if (productIds.length === 0) return {};
 
@@ -361,20 +407,30 @@ export async function getInventorySnapshotByProductIds(productIds: string[]): Pr
     .select({
       productId: variantsTable.productId,
       size: variantsTable.size,
+      colorCode: colorsTable.code,
       stock: sql<number>`coalesce(sum(${variantsTable.stock}), 0)`,
     })
     .from(variantsTable)
+    .leftJoin(colorsTable, eq(variantsTable.colorId, colorsTable.id))
     .where(and(inArray(variantsTable.productId, productIds), eq(variantsTable.status, 'AVAILABLE')))
-    .groupBy(variantsTable.productId, variantsTable.size);
+    .groupBy(variantsTable.productId, variantsTable.size, colorsTable.code);
 
   const snapshot: InventoryStockSnapshot = {};
-  const totalsByProduct = new Map<string, number>();
+  const sizeTotals = new Map<string, number>();
+  const productTotals = new Map<string, number>();
   for (const row of rows) {
     const stock = Number(row.stock);
-    snapshot[`${row.productId}::${row.size}`] = stock;
-    totalsByProduct.set(row.productId, (totalsByProduct.get(row.productId) ?? 0) + stock);
+    if (row.colorCode) {
+      snapshot[`${row.productId}::${row.size}::${row.colorCode}`] = stock;
+    }
+    const sizeKey = `${row.productId}::${row.size}`;
+    sizeTotals.set(sizeKey, (sizeTotals.get(sizeKey) ?? 0) + stock);
+    productTotals.set(row.productId, (productTotals.get(row.productId) ?? 0) + stock);
   }
-  for (const [productId, total] of totalsByProduct) {
+  for (const [sizeKey, total] of sizeTotals) {
+    snapshot[sizeKey] = total;
+  }
+  for (const [productId, total] of productTotals) {
     snapshot[productId] = total;
   }
   return snapshot;

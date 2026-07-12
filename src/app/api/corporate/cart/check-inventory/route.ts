@@ -9,9 +9,11 @@ import {
 import { checkInventory, type SetMeta } from '@/lib/rules-engine';
 
 const CartLineSchema = z.object({
-  size: z.string().optional(),
-  color: z.string().optional(),
-  pieceSelections: z.array(z.object({ productId: z.string(), size: z.string() })).optional(),
+  pieceSelections: z.array(z.object({
+    productId: z.string(),
+    size: z.string().optional(),
+    color: z.string().optional(),
+  })).min(1),
   quantity: z.number().min(1),
 });
 

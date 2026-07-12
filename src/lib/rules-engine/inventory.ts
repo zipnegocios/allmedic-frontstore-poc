@@ -21,9 +21,13 @@ function pluralDisponibles(n: number): string {
   return n === 1 ? "disponible" : "disponibles";
 }
 
-/** Clave del snapshot: `productId::size` con talla, o solo `productId` sin talla (NO_SIZES). */
-function stockKey(productId: string, size: string | null): string {
-  return size === null ? productId : `${productId}::${size}`;
+/** Clave del snapshot: `productId::size::color` cuando la pieza tiene color elegido,
+ * `productId::size` con talla sin color, o solo `productId` sin talla (NO_SIZES, donde el
+ * color no participa en el control de inventario — solo talla+color agotan variantes reales). */
+function stockKey(productId: string, size: string | null, color: string | null): string {
+  if (size && color) return `${productId}::${size}::${color}`;
+  if (size) return `${productId}::${size}`;
+  return productId;
 }
 
 interface DemandEntry {
@@ -37,7 +41,9 @@ interface DemandEntry {
   demand: number;
 }
 
-/** Demanda de UN ítem del carrito (un set), agrupada por clave de stock. No agrega entre ítems. */
+/** Demanda de UN ítem del carrito (un set), agrupada por clave de stock. No agrega entre ítems.
+ * El armador de combinaciones siempre puebla `pieceSelections` (una entrada por pieza,
+ * con o sin talla/color según `SIZE_MODE`) — no hay ramas distintas por modo aquí. */
 function computeItemDemand(
   item: CorporateCart["items"][number],
   pieces: SetPieceInfo[],
@@ -45,9 +51,9 @@ function computeItemDemand(
 ): DemandEntry[] {
   const byKey = new Map<string, DemandEntry>();
 
-  function addDemand(productId: string, productName: string | undefined, size: string | null, qty: number) {
+  function addDemand(productId: string, productName: string | undefined, size: string | null, color: string | null, qty: number) {
     if (qty <= 0) return;
-    const key = stockKey(productId, size);
+    const key = stockKey(productId, size, color);
     const existing = byKey.get(key);
     if (existing) {
       existing.demand += qty;
@@ -66,22 +72,10 @@ function computeItemDemand(
   }
 
   for (const line of item.lines) {
-    if (item.sizeMode === "NO_SIZES") {
-      for (const piece of pieces) {
-        addDemand(piece.productId, piece.productName, null, line.quantity * piece.quantityPerSet);
-      }
-    } else if (item.sizeMode === "PER_PIECE") {
-      for (const sel of line.pieceSelections ?? []) {
-        const piece = pieces.find((p) => p.productId === sel.productId);
-        const qtyPerSet = piece?.quantityPerSet ?? 1;
-        addDemand(sel.productId, piece?.productName, sel.size, line.quantity * qtyPerSet);
-      }
-    } else {
-      // MATRIX: una sola talla aplica a todas las piezas del set.
-      const size = line.size ?? null;
-      for (const piece of pieces) {
-        addDemand(piece.productId, piece.productName, size, line.quantity * piece.quantityPerSet);
-      }
+    for (const sel of line.pieceSelections ?? []) {
+      const piece = pieces.find((p) => p.productId === sel.productId);
+      const qtyPerSet = piece?.quantityPerSet ?? 1;
+      addDemand(sel.productId, piece?.productName, sel.size ?? null, sel.color ?? null, line.quantity * qtyPerSet);
     }
   }
 

@@ -168,9 +168,15 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
   SIZE_MODE: {
     ruleType: "SIZE_MODE",
     title: "Modo de tallas",
-    summary: "Define cómo selecciona el cliente las tallas al armar un set en el catálogo corporativo.",
+    summary: "Define el comportamiento del armador de combinaciones al elegir talla de cada pieza en el catálogo corporativo.",
     detail:
-      "Cambia por completo el selector que ve el cliente en la ficha de cada set del catálogo corporativo.",
+      "El armador de combinaciones es el único flujo de compra corporativo: el cliente elige color y " +
+      "talla de CADA pieza del set por separado y arma una o varias combinaciones antes de llevarlas " +
+      "al carrito. Este tipo de regla no cambia esa estructura — cambia su comportamiento. En Matriz, " +
+      "el armador muestra además un atajo ('todo el set en la misma talla') que rellena de un tap la " +
+      "talla de todas las piezas, editable pieza por pieza después. En Talla independiente por pieza, " +
+      "el armador no ofrece atajo — cada pieza se elige por separado desde el inicio. En Sin tallas, " +
+      "el armador oculta el selector de talla en cada pieza; solo quedan color (si aplica) y cantidad.",
     appliesTo: ["CORPORATE"],
     supportedScopes: ["GLOBAL", "BRAND", "SET_GROUP", "SET", "PRODUCT"],
     defaultBehavior: "Sin ninguna regla activa, se usa el modo Matriz de tallas.",
@@ -178,16 +184,16 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
       {
         key: "mode",
         label: "Modo",
-        description: "Cómo se capturan las tallas al agregar el set al carrito.",
+        description: "Comportamiento del armador de combinaciones frente a la talla de cada pieza.",
         options: [
-          { value: "MATRIX", label: "Matriz de tallas", description: "El cliente ingresa una cantidad por cada talla disponible; todo el set (todas sus piezas) se arma en la misma talla." },
-          { value: "PER_PIECE", label: "Talla independiente por pieza", description: "El cliente elige la talla de cada pieza del set por separado (ej. camisa en M, pantalón en L) y una cantidad total de sets con esa combinación." },
-          { value: "NO_SIZES", label: "Sin tallas", description: "El set no maneja tallas — el cliente solo ingresa una cantidad total de sets." },
+          { value: "MATRIX", label: "Matriz de tallas", description: "El armador ofrece el atajo 'todo el set en la misma talla' además de la edición pieza por pieza." },
+          { value: "PER_PIECE", label: "Talla independiente por pieza", description: "El cliente elige la talla de cada pieza del set por separado desde el inicio, sin atajo (ej. camisa en M, pantalón en L)." },
+          { value: "NO_SIZES", label: "Sin tallas", description: "El armador oculta el selector de talla — el set no maneja tallas, solo color (si aplica) y cantidad de sets." },
         ],
       },
     ],
     examples: [
-      { title: "Matriz estándar", config: { mode: "MATRIX" }, explanation: "El comportamiento por defecto — una cantidad por talla." },
+      { title: "Matriz estándar", config: { mode: "MATRIX" }, explanation: "El comportamiento por defecto — atajo de talla única disponible, editable por pieza." },
       { title: "Sin tallas", config: { mode: "NO_SIZES" }, explanation: "Para sets que no varían por talla (ej. accesorios)." },
     ],
     interactions: [],
@@ -241,15 +247,16 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
     summary: "Define si el carrito corporativo debe bloquear, avisar o ignorar cuando la cantidad pedida excede el stock real de una talla/producto.",
     detail:
       "Se resuelve por set (mismo patrón que Promoción o Solo múltiplos). La demanda se agrega por " +
-      "producto y talla: si dos sets distintos del carrito piden la misma talla del mismo producto, " +
-      "sus cantidades se suman antes de comparar contra el stock disponible — solo participan en esa " +
-      "suma los sets cuyo modo efectivo no sea 'Ignorar'. El stock se calcula sumando las variantes " +
-      "activas (status disponible) del producto; cuando el set no maneja tallas (Modo de tallas: Sin " +
-      "tallas), se compara contra el stock total del producto sin distinguir talla. Con 'Bloquear', el " +
-      "envío de la solicitud se rechaza (400) indicando qué producto/talla excede el stock y por " +
-      "cuánto. Con 'Solo informativo', la solicitud se envía igual, pero el aviso queda registrado en " +
-      "las notas internas de la cotización para el equipo de ventas y se muestra como advertencia en " +
-      "el carrito antes de enviar.",
+      "producto, talla y color exactos: si dos combinaciones del carrito piden la misma talla y color " +
+      "del mismo producto, sus cantidades se suman antes de comparar contra el stock disponible de esa " +
+      "combinación exacta — solo participan en esa suma los sets cuyo modo efectivo no sea 'Ignorar'. " +
+      "El stock se calcula sumando las variantes activas (status disponible) del producto agrupadas por " +
+      "talla y color; cuando el set no maneja tallas (Modo de tallas: Sin tallas), se compara contra el " +
+      "stock total del producto sin distinguir talla ni color. Con 'Bloquear', el envío de la solicitud " +
+      "se rechaza (400) indicando qué producto/talla excede el stock y por cuánto. Con 'Solo " +
+      "informativo', la solicitud se envía igual, pero el aviso queda registrado en las notas internas " +
+      "de la cotización para el equipo de ventas y se muestra como advertencia en el carrito antes de " +
+      "enviar.",
     appliesTo: ["CORPORATE"],
     supportedScopes: ["GLOBAL", "BRAND", "SET_GROUP", "SET"],
     defaultBehavior: "Sin ninguna regla activa, el modo es 'Ignorar stock' — coherente con el modelo de cotización referencial del negocio.",
@@ -273,8 +280,8 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
       "Si Cantidad mínima (ámbito Global) exige más unidades de las que el stock real permite bajo 'Bloquear', ningún carrito puede enviarse — el detector de conflictos NO evalúa esto automáticamente porque no tiene acceso al stock en tiempo real (es un módulo puro, sin BD); revisa manualmente el stock disponible antes de combinar un mínimo alto con 'Bloquear'.",
     ],
     warnings: [
-      "La disponibilidad agregada por talla que se muestra en la ficha del set es una foto del momento de la carga de la página — no se recalcula mientras el cliente edita el carrito, así que puede quedar desactualizada si hay compras simultáneas.",
-      "Cuando el carrito no especifica color (caso normal en el flujo corporativo), el stock se suma entre TODOS los colores disponibles de esa talla — la regla no distingue por color.",
+      "La disponibilidad agregada por talla y color que se muestra en el armador es una foto del momento de la carga de la página — no se recalcula mientras el cliente edita el carrito, así que puede quedar desactualizada si hay compras simultáneas.",
+      "Cuando una pieza de la combinación no lleva color elegido, su demanda se suma contra el stock total de esa talla entre TODOS los colores — la comparación exacta por color solo aplica a piezas donde el cliente sí eligió color.",
       "El ámbito Producto no está disponible para este tipo: la demanda de stock se calcula por set completo (todas sus piezas a la vez), no por una pieza aislada, así que un modo de inventario distinto para un solo producto dentro de un set no tiene una semántica clara — usa el ámbito Set si necesitas ese nivel de control.",
     ],
   },
@@ -394,28 +401,29 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
   COLOR_RESTRICTION: {
     ruleType: "COLOR_RESTRICTION",
     title: "Restricción por color",
-    summary: "Exige una cantidad mínima en la línea del carrito cuando el cliente elige un color específico.",
+    summary: "Exige una cantidad mínima de una pieza cuando el cliente elige un color específico para ella, dentro de una combinación del armador.",
     detail:
-      "El cliente elige un color al armar el set (un solo color por línea del carrito, común a todas " +
-      "las piezas de esa línea, sin importar el modo de tallas del set). El selector solo ofrece " +
-      "colores que comparten todas las piezas del set y que tienen al menos una variante activa — si " +
-      "un set no tiene ningún color en común entre sus piezas, no se muestra selector y la regla no " +
-      "tiene forma de activarse para ese set en particular. Si la cantidad de la línea con ese color " +
-      "es menor al mínimo configurado, el envío se bloquea con un mensaje que nombra el color y el " +
-      "mínimo exigido.",
+      "El cliente elige color por CADA PIEZA del set en el armador de combinaciones (el color de una " +
+      "camisa y el de un pantalón dentro del mismo set pueden ser distintos). El selector de color de " +
+      "cada pieza solo ofrece los colores con al menos una variante activa de esa pieza — si una pieza " +
+      "no tiene ningún color con stock activo, no se muestra selector para ella y la regla no tiene " +
+      "forma de activarse sobre esa pieza. La restricción se evalúa por fila de combinación × pieza: " +
+      "las unidades de una pieza en un color, dentro de una combinación, son " +
+      "`cantidadDeSets × piezasPorSet` de esa pieza. Si ese total es menor al mínimo configurado para " +
+      "el color, el envío se bloquea con un mensaje que nombra la pieza, el color y el mínimo exigido.",
     appliesTo: ["CORPORATE"],
     supportedScopes: ["GLOBAL", "BRAND", "SET_GROUP", "SET", "PRODUCT"],
     defaultBehavior: "Sin ninguna regla activa, elegir cualquier color no exige ninguna cantidad mínima adicional.",
     fields: [
       { key: "colorCode", label: "Color", description: "Color al que aplica la restricción, elegido de la tabla de colores real del catálogo.", example: "PINK" },
-      { key: "min", label: "Mínimo requerido", description: "Cantidad mínima exigida en la línea cuando el cliente elige ese color.", example: "6" },
+      { key: "min", label: "Mínimo requerido", description: "Cantidad mínima exigida de esa pieza en ese color, dentro de una combinación.", example: "6" },
     ],
     examples: [
-      { title: "Mínimo por color especial", config: { colorCode: "PINK", min: 6 }, explanation: "Si el cliente elige el color rosado para un set, esa línea debe pedir al menos 6 unidades." },
+      { title: "Mínimo por color especial", config: { colorCode: "PINK", min: 6 }, explanation: "Si el cliente elige el color rosado para una pieza, esa pieza debe sumar al menos 6 unidades dentro de la combinación (cantidad de sets × piezas por set)." },
     ],
     interactions: [],
     warnings: [
-      "El color se elige una vez por línea del carrito, no por pieza individual — en el modo Talla independiente por pieza, todas las piezas de esa línea comparten el mismo color aunque tengan tallas distintas.",
+      "En el modo Sin tallas, el color de cada pieza sigue eligiéndose de forma independiente — la restricción se evalúa igual, solo que sin talla asociada.",
     ],
   },
 

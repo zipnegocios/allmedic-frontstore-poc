@@ -14,9 +14,11 @@ import {
 import { validateCorporateCart, computeCartPricing, checkInventory, type SetMeta } from '@/lib/rules-engine';
 
 const CartLineSchema = z.object({
-  size: z.string().optional(),
-  color: z.string().optional(),
-  pieceSelections: z.array(z.object({ productId: z.string(), size: z.string() })).optional(),
+  pieceSelections: z.array(z.object({
+    productId: z.string(),
+    size: z.string().optional(),
+    color: z.string().optional(),
+  })).min(1),
   quantity: z.number().min(1),
 });
 
@@ -72,8 +74,15 @@ export async function POST(request: NextRequest) {
       getSetPiecesByIds(setIds),
     ]);
 
+    // Composición del set (piezas + cantidad por set) — necesaria para resolver reglas de
+    // ámbito Producto y para MIN_QUANTITY/COLOR_RESTRICTION contextuales, que necesitan saber
+    // cuántas unidades de CADA pieza aporta una combinación.
+    const setMetaWithPieces: Record<string, SetMeta> = Object.fromEntries(
+      setIds.map((id) => [id, { ...setMeta[id], pieces: setPieces[id] ?? [] }])
+    );
+
     // Re-validación en servidor: si el carrito no cumple las reglas, se rechaza.
-    const validation = validateCorporateCart(cart, rules, setMeta);
+    const validation = validateCorporateCart(cart, rules, setMetaWithPieces);
     if (!validation.canSubmit) {
       return NextResponse.json(
         { error: 'El carrito no cumple las reglas de negocio', violations: validation.violations },
@@ -82,9 +91,6 @@ export async function POST(request: NextRequest) {
     }
 
     // INVENTORY_MODE: se resuelve por set y se compara contra un snapshot de stock real.
-    const setMetaWithPieces: Record<string, SetMeta> = Object.fromEntries(
-      setIds.map((id) => [id, { ...setMeta[id], pieces: setPieces[id] ?? [] }])
-    );
     const productIds = Array.from(new Set(Object.values(setPieces).flat().map((p) => p.productId)));
     const stockSnapshot = await getInventorySnapshotByProductIds(productIds);
     const inventoryIssues = checkInventory(cart, rules, setMetaWithPieces, stockSnapshot);
@@ -101,7 +107,7 @@ export async function POST(request: NextRequest) {
     const informativeIssues = inventoryIssues.filter((i) => i.severity === 'INFORMATIVE');
 
     // Precios recalculados en servidor — nunca se usa el precio enviado por el cliente.
-    const pricing = computeCartPricing(cart, setPrices, rules, setMeta);
+    const pricing = computeCartPricing(cart, setPrices, rules, setMetaWithPieces);
 
     const session = await auth().catch(() => null);
     let accountId: string | null = null;

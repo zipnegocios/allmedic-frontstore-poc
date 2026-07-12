@@ -61,8 +61,6 @@ export default function SolicitudPage() {
               setName: i.setName,
               sizeMode: i.sizeMode,
               lines: i.lines.map((l) => ({
-                size: l.size,
-                color: l.color,
                 pieceSelections: l.pieceSelections,
                 quantity: l.quantity,
               })),

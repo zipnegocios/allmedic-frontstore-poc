@@ -20,9 +20,7 @@ interface QuoteDetailPageProps {
 }
 
 interface QuoteLine {
-  size?: string;
-  color?: string;
-  pieceSelections?: Array<{ productId: string; size: string }>;
+  pieceSelections: Array<{ productId: string; size?: string; color?: string }>;
   quantity: number;
 }
 
@@ -122,10 +120,12 @@ export default async function QuoteDetailPage({ params }: QuoteDetailPageProps) 
                   {item.lines.map((line, lIdx) => (
                     <div key={lIdx} className="flex justify-between text-sm text-gray-600 bg-[#F5F5F7] rounded px-3 py-1.5">
                       <span>
-                        {line.size && `Talla ${line.size}`}
-                        {line.color && ` · ${line.color}`}
-                        {line.pieceSelections && line.pieceSelections.map((p) => `${p.size}`).join(', ')}
-                        {!line.size && !line.color && !line.pieceSelections && 'Set completo'}
+                        {line.pieceSelections && line.pieceSelections.length > 0
+                          ? line.pieceSelections
+                              .map((p) => [p.size, p.color].filter(Boolean).join('/'))
+                              .filter(Boolean)
+                              .join(', ') || 'Set completo'
+                          : 'Set completo'}
                       </span>
                       <span className="font-medium">{line.quantity} sets</span>
                     </div>

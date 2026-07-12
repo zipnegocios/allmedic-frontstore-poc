@@ -17,10 +17,9 @@ import {
 
 export interface CorporateCartLine {
   id: string;
-  size?: string;
-  color?: string;
-  pieceSelections?: Array<{ productId: string; size: string }>;
   quantity: number;
+  /** Una entrada por pieza del set — talla ausente en sets NO_SIZES, color siempre opcional. */
+  pieceSelections: Array<{ productId: string; size?: string; color?: string }>;
 }
 
 export interface CorporateCartItem {
@@ -73,8 +72,52 @@ function lineId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function lineKey(l: Pick<CorporateCartLine, 'size' | 'color' | 'pieceSelections'>): string {
-  return `${l.size ?? ''}|${l.color ?? ''}|${JSON.stringify(l.pieceSelections ?? null)}`;
+function lineKey(l: Pick<CorporateCartLine, 'pieceSelections'>): string {
+  return JSON.stringify(l.pieceSelections);
+}
+
+/** Forma de una línea de carrito ANTES del armador de combinaciones: talla/color a nivel de
+ * línea (compartidos por todas las piezas) y `pieceSelections` sin color. Se conserva solo
+ * para migrar carritos persistidos (localStorage o BD) al nuevo formato en lectura. */
+interface LegacyCorporateCartLine {
+  id?: string;
+  size?: string;
+  color?: string;
+  pieceSelections?: Array<{ productId: string; size: string }>;
+  quantity: number;
+}
+
+/** Migra una línea a la forma unificada del armador: si ya trae `pieceSelections`, le
+ * propaga el color de línea a cada pieza (formato PER_PIECE anterior); si no, la reconstruye
+ * a partir de la composición del set guardada en el ítem (formato MATRIX/NO_SIZES anterior).
+ * Si el ítem no tiene `pieces` (carritos muy antiguos, previos a esa metadata), la línea queda
+ * sin piezas — no rompe la carga, pero no podrá enviarse hasta rehacerse en el armador. */
+function migrateLine(item: { pieces?: SetPieceInfo[] }, raw: LegacyCorporateCartLine): CorporateCartLine {
+  if (raw.pieceSelections && raw.pieceSelections.length > 0) {
+    return {
+      id: raw.id ?? lineId(),
+      quantity: raw.quantity,
+      pieceSelections: raw.pieceSelections.map((s) => ({
+        productId: s.productId,
+        size: s.size,
+        color: raw.color,
+      })),
+    };
+  }
+  const pieces = item.pieces ?? [];
+  return {
+    id: raw.id ?? lineId(),
+    quantity: raw.quantity,
+    pieceSelections: pieces.map((p) => ({ productId: p.productId, size: raw.size, color: raw.color })),
+  };
+}
+
+function normalizeCartItems(raw: unknown): CorporateCartItem[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as Array<Omit<CorporateCartItem, 'lines'> & { lines: LegacyCorporateCartLine[] }>).map((item) => ({
+    ...item,
+    lines: (item.lines ?? []).map((l) => migrateLine(item, l)),
+  }));
 }
 
 /** Fusiona el carrito del servidor (BD) con el carrito local (localStorage), sumando
@@ -115,8 +158,7 @@ export function CorporateCartProvider({ children }: { children: React.ReactNode 
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (!saved) return [];
-      const parsed = JSON.parse(saved);
-      return Array.isArray(parsed) ? parsed : [];
+      return normalizeCartItems(JSON.parse(saved));
     } catch {
       return [];
     }
@@ -139,8 +181,8 @@ export function CorporateCartProvider({ children }: { children: React.ReactNode 
 
     fetch('/api/corporate/cart')
       .then((res) => res.json())
-      .then((data: { items?: CorporateCartItem[] }) => {
-        const serverItems = data.items ?? [];
+      .then((data: { items?: unknown[] }) => {
+        const serverItems = normalizeCartItems(data.items ?? []);
         if (serverItems.length === 0) return;
         setItems((prev) => {
           const merged = mergeCartItems(prev, serverItems);
@@ -197,13 +239,8 @@ export function CorporateCartProvider({ children }: { children: React.ReactNode 
       }
 
       const existing = prev[existingSetIndex];
-      // Fusiona líneas idénticas (misma talla/color/selección de piezas)
-      const matchIndex = existing.lines.findIndex(
-        (l) =>
-          l.size === newLine.size &&
-          l.color === newLine.color &&
-          JSON.stringify(l.pieceSelections) === JSON.stringify(newLine.pieceSelections)
-      );
+      // Fusiona líneas idénticas (misma combinación de talla/color por pieza)
+      const matchIndex = existing.lines.findIndex((l) => lineKey(l) === lineKey(newLine));
 
       const updatedLines =
         matchIndex === -1
@@ -273,8 +310,6 @@ export function CorporateCartProvider({ children }: { children: React.ReactNode 
         setName: i.setName,
         sizeMode: i.sizeMode,
         lines: i.lines.map((l) => ({
-          size: l.size,
-          color: l.color,
           pieceSelections: l.pieceSelections,
           quantity: l.quantity,
         })),

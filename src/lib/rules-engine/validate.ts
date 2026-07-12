@@ -123,17 +123,17 @@ export function validateCorporateCart(
         continue;
       }
 
-      // Estructura según sizeMode resuelto
-      if (item.sizeMode === "MATRIX" && !line.size) {
-        violations.push({
-          code: "MISSING_SIZE",
-          message: `Selecciona una talla para "${label}".`,
-          setId: item.setId,
-        });
-      }
-      if (item.sizeMode === "PER_PIECE" && (!line.pieceSelections || line.pieceSelections.length === 0)) {
+      // Estructura: toda combinación necesita al menos una pieza seleccionada, y si el set
+      // maneja tallas (todo modo salvo NO_SIZES), cada pieza de la combinación necesita talla.
+      if (!line.pieceSelections || line.pieceSelections.length === 0) {
         violations.push({
           code: "MISSING_PIECE_SELECTIONS",
+          message: `Arma al menos una combinación para "${label}".`,
+          setId: item.setId,
+        });
+      } else if (item.sizeMode !== "NO_SIZES" && line.pieceSelections.some((sel) => !sel.size)) {
+        violations.push({
+          code: "MISSING_SIZE",
           message: `Selecciona la talla de cada pieza para "${label}".`,
           setId: item.setId,
         });
@@ -164,13 +164,20 @@ export function validateCorporateCart(
         }
       }
 
-      // COLOR_RESTRICTION
-      if (line.color) {
+      // COLOR_RESTRICTION — se evalúa por fila × pieza: las unidades de UNA pieza en UN color
+      // dentro de esta fila son `cantidadDeSets × quantityPerSet` de esa pieza. Nombra pieza,
+      // color y mínimo exigido para que el usuario sepa exactamente qué ajustar.
+      for (const sel of line.pieceSelections ?? []) {
+        if (!sel.color) continue;
+        const piece = (meta.pieces ?? []).find((p) => p.productId === sel.productId);
+        const pieceLabel = piece?.productName ?? sel.productId;
+        const qtyPerSet = piece?.quantityPerSet ?? 1;
+        const units = line.quantity * qtyPerSet;
         for (const restriction of resolved.colorRestrictions) {
-          if (restriction.colorCode === line.color && line.quantity < restriction.min) {
+          if (restriction.colorCode === sel.color && units < restriction.min) {
             violations.push({
               code: "COLOR_RESTRICTION",
-              message: `El color "${line.color}" en "${label}" requiere un mínimo de ${restriction.min} unidades.`,
+              message: `"${pieceLabel}" en color "${sel.color}" dentro de "${label}" requiere un mínimo de ${restriction.min} unidades; esta combinación lleva ${units}.`,
               setId: item.setId,
             });
           }

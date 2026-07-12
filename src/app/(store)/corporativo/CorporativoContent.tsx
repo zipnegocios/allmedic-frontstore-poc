@@ -2,11 +2,17 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { Building2, Star, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CorporateSetSummary, SetGroupSummary } from '@/lib/corporate-types';
 import { resolveRules, type BusinessRule } from '@/lib/rules-engine';
+import { MediaGridThumb } from '@/components/media/MediaGridThumb';
+import type { MediaItem } from '@/lib/media';
+
+function coverImageItem(imageUrl: string | null): MediaItem | undefined {
+  if (!imageUrl) return undefined;
+  return { url: imageUrl, type: 'image', mimeType: 'image/jpeg', width: null, height: null };
+}
 
 interface CorporativoContentProps {
   sets: CorporateSetSummary[];
@@ -132,13 +138,14 @@ export function CorporativoContent({ sets, groups, priceVisibilityRules, minQuan
                 href={`/corporativo/s/${set.slug}`}
                 className="group border border-[#E5E5E5] rounded-xl overflow-hidden hover:shadow-lg transition-shadow bg-white"
               >
-                <div className="relative aspect-[4/3] bg-[#F5F5F7]">
+                <div className="relative aspect-[4/5] bg-[#F5F5F7] overflow-hidden">
                   {set.imageUrl ? (
-                    <Image
-                      src={set.imageUrl}
+                    <MediaGridThumb
+                      item={coverImageItem(set.imageUrl)}
+                      fallback="/images/placeholder-product.jpg"
                       alt={set.name}
-                      fill
                       className="object-cover group-hover:scale-105 transition-transform duration-500"
+                      sizes="400px"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-300">

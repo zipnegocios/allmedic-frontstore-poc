@@ -89,7 +89,7 @@ describe("validateCorporateCart — mínimo de sets", () => {
           setId: "set-1",
           setName: "Uniforme FIGS",
           sizeMode: "MATRIX",
-          lines: [{ size: "M", quantity: 11 }],
+          lines: [{ quantity: 11, pieceSelections: [{ productId: "prod-1", size: "M" }] }],
         },
       ],
     };
@@ -108,7 +108,7 @@ describe("validateCorporateCart — mínimo de sets", () => {
           setId: "set-1",
           setName: "Uniforme FIGS",
           sizeMode: "MATRIX",
-          lines: [{ size: "M", quantity: 12 }],
+          lines: [{ quantity: 12, pieceSelections: [{ productId: "prod-1", size: "M" }] }],
         },
       ],
     };
@@ -120,8 +120,15 @@ describe("validateCorporateCart — mínimo de sets", () => {
   it("suma cantidades de múltiples sets y líneas para el total", () => {
     const cart: CorporateCart = {
       items: [
-        { setId: "set-1", sizeMode: "MATRIX", lines: [{ size: "S", quantity: 4 }, { size: "M", quantity: 4 }] },
-        { setId: "set-2", sizeMode: "NO_SIZES", lines: [{ quantity: 4 }] },
+        {
+          setId: "set-1",
+          sizeMode: "MATRIX",
+          lines: [
+            { quantity: 4, pieceSelections: [{ productId: "prod-1", size: "S" }] },
+            { quantity: 4, pieceSelections: [{ productId: "prod-1", size: "M" }] },
+          ],
+        },
+        { setId: "set-2", sizeMode: "NO_SIZES", lines: [{ quantity: 4, pieceSelections: [{ productId: "prod-2" }] }] },
       ],
     };
     const result = validateCorporateCart(cart, rules);
@@ -131,7 +138,13 @@ describe("validateCorporateCart — mínimo de sets", () => {
 
   it("countUnit por defecto (SETS) reporta countUnit: 'SETS' en el resultado", () => {
     const cart: CorporateCart = {
-      items: [{ setId: "set-1", sizeMode: "MATRIX", lines: [{ size: "M", quantity: 12 }] }],
+      items: [
+        {
+          setId: "set-1",
+          sizeMode: "MATRIX",
+          lines: [{ quantity: 12, pieceSelections: [{ productId: "prod-1", size: "M" }] }],
+        },
+      ],
     };
     const result = validateCorporateCart(cart, rules);
     expect(result.countUnit).toBe("SETS");
@@ -144,7 +157,7 @@ describe("validateCorporateCart — mínimo con countUnit: PIECES", () => {
   it("cuenta piezas reales (quantity de sets × piezas por set), no sets", () => {
     // set-1 tiene 2 piezas por set (ej. camisa + pantalón); 10 sets = 20 piezas, bajo el mínimo de 24
     const cart: CorporateCart = {
-      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 10 }] }],
+      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 10, pieceSelections: [{ productId: "prod-1" }] }] }],
     };
     const setMeta = { "set-1": { piecesPerSet: 2 } };
     const result = validateCorporateCart(cart, rules, setMeta);
@@ -158,7 +171,7 @@ describe("validateCorporateCart — mínimo con countUnit: PIECES", () => {
 
   it("permite el envío cuando las piezas reales alcanzan el mínimo", () => {
     const cart: CorporateCart = {
-      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 12 }] }],
+      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 12, pieceSelections: [{ productId: "prod-1" }] }] }],
     };
     const setMeta = { "set-1": { piecesPerSet: 2 } };
     const result = validateCorporateCart(cart, rules, setMeta);
@@ -168,7 +181,7 @@ describe("validateCorporateCart — mínimo con countUnit: PIECES", () => {
 
   it("sin piecesPerSet en setMeta, asume 1 pieza por set (fallback seguro, no rompe)", () => {
     const cart: CorporateCart = {
-      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 24 }] }],
+      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 24, pieceSelections: [{ productId: "prod-1" }] }] }],
     };
     const result = validateCorporateCart(cart, rules, {});
     expect(result.totalSets).toBe(24);
@@ -176,12 +189,19 @@ describe("validateCorporateCart — mínimo con countUnit: PIECES", () => {
   });
 });
 
-describe("validateCorporateCart — matriz de tallas (SIZE_MODE)", () => {
+describe("validateCorporateCart — armador de combinaciones (estructura unificada)", () => {
   const rules: BusinessRule[] = [];
 
-  it("exige talla cuando el modo resuelto es MATRIX", () => {
+  it("exige talla por pieza cuando el modo resuelto es MATRIX", () => {
     const cart: CorporateCart = {
-      items: [{ setId: "set-1", setName: "Set X", sizeMode: "MATRIX", lines: [{ quantity: 12 }] }],
+      items: [
+        {
+          setId: "set-1",
+          setName: "Set X",
+          sizeMode: "MATRIX",
+          lines: [{ quantity: 12, pieceSelections: [{ productId: "prod-1" }] }],
+        },
+      ],
     };
     const result = validateCorporateCart(cart, rules);
     expect(result.violations.some((v) => v.code === "MISSING_SIZE")).toBe(true);
@@ -189,15 +209,15 @@ describe("validateCorporateCart — matriz de tallas (SIZE_MODE)", () => {
 
   it("no exige talla cuando el modo es NO_SIZES", () => {
     const cart: CorporateCart = {
-      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 12 }] }],
+      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 12, pieceSelections: [{ productId: "prod-1" }] }] }],
     };
     const result = validateCorporateCart(cart, rules);
     expect(result.violations.some((v) => v.code === "MISSING_SIZE")).toBe(false);
   });
 
-  it("exige pieceSelections cuando el modo es PER_PIECE", () => {
+  it("exige al menos una combinación (pieceSelections) sin importar el modo", () => {
     const cart: CorporateCart = {
-      items: [{ setId: "set-1", setName: "Set Y", sizeMode: "PER_PIECE", lines: [{ quantity: 12 }] }],
+      items: [{ setId: "set-1", setName: "Set Y", sizeMode: "PER_PIECE", lines: [{ quantity: 12, pieceSelections: [] }] }],
     };
     const result = validateCorporateCart(cart, rules);
     expect(result.violations.some((v) => v.code === "MISSING_PIECE_SELECTIONS")).toBe(true);
@@ -208,7 +228,7 @@ describe("validateCorporateCart — reglas adicionales", () => {
   it("MULTIPLES_ONLY rechaza cantidades que no son múltiplo exacto", () => {
     const rules = [rule({ ruleType: "MULTIPLES_ONLY", scope: "GLOBAL", config: { multipleOf: 6 } })];
     const cart: CorporateCart = {
-      items: [{ setId: "set-1", setName: "Set Z", sizeMode: "NO_SIZES", lines: [{ quantity: 13 }] }],
+      items: [{ setId: "set-1", setName: "Set Z", sizeMode: "NO_SIZES", lines: [{ quantity: 13, pieceSelections: [{ productId: "prod-1" }] }] }],
     };
     const result = validateCorporateCart(cart, rules);
     expect(result.violations.some((v) => v.code === "MULTIPLES_ONLY")).toBe(true);
@@ -217,26 +237,81 @@ describe("validateCorporateCart — reglas adicionales", () => {
   it("MULTIPLES_ONLY acepta múltiplos exactos", () => {
     const rules = [rule({ ruleType: "MULTIPLES_ONLY", scope: "GLOBAL", config: { multipleOf: 6 } })];
     const cart: CorporateCart = {
-      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 12 }] }],
+      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 12, pieceSelections: [{ productId: "prod-1" }] }] }],
     };
     const result = validateCorporateCart(cart, rules);
     expect(result.violations.some((v) => v.code === "MULTIPLES_ONLY")).toBe(false);
   });
 
-  it("COLOR_RESTRICTION exige mínimo por color", () => {
+  it("COLOR_RESTRICTION exige mínimo por pieza en el color elegido", () => {
     const rules = [rule({ ruleType: "COLOR_RESTRICTION", scope: "GLOBAL", config: { colorCode: "PINK", min: 6 } })];
     const cart: CorporateCart = {
-      items: [{ setId: "set-1", setName: "Set Rosa", sizeMode: "NO_SIZES", lines: [{ quantity: 3, color: "PINK" }] }],
+      items: [
+        {
+          setId: "set-1",
+          setName: "Set Rosa",
+          sizeMode: "NO_SIZES",
+          lines: [{ quantity: 3, pieceSelections: [{ productId: "prod-1", color: "PINK" }] }],
+        },
+      ],
     };
     const result = validateCorporateCart(cart, rules);
     expect(result.violations.some((v) => v.code === "COLOR_RESTRICTION")).toBe(true);
+  });
+
+  it("COLOR_RESTRICTION calcula unidades con quantityPerSet de la pieza (setMeta.pieces)", () => {
+    const rules = [rule({ ruleType: "COLOR_RESTRICTION", scope: "GLOBAL", config: { colorCode: "PINK", min: 6 } })];
+    const setMeta = { "set-1": { pieces: [{ productId: "prod-1", productName: "Camisa", quantityPerSet: 2 }] } };
+    const cart: CorporateCart = {
+      items: [
+        {
+          setId: "set-1",
+          setName: "Set Rosa",
+          sizeMode: "NO_SIZES",
+          // 3 sets * 2 piezas/set = 6 unidades — alcanza el mínimo exacto.
+          lines: [{ quantity: 3, pieceSelections: [{ productId: "prod-1", color: "PINK" }] }],
+        },
+      ],
+    };
+    const result = validateCorporateCart(cart, rules, setMeta);
+    expect(result.violations.some((v) => v.code === "COLOR_RESTRICTION")).toBe(false);
+  });
+
+  it("una pieza sin color elegido no dispara COLOR_RESTRICTION", () => {
+    const rules = [rule({ ruleType: "COLOR_RESTRICTION", scope: "GLOBAL", config: { colorCode: "PINK", min: 6 } })];
+    const cart: CorporateCart = {
+      items: [
+        {
+          setId: "set-1",
+          sizeMode: "NO_SIZES",
+          lines: [{ quantity: 1, pieceSelections: [{ productId: "prod-1" }] }],
+        },
+      ],
+    };
+    const result = validateCorporateCart(cart, rules);
+    expect(result.violations.some((v) => v.code === "COLOR_RESTRICTION")).toBe(false);
+  });
+
+  it("un color distinto al restringido no dispara COLOR_RESTRICTION", () => {
+    const rules = [rule({ ruleType: "COLOR_RESTRICTION", scope: "GLOBAL", config: { colorCode: "PINK", min: 6 } })];
+    const cart: CorporateCart = {
+      items: [
+        {
+          setId: "set-1",
+          sizeMode: "NO_SIZES",
+          lines: [{ quantity: 1, pieceSelections: [{ productId: "prod-1", color: "BLUE" }] }],
+        },
+      ],
+    };
+    const result = validateCorporateCart(cart, rules);
+    expect(result.violations.some((v) => v.code === "COLOR_RESTRICTION")).toBe(false);
   });
 });
 
 describe("computeCartPricing — escala de volumen", () => {
   it("calcula subtotal sin descuento cuando no hay VOLUME_SCALE", () => {
     const cart: CorporateCart = {
-      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 12 }] }],
+      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 12, pieceSelections: [{ productId: "prod-1" }] }] }],
     };
     const result = computeCartPricing(cart, { "set-1": { pricePerSet: 50, hasMissingPrices: false } }, []);
     expect(result.subtotalBeforeDiscount).toBe(600);
@@ -258,7 +333,7 @@ describe("computeCartPricing — escala de volumen", () => {
       }),
     ];
     const cart: CorporateCart = {
-      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 60 }] }],
+      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 60, pieceSelections: [{ productId: "prod-1" }] }] }],
     };
     const result = computeCartPricing(
       cart,
@@ -273,7 +348,7 @@ describe("computeCartPricing — escala de volumen", () => {
 
   it("marca hasMissingPrices cuando alguna pieza no tiene precio al mayor", () => {
     const cart: CorporateCart = {
-      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 12 }] }],
+      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 12, pieceSelections: [{ productId: "prod-1" }] }] }],
     };
     const result = computeCartPricing(
       cart,
@@ -285,7 +360,7 @@ describe("computeCartPricing — escala de volumen", () => {
 
   it("promoDiscountAmount es 0 cuando no hay reglas PROMO", () => {
     const cart: CorporateCart = {
-      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 12 }] }],
+      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 12, pieceSelections: [{ productId: "prod-1" }] }] }],
     };
     const result = computeCartPricing(cart, { "set-1": { pricePerSet: 10, hasMissingPrices: false } }, []);
     expect(result.promoDiscountAmount).toBe(0);
@@ -298,7 +373,7 @@ describe("computeCartPricing — PROMO (N_PLUS_ONE)", () => {
       rule({ ruleType: "PROMO", scope: "SET", scopeId: "set-1", config: { kind: "N_PLUS_ONE", buy: 13, free: 1 } }),
     ];
     const cart: CorporateCart = {
-      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 26 }] }],
+      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 26, pieceSelections: [{ productId: "prod-1" }] }] }],
     };
     const result = computeCartPricing(
       cart,
@@ -317,7 +392,7 @@ describe("computeCartPricing — PROMO (N_PLUS_ONE)", () => {
       rule({ ruleType: "PROMO", scope: "SET", scopeId: "set-1", config: { kind: "N_PLUS_ONE", buy: 13, free: 1 } }),
     ];
     const cart: CorporateCart = {
-      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 12 }] }],
+      items: [{ setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 12, pieceSelections: [{ productId: "prod-1" }] }] }],
     };
     const result = computeCartPricing(
       cart,
@@ -334,8 +409,8 @@ describe("computeCartPricing — PROMO (N_PLUS_ONE)", () => {
     ];
     const cart: CorporateCart = {
       items: [
-        { setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 13 }] },
-        { setId: "set-2", sizeMode: "NO_SIZES", lines: [{ quantity: 13 }] },
+        { setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 13, pieceSelections: [{ productId: "prod-1" }] }] },
+        { setId: "set-2", sizeMode: "NO_SIZES", lines: [{ quantity: 13, pieceSelections: [{ productId: "prod-2" }] }] },
       ],
     };
     const result = computeCartPricing(
@@ -357,8 +432,8 @@ describe("computeCartPricing — PROMO (N_PLUS_ONE)", () => {
     ];
     const cart: CorporateCart = {
       items: [
-        { setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 10 }] },
-        { setId: "set-2", sizeMode: "NO_SIZES", lines: [{ quantity: 10 }] },
+        { setId: "set-1", sizeMode: "NO_SIZES", lines: [{ quantity: 10, pieceSelections: [{ productId: "prod-1" }] }] },
+        { setId: "set-2", sizeMode: "NO_SIZES", lines: [{ quantity: 10, pieceSelections: [{ productId: "prod-2" }] }] },
       ],
     };
     const result = computeCartPricing(

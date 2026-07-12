@@ -202,11 +202,13 @@ export interface ResolvedRules {
 }
 
 // ─── Carrito corporativo (forma en memoria, coincide con corporate_carts.items) ───
+// El armador de combinaciones es el único flujo de compra: cada fila del carrito es una
+// combinación concreta con talla y color elegidos POR PIEZA. `SIZE_MODE` ya no cambia la forma
+// de la línea — solo el comportamiento del armador (ver `SetDetailContent.tsx`): en `NO_SIZES`
+// las piezas no llevan `size`; en `MATRIX`/`PER_PIECE` sí. El color por pieza es siempre opcional.
 export interface CorporateCartLine {
-  size?: string;
-  color?: string;
-  pieceSelections?: Array<{ productId: string; size: string }>;
   quantity: number; // siempre en SETS
+  pieceSelections: Array<{ productId: string; size?: string; color?: string }>;
 }
 
 export interface CorporateCartItem {
@@ -262,8 +264,9 @@ export interface InventoryIssue {
 }
 
 /** Snapshot de stock inyectado desde la capa de datos — el motor puro nunca consulta la BD.
- * Claves: `${productId}::${size}` para productos con talla, `${productId}` (sin `::`) para
- * el total agregado del producto (usado cuando SIZE_MODE es NO_SIZES). */
+ * Claves: `${productId}::${size}::${color}` para una combinación exacta de talla y color,
+ * `${productId}::${size}` para el total de esa talla agregado entre colores, y `${productId}`
+ * para el total agregado del producto (usado cuando SIZE_MODE es NO_SIZES). */
 export type InventoryStockSnapshot = Record<string, number>;
 
 // ─── Resultado de validación ───
