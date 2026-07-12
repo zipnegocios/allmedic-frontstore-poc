@@ -44,7 +44,7 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
   const variantWithColor = product.variants.find(v => v.colorId === selectedColorId);
   const displayMedia = variantWithColor?.images[0];
   
-  const showPrices = usePriceVisibility();
+  const showPrices = usePriceVisibility({ brandId: product.brandId, productId: product.id });
   const hasDiscount = product.priceSale && product.priceSale < product.priceNormal;
   const discountPercentage = hasDiscount
     ? Math.round(((product.priceNormal - product.priceSale!) / product.priceNormal) * 100)

@@ -1,21 +1,22 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Building2, Star, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { CorporateSetSummary } from '@/lib/corporate-types';
-import type { SetGroupSummary } from '@/lib/corporate-types';
+import type { CorporateSetSummary, SetGroupSummary } from '@/lib/corporate-types';
+import { resolveRules, type BusinessRule } from '@/lib/rules-engine';
 
 interface CorporativoContentProps {
   sets: CorporateSetSummary[];
   groups: SetGroupSummary[];
-  showPrices: boolean;
+  /** Solo las reglas PRICE_VISIBILITY — se resuelven por set en el cliente (loop en memoria). */
+  priceVisibilityRules: BusinessRule[];
   minQuantity: number;
 }
 
-export function CorporativoContent({ sets, groups, showPrices, minQuantity }: CorporativoContentProps) {
+export function CorporativoContent({ sets, groups, priceVisibilityRules, minQuantity }: CorporativoContentProps) {
   const [groupFilter, setGroupFilter] = useState<string | null>(null);
   const [brandFilter, setBrandFilter] = useState<string | null>(null);
 
@@ -32,6 +33,22 @@ export function CorporativoContent({ sets, groups, showPrices, minQuantity }: Co
       return true;
     });
   }, [sets, groupFilter, brandFilter]);
+
+  const showPricesFor = useCallback(
+    (set: CorporateSetSummary): boolean => {
+      const resolved = resolveRules(priceVisibilityRules, {
+        setId: set.id,
+        setGroupId: set.setGroupId,
+        brandId: set.brandId,
+        productIds: set.productIds,
+      });
+      return (
+        resolved.priceVisibility.showPrices &&
+        (resolved.priceVisibility.catalog === 'CORPORATE' || resolved.priceVisibility.catalog === 'BOTH')
+      );
+    },
+    [priceVisibilityRules]
+  );
 
   return (
     <main className="pt-14 sm:pt-16 min-h-screen">
@@ -142,7 +159,7 @@ export function CorporativoContent({ sets, groups, showPrices, minQuantity }: Co
                     {set.pieceCount} {set.pieceCount === 1 ? 'pieza' : 'piezas'}
                     {set.groupName && ` · ${set.groupName}`}
                   </p>
-                  {showPrices && (
+                  {showPricesFor(set) && (
                     set.referencePrice !== null ? (
                       <div>
                         <span className="text-lg font-bold text-[#111111]">${set.referencePrice.toFixed(2)}</span>

@@ -19,7 +19,7 @@ interface QuickViewModalProps {
 export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps) {
   const { addItem } = useCart();
   const { showSuccess, showError, showWarning } = useNotificationContext();
-  const showPrices = usePriceVisibility();
+  const showPrices = usePriceVisibility({ brandId: product?.brandId, productId: product?.id });
   const [selectedColor, setSelectedColor] = useState<ProductColor | null>(null);
   const [selectedSize, setSelectedSize] = useState<Size | null>(null);
   const [selectedFit, setSelectedFit] = useState<Fit | null>(null);

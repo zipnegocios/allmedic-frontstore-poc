@@ -123,6 +123,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       const newItem: CartItem = {
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         productId: product.id,
+        brandId: product.brandId,
         variantId,
         name: product.name,
         brand: product.brand,

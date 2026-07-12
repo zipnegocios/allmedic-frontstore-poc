@@ -4,7 +4,6 @@ import { PriceVisibilityProvider } from '@/context/PriceVisibilityContext';
 import { AppShell } from '@/components/layout/AppShell';
 import { getAllProducts, getBrandsForNav, getStores } from '@/lib/data-service';
 import { getAllBusinessRules } from '@/lib/corporate-data-service';
-import { resolveRules } from '@/lib/rules-engine';
 
 // Fuerza renderizado dinámico en toda la tienda: la base de datos no está disponible
 // durante `docker build` (solo en runtime vía EasyPanel), así que un prerender estático
@@ -23,13 +22,13 @@ export default async function StoreLayout({
     getAllBusinessRules(),
   ]);
 
-  const resolved = resolveRules(rules, {});
-  const showPrices = resolved.priceVisibility.showPrices &&
-    (resolved.priceVisibility.catalog === 'INDIVIDUAL' || resolved.priceVisibility.catalog === 'BOTH');
+  // Solo las reglas PRICE_VISIBILITY viajan al cliente — se resuelven por ítem (marca/producto)
+  // en cada componente que las consulta, no una sola vez de forma global.
+  const priceVisibilityRules = rules.filter((r) => r.ruleType === 'PRICE_VISIBILITY');
 
   return (
     <NotificationProvider>
-      <PriceVisibilityProvider showPrices={showPrices}>
+      <PriceVisibilityProvider rules={priceVisibilityRules}>
         <CartProvider>
           <AppShell products={products} brands={brands} stores={stores}>
             {children}

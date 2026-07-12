@@ -75,6 +75,7 @@ function transformProduct(dbProduct: {
   name: string;
   description: string | null;
   brandName: string;
+  brandId: string | null;
   category: string;
   gender: string;
   priceNormal: string;
@@ -157,6 +158,7 @@ function transformProduct(dbProduct: {
     slug: dbProduct.slug,
     name: dbProduct.name,
     brand: dbProduct.brandName,
+    brandId: dbProduct.brandId ?? undefined,
     category: dbProduct.category,
     gender: genderFromDb[dbProduct.gender] || 'Unisex',
     description: dbProduct.description || '',
@@ -185,6 +187,7 @@ async function fetchProductsWithJoins(whereCondition?: SQL<unknown>) {
       name: productsTable.name,
       description: productsTable.description,
       brandName: sql<string>`COALESCE(${brandsTable.name}, '')`,
+      brandId: productsTable.brandId,
       category: productsTable.category,
       gender: productsTable.gender,
       priceNormal: productsTable.priceNormal,

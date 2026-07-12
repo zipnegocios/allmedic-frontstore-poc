@@ -44,29 +44,29 @@ describe("RULE_DOCS", () => {
     expect(doc.defaultBehavior.length).toBeGreaterThan(0);
   });
 
-  it("los tipos que siguen muertos tras el motor de inventario documentan appliesTo/supportedScopes vacíos", () => {
-    // COLOR_RESTRICTION sigue ❌ Muerta (decisión de negocio: no vale la pena construir un
-    // selector de color en esta fase). PROMO e INVENTORY_MODE se corrigieron y salieron de
-    // esta lista — ver tests siguientes.
-    for (const ruleType of ["COLOR_RESTRICTION"] as RuleType[]) {
-      expect(RULE_DOCS[ruleType].appliesTo).toEqual([]);
-      expect(RULE_DOCS[ruleType].supportedScopes).toEqual([]);
-      expect(RULE_DOCS[ruleType].warnings.length).toBeGreaterThan(0);
+  it("ningún tipo documenta appliesTo o supportedScopes vacíos: los 10 tipos tienen efecto real", () => {
+    for (const ruleType of ALL_RULE_TYPES) {
+      expect(RULE_DOCS[ruleType].appliesTo.length, `${ruleType}.appliesTo`).toBeGreaterThan(0);
+      expect(RULE_DOCS[ruleType].supportedScopes.length, `${ruleType}.supportedScopes`).toBeGreaterThan(0);
     }
   });
 
-  it("PROMO se corrigió en la Fase 3 y se amplió a 8 tipos después: ya no está en la lista de tipos muertos", () => {
+  it("PROMO documenta sus 8 tipos con al menos un ejemplo cada uno", () => {
     expect(RULE_DOCS.PROMO.appliesTo).toEqual(["CORPORATE"]);
-    expect(RULE_DOCS.PROMO.supportedScopes.length).toBeGreaterThan(0);
-    // Los warnings actuales documentan límites de diseño honestos (ej. GIFT sin efecto
-    // monetario), no funcionalidad rota — a diferencia de los tipos ❌ Muertos de arriba.
     expect(RULE_DOCS.PROMO.examples.length).toBeGreaterThanOrEqual(8);
   });
 
-  it("INVENTORY_MODE se implementó: ya no está en la lista de tipos muertos", () => {
-    expect(RULE_DOCS.INVENTORY_MODE.appliesTo).toEqual(["CORPORATE"]);
-    expect(RULE_DOCS.INVENTORY_MODE.supportedScopes.length).toBeGreaterThan(0);
-    expect(RULE_DOCS.INVENTORY_MODE.examples.length).toBeGreaterThan(0);
+  it("los tipos de ámbito Producto activado (todos salvo INVENTORY_MODE y VOLUME_DISCOUNT_RETAIL) lo declaran en supportedScopes", () => {
+    const withoutProduct: RuleType[] = ["INVENTORY_MODE", "VOLUME_DISCOUNT_RETAIL"];
+    for (const ruleType of ALL_RULE_TYPES) {
+      if (withoutProduct.includes(ruleType)) continue;
+      expect(RULE_DOCS[ruleType].supportedScopes, ruleType).toContain("PRODUCT");
+    }
+  });
+
+  it("INVENTORY_MODE y VOLUME_DISCOUNT_RETAIL documentan por qué el ámbito Producto no aplica", () => {
+    expect(RULE_DOCS.INVENTORY_MODE.supportedScopes).not.toContain("PRODUCT");
+    expect(RULE_DOCS.VOLUME_DISCOUNT_RETAIL.supportedScopes).toEqual(["GLOBAL"]);
   });
 
   it("select fields declaran una opción por cada valor válido del tipo union correspondiente", () => {

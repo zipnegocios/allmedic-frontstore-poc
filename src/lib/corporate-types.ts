@@ -27,7 +27,13 @@ export interface CorporateSetSummary {
   imageUrl: string | null;
   groupName: string | null;
   groupSlug: string | null;
+  /** Id del grupo de sets (para resolver reglas por ítem en el grid — `groupSlug` es solo para filtros de UI). */
+  setGroupId: string | null;
   brandName: string | null;
+  /** Id de la marca (para resolver reglas por ítem en el grid — `brandName` es solo para mostrar/filtrar). */
+  brandId: string | null;
+  /** Ids de los productos que componen el set — para resolver reglas de ámbito Producto en el grid. */
+  productIds: string[];
   isFeatured: boolean;
   pieceCount: number;
   referencePrice: number | null;

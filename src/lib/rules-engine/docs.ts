@@ -2,10 +2,9 @@
 // Fuente única de verdad para el panel admin (RuleDocPanel), tooltips y cualquier
 // ayuda futura (incluido RAG). Módulo puro — sin dependencias de DB ni Next.js.
 //
-// IMPORTANTE: `appliesTo` y `supportedScopes` reflejan la realidad verificada en
-// `docs/audits/AUDITORIA-motor-reglas.md`, no la aspiración del diseño original.
-// Si una fase futura corrige un hallazgo (ej. PROMO deja de estar muerto), esta
-// documentación se actualiza en el mismo commit que el fix — nunca por separado.
+// `appliesTo` y `supportedScopes` reflejan el comportamiento real y verificado del sistema
+// (ver `docs/audits/AUDITORIA-motor-reglas.md`), no la aspiración del diseño original. Cualquier
+// cambio de comportamiento se documenta aquí en el mismo cambio de código — nunca por separado.
 
 import type { RuleType, RuleScope } from "./types";
 
@@ -38,9 +37,13 @@ export const HIERARCHY_DOC = {
     "Para cada tipo de regla, el motor busca la regla activa más específica siguiendo el orden " +
     "Producto > Set > Grupo de Sets > Marca > Global. La primera que encuentra una regla activa " +
     "en ese orden es la que aplica — las reglas más generales de niveles inferiores se ignoran " +
-    "para ese contexto. Si dos reglas activas compiten en el mismo ámbito (mismo tipo, mismo " +
-    "ámbito, mismo elemento), gana la de mayor Prioridad. Si no existe ninguna regla activa " +
-    "para un tipo dado, se usan los valores por defecto del sistema.",
+    "para ese contexto. Una regla de ámbito Producto aplica a cualquier set que incluya ese " +
+    "producto entre sus piezas (catálogo corporativo) o a la ficha de ese producto (catálogo " +
+    "individual); si un set tiene dos piezas con reglas Producto distintas del mismo tipo, " +
+    "gana la de mayor Prioridad entre ambas, igual que cualquier otro empate de ámbito. Si dos " +
+    "reglas activas compiten en el mismo ámbito (mismo tipo, mismo ámbito, mismo elemento), gana " +
+    "la de mayor Prioridad. Si no existe ninguna regla activa para un tipo dado, se usan los " +
+    "valores por defecto del sistema.",
   validityWindows:
     "Los campos 'Vigente desde' y 'Vigente hasta' son opcionales. Una regla con vigencia futura " +
     "o ya vencida se trata como inactiva para ese momento, aunque el interruptor 'Activa' esté encendido.",
@@ -63,14 +66,21 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
   MIN_QUANTITY: {
     ruleType: "MIN_QUANTITY",
     title: "Cantidad mínima",
-    summary: "Define cuántos sets como mínimo debe tener el carrito corporativo para poder enviar la solicitud de cotización.",
+    summary: "Define cuántos sets como mínimo debe tener el carrito (o un subconjunto de él) para poder enviar la solicitud de cotización.",
     detail:
-      "Esta regla controla el botón de envío del carrito corporativo: mientras el total de sets del " +
-      "carrito sea menor al mínimo, el cliente ve un mensaje como 'Agrega 4 sets más para alcanzar " +
-      "el mínimo de 12' y el botón permanece deshabilitado.",
+      "El ámbito Global exige un mínimo sobre el carrito completo — mientras el total sea menor, el " +
+      "cliente ve un mensaje como 'Agrega 4 sets más para alcanzar el mínimo de 12' y el botón de " +
+      "envío permanece deshabilitado. Los ámbitos Marca, Grupo de Sets, Set y Producto exigen, " +
+      "ADEMÁS, su propio mínimo sobre el subconjunto de sets que caen bajo ese ámbito — por ejemplo, " +
+      "una regla de ámbito Marca con mínimo 24 exige que los sets de esa marca en el carrito sumen " +
+      "al menos 24, sin importar cuántos otros sets de otras marcas haya. El mínimo Global y los " +
+      "mínimos contextuales se exigen A LA VEZ: uno no reemplaza al otro. Cada set del carrito cae, " +
+      "como máximo, bajo un mínimo contextual (el más específico según la jerarquía Producto > Set > " +
+      "Grupo de Sets > Marca); si no hay ninguna regla contextual que lo cubra, solo se le exige el " +
+      "mínimo Global.",
     appliesTo: ["CORPORATE"],
-    supportedScopes: ["GLOBAL"],
-    defaultBehavior: "Sin ninguna regla activa, el mínimo es 12 sets (unidad Sets) para el carrito completo.",
+    supportedScopes: ["GLOBAL", "BRAND", "SET_GROUP", "SET", "PRODUCT"],
+    defaultBehavior: "Sin ninguna regla activa, el mínimo Global es 12 sets (unidad Sets) para el carrito completo, sin mínimos contextuales adicionales.",
     fields: [
       {
         key: "min",
@@ -89,15 +99,15 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
       },
     ],
     examples: [
-      { title: "Mínimo estándar", config: { min: 12, countUnit: "SETS" }, explanation: "El comportamiento por defecto del sistema — mínimo de 12 sets." },
-      { title: "Mínimo reducido para institución piloto", config: { min: 6, countUnit: "SETS" }, explanation: "Útil para negociaciones especiales, pero recuerda que en ámbitos distintos a Global es solo informativo (ver advertencia)." },
-      { title: "Mínimo en piezas", config: { min: 100, countUnit: "PIECES" }, explanation: "Exige 100 piezas reales en total, sin importar cuántos sets distintos las componen." },
+      { title: "Mínimo global estándar", config: { min: 12, countUnit: "SETS" }, explanation: "El comportamiento por defecto del sistema — mínimo de 12 sets en todo el carrito." },
+      { title: "Mínimo adicional por marca", config: { min: 24, countUnit: "SETS" }, explanation: "Aplicada en ámbito Marca: exige 24 sets de esa marca específica, además del mínimo Global del carrito completo." },
+      { title: "Mínimo en piezas", config: { min: 100, countUnit: "PIECES" }, explanation: "Exige 100 piezas reales en el ámbito de la regla, sin importar cuántos sets distintos las componen." },
     ],
     interactions: [
       "Si además existe una regla de Rango de cantidad (QUANTITY_RANGE) con un máximo menor a este mínimo en el mismo ámbito, ninguna cantidad satisface ambas reglas a la vez — el detector de conflictos marca esto como error.",
     ],
     warnings: [
-      "Los ámbitos Set, Grupo de Sets y Marca se muestran como texto informativo en la ficha del set correspondiente ('Compra mínima: N sets'), pero NO se aplican al validar el envío del carrito — el mínimo que realmente bloquea el botón de envío siempre es el de ámbito Global, sin importar cuántos ámbitos más específicos hayas creado.",
+      "La ficha del set muestra un solo número: el mínimo de la regla más específica que le aplica (o el Global si no hay ninguna más específica). Si además existe un mínimo Global distinto, ese mínimo del carrito completo se exige igual y se comunica por separado en el carrito — la ficha no combina ambos números en un solo mensaje.",
     ],
   },
 
@@ -110,7 +120,7 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
       "no es múltiplo exacto del valor configurado, se muestra un mensaje como 'La cantidad para " +
       "\"Uniforme FIGS Premium\" debe ser múltiplo de 6' y el envío queda bloqueado hasta corregirla.",
     appliesTo: ["CORPORATE"],
-    supportedScopes: ["GLOBAL", "BRAND", "SET_GROUP", "SET"],
+    supportedScopes: ["GLOBAL", "BRAND", "SET_GROUP", "SET", "PRODUCT"],
     defaultBehavior: "Sin ninguna regla activa, no se exige ningún múltiplo — cualquier cantidad positiva es válida.",
     fields: [
       {
@@ -138,7 +148,7 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
       "A diferencia de Cantidad mínima (que mira el total del carrito), este rango se valida por " +
       "línea individual dentro de cada set. Un máximo vacío significa 'sin límite superior'.",
     appliesTo: ["CORPORATE"],
-    supportedScopes: ["GLOBAL", "BRAND", "SET_GROUP", "SET"],
+    supportedScopes: ["GLOBAL", "BRAND", "SET_GROUP", "SET", "PRODUCT"],
     defaultBehavior: "Sin ninguna regla activa, no se aplica ningún rango por línea (solo aplican otras reglas como Cantidad mínima o Solo múltiplos, si existen).",
     fields: [
       { key: "min", label: "Mínimo", description: "Cantidad mínima permitida en la línea.", example: "12" },
@@ -149,8 +159,8 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
       { title: "Rango abierto", config: { min: 12, max: null }, explanation: "12 en adelante, sin tope." },
     ],
     interactions: [
-      "Si el máximo de este rango es menor que el mínimo de Cantidad mínima aplicable al mismo contexto, ninguna cantidad satisface ambas reglas — error detectado en la Fase 4.",
-      "Si no existe ningún múltiplo de 'Solo múltiplos' dentro de este rango, el rango es inalcanzable — error detectado en la Fase 4.",
+      "Si el máximo de este rango es menor que el mínimo de Cantidad mínima aplicable al mismo contexto, ninguna cantidad satisface ambas reglas — el detector de conflictos lo marca como error.",
+      "Si no existe ningún múltiplo de 'Solo múltiplos' dentro de este rango, el rango es inalcanzable — el detector de conflictos lo marca como error.",
     ],
     warnings: [],
   },
@@ -162,7 +172,7 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
     detail:
       "Cambia por completo el selector que ve el cliente en la ficha de cada set del catálogo corporativo.",
     appliesTo: ["CORPORATE"],
-    supportedScopes: ["GLOBAL", "BRAND", "SET_GROUP", "SET"],
+    supportedScopes: ["GLOBAL", "BRAND", "SET_GROUP", "SET", "PRODUCT"],
     defaultBehavior: "Sin ninguna regla activa, se usa el modo Matriz de tallas.",
     fields: [
       {
@@ -181,18 +191,23 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
       { title: "Sin tallas", config: { mode: "NO_SIZES" }, explanation: "Para sets que no varían por talla (ej. accesorios)." },
     ],
     interactions: [],
-    warnings: [],
+    warnings: [
+      "El modo de tallas es una propiedad de TODO el set, no de una pieza individual — una regla de ámbito Producto determina el modo del set completo cuando gana la resolución (por ser la más específica o por prioridad frente a otra regla Producto del mismo set), no solo el de esa pieza.",
+    ],
   },
 
   PRICE_VISIBILITY: {
     ruleType: "PRICE_VISIBILITY",
     title: "Visibilidad de precios",
-    summary: "Muestra u oculta los precios en el catálogo individual y/o corporativo.",
+    summary: "Muestra u oculta los precios en el catálogo individual y/o corporativo, por ítem: cada tarjeta o ficha resuelve su propia visibilidad según su marca/producto/set.",
     detail:
-      "Controla si se renderiza el precio en tarjetas de producto, ficha de detalle, menú, buscador y " +
-      "carrito (catálogo individual), y en el grid y ficha de detalle de sets (catálogo corporativo).",
+      "Se resuelve POR ÍTEM en cada punto donde se muestra un precio: tarjetas de producto, ficha de " +
+      "detalle, menú, buscador y carrito (catálogo individual); grid y ficha de detalle de sets " +
+      "(catálogo corporativo). Una regla de ámbito Marca oculta el precio en todas las tarjetas y " +
+      "fichas de esa marca a la vez — listado y detalle siempre muestran lo mismo para un mismo " +
+      "producto o set, sin importar en qué punto del sitio se consulte.",
     appliesTo: ["INDIVIDUAL", "CORPORATE"],
-    supportedScopes: ["GLOBAL", "BRAND", "SET_GROUP", "SET"],
+    supportedScopes: ["GLOBAL", "BRAND", "SET_GROUP", "SET", "PRODUCT"],
     defaultBehavior: "Sin ninguna regla activa, se muestran los precios en ambos catálogos.",
     fields: [
       { key: "showPrices", label: "Mostrar precios", description: "Si está apagado, el precio no se renderiza en ningún lugar del catálogo indicado abajo." },
@@ -210,12 +225,13 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
     examples: [
       { title: "Ocultar precios en todo el sitio", config: { showPrices: false, catalog: "BOTH" }, explanation: "Modo 'solo cotización' — ningún catálogo muestra precio, el cliente contacta a ventas." },
       { title: "Ocultar solo en corporativo", config: { showPrices: false, catalog: "CORPORATE" }, explanation: "El catálogo individual sigue mostrando precio normalmente; solo el corporativo pasa a referencial sin cifra." },
+      { title: "Ocultar precio de una marca específica", config: { showPrices: false, catalog: "INDIVIDUAL" }, explanation: "Aplicada en ámbito Marca: solo esa marca pasa a 'consultar precio' en tarjetas, ficha, buscador y carrito — el resto del catálogo individual sigue mostrando precio normalmente." },
     ],
     interactions: [
       "Si existen reglas de descuento (Escala por volumen, Promoción, Descuento por volumen individual) activas en un contexto donde esta regla oculta el precio, el cliente nunca ve el beneficio del descuento — el detector de conflictos lo advierte.",
     ],
     warnings: [
-      "En los listados (grid de /catalogo y grid de /corporativo) SOLO se evalúa el ámbito Global — una regla de ámbito Marca, Grupo de Sets o Set no cambia lo que se ve en las tarjetas del listado. Esos ámbitos más específicos únicamente tienen efecto dentro de la ficha de detalle de un set corporativo (/corporativo/s/[slug]). Esto puede producir una inconsistencia visible: el precio aparece en la tarjeta del listado y desaparece al entrar al detalle del set.",
+      "El resumen agregado del carrito individual (subtotal/total del drawer) y los componentes de navegación (menú, mega-menú) evalúan solo el ámbito Global — no representan un único producto o marca, así que una regla de ámbito Marca/Set/Producto no los afecta directamente (sí afecta cada línea del carrito individualmente).",
     ],
   },
 
@@ -259,36 +275,42 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
     warnings: [
       "La disponibilidad agregada por talla que se muestra en la ficha del set es una foto del momento de la carga de la página — no se recalcula mientras el cliente edita el carrito, así que puede quedar desactualizada si hay compras simultáneas.",
       "Cuando el carrito no especifica color (caso normal en el flujo corporativo), el stock se suma entre TODOS los colores disponibles de esa talla — la regla no distingue por color.",
+      "El ámbito Producto no está disponible para este tipo: la demanda de stock se calcula por set completo (todas sus piezas a la vez), no por una pieza aislada, así que un modo de inventario distinto para un solo producto dentro de un set no tiene una semántica clara — usa el ámbito Set si necesitas ese nivel de control.",
     ],
   },
 
   VOLUME_SCALE: {
     ruleType: "VOLUME_SCALE",
     title: "Escala por volumen (corporativo)",
-    summary: "Aplica un descuento porcentual sobre el total del carrito corporativo según el total de sets.",
+    summary: "Aplica un descuento porcentual sobre un subtotal del carrito corporativo (completo, o solo una marca/grupo/set/producto) según la cantidad de sets alcanzada.",
     detail:
-      "Se evalúa sobre el total de sets de todo el carrito (no por set individual): se busca el tramo " +
-      "con el 'mínimo de sets' más alto que el carrito alcanza, y se aplica su porcentaje de descuento " +
-      "sobre el subtotal completo.",
+      "Se resuelve POR SET: cada set del carrito cae bajo la escala más específica que le aplica " +
+      "(Producto > Set > Grupo de Sets > Marca > Global). A diferencia de Promoción, las escalas NO " +
+      "se acumulan entre sí — si un set calificaría para una escala Global y también para una de " +
+      "Marca, solo se usa la de Marca (la más específica), nunca ambas juntas. El tramo elegido para " +
+      "cada escala se calcula sobre la cantidad y el subtotal SOLO de los sets que caen bajo esa " +
+      "escala en particular: una escala de ámbito Marca busca su tramo mirando solo cuántos sets de " +
+      "esa marca hay en el carrito, y descuenta solo sobre el subtotal de esos sets.",
     appliesTo: ["CORPORATE"],
-    supportedScopes: ["GLOBAL"],
+    supportedScopes: ["GLOBAL", "BRAND", "SET_GROUP", "SET", "PRODUCT"],
     defaultBehavior: "Sin ninguna regla activa, no se aplica ningún descuento por volumen en el catálogo corporativo.",
     fields: [
       {
         key: "tiers",
         label: "Tramos",
-        description: "Lista de tramos { minQty: cantidad mínima de sets, discountPct: porcentaje de descuento }. Se aplica el tramo de mínimo más alto que el carrito alcanza.",
+        description: "Lista de tramos { minQty: cantidad mínima de sets, discountPct: porcentaje de descuento }. Se aplica el tramo de mínimo más alto que alcanzan los sets cubiertos por esta regla.",
         example: "[{ minQty: 12, discountPct: 0 }, { minQty: 50, discountPct: 8 }]",
       },
     ],
     examples: [
-      { title: "Dos tramos", config: { tiers: [{ minQty: 12, discountPct: 0 }, { minQty: 50, discountPct: 8 }] }, explanation: "0% hasta 49 sets, 8% desde 50 sets en adelante." },
+      { title: "Dos tramos globales", config: { tiers: [{ minQty: 12, discountPct: 0 }, { minQty: 50, discountPct: 8 }] }, explanation: "Sobre el carrito completo: 0% hasta 49 sets, 8% desde 50 sets en adelante." },
+      { title: "Escala propia para una marca", config: { tiers: [{ minQty: 5, discountPct: 20 }] }, explanation: "Aplicada en ámbito Marca: si esa marca sola alcanza 5+ sets en el carrito, descuenta 20% solo sobre el subtotal de esos sets — no se suma a ninguna escala Global que también exista." },
     ],
     interactions: [
       "Tramos con un 'mínimo de sets' por debajo del mínimo efectivo de Cantidad mínima nunca se alcanzan en la práctica (el carrito no puede enviarse antes de cumplir ese mínimo) — el detector de conflictos lo advierte.",
     ],
     warnings: [
-      "Solo el ámbito Global tiene efecto — una regla de ámbito Marca, Grupo de Sets o Set se puede crear y guardar, pero el cálculo de precios del carrito nunca la resuelve con ese contexto específico; el resultado es idéntico a no tener esa regla.",
+      "Las escalas no se acumulan: si necesitas que una marca reciba SIEMPRE al menos el descuento Global más un extra, esta regla no lo modela directamente — la escala más específica reemplaza a la Global para esos sets, no la complementa.",
     ],
   },
 
@@ -313,7 +335,7 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
       "(3) Descuento por umbral, (4) Regalo (no toca montos). La Escala por volumen (VOLUME_SCALE) se " +
       "calcula antes que todo esto y no cambia.",
     appliesTo: ["CORPORATE"],
-    supportedScopes: ["GLOBAL", "BRAND", "SET_GROUP", "SET"],
+    supportedScopes: ["GLOBAL", "BRAND", "SET_GROUP", "SET", "PRODUCT"],
     defaultBehavior: "Sin ninguna regla activa, no se aplica ninguna promoción.",
     fields: [
       {
@@ -365,29 +387,35 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
       "Regalo (GIFT) no tiene ningún efecto en el precio — es responsabilidad del equipo de ventas honrarlo manualmente al elaborar la cotización real. La nota queda registrada en el carrito, en la solicitud enviada y en las notas internas de la cotización.",
       "Descuento por umbral de compra no se puede combinar por diseño con Rango de cantidad para detectar 'umbral inalcanzable': el detector de conflictos es un módulo puro sin precios ni acceso a base de datos, así que no puede convertir un máximo de unidades en un subtotal en dólares. Revisa manualmente que el umbral configurado sea alcanzable dado el precio real de los sets del contexto.",
       "El desglose por regla ('promoBreakdown') no incluye Regalo — al no tener efecto monetario, solo aparece en los avisos ('promoNotes'), nunca en la lista de montos descontados.",
+      "Combo es la excepción de ámbito: los otros 7 tipos aceptan Global/Marca/Grupo de Sets/Set/Producto, pero Combo solo se configura en Global (los dos sets involucrados ya van en su configuración, así que un ámbito adicional sería redundante).",
     ],
   },
 
   COLOR_RESTRICTION: {
     ruleType: "COLOR_RESTRICTION",
     title: "Restricción por color",
-    summary: "Exige una cantidad mínima cuando el cliente elige un color específico.",
+    summary: "Exige una cantidad mínima en la línea del carrito cuando el cliente elige un color específico.",
     detail:
-      "Esta regla está definida en el motor, pero el carrito corporativo todavía no tiene ningún " +
-      "selector de color en sus 3 modos de talla (Matriz, Talla por pieza, Sin tallas) — no hay forma " +
-      "de que el cliente elija un color al armar su pedido, así que la condición de esta regla nunca " +
-      "se cumple, sin importar la configuración.",
-    appliesTo: [],
-    supportedScopes: [],
-    defaultBehavior: "No tiene efecto en el catálogo corporativo actualmente — no existe selector de color en el carrito.",
+      "El cliente elige un color al armar el set (un solo color por línea del carrito, común a todas " +
+      "las piezas de esa línea, sin importar el modo de tallas del set). El selector solo ofrece " +
+      "colores que comparten todas las piezas del set y que tienen al menos una variante activa — si " +
+      "un set no tiene ningún color en común entre sus piezas, no se muestra selector y la regla no " +
+      "tiene forma de activarse para ese set en particular. Si la cantidad de la línea con ese color " +
+      "es menor al mínimo configurado, el envío se bloquea con un mensaje que nombra el color y el " +
+      "mínimo exigido.",
+    appliesTo: ["CORPORATE"],
+    supportedScopes: ["GLOBAL", "BRAND", "SET_GROUP", "SET", "PRODUCT"],
+    defaultBehavior: "Sin ninguna regla activa, elegir cualquier color no exige ninguna cantidad mínima adicional.",
     fields: [
-      { key: "colorCode", label: "Código de color", description: "Código del color al que aplica la restricción. Actualmente texto libre — no se valida contra la tabla de colores real.", example: "PINK" },
-      { key: "min", label: "Mínimo requerido", description: "Cantidad mínima exigida cuando se elige ese color.", example: "6" },
+      { key: "colorCode", label: "Color", description: "Color al que aplica la restricción, elegido de la tabla de colores real del catálogo.", example: "PINK" },
+      { key: "min", label: "Mínimo requerido", description: "Cantidad mínima exigida en la línea cuando el cliente elige ese color.", example: "6" },
     ],
-    examples: [],
+    examples: [
+      { title: "Mínimo por color especial", config: { colorCode: "PINK", min: 6 }, explanation: "Si el cliente elige el color rosado para un set, esa línea debe pedir al menos 6 unidades." },
+    ],
     interactions: [],
     warnings: [
-      "Esta regla está deshabilitada para crear desde el panel: no existe selector de color en el carrito corporativo todavía, así que ninguna configuración de esta regla puede tener efecto.",
+      "El color se elige una vez por línea del carrito, no por pieza individual — en el modo Talla independiente por pieza, todas las piezas de esa línea comparten el mismo color aunque tengan tallas distintas.",
     ],
   },
 

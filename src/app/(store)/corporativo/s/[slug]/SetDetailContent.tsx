@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { useCorporateCart } from '@/context/CorporateCartContext';
 import type { CorporateSetDetail, SetPiece } from '@/lib/corporate-types';
 import type { InventoryModeValue, InventoryStockSnapshot, SizeMode } from '@/lib/rules-engine';
+import { cn } from '@/lib/utils';
 
 interface SetDetailContentProps {
   set: CorporateSetDetail;
@@ -48,6 +49,22 @@ export function SetDetailContent({ set, sizeMode, minQuantity, showPrices, inven
     return first.availableSizes.filter((size) => rest.every((p) => p.availableSizes.includes(size)));
   }, [set.pieces]);
 
+  // Colores comunes a todas las piezas del set, con al menos una variante activa cada una — el
+  // color se elige UNA vez por línea del carrito (no por pieza individual), igual en los 3 modos
+  // de talla: extender la selección a nivel de pieza requeriría cambiar la forma de
+  // `pieceSelections` (usada también por INVENTORY_MODE para calcular demanda), fuera del
+  // alcance de esta activación de ámbitos.
+  const commonColors = useMemo(() => {
+    if (set.pieces.length === 0) return [];
+    const hasActiveVariant = (p: SetPiece, colorId: string) =>
+      p.variants.some((v) => v.colorId === colorId && v.status === 'AVAILABLE');
+    const [first, ...rest] = set.pieces;
+    return first.colors.filter(
+      (c) => hasActiveVariant(first, c.id) && rest.every((p) => hasActiveVariant(p, c.id))
+    );
+  }, [set.pieces]);
+
+  const [selectedColor, setSelectedColor] = useState<string>('');
   const [matrixQuantities, setMatrixQuantities] = useState<Record<string, number>>({});
   const [noSizeQuantity, setNoSizeQuantity] = useState<number>(minQuantity);
   const [perPieceQuantity, setPerPieceQuantity] = useState<number>(minQuantity);
@@ -66,6 +83,7 @@ export function SetDetailContent({ set, sizeMode, minQuantity, showPrices, inven
     unitPrice: set.referencePrice ?? 0,
     hasMissingPrices: set.hasMissingPrices,
     piecesPerSet,
+    pieces: set.pieces.map((p) => ({ productId: p.productId, productName: p.productName, quantityPerSet: p.quantityPerSet })),
   };
 
   function handleAddMatrix() {
@@ -75,7 +93,7 @@ export function SetDetailContent({ set, sizeMode, minQuantity, showPrices, inven
       return;
     }
     for (const [size, quantity] of entries) {
-      addLine(setCartItemBase, { size, quantity });
+      addLine(setCartItemBase, { size, quantity, color: selectedColor || undefined });
     }
     toast.success('Agregado al carrito corporativo');
     setMatrixQuantities({});
@@ -86,7 +104,7 @@ export function SetDetailContent({ set, sizeMode, minQuantity, showPrices, inven
       toast.error('Ingresa una cantidad válida.');
       return;
     }
-    addLine(setCartItemBase, { quantity: noSizeQuantity });
+    addLine(setCartItemBase, { quantity: noSizeQuantity, color: selectedColor || undefined });
     toast.success('Agregado al carrito corporativo');
   }
 
@@ -103,7 +121,7 @@ export function SetDetailContent({ set, sizeMode, minQuantity, showPrices, inven
       toast.error('Selecciona la talla de cada pieza.');
       return;
     }
-    addLine(setCartItemBase, { quantity: perPieceQuantity, pieceSelections });
+    addLine(setCartItemBase, { quantity: perPieceQuantity, pieceSelections, color: selectedColor || undefined });
     toast.success('Agregado al carrito corporativo');
   }
 
@@ -168,6 +186,31 @@ export function SetDetailContent({ set, sizeMode, minQuantity, showPrices, inven
                 Compra mínima: <strong>{minQuantity} sets</strong>. Precio referencial — sujeto a cotización formal.
               </span>
             </div>
+
+            {/* ── Color (una elección por línea, común a los 3 modos de talla) ── */}
+            {commonColors.length > 0 && (
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold mb-2">Color</h3>
+                <div className="flex flex-wrap gap-2">
+                  {commonColors.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setSelectedColor((prev) => (prev === c.code ? '' : c.code))}
+                      className={cn(
+                        'flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm transition-colors',
+                        selectedColor === c.code
+                          ? 'border-[#111111] bg-[#111111] text-white'
+                          : 'border-[#E5E5E5] text-gray-600 hover:border-gray-400'
+                      )}
+                    >
+                      <span className="w-3 h-3 rounded-full border border-white/40 flex-shrink-0" style={{ backgroundColor: c.hex }} />
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* ── Selector según SIZE_MODE ── */}
             {sizeMode === 'MATRIX' && (

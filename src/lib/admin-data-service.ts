@@ -573,6 +573,22 @@ export async function deleteSetGroup(id: string) {
   await db.delete(setGroupsTable).where(eq(setGroupsTable.id, id));
 }
 
+/** Listado liviano de productos activos (id/nombre/marca) — usado por el selector de ámbito
+ * "Producto específico" del panel de reglas, que necesita elegir cualquier producto activo sin
+ * cargar variantes/imágenes (a diferencia de `getAdminProducts`, pensado para el listado completo). */
+export async function getAdminProductsLite() {
+  return db
+    .select({
+      id: productsTable.id,
+      name: productsTable.name,
+      brandName: sql<string>`COALESCE(${brandsTable.name}, '')`,
+    })
+    .from(productsTable)
+    .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
+    .where(eq(productsTable.isActive, true))
+    .orderBy(asc(productsTable.name));
+}
+
 // ── Corporate Sets (Sets Corporativos) ──
 
 /** Existencia y estado activo de un conjunto de sets por id — usado por la validación de

@@ -53,8 +53,11 @@ function scopeMatchesContext(rule: BusinessRule, context: RuleContext): boolean 
       return !!context.setGroupId && rule.scopeId === context.setGroupId;
     case "SET":
       return !!context.setId && rule.scopeId === context.setId;
-    case "PRODUCT":
-      return !!context.productId && rule.scopeId === context.productId;
+    case "PRODUCT": {
+      if (!rule.scopeId) return false;
+      const ids = context.productIds ?? (context.productId ? [context.productId] : []);
+      return ids.includes(rule.scopeId);
+    }
     default:
       return false;
   }
@@ -71,21 +74,57 @@ function candidatesFor(
   );
 }
 
-/** Devuelve la regla activa más específica para un tipo dado (single-value rule types). */
+/** Devuelve la regla activa más específica para un tipo dado (single-value rule types).
+ * Con `excludeGlobal: true`, ignora candidatos GLOBAL — usado cuando un tipo de regla necesita
+ * combinar un mínimo GLOBAL (todo el carrito) con un mínimo contextual (un subconjunto) que
+ * deben cumplirse A LA VEZ, en vez de que el más específico reemplace al general. */
 function pickBestRule(
   rules: BusinessRule[],
   ruleType: RuleType,
   context: RuleContext,
-  now: Date
+  now: Date,
+  options: { excludeGlobal?: boolean } = {}
 ): BusinessRule | undefined {
   const candidates = candidatesFor(rules, ruleType, context, now);
   for (const scope of SCOPE_PRECEDENCE) {
+    if (options.excludeGlobal && scope === "GLOBAL") continue;
     const atScope = candidates.filter((r) => r.scope === scope);
     if (atScope.length > 0) {
       return atScope.reduce((best, r) => (r.priority > best.priority ? r : best));
     }
   }
   return undefined;
+}
+
+/**
+ * Devuelve la regla contextual (no GLOBAL) más específica de un tipo dado que aplica a un
+ * contexto puntual, o `undefined` si ninguna aplica (solo GLOBAL, o ninguna). Se usa fuera de
+ * `resolveRules` cuando un tipo de regla necesita que lo contextual y lo GLOBAL se evalúen por
+ * separado y ambos se cumplan — ver `MIN_QUANTITY` en `validate.ts`.
+ */
+export function resolveContextualRule(
+  rules: BusinessRule[],
+  ruleType: RuleType,
+  context: RuleContext,
+  now: Date = new Date()
+): BusinessRule | undefined {
+  return pickBestRule(rules, ruleType, context, now, { excludeGlobal: true });
+}
+
+/**
+ * Devuelve la regla activa más específica de un tipo dado para un contexto puntual (incluye
+ * GLOBAL como candidato, a diferencia de `resolveContextualRule`). Expone la identidad completa
+ * de la regla (id/name), no solo su config ya fusionada con los defaults — usada por
+ * `computeCartPricing` para agrupar ítems por la escala de volumen que efectivamente les aplica
+ * (la más específica gana; las escalas no se acumulan entre sí).
+ */
+export function resolveBestRule(
+  rules: BusinessRule[],
+  ruleType: RuleType,
+  context: RuleContext,
+  now: Date = new Date()
+): BusinessRule | undefined {
+  return pickBestRule(rules, ruleType, context, now);
 }
 
 /** Devuelve TODAS las reglas activas aplicables para tipos multi-instancia (promos, restricciones de color). */

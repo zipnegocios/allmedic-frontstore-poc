@@ -179,7 +179,12 @@ export interface RuleContext {
   brandId?: string | null;
   setGroupId?: string | null;
   setId?: string | null;
+  /** Un único producto (ficha de producto individual, o compatibilidad con código existente). */
   productId?: string | null;
+  /** Todos los productos relevantes del contexto — en el flujo corporativo, las piezas del set.
+   * Una regla de ámbito PRODUCT aplica si su `scopeId` está entre estos ids. Si se omite, se usa
+   * `[productId]` como fallback. */
+  productIds?: string[];
 }
 
 // ─── Resultado de resolución: valores efectivos ya aplicados con jerarquía + defaults ───
@@ -302,11 +307,25 @@ export interface PromoBreakdownEntry {
   amount: number;
 }
 
+/** Una entrada del desglose de escala por volumen — qué regla (y en qué ámbito) aportó qué
+ * monto. VOLUME_SCALE no se acumula: cada ítem del carrito cae bajo una sola regla ganadora
+ * (la más específica), así que puede haber más de una entrada si distintos ítems del carrito
+ * caen bajo escalas distintas (ej. una marca con escala propia y el resto en la escala Global). */
+export interface VolumeScaleBreakdownEntry {
+  ruleId: string;
+  ruleName: string;
+  scope: RuleScope;
+  pct: number;
+  amount: number;
+}
+
 export interface PricingResult {
   lines: PricingLineResult[];
   subtotalBeforeDiscount: number;
   volumeDiscountPct: number;
   volumeDiscountAmount: number;
+  /** Desglose de qué regla de escala por volumen aportó qué monto — normalmente una sola entrada. */
+  volumeScaleBreakdown: VolumeScaleBreakdownEntry[];
   promoDiscountAmount: number;
   /** Desglose de qué regla PROMO aportó qué monto — para mostrar detalle en el carrito. */
   promoBreakdown: PromoBreakdownEntry[];

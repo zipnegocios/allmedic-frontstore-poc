@@ -36,11 +36,16 @@ interface RuleFormProps {
   };
 }
 
-// Tipos confirmados como ❌ Muertos en docs/audits/AUDITORIA-motor-reglas.md: no existe
-// ningún flujo que pueda hacerlos tener efecto (ej. COLOR_RESTRICTION no tiene selector
-// de color en ningún modo del carrito corporativo). Se deshabilitan en vez de fingir que
-// funcionan — ver RuleDocPanel para la explicación completa por tipo.
-const DISABLED_RULE_TYPES: RuleTypeKey[] = ['COLOR_RESTRICTION'];
+// Ámbitos sin efecto real para tipos concretos — se deshabilitan en el selector en vez de
+// dejarlos seleccionables sin que hagan nada. Ver RuleDocPanel para el detalle por tipo.
+const SCOPE_UNAVAILABLE_BY_TYPE: Partial<Record<RuleTypeKey, Scope[]>> = {
+  // INVENTORY_MODE se resuelve con el contexto del set (Set/Grupo/Marca) — el ámbito Producto
+  // no participa en el cálculo real de demanda de stock.
+  INVENTORY_MODE: ['PRODUCT'],
+  // Descuento por volumen (individual) es un único descuento sobre el carrito retail completo
+  // por diseño — no tiene sentido un ámbito más específico.
+  VOLUME_DISCOUNT_RETAIL: ['BRAND', 'SET_GROUP', 'SET', 'PRODUCT'],
+};
 
 const DEFAULT_CONFIG_BY_TYPE: Record<RuleTypeKey, Record<string, unknown>> = {
   MIN_QUANTITY: { min: 12, countUnit: 'SETS' },
@@ -91,6 +96,8 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
   const [brands, setBrands] = useState<ScopeOption[]>([]);
   const [setGroups, setSetGroups] = useState<ScopeOption[]>([]);
   const [sets, setSets] = useState<ScopeOption[]>([]);
+  const [products, setProducts] = useState<ScopeOption[]>([]);
+  const [colors, setColors] = useState<{ id: string; name: string; code: string; hex: string }[]>([]);
 
   const [conflicts, setConflicts] = useState<RuleConflict[]>([]);
   const [checkingConflicts, setCheckingConflicts] = useState(false);
@@ -101,10 +108,17 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
       fetch('/api/admin/brands?limit=1000').then((r) => (r.ok ? r.json() : { brands: [] })),
       fetch('/api/admin/set-groups').then((r) => (r.ok ? r.json() : { groups: [] })),
       fetch('/api/admin/sets').then((r) => (r.ok ? r.json() : { sets: [] })),
-    ]).then(([b, g, s]) => {
+      fetch('/api/admin/products/lite').then((r) => (r.ok ? r.json() : { products: [] })),
+      fetch('/api/admin/colors?limit=1000').then((r) => (r.ok ? r.json() : { colors: [] })),
+    ]).then(([b, g, s, p, c]) => {
       setBrands(b.brands ?? []);
       setSetGroups((g.groups ?? []).map((x: { id: string; name: string }) => ({ id: x.id, name: x.name })));
       setSets((s.sets ?? []).map((x: { id: string; name: string }) => ({ id: x.id, name: x.name })));
+      setProducts((p.products ?? []).map((x: { id: string; name: string; brandName?: string }) => ({
+        id: x.id,
+        name: x.brandName ? `${x.name} (${x.brandName})` : x.name,
+      })));
+      setColors(c.colors ?? []);
     }).catch(() => {});
   }, []);
 
@@ -156,15 +170,17 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
     setConfig((prev) => ({ ...prev, ...patch }));
   }
 
-  // COMBO cruza dos sets del carrito y se configura únicamente en ámbito GLOBAL (los dos sets
-  // ya van en la config) — fuerza el ámbito y bloquea el selector mientras esté seleccionado.
+  // COMBO cruza dos sets del carrito (los dos sets ya van en su config) y Descuento por volumen
+  // (individual) es un único descuento sobre todo el carrito retail — ambos se configuran
+  // únicamente en ámbito Global: se fuerza el ámbito y se bloquea el selector.
   const comboLocked = ruleType === 'PROMO' && config.kind === 'COMBO';
+  const scopeForcedGlobal = comboLocked || ruleType === 'VOLUME_DISCOUNT_RETAIL';
   useEffect(() => {
-    if (comboLocked && scope !== 'GLOBAL') {
+    if (scopeForcedGlobal && scope !== 'GLOBAL') {
       setScope('GLOBAL');
       setScopeId(null);
     }
-  }, [comboLocked, scope]);
+  }, [scopeForcedGlobal, scope]);
 
   async function handleSubmit() {
     if (!name.trim()) {
@@ -248,6 +264,7 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
     SET_GROUP: setGroups,
     SET: sets,
   };
+  const unavailableScopes = SCOPE_UNAVAILABLE_BY_TYPE[ruleType] ?? [];
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6 items-start">
@@ -265,9 +282,7 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
               <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {(Object.keys(RULE_TYPE_LABELS) as RuleTypeKey[]).map((t) => (
-                  <SelectItem key={t} value={t} disabled={DISABLED_RULE_TYPES.includes(t)}>
-                    {RULE_TYPE_LABELS[t]}{DISABLED_RULE_TYPES.includes(t) ? ' (sin efecto aún)' : ''}
-                  </SelectItem>
+                  <SelectItem key={t} value={t}>{RULE_TYPE_LABELS[t]}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -279,18 +294,21 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
             <Select
               value={scope}
               onValueChange={(v) => { setScope(v as Scope); setScopeId(null); }}
-              disabled={comboLocked}
+              disabled={scopeForcedGlobal}
             >
               <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="GLOBAL">Global (todo el catálogo)</SelectItem>
-                <SelectItem value="BRAND">Marca</SelectItem>
-                <SelectItem value="SET_GROUP">Grupo de Sets</SelectItem>
-                <SelectItem value="SET">Set específico</SelectItem>
-                <SelectItem value="PRODUCT" disabled>Producto específico (sin efecto aún)</SelectItem>
+                <SelectItem value="BRAND" disabled={unavailableScopes.includes('BRAND')}>Marca</SelectItem>
+                <SelectItem value="SET_GROUP" disabled={unavailableScopes.includes('SET_GROUP')}>Grupo de Sets</SelectItem>
+                <SelectItem value="SET" disabled={unavailableScopes.includes('SET')}>Set específico</SelectItem>
+                <SelectItem value="PRODUCT" disabled={unavailableScopes.includes('PRODUCT')}>Producto específico</SelectItem>
               </SelectContent>
             </Select>
             {comboLocked && <p className="text-xs text-gray-400 mt-1">Combo solo se configura en ámbito Global — los dos sets van en la configuración.</p>}
+            {!comboLocked && ruleType === 'VOLUME_DISCOUNT_RETAIL' && (
+              <p className="text-xs text-gray-400 mt-1">Descuento por volumen (individual) es un único descuento sobre todo el carrito retail — solo aplica en ámbito Global.</p>
+            )}
           </div>
 
           {scope !== 'GLOBAL' && scope !== 'PRODUCT' && (
@@ -309,12 +327,18 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
 
           {scope === 'PRODUCT' && (
             <div>
-              <Label className="mb-1 block">ID del producto</Label>
-              <Input
-                value={scopeId ?? ''}
-                onChange={(e) => setScopeId(e.target.value)}
-                placeholder="UUID del producto (cópialo desde /admin/products/[id])"
-              />
+              <Label className="mb-1 block">Producto</Label>
+              <Select value={scopeId ?? ''} onValueChange={setScopeId}>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Selecciona un producto..." /></SelectTrigger>
+                <SelectContent>
+                  {products.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-400 mt-1">
+                En el catálogo corporativo aplica a todo set que incluya este producto entre sus piezas; en el individual, a su ficha de producto.
+              </p>
             </div>
           )}
 
@@ -333,7 +357,7 @@ export function RuleForm({ mode, ruleId, initial }: RuleFormProps) {
 
         <div className="border-t border-[#E5E5E5] pt-6">
           <h4 className="font-medium mb-3">Configuración de la regla</h4>
-          <RuleConfigFields ruleType={ruleType} config={config} onChange={updateConfig} setConfig={setConfig} sets={sets} />
+          <RuleConfigFields ruleType={ruleType} config={config} onChange={updateConfig} setConfig={setConfig} sets={sets} colors={colors} />
         </div>
 
         <RuleConflictsPanel
@@ -367,12 +391,14 @@ function RuleConfigFields({
   onChange,
   setConfig,
   sets,
+  colors,
 }: {
   ruleType: RuleTypeKey;
   config: Record<string, unknown>;
   onChange: (patch: Record<string, unknown>) => void;
   setConfig: (c: Record<string, unknown>) => void;
   sets: ScopeOption[];
+  colors: { id: string; name: string; code: string; hex: string }[];
 }) {
   switch (ruleType) {
     case 'MIN_QUANTITY':
@@ -697,8 +723,20 @@ function RuleConfigFields({
       return (
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label className="mb-1 block">Código de color</Label>
-            <Input value={String(config.colorCode ?? '')} onChange={(e) => onChange({ colorCode: e.target.value })} placeholder="Ej. PINK" />
+            <Label className="mb-1 block">Color</Label>
+            <Select value={String(config.colorCode ?? '')} onValueChange={(v) => onChange({ colorCode: v })}>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Selecciona un color..." /></SelectTrigger>
+              <SelectContent>
+                {colors.map((c) => (
+                  <SelectItem key={c.id} value={c.code}>
+                    <span className="inline-flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full border border-gray-300 inline-block" style={{ backgroundColor: c.hex }} />
+                      {c.name}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <Label className="mb-1 block">Mínimo requerido</Label>

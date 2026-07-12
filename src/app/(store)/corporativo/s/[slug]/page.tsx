@@ -18,17 +18,27 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
     notFound();
   }
 
+  const productIds = set.pieces.map((p) => p.productId);
   const resolved = resolveRules(rules, {
     setId: set.id,
     setGroupId: set.setGroupId,
     brandId: set.brandId,
+    productIds,
   });
 
   const showPrices =
     resolved.priceVisibility.showPrices &&
     (resolved.priceVisibility.catalog === 'CORPORATE' || resolved.priceVisibility.catalog === 'BOTH');
 
-  const inventoryMode = resolved.inventoryMode.mode;
+  // INVENTORY_MODE se resuelve aparte, SIN productIds: su verificación real en servidor
+  // (checkInventory, POST /api/corporate/quotes) no considera ámbito Producto, así que aquí
+  // tampoco — evita que la ficha muestre disponibilidad basada en una regla que el servidor
+  // nunca aplicaría al bloquear el envío.
+  const inventoryMode = resolveRules(rules, {
+    setId: set.id,
+    setGroupId: set.setGroupId,
+    brandId: set.brandId,
+  }).inventoryMode.mode;
   const stockSnapshot =
     inventoryMode !== 'IGNORE'
       ? await getInventorySnapshotByProductIds(set.pieces.map((p) => p.productId))

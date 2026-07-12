@@ -76,7 +76,9 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
       description: corporateSetsTable.description,
       groupName: setGroupsTable.name,
       groupSlug: setGroupsTable.slug,
+      setGroupId: corporateSetsTable.setGroupId,
       brandName: brandsTable.name,
+      brandId: corporateSetsTable.brandId,
       isFeatured: corporateSetsTable.isFeatured,
       sortOrder: corporateSetsTable.sortOrder,
     })
@@ -92,6 +94,7 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
   const items = await db
     .select({
       setId: setItemsTable.setId,
+      productId: setItemsTable.productId,
       quantityPerSet: setItemsTable.quantityPerSet,
       priceWholesale: productsTable.priceWholesale,
       priceWholesaleSale: productsTable.priceWholesaleSale,
@@ -122,7 +125,10 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
       imageUrl: coverImages.get(set.id) ?? null,
       groupName: set.groupName,
       groupSlug: set.groupSlug,
+      setGroupId: set.setGroupId,
       brandName: set.brandName,
+      brandId: set.brandId,
+      productIds: Array.from(new Set(setItems.map((i) => i.productId).filter((id): id is string => !!id))),
       isFeatured: set.isFeatured ?? false,
       pieceCount: setItems.length,
       referencePrice: setItems.length > 0 ? referencePrice : null,
@@ -248,6 +254,7 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
     groupName: set.groupName,
     groupSlug: set.groupSlug,
     brandName: set.brandName,
+    productIds: pieces.map((p) => p.productId),
     isFeatured: set.isFeatured ?? false,
     pieceCount: pieces.length,
     referencePrice: pieces.length > 0 ? referencePrice : null,

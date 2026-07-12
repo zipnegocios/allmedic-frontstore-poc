@@ -1,11 +1,14 @@
 import type {
   BusinessRule,
   CorporateCart,
+  CorporateCartItem,
+  CountUnit,
+  MinQuantityConfig,
   SetMeta,
   ValidationResult,
   ValidationViolation,
 } from "./types";
-import { resolveRules } from "./resolve";
+import { resolveRules, resolveContextualRule } from "./resolve";
 
 function pluralSets(n: number): string {
   return n === 1 ? "set" : "sets";
@@ -13,6 +16,22 @@ function pluralSets(n: number): string {
 
 function pluralPieces(n: number): string {
   return n === 1 ? "pieza" : "piezas";
+}
+
+function unitLabel(countUnit: CountUnit, n: number): string {
+  return countUnit === "PIECES" ? pluralPieces(n) : pluralSets(n);
+}
+
+/** Suma la cantidad de un conjunto de ítems en la unidad pedida — "SETS" cuenta líneas tal cual,
+ * "PIECES" las convierte a piezas reales vía `setMeta.piecesPerSet` (1 por defecto, fallback
+ * seguro que nunca bloquea de más si el dato no está disponible). */
+function sumForCountUnit(items: CorporateCartItem[], countUnit: CountUnit, setMeta: Record<string, SetMeta>): number {
+  return items.reduce((sum, item) => {
+    const itemQty = item.lines.reduce((lineSum, line) => lineSum + line.quantity, 0);
+    if (countUnit !== "PIECES") return sum + itemQty;
+    const piecesPerSet = setMeta[item.setId]?.piecesPerSet ?? 1;
+    return sum + itemQty * piecesPerSet;
+  }, 0);
 }
 
 /**
@@ -27,45 +46,58 @@ export function validateCorporateCart(
 ): ValidationResult {
   const violations: ValidationViolation[] = [];
 
-  // Total de sets en el carrito (unidad SETS, sumando todas las líneas de todos los items)
-  const totalSets = cart.items.reduce(
-    (sum, item) => sum + item.lines.reduce((lineSum, line) => lineSum + line.quantity, 0),
-    0
-  );
-
-  // ── MIN_QUANTITY (resuelto a nivel GLOBAL — mínimo de carrito completo) ──
+  // ── MIN_QUANTITY GLOBAL (mínimo del carrito completo) ──
   const globalResolved = resolveRules(allRules, {}, now);
   const { min: minRequired, countUnit } = globalResolved.minQuantity;
-
-  // countUnit: "PIECES" convierte la cantidad de sets de cada línea a piezas reales
-  // usando `piecesPerSet` de `setMeta` (suma de quantityPerSet de las piezas del set).
-  // Sin dato disponible, asume 1 pieza por set (fallback seguro — nunca bloquea de más).
-  const totalForMinCheck =
-    countUnit === "PIECES"
-      ? cart.items.reduce((sum, item) => {
-          const itemQty = item.lines.reduce((lineSum, line) => lineSum + line.quantity, 0);
-          const piecesPerSet = setMeta[item.setId]?.piecesPerSet ?? 1;
-          return sum + itemQty * piecesPerSet;
-        }, 0)
-      : totalSets;
-
+  const totalForMinCheck = sumForCountUnit(cart.items, countUnit, setMeta);
   const setsRemaining = Math.max(0, minRequired - totalForMinCheck);
-  const unitLabel = countUnit === "PIECES" ? pluralPieces(setsRemaining) : pluralSets(setsRemaining);
-  const unitLabelRequired = countUnit === "PIECES" ? pluralPieces(minRequired) : pluralSets(minRequired);
 
   if (totalForMinCheck < minRequired) {
     violations.push({
       code: "MIN_QUANTITY",
-      message: `Agrega ${setsRemaining} ${unitLabel} más para alcanzar el mínimo de ${minRequired} ${unitLabelRequired}.`,
+      message: `Agrega ${setsRemaining} ${unitLabel(countUnit, setsRemaining)} más para alcanzar el mínimo de ${minRequired} ${unitLabel(countUnit, minRequired)}.`,
     });
+  }
+
+  // ── MIN_QUANTITY contextual (BRAND/SET_GROUP/SET/PRODUCT) ──
+  // Un mínimo contextual restringe SU PROPIO subconjunto de ítems y se exige ADEMÁS del mínimo
+  // GLOBAL — no lo reemplaza. Cada ítem del carrito puede caer bajo, como mucho, una regla
+  // contextual (la más específica según la jerarquía); se agrupan los ítems por la regla que
+  // efectivamente les aplica y se valida cada grupo contra su propio mínimo.
+  const contextualGroups = new Map<string, { rule: BusinessRule; items: CorporateCartItem[] }>();
+  for (const item of cart.items) {
+    const meta = setMeta[item.setId] ?? {};
+    const productIds = (meta.pieces ?? []).map((p) => p.productId);
+    const winning = resolveContextualRule(
+      allRules,
+      "MIN_QUANTITY",
+      { setId: item.setId, setGroupId: meta.setGroupId, brandId: meta.brandId, productIds },
+      now
+    );
+    if (!winning) continue;
+    if (!contextualGroups.has(winning.id)) contextualGroups.set(winning.id, { rule: winning, items: [] });
+    contextualGroups.get(winning.id)!.items.push(item);
+  }
+
+  for (const { rule, items: groupItems } of contextualGroups.values()) {
+    const config = rule.config as unknown as MinQuantityConfig;
+    const groupTotal = sumForCountUnit(groupItems, config.countUnit, setMeta);
+    if (groupTotal < config.min) {
+      const remaining = config.min - groupTotal;
+      violations.push({
+        code: "MIN_QUANTITY",
+        message: `"${rule.name}" requiere un mínimo de ${config.min} ${unitLabel(config.countUnit, config.min)}; llevas ${groupTotal} — agrega ${remaining} ${unitLabel(config.countUnit, remaining)} más.`,
+      });
+    }
   }
 
   // ── Validaciones por set (estructurales + reglas específicas del set) ──
   for (const item of cart.items) {
     const meta = setMeta[item.setId] ?? {};
+    const productIds = (meta.pieces ?? []).map((p) => p.productId);
     const resolved = resolveRules(
       allRules,
-      { setId: item.setId, setGroupId: meta.setGroupId, brandId: meta.brandId },
+      { setId: item.setId, setGroupId: meta.setGroupId, brandId: meta.brandId, productIds },
       now
     );
 

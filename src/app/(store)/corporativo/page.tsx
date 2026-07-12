@@ -19,8 +19,18 @@ export default async function CorporativoPage() {
   ]);
 
   const resolved = resolveRules(rules, {});
-  const showPrices = resolved.priceVisibility.showPrices &&
-    (resolved.priceVisibility.catalog === 'CORPORATE' || resolved.priceVisibility.catalog === 'BOTH');
 
-  return <CorporativoContent sets={sets} groups={groups} showPrices={showPrices} minQuantity={resolved.minQuantity.min} />;
+  // Visibilidad de precios resuelta POR SET en el cliente (loop en memoria, no N consultas) — así
+  // una regla PRICE_VISIBILITY de ámbito Marca/Grupo/Set/Producto oculta el precio en la tarjeta
+  // del grid, no solo en la ficha de detalle. Se envían solo las reglas de este tipo al cliente.
+  const priceVisibilityRules = rules.filter((r) => r.ruleType === 'PRICE_VISIBILITY');
+
+  return (
+    <CorporativoContent
+      sets={sets}
+      groups={groups}
+      priceVisibilityRules={priceVisibilityRules}
+      minQuantity={resolved.minQuantity.min}
+    />
+  );
 }

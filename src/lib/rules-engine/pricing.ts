@@ -9,8 +9,14 @@ import type {
   PromoThresholdDiscountConfig,
   SetMeta,
   SetPriceInfo,
+  VolumeScaleBreakdownEntry,
+  VolumeScaleConfig,
 } from "./types";
-import { resolveRules, isRuleActive } from "./resolve";
+import { resolveRules, resolveBestRule, isRuleActive } from "./resolve";
+
+function productIdsOf(meta: SetMeta): string[] {
+  return (meta.pieces ?? []).map((p) => p.productId);
+}
 
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
@@ -31,8 +37,10 @@ function itemInRuleScope(rule: BusinessRule, item: CorporateCartItem, setMeta: R
       return !!meta.setGroupId && meta.setGroupId === rule.scopeId;
     case "SET":
       return item.setId === rule.scopeId;
+    case "PRODUCT":
+      return !!rule.scopeId && (meta.pieces ?? []).some((p) => p.productId === rule.scopeId);
     default:
-      return false; // PRODUCT no soportado para los tipos de PROMO de nivel carrito
+      return false;
   }
 }
 
@@ -46,7 +54,8 @@ function itemInRuleScope(rule: BusinessRule, item: CorporateCartItem, setMeta: R
  *   (b) COMBO (cruzada entre ítems, solo GLOBAL)
  *   (c) THRESHOLD_DISCOUNT (nivel carrito/contexto, una sola vez por regla)
  *   (d) GIFT (informativa, no toca montos — solo agrega notas)
- * La escala de volumen (VOLUME_SCALE) se calcula antes y no cambia con esta ampliación.
+ * La escala de volumen (VOLUME_SCALE) se calcula antes, por ítem (ver más abajo) y sin acumularse
+ * entre sí — la escala más específica que aplica a cada ítem gana, no se suman varias escalas.
  */
 export function computeCartPricing(
   cart: CorporateCart,
@@ -70,23 +79,51 @@ export function computeCartPricing(
   const hasMissingPrices = cart.items.some((item) => setPrices[item.setId]?.hasMissingPrices ?? true);
 
   const subtotalBeforeDiscount = round2(lines.reduce((sum, l) => sum + l.lineSubtotal, 0));
-  const totalSets = cart.items.reduce(
-    (sum, item) => sum + item.lines.reduce((lineSum, line) => lineSum + line.quantity, 0),
-    0
-  );
 
-  // Escala de volumen resuelta a nivel GLOBAL (MVP — no diferenciada por set/marca) — sin cambios.
-  const resolved = resolveRules(allRules, {}, now);
-  let volumeDiscountPct = 0;
-  if (resolved.volumeScale) {
-    const applicableTiers = resolved.volumeScale.tiers
-      .filter((t) => totalSets >= t.minQty)
-      .sort((a, b) => b.minQty - a.minQty);
-    if (applicableTiers.length > 0) {
-      volumeDiscountPct = applicableTiers[0].discountPct;
-    }
+  // VOLUME_SCALE se resuelve POR ÍTEM (setId/setGroupId/brandId/productIds) — la escala más
+  // específica gana; a diferencia de PROMO, las escalas NO se acumulan entre sí. Se agrupan los
+  // ítems por la regla ganadora (GLOBAL es el fallback natural si nada más específico aplica) y
+  // se calcula el tramo alcanzado sobre la cantidad y el subtotal de CADA grupo, no del carrito
+  // completo — así una escala de ámbito Marca no se activa con unidades de otras marcas.
+  const volumeScaleGroups = new Map<string, { rule: BusinessRule; items: CorporateCartItem[] }>();
+  for (const item of cart.items) {
+    const meta = setMeta[item.setId] ?? {};
+    const winning = resolveBestRule(
+      allRules,
+      "VOLUME_SCALE",
+      { setId: item.setId, setGroupId: meta.setGroupId, brandId: meta.brandId, productIds: productIdsOf(meta) },
+      now
+    );
+    if (!winning) continue;
+    if (!volumeScaleGroups.has(winning.id)) volumeScaleGroups.set(winning.id, { rule: winning, items: [] });
+    volumeScaleGroups.get(winning.id)!.items.push(item);
   }
-  const volumeDiscountAmount = round2(subtotalBeforeDiscount * (volumeDiscountPct / 100));
+
+  const volumeScaleBreakdown: VolumeScaleBreakdownEntry[] = [];
+  let volumeDiscountAmount = 0;
+  for (const { rule, items: groupItems } of volumeScaleGroups.values()) {
+    const config = rule.config as unknown as VolumeScaleConfig;
+    const groupQty = groupItems.reduce((sum, item) => sum + item.lines.reduce((s, l) => s + l.quantity, 0), 0);
+    const groupSubtotal = groupItems.reduce(
+      (sum, item) => sum + (lines.find((l) => l.setId === item.setId)?.lineSubtotal ?? 0),
+      0
+    );
+    const applicableTiers = config.tiers.filter((t) => groupQty >= t.minQty).sort((a, b) => b.minQty - a.minQty);
+    if (applicableTiers.length === 0) continue;
+
+    const pct = applicableTiers[0].discountPct;
+    const amount = round2(groupSubtotal * (pct / 100));
+    if (amount <= 0) continue;
+
+    volumeDiscountAmount += amount;
+    volumeScaleBreakdown.push({ ruleId: rule.id, ruleName: rule.name, scope: rule.scope, pct, amount });
+  }
+  volumeDiscountAmount = round2(volumeDiscountAmount);
+  // Porcentaje "efectivo" del carrito completo — coincide exactamente con el tramo de la regla
+  // cuando solo hay un grupo (el caso común, una sola escala GLOBAL), y da una cifra consistente
+  // con `volumeDiscountAmount` cuando varios grupos con distinto ámbito contribuyen a la vez.
+  const volumeDiscountPct =
+    subtotalBeforeDiscount > 0 ? round2((volumeDiscountAmount / subtotalBeforeDiscount) * 100) : 0;
 
   const promoBreakdown: PromoBreakdownEntry[] = [];
   const promoNotes: string[] = [];
@@ -104,14 +141,14 @@ export function computeCartPricing(
     promoBreakdown.push({ ruleId, ruleName, kind, amount: applied });
   }
 
-  // (a) PROMO por ítem: resuelta POR ÍTEM (setId/setGroupId/brandId), a diferencia de la escala
-  // de volumen que es GLOBAL — así una promo de ámbito SET solo descuenta en el set al que
-  // pertenece. Los tipos multi-instancia (varias promos activas a la vez) se acumulan.
+  // (a) PROMO por ítem: resuelta POR ÍTEM (setId/setGroupId/brandId/productIds) — así una promo
+  // de ámbito Set o Producto solo descuenta en el set al que pertenece. Los tipos multi-instancia
+  // (varias promos activas a la vez) se acumulan.
   for (const item of cart.items) {
     const meta = setMeta[item.setId] ?? {};
     const itemResolved = resolveRules(
       allRules,
-      { setId: item.setId, setGroupId: meta.setGroupId, brandId: meta.brandId },
+      { setId: item.setId, setGroupId: meta.setGroupId, brandId: meta.brandId, productIds: productIdsOf(meta) },
       now
     );
     const itemQty = item.lines.reduce((sum, line) => sum + line.quantity, 0);
@@ -235,6 +272,7 @@ export function computeCartPricing(
     subtotalBeforeDiscount,
     volumeDiscountPct,
     volumeDiscountAmount,
+    volumeScaleBreakdown,
     promoDiscountAmount,
     promoBreakdown,
     promoNotes,

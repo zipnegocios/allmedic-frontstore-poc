@@ -97,7 +97,7 @@ function AvailabilityStatus({ status }: { status: VariantStatus | undefined }) {
 export function Product({ product, complementaryProduct: complementaryProductProp }: { product?: ProductType; complementaryProduct?: ProductType }) {
   const { addItem } = useCart();
   const { showSuccess, showError, showWarning } = useNotificationContext();
-  const showPrices = usePriceVisibility();
+  const showPrices = usePriceVisibility({ brandId: product?.brandId, productId: product?.id });
 
   // State with initializers
   const [selectedColor, setSelectedColor] = useState<ProductColor | undefined>(() => product?.colors[0]);

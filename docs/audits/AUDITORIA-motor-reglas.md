@@ -1,8 +1,6 @@
 # Auditoría de aplicación efectiva — Motor de Reglas
 
-> Generado como Fase 0 de `.claude/pre-plans/PLAN-motor-reglas-docs-auditoria-conflictos.md`. Verificado contra el código real (`src/lib/rules-engine/`, páginas del catálogo, `CartContext`/`CorporateCartContext`) el 2026-07-12, no contra la documentación previa. Cada veredicto cita el archivo y la línea exacta que lo sustenta.
->
-> **Actualización Fase 3 (mismo día):** los hallazgos de `PROMO` y `MIN_QUANTITY.countUnit: PIECES` se corrigieron — sus secciones y la tabla resumen se actualizaron in-place, marcadas con "✅ Corregido en Fase 3". El resto de hallazgos (`INVENTORY_MODE`, `COLOR_RESTRICTION`, ámbito `PRODUCT`, `VOLUME_SCALE` no-GLOBAL, inconsistencia de `PRICE_VISIBILITY` en grids) se dejaron como estaban por decisión explícita de alcance — ver "Lista priorizada de fixes" al final, actualizada con el resultado real de cada punto.
+> Verificado contra el código real (`src/lib/rules-engine/`, páginas del catálogo, `CartContext`/`CorporateCartContext`), no contra la documentación previa. Cada veredicto cita el archivo y la línea exacta que lo sustenta. Última actualización: 2026-07-13 — los 10 tipos de regla tienen efecto real en al menos un ámbito, y el ámbito Producto está activo en 8 de los 10 (ver matriz y resumen ejecutivo).
 
 ## Cómo leer esta auditoría
 
@@ -14,43 +12,42 @@
 
 ## Matriz tipo de regla × aplicación
 
-### 1. `MIN_QUANTITY` — ⚠️ Parcial
+### 1. `MIN_QUANTITY` — ✅ Funciona completo (GLOBAL + contextual simultáneos)
 
 - **Dónde se resuelve:**
-  - `validate.ts:33` — `resolveRules(allRules, {}, now)`, **contexto vacío (GLOBAL)**. Este es el único resultado que determina si el carrito puede enviarse.
-  - `corporativo/s/[slug]/page.tsx:21-25` — contexto completo (`setId`, `setGroupId`, `brandId`), pero el resultado (`resolved.minQuantity.min`) solo se usa para el texto informativo "Compra mínima: N sets" en esa página.
-  - `CorporateCartContext.tsx:281` — contexto vacío (GLOBAL), usado para la barra de progreso "te faltan N sets".
-- **Dónde se aplica:** Solo catálogo corporativo. No existe en el catálogo individual.
-- **Ámbitos que funcionan de verdad:** **Solo GLOBAL** bloquea el envío (`validate.ts:37-61`, comparado contra el total del carrito completo). Una regla `SET`/`SET_GROUP`/`BRAND` se resuelve y se **muestra** en la ficha del set correspondiente, pero **nunca se valida** — el bucle por ítem jamás vuelve a comprobar `MIN_QUANTITY`. Es decir: el admin puede crear "mínimo 6 sets" para un set específico, la página lo anuncia, pero el carrito seguirá exigiendo el mínimo GLOBAL (12 por defecto) sobre el total del carrito sin importar cuántos sets distintos lo compongan. **Esto sigue sin corregirse** (decisión de Fase 3: documentar, no reescribir la semántica de negocio — ver `RULE_DOCS.MIN_QUANTITY.warnings` en `docs.ts`).
-- **`countUnit: "PIECES"` — ✅ Corregido en Fase 3.** Antes se ignoraba por completo. Ahora `validate.ts:40-54` calcula el total en piezas reales cuando `countUnit: "PIECES"`, usando `setMeta[item.setId].piecesPerSet` (suma de `quantityPerSet` de las piezas del set, calculado en `corporate-data-service.ts:getSetMetaByIds` en servidor y embebido en el ítem del carrito al agregarlo en `SetDetailContent.tsx`). `ValidationResult` ahora expone `countUnit` para que la UI use la etiqueta correcta ("piezas" vs "sets") en vez de asumir siempre "sets" — ver `CorporateCartDrawer.tsx` y `solicitud/page.tsx`. Tests: `rules-engine.test.ts`, describe "mínimo con countUnit: PIECES" (3 casos).
+  - `validate.ts` — mínimo GLOBAL sobre el total del carrito completo (sin cambios de comportamiento).
+  - `validate.ts` (`resolveContextualRule`, `resolve.ts`) — para cada ítem del carrito, la regla `MIN_QUANTITY` contextual (Marca/Grupo de Sets/Set/Producto) más específica que le aplica, si existe alguna. Los ítems se agrupan por la regla que efectivamente les aplica y cada grupo se valida contra su propio mínimo.
+  - `corporativo/s/[slug]/page.tsx` — mismo contexto completo (incluye `productIds` de las piezas del set), usado para el texto informativo "Compra mínima: N sets" de esa ficha.
+- **Dónde se aplica:** Catálogo corporativo.
+- **Comportamiento:** el mínimo GLOBAL y cualquier mínimo contextual se exigen A LA VEZ — uno no reemplaza al otro. Un mínimo de Marca "24 sets" bloquea el envío si esa marca no llega a 24 en el carrito, sin importar que el total del carrito ya supere el mínimo Global. La ficha del set muestra el mínimo de la regla más específica que le aplica, y ese es el mismo número que el servidor exige para ese subconjunto.
+- `countUnit: "PIECES"` funciona igual en ámbito GLOBAL y en ámbito contextual, vía `setMeta.piecesPerSet`.
 
 ### 2. `MULTIPLES_ONLY` — ✅ Funciona completo
 
-- Se resuelve con contexto completo (`setId`, `setGroupId`, `brandId`) dentro del bucle por ítem: `validate.ts:47-51`.
-- Se aplica por línea: `validate.ts:92-101`.
-- Los 4 ámbitos (`GLOBAL`, `BRAND`, `SET_GROUP`, `SET`) tienen efecto real porque el contexto que llega a `resolveRules` en este punto sí incluye los IDs correspondientes.
+- Se resuelve con contexto completo (`setId`, `setGroupId`, `brandId`, `productIds`) dentro del bucle por ítem de `validate.ts`.
+- Se aplica por línea.
+- Los 5 ámbitos (`GLOBAL`, `BRAND`, `SET_GROUP`, `SET`, `PRODUCT`) tienen efecto real.
 
 ### 3. `QUANTITY_RANGE` — ✅ Funciona completo
 
-- Mismo patrón que `MULTIPLES_ONLY`: `validate.ts:104-114`.
-- `max: null` se maneja correctamente (`max !== null && line.quantity > max`, línea 106) — no rompe con rango abierto.
-- Los 4 ámbitos funcionan.
+- Mismo patrón que `MULTIPLES_ONLY`.
+- `max: null` se maneja correctamente — no rompe con rango abierto.
+- Los 5 ámbitos funcionan.
 
 ### 4. `SIZE_MODE` — ✅ Funciona completo
 
-- Se resuelve con contexto completo en `corporativo/s/[slug]/page.tsx:21-25,34`.
-- Los 3 modos (`MATRIX`, `PER_PIECE`, `NO_SIZES`) están implementados en `SetDetailContent.tsx:148-244` y cada uno serializa correctamente su forma de carrito (`size`, `pieceSelections`, o solo `quantity`).
-- Los 4 ámbitos funcionan porque es la única página que consulta esta regla y siempre pasa el contexto completo del set.
+- Se resuelve con contexto completo (incluye `productIds`) en `corporativo/s/[slug]/page.tsx`.
+- Los 3 modos (`MATRIX`, `PER_PIECE`, `NO_SIZES`) están implementados en `SetDetailContent.tsx` y cada uno serializa correctamente su forma de carrito (`size`, `pieceSelections`, o solo `quantity`).
+- Los 5 ámbitos funcionan; una regla de ámbito Producto determina el modo de tallas de todo el set que lo contiene.
 
-### 5. `PRICE_VISIBILITY` — ⚠️ Parcial
+### 5. `PRICE_VISIBILITY` — ✅ Funciona completo (resolución por ítem en listados y fichas)
 
-- Se resuelve en **tres puntos con contextos distintos**:
-  - `(store)/layout.tsx:26` — GLOBAL, decide si TODO el catálogo individual muestra precios (implementado en esta sesión).
-  - `corporativo/page.tsx:21` — GLOBAL, decide si el grid corporativo completo muestra precios.
-  - `corporativo/s/[slug]/page.tsx:21-25,27-29` — contexto completo del set, decide solo esa ficha.
-- **Ámbitos que funcionan de verdad:** GLOBAL funciona en los tres puntos (confirmado con la corrección de esta sesión — cero precios visibles en `/catalogo`, `/corporativo` y `/p/[slug]` con la regla activa). `BRAND`/`SET_GROUP`/`SET`/`PRODUCT` **solo tienen efecto en la ficha de detalle de un set específico**, nunca en los grids (`/catalogo`, `/corporativo`) porque esos resuelven con contexto vacío para todos los productos/sets a la vez.
-- **Inconsistencia detectada:** una regla `PRICE_VISIBILITY` con `scope: SET` oculta el precio en `/corporativo/s/[slug]` pero el mismo set sigue mostrando precio en su tarjeta dentro de `/corporativo` (el grid). El cliente ve el precio en el listado y luego desaparece al entrar al detalle.
-- `catalog: INDIVIDUAL | CORPORATE | BOTH` sí se respeta correctamente en cada punto donde la regla se consulta.
+- Se resuelve **por ítem** en cada punto donde se muestra un precio, tanto en listados como en fichas de detalle:
+  - Catálogo individual: `ProductCard`, `QuickViewModal`, `CrossSellCard`, ficha de producto (`legacy-pages/Product.tsx`) y cada línea del carrito (`CartItem`) resuelven su propia visibilidad con el `brandId`/`productId` de ESE producto — el mismo componente `PriceVisibilityContext` recibe las reglas una sola vez desde el layout y cada consumidor resuelve en memoria, sin consultas adicionales.
+  - Catálogo corporativo: el grid (`CorporativoContent`) resuelve por set (`brandId`/`setGroupId`/`productIds` de sus piezas) igual que la ficha de detalle (`corporativo/s/[slug]/page.tsx`) — ambos puntos citan la misma regla y muestran el mismo resultado para un mismo set.
+- Los 5 ámbitos (`GLOBAL`, `BRAND`, `SET_GROUP`, `SET`, `PRODUCT`) tienen efecto real en listados y en fichas; ya no existe la inconsistencia "precio visible en la tarjeta, oculto en el detalle" documentada en versiones anteriores de esta auditoría.
+- `catalog: INDIVIDUAL | CORPORATE | BOTH` se sigue respetando en cada punto.
+- Los componentes de chrome que no representan un único producto (menú, mega-menú, resumen agregado del carrito individual) siguen evaluando solo el ámbito Global — no tiene sentido resolverlos por ítem.
 
 ### 6. `INVENTORY_MODE` — ✅ Corregido (implementado íntegramente, ver sección "Motor de inventario" al final)
 
@@ -58,10 +55,11 @@
 - **Ahora:** `src/lib/rules-engine/inventory.ts` (`checkInventory`) resuelve `INVENTORY_MODE` **por ítem** (mismo patrón que `PROMO`), agrega demanda por producto+talla entre los sets del carrito que comparten modo activo (no `IGNORE`), y la compara contra un snapshot de stock real de variantes activas. `BLOCK` rechaza `POST /api/corporate/quotes` con 400 y el detalle exacto de qué producto/talla excede el stock; `INFORMATIVE` acepta la solicitud (201) pero registra los avisos en `internalNotes` y los devuelve en la respuesta. El carrito (`CorporateCartDrawer.tsx`, `solicitud/page.tsx`) consulta un nuevo endpoint dry-run (`POST /api/corporate/cart/check-inventory`) para mostrar los mismos avisos/errores antes de enviar. La ficha del set (`/corporativo/s/[slug]`) muestra disponibilidad agregada por talla cuando el modo efectivo no es `IGNORE`.
 - `RuleForm.tsx` ahora habilita `BLOCK`/`INFORMATIVE` en el selector, y los ámbitos `GLOBAL`/`BRAND`/`SET_GROUP`/`SET` (ya funcionaban a nivel de formulario; ahora tienen efecto real).
 
-### 7. `VOLUME_SCALE` — ⚠️ Parcial
+### 7. `VOLUME_SCALE` — ✅ Funciona completo (resolución por ítem, sin acumulación)
 
-- Se resuelve únicamente con contexto vacío: `pricing.ts:40` — `resolveRules(allRules, {}, now)`. Nunca se resuelve por `setId`/`setGroupId`/`brandId` dentro de `computeCartPricing`.
-- **Ámbitos que funcionan de verdad: solo GLOBAL.** `BRAND`/`SET_GROUP`/`SET` se pueden crear y se guardan, pero jamás se resuelven con el contexto necesario para que apliquen — son letra muerta.
+- Se resuelve **por ítem** (`setId`/`setGroupId`/`brandId`/`productIds`) dentro de `computeCartPricing`: cada set del carrito cae bajo la escala más específica que le aplica (Producto > Set > Grupo de Sets > Marca > Global). A diferencia de `PROMO`, las escalas NO se acumulan — la más específica reemplaza a la más general para los sets que cubre, no se suman.
+- El tramo de cada escala se calcula sobre la cantidad y el subtotal SOLO de los sets que caen bajo esa escala en particular (no sobre el carrito completo cuando la escala no es Global).
+- Los 5 ámbitos (`GLOBAL`, `BRAND`, `SET_GROUP`, `SET`, `PRODUCT`) tienen efecto real. `PricingResult.volumeScaleBreakdown` expone qué regla aportó qué monto cuando hay más de una escala activa a la vez sobre distintos subconjuntos del carrito.
 
 ### 8. `PROMO` — ✅ Corregido en Fase 3, ampliado a 8 tipos (2026-07-13)
 
@@ -70,11 +68,12 @@
 - **Ampliación (2026-07-13):** `PromoConfig` pasó de `{ kind: string, buy, free }` a una **unión discriminada por `kind`** con 8 tipos: `N_PLUS_ONE`, `PERCENT_OFF`, `FIXED_AMOUNT_OFF`, `FIXED_PRICE`, `NTH_UNIT_PCT` (los 5 por ítem, igual patrón que `MULTIPLES_ONLY`/`QUANTITY_RANGE`), `THRESHOLD_DISCOUNT` (nivel carrito/contexto, una sola vez por regla), `GIFT` (informativa, agrega `PricingResult.promoNotes` sin tocar montos) y `COMBO` (cruzada entre dos sets, solo ámbito GLOBAL). `resolveRules().promos` cambió de `PromoConfig[]` a `ResolvedPromo[]` (incluye `id`/`name` de la regla) para poder armar `PricingResult.promoBreakdown` (qué regla aportó qué monto). Orden de aplicación documentado en `RULE_DOCS.PROMO`: ítem → combo → umbral → regalo. Tope: el descuento de cada set nunca supera su propio `lineSubtotal`, y el total del carrito nunca queda negativo. Las configs `N_PLUS_ONE` ya guardadas en BD siguen validando y calculando exactamente igual (compatibilidad verificada con test dedicado). `RuleForm.tsx` ahora tiene un selector de tipo de promoción con campos dinámicos por tipo; `COMBO` fuerza ámbito GLOBAL y usa selectores de sets reales (no texto libre). El detector de conflictos ganó `PROMO_DOUBLE_DISCOUNT` (Precio fijo + Porcentaje/Monto fijo en el mismo contexto) y la validación de existencia/estado de los sets de un `COMBO` se implementó en la capa de rutas del panel admin (`checkComboSetsExist` en `rule-config-schemas.ts`), no en `conflicts.ts`, porque requiere base de datos. `POST /api/corporate/quotes` registra las notas de `GIFT` en `internalNotes` junto a los avisos de inventario. Ver `docs/reports/REPORTE-promociones-2026-07-13.md` para el detalle completo con ejemplos numéricos por tipo. Tests: `promo-pricing.test.ts` (20 casos), `promo-schema.test.ts` (11 casos de validación Zod), más las 4 pruebas de compatibilidad `N_PLUS_ONE` en `rules-engine.test.ts` y los nuevos casos en `conflicts.test.ts`.
 - **Limitación documentada, no implementada:** el detector de conflictos no puede advertir un `THRESHOLD_DISCOUNT.minSubtotal` inalcanzable dado un `QUANTITY_RANGE.max` en el mismo contexto — haría falta conocer el precio de los sets involucrados, y `conflicts.ts` es un módulo puro sin acceso a precios ni a base de datos. Documentado como advertencia honesta en `RULE_DOCS.PROMO.warnings`, no simulado con datos falsos (mismo criterio aplicado en la Fase de `INVENTORY_MODE` para el cruce con `MIN_QUANTITY`).
 
-### 9. `COLOR_RESTRICTION` — ❌ Muerta (decisión: no implementar en Fase 3, bloqueada en el panel)
+### 9. `COLOR_RESTRICTION` — ✅ Funciona completo
 
-- El plan original sospechaba que el problema era solo UX (`colorCode` como texto libre sin selector). La auditoría encuentra algo más profundo: **ningún flujo de la UI del carrito corporativo asigna `color` a una línea.** Revisé los 3 modos de `SetDetailContent.tsx` (`handleAddMatrix`, `handleAddNoSizes`, `handleAddPerPiece`) — ninguno tiene selector de color ni construye `{ color: ... }` en la línea que se agrega al carrito.
-- Como consecuencia, `line.color` en `CorporateCartLine` siempre es `undefined`, y la condición `if (line.color)` en `validate.ts:117` nunca es verdadera. La regla no solo tiene una config de mala calidad (texto libre) — es estructuralmente inalcanzable, sin importar qué se configure.
-- **Fase 3:** construir un selector de color completo en los 3 modos del carrito es una feature de UI grande, fuera de proporción para este plan. En vez de eso, `RuleForm.tsx` ahora deshabilita "Restricción por color" en el selector de tipo de regla (marcada "sin efecto aún"), en vez de fingir que funciona.
+- `SetDetailContent.tsx` calcula los colores comunes a todas las piezas del set con al menos una variante activa, y muestra un selector de color (visible en los 3 modos de talla) cuando existe al menos un color en común. El color elegido se guarda en `line.color` — una elección por línea del carrito, no por pieza individual.
+- Con `line.color` poblado, la validación de `validate.ts` (`if (line.color)` contra `resolved.colorRestrictions`) tiene efecto real: bloquea el envío si la cantidad de esa línea es menor al mínimo exigido para ese color.
+- El panel (`RuleForm.tsx`) usa un selector de color poblado desde la tabla `colors` real (vía `/api/admin/colors`), no texto libre.
+- Los 5 ámbitos (`GLOBAL`, `BRAND`, `SET_GROUP`, `SET`, `PRODUCT`) tienen efecto real.
 
 ### 10. `VOLUME_DISCOUNT_RETAIL` — ✅ Funciona (en el único ámbito para el que se diseñó)
 
@@ -83,33 +82,36 @@
 
 ---
 
-## Ámbito `PRODUCT` (transversal a los 10 tipos) — ❌ Muerto (decisión: no implementar en Fase 3, bloqueado en el panel)
+## Ámbito `PRODUCT` (transversal a 8 de los 10 tipos) — ✅ Funciona
 
-Grep exhaustivo de **todos** los call sites de `resolveRules(` en código de producción (`src/context/`, `src/app/`, `src/lib/rules-engine/*.ts` no-test): ninguno pasa `productId` en el `RuleContext`. Los únicos campos que se propagan alguna vez son `setId`, `setGroupId` y `brandId`. Una regla de **cualquier tipo** con `scope: PRODUCT` se puede crear en el panel, se guarda, pero `scopeMatchesContext` (`resolve.ts:52-53`) jamás encuentra un `context.productId` con el cual comparar — la regla no se resuelve nunca, para ningún tipo.
+`RuleContext` acepta `productIds?: string[]` (además del `productId` singular ya existente, usado en retail) — una regla de ámbito Producto aplica si su `scopeId` está entre esos ids. En el flujo corporativo, `productIds` se construye a partir de las piezas del set (`SetMeta.pieces`, ya usado por `INVENTORY_MODE`); en retail, es `[product.id]`. Todos los puntos de resolución por ítem del carrito corporativo, del grid corporativo, de la ficha de set, del catálogo individual y del carrito individual pasan `productIds`/`productId` — una regla de ámbito Producto aplica a cualquier set que incluya ese producto entre sus piezas, o a la ficha/tarjeta de ese producto en el catálogo individual.
 
-**Fase 3:** propagar `productId` correctamente requeriría tocar cada punto de resolución (grids, PDP individual, ficha de set), un cambio de mayor alcance que esta fase. `RuleForm.tsx` ahora deshabilita "Producto específico" en el selector de ámbito para los 10 tipos (marcada "sin efecto aún").
+`INVENTORY_MODE` y `VOLUME_DISCOUNT_RETAIL` son las únicas excepciones: el primero porque su verificación real en servidor (`checkInventory`) calcula demanda por set completo, no por una pieza aislada, y extender su resolución solo en la UI sin cambiar esa verificación real habría creado una nueva inconsistencia entre lo que la ficha promete y lo que el servidor bloquea; el segundo porque es, por diseño, un único descuento sobre todo el carrito retail (ver sección 10). Ambos casos quedan documentados en `RULE_DOCS` y bloqueados en el selector de ámbito del panel — no aparecen como opción seleccionable sin efecto.
+
+Cuando dos productos de un mismo set tienen reglas de ámbito Producto del mismo tipo, gana la de mayor `priority` — mismo desempate que cualquier otro empate de ámbito (ver `HIERARCHY_DOC` en `docs.ts`).
 
 ---
 
 ## Resumen ejecutivo
 
-| Tipo | Veredicto | Nota clave |
-|------|-----------|------------|
-| `MIN_QUANTITY` | ⚠️ Parcial | Solo GLOBAL bloquea envío; SET/GRUPO/MARCA sigue decorativo. `countUnit: PIECES` ✅ corregido en Fase 3 |
-| `MULTIPLES_ONLY` | ✅ Completo | — |
-| `QUANTITY_RANGE` | ✅ Completo | — |
-| `SIZE_MODE` | ✅ Completo | — |
-| `PRICE_VISIBILITY` | ⚠️ Parcial | Solo GLOBAL funciona en los grids; ámbitos específicos solo en ficha de detalle de set (sin cambios en Fase 3) |
-| `INVENTORY_MODE` | ✅ Corregido | Implementado íntegramente: `BLOCK`/`INFORMATIVE` por ítem contra stock real, ver sección 6 |
-| `VOLUME_SCALE` | ⚠️ Parcial | Solo GLOBAL; BRAND/GRUPO/SET nunca se resuelven (sin cambios en Fase 3) |
-| `PROMO` | ✅ Corregido en Fase 3, ampliado a 8 tipos (2026-07-13) | Unión discriminada por `kind`: 5 por ítem, umbral, regalo informativo y combo cruzado — ver sección 8 |
-| `COLOR_RESTRICTION` | ❌ Muerta | No hay selector de color en ningún modo del carrito; ahora deshabilitada en el panel |
-| `VOLUME_DISCOUNT_RETAIL` | ✅ Completo | Diseñada solo para GLOBAL, funciona en su alcance |
-| Ámbito `PRODUCT` (todos los tipos) | ❌ Muerto | `productId` nunca se propaga a `resolveRules`; ahora deshabilitado en el panel |
+| Tipo | Veredicto | Ámbitos con efecto real | Nota clave |
+|------|-----------|--------------------------|------------|
+| `MIN_QUANTITY` | ✅ Completo | Global, Marca, Grupo de Sets, Set, Producto | GLOBAL y un mínimo contextual se exigen a la vez, no se reemplazan — ver sección 1 |
+| `MULTIPLES_ONLY` | ✅ Completo | Global, Marca, Grupo de Sets, Set, Producto | — |
+| `QUANTITY_RANGE` | ✅ Completo | Global, Marca, Grupo de Sets, Set, Producto | — |
+| `SIZE_MODE` | ✅ Completo | Global, Marca, Grupo de Sets, Set, Producto | — |
+| `PRICE_VISIBILITY` | ✅ Completo | Global, Marca, Grupo de Sets, Set, Producto | Resolución por ítem en listados y fichas de ambos catálogos — ver sección 5 |
+| `INVENTORY_MODE` | ✅ Completo | Global, Marca, Grupo de Sets, Set | `BLOCK`/`INFORMATIVE` por ítem contra stock real; Producto no aplica (demanda se calcula por set completo) — ver sección 6 |
+| `VOLUME_SCALE` | ✅ Completo | Global, Marca, Grupo de Sets, Set, Producto | Resolución por ítem sin acumulación entre escalas — ver sección 7 |
+| `PROMO` | ✅ Completo | Global, Marca, Grupo de Sets, Set, Producto (Combo: solo Global) | Unión discriminada por `kind`: 5 por ítem, umbral, regalo informativo y combo cruzado — ver sección 8 |
+| `COLOR_RESTRICTION` | ✅ Completo | Global, Marca, Grupo de Sets, Set, Producto | Selector de color real en los 3 modos del carrito — ver sección 9 |
+| `VOLUME_DISCOUNT_RETAIL` | ✅ Completo | Global (diseño intencional) | Único descuento sobre todo el carrito retail — ver sección 10 |
 
 ---
 
 ## Lista priorizada de fixes para Fase 3 — resultado
+
+> Registro histórico de una sesión anterior. Los puntos 3, 5, 6 y 7 quedaron superados por la activación de ámbitos descrita en "Activación de ámbitos contextuales" al final de este documento — la matriz y el resumen ejecutivo arriba reflejan el estado actual.
 
 Ordenada por impacto de negocio y costo de implementación. Estado real tras ejecutar la Fase 3:
 
@@ -161,3 +163,27 @@ Corrige el hallazgo de la sección 6: `INVENTORY_MODE` pasa de ❌ Muerta a ✅ 
 **Documentación:** `RULE_DOCS.INVENTORY_MODE` (`docs.ts`) reescrita por completo — `appliesTo: ["CORPORATE"]`, los 4 ámbitos como soportados, ejemplos reales, e interacción documentada con `MIN_QUANTITY`: el detector de conflictos de la Fase 4 **no** puede advertir si un mínimo global es inalcanzable contra el stock real bajo `BLOCK`, porque `conflicts.ts` es un módulo puro sin acceso a base de datos — se documenta como limitación conocida en vez de simularse.
 
 **Decisión de alcance no implementada:** el detector de conflictos (`conflicts.ts`) no se extendió para cruzar `INVENTORY_MODE` con stock real, por la misma razón que no conoce la jerarquía del catálogo — necesitaría una consulta a BD, lo que rompería la garantía de módulo puro que sostiene toda la Fase 4. Queda documentado en `RULE_DOCS.INVENTORY_MODE.interactions`, no simulado con datos falsos.
+
+---
+
+## Activación de ámbitos contextuales (2026-07-13)
+
+Cierra los hallazgos pendientes de esta auditoría: `MIN_QUANTITY` contextual, `PRICE_VISIBILITY` por ítem en listados, `VOLUME_SCALE` por ítem, `COLOR_RESTRICTION` completa y el ámbito `PRODUCT` en 8 de los 10 tipos. `INVENTORY_MODE` y `PROMO` no se tocaron en esta sesión (ver secciones 6 y 8, ya vigentes de sesiones anteriores).
+
+**Motor (`src/lib/rules-engine/`):** `RuleContext` gana `productIds?: string[]` (además del `productId` singular ya existente) — una regla de ámbito Producto aplica si su `scopeId` está entre esos ids. `resolve.ts` gana `resolveContextualRule` (la regla no-GLOBAL más específica para un contexto, usada para combinar un mínimo contextual con el Global sin que uno reemplace al otro) y `resolveBestRule` (la regla ganadora completa, con `id`/`name`, incluyendo GLOBAL como candidato — usada para agrupar ítems por la escala de volumen que efectivamente les aplica). `validate.ts` agrega la validación de `MIN_QUANTITY` contextual: agrupa los ítems del carrito por la regla no-GLOBAL más específica que les aplica (si existe alguna) y exige su propio mínimo, ADEMÁS del mínimo Global. `pricing.ts` reescribe `VOLUME_SCALE` para resolverse por ítem (antes: una sola vez con contexto vacío) — agrupa ítems por la escala ganadora y calcula el tramo sobre la cantidad/subtotal de cada grupo, sin acumular escalas entre sí; expone `PricingResult.volumeScaleBreakdown`.
+
+**Capa de datos:** `CorporateSetSummary` gana `brandId`, `setGroupId` (ids, no solo nombres) y `productIds` (piezas del set) — antes el grid corporativo no tenía forma de resolver reglas por ítem porque solo conocía nombres para mostrar, no ids para resolver. `getActiveCorporateSets` se extiende para calcularlos con una sola consulta adicional (no N+1). `Product` (catálogo individual) y `CartItem` ganan `brandId`.
+
+**PRICE_VISIBILITY por ítem:** `PriceVisibilityContext` pasó de recibir un booleano ya resuelto en servidor a recibir las reglas `PRICE_VISIBILITY` completas — cada componente que muestra un precio (`ProductCard`, `QuickViewModal`, `CrossSellCard`, `CartItem`, ficha de producto) resuelve su propia visibilidad en memoria con `resolveRules(rules, { brandId, productId })`. El grid corporativo (`CorporativoContent`) hace lo mismo por set. Los componentes de chrome (`Header`, `MegaMenu`) y el resumen agregado del carrito individual siguen llamando al hook sin argumentos (ámbito Global únicamente) — no representan un único producto.
+
+**COLOR_RESTRICTION:** `SetDetailContent.tsx` calcula los colores comunes a todas las piezas del set con variantes activas y muestra un selector (una elección por línea, no por pieza) en los 3 modos de talla. `RuleForm.tsx` reemplaza el campo de texto libre `colorCode` por un selector poblado desde `/api/admin/colors`.
+
+**Panel admin (`RuleForm.tsx`):** el ámbito "Producto específico" pasa de deshabilitado a un selector de productos reales (`/api/admin/products/lite`, endpoint nuevo y liviano — el existente `/api/admin/products` trae variantes e imágenes completas, demasiado pesado para un dropdown). Queda deshabilitado únicamente para `INVENTORY_MODE` (no tocado esta sesión) y forzado a Global para `VOLUME_DISCOUNT_RETAIL` (diseño intencional, igual que `PROMO` `COMBO`).
+
+**Detector de conflictos:** sin cambios de lógica — las comparaciones de ámbito que ya hacía siguen siendo válidas con el ámbito Producto activo, porque `scopesOverlap` ya trataba cualquier ámbito no-Global de forma conservadora.
+
+**Decisión de alcance no implementada:** `INVENTORY_MODE` no recibe `productIds` en su resolución — su verificación real en servidor (`checkInventory`) calcula demanda por set completo, no por pieza aislada, y activar el ámbito Producto solo en la UI sin cambiar esa verificación real habría creado una nueva promesa rota (la ficha mostraría un dato que el servidor no aplicaría al bloquear el envío). Documentado en `RULE_DOCS.INVENTORY_MODE.warnings`.
+
+Ver `docs/reports/REPORTE-reglas-ambitos-2026-07-13.md` para el detalle completo con ejemplos numéricos.
+
+**Verificación:** `npx vitest run --no-file-parallelism src/lib/rules-engine` en verde, `npm run build` y `npm run lint` limpios — ver el reporte para el resultado exacto.

@@ -12,6 +12,7 @@ import {
   type SizeMode,
   type CountUnit,
   type InventoryIssue,
+  type SetPieceInfo,
 } from '@/lib/rules-engine';
 
 export interface CorporateCartLine {
@@ -35,6 +36,9 @@ export interface CorporateCartItem {
   /** Suma de quantityPerSet de todas las piezas del set — usado por MIN_QUANTITY
    * cuando la regla activa tiene countUnit: "PIECES". */
   piecesPerSet: number;
+  /** Composición del set (productos + cantidad por set) — usada para resolver reglas de ámbito
+   * Producto en la previsualización del carrito (mismo dato que ya usa el servidor). */
+  pieces?: SetPieceInfo[];
   lines: CorporateCartLine[];
 }
 
@@ -249,7 +253,7 @@ export function CorporateCartProvider({ children }: { children: React.ReactNode 
   const setMeta = useMemo(
     () =>
       Object.fromEntries(
-        items.map((i) => [i.setId, { setGroupId: i.setGroupId, brandId: i.brandId, piecesPerSet: i.piecesPerSet }])
+        items.map((i) => [i.setId, { setGroupId: i.setGroupId, brandId: i.brandId, piecesPerSet: i.piecesPerSet, pieces: i.pieces }])
       ),
     [items]
   );

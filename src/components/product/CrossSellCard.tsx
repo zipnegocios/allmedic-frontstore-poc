@@ -23,7 +23,7 @@ export function CrossSellCard({
 }: CrossSellCardProps) {
   const [selectedSize, setSelectedSize] = useState<Size | undefined>();
   const [showSizeSelector, setShowSizeSelector] = useState(false);
-  const showPrices = usePriceVisibility();
+  const showPrices = usePriceVisibility({ brandId: product.brandId, productId: product.id });
 
   const variantWithColor = product.variants.find(v => v.colorId === selectedColorId);
   const displayMedia = variantWithColor?.images[0];

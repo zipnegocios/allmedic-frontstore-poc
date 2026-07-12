@@ -9,7 +9,7 @@ interface CartItemProps {
 }
 
 export function CartItemComponent({ item, onUpdateQuantity, onRemove }: CartItemProps) {
-  const showPrices = usePriceVisibility();
+  const showPrices = usePriceVisibility({ brandId: item.brandId, productId: item.productId });
   return (
     <div className="flex gap-4 py-4 border-b border-[#E5E5E5]">
       {/* Image */}

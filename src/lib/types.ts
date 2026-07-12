@@ -44,6 +44,9 @@ export interface Product {
   slug: string;
   name: string;
   brand: string;
+  /** Id de la marca (a diferencia de `brand`, el nombre para mostrar) — usado para resolver
+   * reglas de negocio por ítem (ej. Visibilidad de precios de ámbito Marca). */
+  brandId?: string;
   category: string;
   gender: Gender;
   description: string;
@@ -66,6 +69,8 @@ export interface Product {
 export interface CartItem {
   id: string;
   productId: string;
+  /** Id de la marca del producto — usado para resolver Visibilidad de precios por ítem en el carrito. */
+  brandId?: string;
   variantId: string;
   name: string;
   brand: string;
