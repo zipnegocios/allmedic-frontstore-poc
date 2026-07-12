@@ -135,7 +135,7 @@ The app expects these environment variables (defined in `.env` / `.env.local`, b
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `DATABASE_URL` | Yes | MySQL connection string for Prisma |
+| `DATABASE_URL` | Yes | PostgreSQL connection string for Drizzle |
 | `NEXT_PUBLIC_WHATSAPP_NUMBER` | No | WhatsApp number (falls back to hardcoded `13164695701`) |
 
 `next.config.ts` also references `VITE_WHATSAPP_NUMBER` as a fallback for backward compatibility.
@@ -152,10 +152,10 @@ Pages in `src/app/` are **Server Components** unless they need client interactiv
 
 All database access goes through **`src/lib/data-service.ts`**. This file:
 - Exports async functions like `getAllProducts()`, `getProductBySlug()`, `getFeaturedProducts()`, etc.
-- Transforms Prisma DB results into frontend `Product` types.
+- Transforms Drizzle DB results into frontend `Product` types.
 - Is imported by both Server Components (pages) and API routes.
 
-**Do not import `@prisma/client` directly in pages** — always use `data-service.ts` or `prisma.ts`.
+**Do not import the Drizzle `db` client directly in pages** — always use `data-service.ts` (or `admin-data-service.ts` for admin queries).
 
 ### Legacy Page Pattern
 
@@ -299,7 +299,7 @@ There is **no CI/CD, Docker, or GitHub Actions** configured. Deployment is manua
 1. **No authentication on API routes** — GET `/api/leads` has a `// TODO: Add auth check` comment.
 2. **WhatsApp number is hardcoded** in `src/lib/whatsapp.ts` (`13164695701`).
 3. **Environment files are gitignored** — `.env` and `.env.local` contain secrets.
-4. **Prisma queries are parameterized** — no raw SQL injection risk.
+4. **Drizzle queries are parameterized** — no raw SQL injection risk (avoid `sql.raw` with untrusted input).
 5. **Zod validation** is used on the `/api/leads` POST endpoint.
 
 ---
@@ -310,7 +310,7 @@ There is **no CI/CD, Docker, or GitHub Actions** configured. Deployment is manua
 2. **`src/lib/dummy-data.ts` still exists** and may be referenced in legacy code. Prefer `data-service.ts` for all new work.
 3. **`src/legacy-pages/` directory** contains old page implementations. Gradually migrate to `src/app/` structure.
 4. **Admin routes structure is evolving** — `/admin` dashboard is being built out (products, brands, colors, stores, banners, leads management).
-5. **Drizzle schema in evolution** — `corporate.ts` and `business_rules` will be added in Fase 1 of the corporate catalog feature.
+5. **Drizzle schema — corporate catalog** — `corporate.ts` (set_groups, corporate_sets, set_items, business_rules, corporate_accounts, corporate_carts, quote_requests, quote_status_history, quote_attachments) is implemented and exported from `src/db/schema/index.ts`. See `.claude/pre-plans/PLAN-catalogos-segmentados.md` for the original rules-engine design.
 
 ---
 
@@ -322,7 +322,8 @@ There is **no CI/CD, Docker, or GitHub Actions** configured. Deployment is manua
 | `src/lib/data-service.ts` | All data-fetching functions |
 | `src/lib/utils.ts` | `cn()` helper for Tailwind class merging |
 | `src/lib/whatsapp.ts` | WhatsApp message generation and lead registration |
-| `prisma/schema.prisma` | Database schema |
-| `prisma/seed.ts` | Demo data seed script |
+| `src/db/schema/*.ts` | Drizzle schema, one file per domain (products, auth, commerce, corporate, chats, media, rag) |
+| `src/db/seed.ts` | Base catalog seed script |
+| `src/db/seed-corporate.ts` | Corporate catalog seed (global rules + example sets) |
 | `.claude/MIGRATION_SUMMARY.md` | Full Vite to Next.js migration report |
 | `.claude/TECHNICAL_AUDIT.md` | Production readiness audit |
