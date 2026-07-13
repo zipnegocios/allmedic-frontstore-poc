@@ -119,7 +119,7 @@ export default function AdminRulesPage() {
           <h1 className="text-3xl font-bold text-[#111111]">Motor de Reglas</h1>
           <p className="text-sm text-gray-500 mt-1">Reglas de negocio del catálogo corporativo e individual</p>
         </div>
-        <Link href="/admin/rules/new">
+        <Link href="/admin/reglas/nueva">
           <Button className="bg-[#111111]">
             <Plus className="w-4 h-4 mr-2" />
             Nueva Regla
@@ -168,7 +168,7 @@ export default function AdminRulesPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Link href={`/admin/rules/${rule.id}`}>
+                        <Link href={`/admin/reglas/${rule.id}`}>
                           <Button size="sm" variant="ghost"><Pencil className="w-4 h-4" /></Button>
                         </Link>
                         <Button size="sm" variant="ghost" onClick={() => handleDelete(rule.id)}><Trash2 className="w-4 h-4 text-red-500" /></Button>

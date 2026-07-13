@@ -315,7 +315,7 @@ There is **no CI/CD, Docker, or GitHub Actions** configured. Deployment is manua
 1. **README.md is outdated** — still references Vite + React Router. Use this `AGENTS.md` for accurate info.
 2. **`src/lib/dummy-data.ts` still exists** and may be referenced in legacy code. Prefer `data-service.ts` for all new work.
 3. **`src/legacy-pages/` directory** contains old page implementations. Gradually migrate to `src/app/` structure.
-4. **Admin routes structure is evolving** — `/admin` dashboard is being built out (products, brands, colors, stores, banners, leads management).
+4. **Rutas del panel admin en español** — todas las rutas de páginas bajo `/admin/*` (excepto `/admin`, `/admin/login`, `/admin/banners`, `/admin/sets` que ya usaban el término correcto) están en español: `/admin/productos`, `/admin/biblioteca`, `/admin/prospectos`, `/admin/marcas`, `/admin/colores`, `/admin/sucursales`, `/admin/grupos-de-sets`, `/admin/cuentas-corporativas`, `/admin/cotizaciones`, `/admin/reglas`. Las rutas viejas en inglés tienen redirects 301 permanentes en `next.config.ts`. Las rutas `/api/admin/*` permanecen en inglés, sin cambios.
 5. **Drizzle schema — corporate catalog** — `corporate.ts` (set_groups, corporate_sets, set_items, business_rules, corporate_accounts, corporate_carts, quote_requests, quote_status_history, quote_attachments) is implemented and exported from `src/db/schema/index.ts`. See `.claude/pre-plans/PLAN-catalogos-segmentados.md` for the original rules-engine design.
 
 ---

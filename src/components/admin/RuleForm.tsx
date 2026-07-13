@@ -266,7 +266,7 @@ export function RuleForm({ mode, ruleId, initial, embedded = false, lockedScope,
         onSaved?.();
         return;
       }
-      router.push('/admin/rules');
+      router.push('/admin/reglas');
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al guardar la regla');

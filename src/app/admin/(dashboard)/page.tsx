@@ -4,6 +4,7 @@ import { sql, eq, and, gte } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/admin-auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Package, ShoppingCart, AlertTriangle, TrendingUp } from 'lucide-react';
+import { LEAD_STATUS_LABELS } from '@/lib/lead-status';
 
 export default async function AdminDashboardPage() {
   await requireAdmin();
@@ -30,7 +31,7 @@ export default async function AdminDashboardPage() {
 
   return (
     <div className="p-8">
-      <h1 className="text-3xl font-bold text-[#111111] mb-8">Dashboard</h1>
+      <h1 className="text-3xl font-bold text-[#111111] mb-8">Panel principal</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {stats.map((stat) => {
@@ -66,12 +67,12 @@ export default async function AdminDashboardPage() {
                 <div key={lead.id} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
                   <div>
                     <p className="font-medium">{lead.customerName}</p>
-                    <p className="text-sm text-gray-500">{lead.customerCity} • {lead.totalItems} items</p>
+                    <p className="text-sm text-gray-500">{lead.customerCity} • {lead.totalItems} artículos</p>
                   </div>
                   <div className="text-right">
                     <p className="font-medium">${lead.subtotal}</p>
                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
-                      {lead.status}
+                      {LEAD_STATUS_LABELS[lead.status] || lead.status}
                     </span>
                   </div>
                 </div>

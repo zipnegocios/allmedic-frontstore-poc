@@ -55,7 +55,7 @@ export default async function QuoteDetailPage({ params }: QuoteDetailPageProps) 
   return (
     <div className="p-8 max-w-4xl">
       <div className="flex items-center gap-4 mb-8">
-        <Link href="/admin/quotes">
+        <Link href="/admin/cotizaciones">
           <Button variant="outline" size="sm">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Volver

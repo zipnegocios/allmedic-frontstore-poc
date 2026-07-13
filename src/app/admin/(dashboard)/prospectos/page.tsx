@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
+import { LEAD_STATUS_LABELS, LEAD_STATUS_COLORS } from '@/lib/lead-status';
 
 interface Lead {
   id: string;
@@ -28,13 +29,6 @@ interface Lead {
 }
 
 const ALL_STATUSES = 'ALL';
-
-const statusColors: Record<string, string> = {
-  SENT: 'bg-yellow-100 text-yellow-800',
-  PROCESSING: 'bg-blue-100 text-blue-800',
-  COMPLETED: 'bg-green-100 text-green-800',
-  CANCELLED: 'bg-red-100 text-red-800',
-};
 
 export default function AdminLeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -111,7 +105,7 @@ export default function AdminLeadsPage() {
               <TableRow>
                 <TableHead>Cliente</TableHead>
                 <TableHead>Ciudad</TableHead>
-                <TableHead>Items</TableHead>
+                <TableHead>Artículos</TableHead>
                 <TableHead>Total</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead>Fecha</TableHead>
@@ -144,8 +138,8 @@ export default function AdminLeadsPage() {
                         onValueChange={(v) => handleStatusChange(lead.id, v)}
                       >
                         <SelectTrigger className="w-[140px] h-8">
-                          <Badge className={statusColors[lead.status] || 'bg-gray-100'}>
-                            {lead.status}
+                          <Badge className={LEAD_STATUS_COLORS[lead.status] || 'bg-gray-100'}>
+                            {LEAD_STATUS_LABELS[lead.status] || lead.status}
                           </Badge>
                         </SelectTrigger>
                         <SelectContent>

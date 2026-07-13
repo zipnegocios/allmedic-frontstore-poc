@@ -46,7 +46,7 @@ export function RuleConflictsPanel({ conflicts, checking, warningsAcknowledged, 
             <div className="flex-1">
               <span>{conflict.message}</span>
               {conflict.conflictingRuleId && (
-                <Link href={`/admin/rules/${conflict.conflictingRuleId}`} className="ml-2 underline font-medium">
+                <Link href={`/admin/reglas/${conflict.conflictingRuleId}`} className="ml-2 underline font-medium">
                   Ver regla
                 </Link>
               )}

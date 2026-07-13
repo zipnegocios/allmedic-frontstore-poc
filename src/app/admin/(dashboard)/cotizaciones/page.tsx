@@ -90,7 +90,7 @@ export default function AdminQuotesPage() {
                       <TableCell>${Number(q.quotedTotal ?? q.referenceSubtotal).toFixed(2)}</TableCell>
                       <TableCell><Badge variant={statusInfo.variant}>{statusInfo.label}</Badge></TableCell>
                       <TableCell className="text-right">
-                        <Link href={`/admin/quotes/${q.id}`}>
+                        <Link href={`/admin/cotizaciones/${q.id}`}>
                           <Button size="sm" variant="ghost"><Eye className="w-4 h-4" /></Button>
                         </Link>
                       </TableCell>

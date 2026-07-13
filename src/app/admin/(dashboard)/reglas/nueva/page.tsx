@@ -7,7 +7,7 @@ export default function NewRulePage() {
   return (
     <div className="p-8 max-w-6xl">
       <div className="flex items-center gap-4 mb-8">
-        <Link href="/admin/rules">
+        <Link href="/admin/reglas">
           <Button variant="outline" size="sm">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Volver

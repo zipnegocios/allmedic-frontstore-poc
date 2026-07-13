@@ -704,7 +704,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
                               <Pencil className="w-3.5 h-3.5" />
                             </Button>
                           ) : (
-                            <Link href={`/admin/rules/${r.id}`} className="text-xs text-gray-400 hover:text-[#111111] flex-shrink-0">
+                            <Link href={`/admin/reglas/${r.id}`} className="text-xs text-gray-400 hover:text-[#111111] flex-shrink-0">
                               Ver en panel de reglas
                             </Link>
                           )}

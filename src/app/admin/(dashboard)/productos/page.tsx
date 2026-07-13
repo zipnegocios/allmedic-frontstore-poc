@@ -80,13 +80,13 @@ export default function AdminProductsPage() {
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-[#111111]">Productos</h1>
         <div className="flex gap-4">
-          <Link href="/admin/products/new">
+          <Link href="/admin/productos/nuevo">
             <Button className="bg-[#111111]">
               <Plus className="w-4 h-4 mr-2" />
               Nuevo Producto
             </Button>
           </Link>
-          <Link href="/admin/products/new?rag=true">
+          <Link href="/admin/productos/nuevo?rag=true">
             <Button variant="outline">
               <Package className="w-4 h-4 mr-2" />
               Crear con IA (RAG)
@@ -160,7 +160,7 @@ export default function AdminProductsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Link href={`/admin/products/${product.id}`}>
+                        <Link href={`/admin/productos/${product.id}`}>
                           <Button size="sm" variant="ghost">
                             <Pencil className="w-4 h-4" />
                           </Button>

@@ -63,7 +63,7 @@ export default function AdminSetsPage() {
           <h1 className="text-3xl font-bold text-[#111111]">Sets Corporativos</h1>
           <p className="text-sm text-gray-500 mt-1">Conjuntos de productos para el catálogo de venta al mayor</p>
         </div>
-        <Link href="/admin/sets/new">
+        <Link href="/admin/sets/nuevo">
           <Button className="bg-[#111111]">
             <Plus className="w-4 h-4 mr-2" />
             Nuevo Set

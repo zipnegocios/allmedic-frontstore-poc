@@ -23,18 +23,18 @@ import { signOut } from 'next-auth/react';
 
 const navItems = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/admin/products', label: 'Productos', icon: Package },
-  { href: '/admin/media', label: 'Media Library', icon: Images },
-  { href: '/admin/leads', label: 'Pedidos', icon: ShoppingCart },
+  { href: '/admin/productos', label: 'Productos', icon: Package },
+  { href: '/admin/biblioteca', label: 'Biblioteca', icon: Images },
+  { href: '/admin/prospectos', label: 'Pedidos', icon: ShoppingCart },
   { href: '/admin/banners', label: 'Banners', icon: ImageIcon },
-  { href: '/admin/brands', label: 'Marcas', icon: Tag },
-  { href: '/admin/colors', label: 'Colores', icon: Palette },
-  { href: '/admin/stores', label: 'Sucursales', icon: Store },
+  { href: '/admin/marcas', label: 'Marcas', icon: Tag },
+  { href: '/admin/colores', label: 'Colores', icon: Palette },
+  { href: '/admin/sucursales', label: 'Sucursales', icon: Store },
   { href: '/admin/sets', label: 'Sets Corporativos', icon: Boxes },
-  { href: '/admin/set-groups', label: 'Grupos de Sets', icon: Layers },
-  { href: '/admin/corporate-accounts', label: 'Cuentas Corporativas', icon: Building2 },
-  { href: '/admin/quotes', label: 'Cotizaciones', icon: FileText },
-  { href: '/admin/rules', label: 'Motor de Reglas', icon: Settings2 },
+  { href: '/admin/grupos-de-sets', label: 'Grupos de Sets', icon: Layers },
+  { href: '/admin/cuentas-corporativas', label: 'Cuentas Corporativas', icon: Building2 },
+  { href: '/admin/cotizaciones', label: 'Cotizaciones', icon: FileText },
+  { href: '/admin/reglas', label: 'Motor de Reglas', icon: Settings2 },
 ];
 
 export function AdminSidebar() {

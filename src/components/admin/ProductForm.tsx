@@ -252,7 +252,7 @@ export default function ProductForm({
         onSaved?.(saved);
         return;
       }
-      router.push('/admin/products');
+      router.push('/admin/productos');
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al guardar');
@@ -311,7 +311,7 @@ export default function ProductForm({
           </h2>
         ) : (
           <div className="flex items-center gap-4">
-            <Link href="/admin/products">
+            <Link href="/admin/productos">
               <Button variant="outline" size="sm">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Volver
