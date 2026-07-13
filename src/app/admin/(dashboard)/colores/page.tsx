@@ -9,14 +9,9 @@ import {
 } from '@/components/ui/table';
 import { Search, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Palette } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
+import { ResponsiveDialog } from '@/components/admin/ResponsiveDialog';
 import { Label } from '@/components/ui/label';
+import { AdminListCard } from '@/components/admin/AdminListCard';
 
 interface Color {
   id: string;
@@ -128,7 +123,7 @@ export default function AdminColorsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="hidden md:block">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -181,48 +176,93 @@ export default function AdminColorsPage() {
         </CardContent>
       </Card>
 
+      {/* Vista tarjetas (mobile) — misma fuente de datos y handlers que la tabla */}
+      <div className="md:hidden">
+        {loading ? (
+          <p className="text-center py-8 text-gray-500">Cargando...</p>
+        ) : colors.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            <Palette className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+            <p className="mb-4">No hay colores registrados</p>
+            <Button className="gap-2 min-h-11 bg-[#111111]" onClick={openNew}>
+              <Plus className="w-4 h-4" />
+              Nuevo Color
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {colors.map((color) => (
+              <AdminListCard
+                key={color.id}
+                onNavigate={() => openEdit(color)}
+                aria-label={`Editar color ${color.name}`}
+                thumbnail={
+                  <div
+                    className="w-10 h-10 rounded-full border border-gray-200"
+                    style={{ backgroundColor: color.hex }}
+                  />
+                }
+                title={color.name}
+                subtitle={color.code}
+                meta={<code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">{color.hex}</code>}
+                actions={[
+                  {
+                    key: 'delete',
+                    label: 'Eliminar',
+                    icon: <Trash2 className="w-4 h-4" />,
+                    variant: 'destructive',
+                    onSelect: () => handleDelete(color.id),
+                  },
+                ]}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 mt-6">
-          <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
+          <Button variant="outline" size="icon" className="h-11 w-11" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
             <ChevronLeft className="w-4 h-4" />
           </Button>
-          <span className="text-sm">Página {page} de {totalPages}</span>
-          <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+          <span className="text-sm px-2 text-center">Página {page} de {totalPages}</span>
+          <Button variant="outline" size="icon" className="h-11 w-11" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
             <ChevronRight className="w-4 h-4" />
           </Button>
         </div>
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingColor ? 'Editar Color' : 'Nuevo Color'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Nombre *</Label>
-              <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label>Código *</Label>
-              <Input value={formData.code} onChange={e => setFormData({ ...formData, code: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label>Color HEX *</Label>
-              <div className="flex gap-2">
-                <Input type="color" value={formData.hex} onChange={e => setFormData({ ...formData, hex: e.target.value })} className="w-16 p-1" />
-                <Input value={formData.hex} onChange={e => setFormData({ ...formData, hex: e.target.value })} />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
+      <ResponsiveDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        title={editingColor ? 'Editar Color' : 'Nuevo Color'}
+        footer={
+          <>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
             <Button onClick={handleSave} disabled={saving} className="bg-[#111111]">
               {saving ? 'Guardando...' : 'Guardar'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label>Nombre *</Label>
+            <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+          </div>
+          <div className="space-y-2">
+            <Label>Código *</Label>
+            <Input value={formData.code} onChange={e => setFormData({ ...formData, code: e.target.value })} />
+          </div>
+          <div className="space-y-2">
+            <Label>Color HEX *</Label>
+            <div className="flex gap-2">
+              <Input type="color" value={formData.hex} onChange={e => setFormData({ ...formData, hex: e.target.value })} className="w-16 p-1" />
+              <Input value={formData.hex} onChange={e => setFormData({ ...formData, hex: e.target.value })} />
+            </div>
+          </div>
+        </div>
+      </ResponsiveDialog>
     </div>
   );
 }

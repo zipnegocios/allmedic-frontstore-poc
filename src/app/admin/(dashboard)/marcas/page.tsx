@@ -10,16 +10,12 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Search, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Tag, ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
+import { ResponsiveDialog } from '@/components/admin/ResponsiveDialog';
 import { Label } from '@/components/ui/label';
 import { MediaPicker } from '@/components/admin/media/MediaPicker';
 import { resolveMediaUrl } from '@/lib/media';
+import { AdminListCard } from '@/components/admin/AdminListCard';
+import { slugify } from '@/lib/slugify';
 
 interface Brand {
   id: string;
@@ -124,10 +120,7 @@ export default function AdminBrandsPage() {
   // Auto-generate slug from name
   useEffect(() => {
     if (!editingBrand && formData.name && !formData.slug) {
-      setFormData(prev => ({
-        ...prev,
-        slug: prev.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
-      }));
+      setFormData(prev => ({ ...prev, slug: slugify(prev.name) }));
     }
   }, [formData.name, editingBrand, formData.slug]);
 
@@ -155,7 +148,7 @@ export default function AdminBrandsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="hidden md:block">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -209,64 +202,119 @@ export default function AdminBrandsPage() {
         </CardContent>
       </Card>
 
+      {/* Vista tarjetas (mobile) — misma fuente de datos y handlers que la tabla */}
+      <div className="md:hidden">
+        {loading ? (
+          <p className="text-center py-8 text-gray-500">Cargando...</p>
+        ) : brands.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            <Tag className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+            <p className="mb-4">No hay marcas registradas</p>
+            <Button className="gap-2 min-h-11 bg-[#111111]" onClick={openNew}>
+              <Plus className="w-4 h-4" />
+              Nueva Marca
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {brands.map((brand) => (
+              <AdminListCard
+                key={brand.id}
+                onNavigate={() => openEdit(brand)}
+                aria-label={`Editar marca ${brand.name}`}
+                thumbnail={
+                  brand.logoUrl ? (
+                    <img src={brand.logoUrl} alt="" className="w-10 h-10 object-contain rounded-md bg-gray-50" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-md bg-gray-100 flex items-center justify-center">
+                      <ImageIcon className="w-4 h-4 text-gray-300" />
+                    </div>
+                  )
+                }
+                title={brand.name}
+                subtitle={<code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">{brand.slug}</code>}
+                badges={
+                  brand.isActive ? (
+                    <Badge variant="outline">Activa</Badge>
+                  ) : (
+                    <Badge variant="destructive">Inactiva</Badge>
+                  )
+                }
+                meta={brand.description ? <p className="truncate">{brand.description}</p> : undefined}
+                actions={[
+                  {
+                    key: 'delete',
+                    label: 'Eliminar',
+                    icon: <Trash2 className="w-4 h-4" />,
+                    variant: 'destructive',
+                    onSelect: () => handleDelete(brand.id),
+                  },
+                ]}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 mt-6">
-          <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
+          <Button variant="outline" size="icon" className="h-11 w-11" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
             <ChevronLeft className="w-4 h-4" />
           </Button>
-          <span className="text-sm">Página {page} de {totalPages}</span>
-          <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+          <span className="text-sm px-2 text-center">Página {page} de {totalPages}</span>
+          <Button variant="outline" size="icon" className="h-11 w-11" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
             <ChevronRight className="w-4 h-4" />
           </Button>
         </div>
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingBrand ? 'Editar Marca' : 'Nueva Marca'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Nombre *</Label>
-              <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label>Slug *</Label>
-              <Input value={formData.slug} onChange={e => setFormData({ ...formData, slug: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label>Descripción</Label>
-              <Input value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label>Logo</Label>
-              <div className="flex items-center gap-3">
-                <div className="w-14 h-14 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
-                  {formData.logoUrl ? (
-                    <img src={formData.logoUrl} alt="" className="w-full h-full object-contain" />
-                  ) : (
-                    <ImageIcon className="w-5 h-5 text-gray-300" />
-                  )}
-                </div>
-                <Button type="button" size="sm" variant="outline" onClick={() => setPickerOpen(true)}>
-                  {formData.logoUrl ? 'Cambiar logo' : 'Elegir logo'}
-                </Button>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <input type="checkbox" checked={formData.isActive} onChange={e => setFormData({ ...formData, isActive: e.target.checked })} />
-              <Label>Activa</Label>
-            </div>
-          </div>
-          <DialogFooter>
+      <ResponsiveDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        title={editingBrand ? 'Editar Marca' : 'Nueva Marca'}
+        footer={
+          <>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
             <Button onClick={handleSave} disabled={saving} className="bg-[#111111]">
               {saving ? 'Guardando...' : 'Guardar'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label>Nombre *</Label>
+            <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+          </div>
+          <div className="space-y-2">
+            <Label>Slug *</Label>
+            <Input value={formData.slug} onChange={e => setFormData({ ...formData, slug: e.target.value })} />
+          </div>
+          <div className="space-y-2">
+            <Label>Descripción</Label>
+            <Input value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
+          </div>
+          <div className="space-y-2">
+            <Label>Logo</Label>
+            <div className="flex items-center gap-3">
+              <div className="w-14 h-14 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
+                {formData.logoUrl ? (
+                  <img src={formData.logoUrl} alt="" className="w-full h-full object-contain" />
+                ) : (
+                  <ImageIcon className="w-5 h-5 text-gray-300" />
+                )}
+              </div>
+              <Button type="button" size="sm" variant="outline" onClick={() => setPickerOpen(true)}>
+                {formData.logoUrl ? 'Cambiar logo' : 'Elegir logo'}
+              </Button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <input type="checkbox" checked={formData.isActive} onChange={e => setFormData({ ...formData, isActive: e.target.checked })} />
+            <Label>Activa</Label>
+          </div>
+        </div>
+      </ResponsiveDialog>
 
       <MediaPicker
         open={pickerOpen}
