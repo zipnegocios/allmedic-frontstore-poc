@@ -25,7 +25,7 @@ export default async function CorporateAccountDetailPage({ params }: { params: P
   const statusInfo = STATUS_LABELS[account.status] ?? { label: account.status, variant: 'secondary' as const };
 
   return (
-    <div className="p-8 max-w-3xl">
+    <div className="p-4 md:p-8 max-w-3xl">
       <Link href="/admin/cuentas-corporativas">
         <Button variant="outline" size="sm" className="mb-6">
           <ArrowLeft className="w-4 h-4 mr-2" />

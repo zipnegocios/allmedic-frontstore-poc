@@ -53,7 +53,7 @@ export default function AdminStoresPage() {
   }, [fetchStores]);
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-[#111111]">Sucursales</h1>
         <Button className="bg-[#111111]">

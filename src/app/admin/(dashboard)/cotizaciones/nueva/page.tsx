@@ -112,7 +112,7 @@ export default function NewQuotePage() {
   }
 
   return (
-    <div className="p-8 max-w-2xl">
+    <div className="p-4 md:p-8 max-w-2xl">
       <h1 className="text-3xl font-bold text-[#111111] mb-6">Nueva cotización</h1>
 
       <Card>

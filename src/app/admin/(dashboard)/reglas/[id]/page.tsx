@@ -19,7 +19,7 @@ export default async function EditRulePage({ params }: EditRulePageProps) {
   }
 
   return (
-    <div className="p-8 max-w-6xl">
+    <div className="p-4 md:p-8 max-w-6xl">
       <div className="flex items-center gap-4 mb-8">
         <Link href="/admin/reglas">
           <Button variant="outline" size="sm">

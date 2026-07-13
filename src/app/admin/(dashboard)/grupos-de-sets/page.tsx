@@ -115,7 +115,7 @@ export default function AdminSetGroupsPage() {
   }, [formData.name, editingGroup, formData.slug]);
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-[#111111]">Grupos de Sets</h1>

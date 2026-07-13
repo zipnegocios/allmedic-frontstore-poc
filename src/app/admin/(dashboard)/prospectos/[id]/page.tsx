@@ -27,7 +27,7 @@ export default async function ProspectDetailPage({ params }: { params: Promise<{
   const items = (lead.items as unknown as LeadItem[]) ?? [];
 
   return (
-    <div className="p-8 max-w-3xl">
+    <div className="p-4 md:p-8 max-w-3xl">
       <Link href="/admin/prospectos">
         <Button variant="outline" size="sm" className="mb-6">
           <ArrowLeft className="w-4 h-4 mr-2" />

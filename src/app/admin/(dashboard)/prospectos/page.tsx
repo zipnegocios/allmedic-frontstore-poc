@@ -77,7 +77,7 @@ export default function AdminLeadsPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <h1 className="text-3xl font-bold text-[#111111] mb-8">Pedidos</h1>
 
       <Card className="mb-6">

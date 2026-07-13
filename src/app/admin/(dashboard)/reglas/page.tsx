@@ -113,7 +113,7 @@ export default function AdminRulesPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-[#111111]">Motor de Reglas</h1>

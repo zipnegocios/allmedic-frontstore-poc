@@ -7,7 +7,7 @@ import { ValidityPresetsPanel } from '@/components/admin/quotes/ValidityPresetsP
 
 export default function AdminConfiguracionPage() {
   return (
-    <div className="p-8 max-w-3xl">
+    <div className="p-4 md:p-8 max-w-3xl">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-[#111111]">Configuración</h1>
         <p className="text-sm text-gray-500 mt-1">Datos de empresa y presets usados por el módulo de cotizaciones</p>

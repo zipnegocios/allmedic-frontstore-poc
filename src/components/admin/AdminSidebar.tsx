@@ -39,11 +39,11 @@ const navItems = [
   { href: '/admin/configuracion', label: 'Configuración', icon: Settings },
 ];
 
-export function AdminSidebar() {
+export function AdminSidebar({ className }: { className?: string }) {
   const pathname = usePathname();
 
   return (
-    <aside className="w-64 bg-[#111111] text-white min-h-screen flex flex-col">
+    <aside className={cn('w-64 bg-[#111111] text-white min-h-screen flex-col', className)}>
       <div className="p-6 border-b border-white/10">
         <h1 className="text-xl font-bold">AllMedic Admin</h1>
         <p className="text-xs text-gray-400 mt-1">Panel de administración</p>
