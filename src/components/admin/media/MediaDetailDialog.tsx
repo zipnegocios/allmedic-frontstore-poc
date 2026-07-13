@@ -1,14 +1,16 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import Image from 'next/image';
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog';
+import { ResponsiveDialog } from '@/components/admin/ResponsiveDialog';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import {
+  Accordion, AccordionContent, AccordionItem, AccordionTrigger,
+} from '@/components/ui/accordion';
 import { Trash2, Save, AlertTriangle } from 'lucide-react';
 import { resolveMediaUrl, isVideoMime } from '@/lib/media';
 import { VideoPreviewRangeEditor } from './VideoPreviewRangeEditor';
@@ -57,6 +59,7 @@ interface MediaDetailDialogProps {
 }
 
 export function MediaDetailDialog({ assetId, onClose, onChanged }: MediaDetailDialogProps) {
+  const isMobile = useIsMobile();
   const [detail, setDetail] = useState<MediaDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [fileName, setFileName] = useState('');
@@ -141,151 +144,197 @@ export function MediaDetailDialog({ assetId, onClose, onChanged }: MediaDetailDi
     }
   }
 
-  return (
-    <Dialog open={!!assetId} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Detalle del medio</DialogTitle>
-        </DialogHeader>
-
-        {loading || !detail ? (
-          <div className="py-12 text-center text-gray-400">Cargando...</div>
+  const previewBlock = detail && (
+    <div>
+      <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-50 mb-4">
+        {isVideoMime(detail.asset.mimeType) ? (
+          <video
+            src={resolveMediaUrl(detail.asset.storageKey)}
+            controls
+            playsInline
+            className="w-full h-full object-contain"
+          />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-50 mb-4">
-                {isVideoMime(detail.asset.mimeType) ? (
-                  <video
-                    src={resolveMediaUrl(detail.asset.storageKey)}
-                    controls
-                    playsInline
-                    className="w-full h-full object-contain"
-                  />
-                ) : (
-                  <Image src={resolveMediaUrl(detail.asset.storageKey)} alt={detail.asset.altText ?? ''} fill className="object-contain" />
-                )}
-              </div>
-              <div className="text-sm text-gray-500 space-y-1">
-                <p><strong>Dimensiones:</strong> {detail.asset.width ?? '?'} × {detail.asset.height ?? '?'}px</p>
-                {isVideoMime(detail.asset.mimeType) && (
-                  <p><strong>Duración:</strong> {detail.asset.durationSeconds != null ? `${detail.asset.durationSeconds}s` : '?'}</p>
-                )}
-                <p><strong>Peso:</strong> {(detail.asset.sizeBytes / 1024).toFixed(1)} KB</p>
-                <p><strong>Formato:</strong> {detail.asset.mimeType}</p>
-                <p><strong>Carpeta:</strong> {detail.asset.folder}</p>
-                <p><strong>Ruta:</strong> <code className="text-xs">{detail.asset.storageKey}</code></p>
-              </div>
-
-              <div className="mt-4">
-                <h4 className="text-sm font-semibold mb-2">Usos relacionados</h4>
-                {detail.links.length === 0 ? (
-                  <p className="text-sm text-gray-400">Sin usos — puede eliminarse libremente</p>
-                ) : (
-                  <ul className="space-y-1">
-                    {detail.links.map((link) => (
-                      <li key={link.id} className="text-sm">
-                        <Badge variant="outline" className="mr-2">{ENTITY_LABELS[link.entityType] ?? link.entityType}</Badge>
-                        {link.entityName ?? link.entityId} <span className="text-gray-400">({link.role})</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Nombre de archivo</label>
-                  <Input value={fileName} onChange={(e) => setFileName(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Texto alternativo (alt)</label>
-                  <Input value={altText} onChange={(e) => setAltText(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Título</label>
-                  <Input value={title} onChange={(e) => setTitle(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Descripción (caption)</label>
-                  <Textarea value={caption} onChange={(e) => setCaption(e.target.value)} rows={2} />
-                </div>
-                <Button onClick={handleSave} disabled={saving} className="w-full bg-[#111111]">
-                  <Save className="w-4 h-4 mr-2" /> {saving ? 'Guardando...' : 'Guardar cambios'}
-                </Button>
-              </div>
-
-              {isVideoMime(detail.asset.mimeType) && (
-                <div className="mt-6">
-                  <h4 className="text-sm font-semibold mb-2">Vista previa en tarjetas y grillas</h4>
-                  <p className="text-xs text-gray-400 mb-2">
-                    Elige qué fragmento del video se reproduce (mudo, en loop) cuando este medio es la portada de un producto o banner.
-                  </p>
-                  <VideoPreviewRangeEditor
-                    assetId={detail.asset.id}
-                    videoUrl={resolveMediaUrl(detail.asset.storageKey)}
-                    durationSeconds={detail.asset.durationSeconds}
-                    initialStart={detail.asset.previewStartSeconds}
-                    initialDuration={detail.asset.previewDurationSeconds}
-                    onSaved={fetchDetail}
-                  />
-                </div>
-              )}
-
-              <div className="mt-6">
-                <h4 className="text-sm font-semibold mb-2">Comentarios</h4>
-                <div className="space-y-2 max-h-32 overflow-y-auto mb-2">
-                  {detail.comments.map((c) => (
-                    <div key={c.id} className="text-sm bg-gray-50 rounded p-2">
-                      <p>{c.body}</p>
-                      <p className="text-xs text-gray-400 mt-1">{c.userName ?? 'Admin'}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <Input value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Agregar comentario..." />
-                  <Button type="button" variant="outline" onClick={handleAddComment}>Enviar</Button>
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <h4 className="text-sm font-semibold mb-2">Historial</h4>
-                <div className="space-y-1 max-h-28 overflow-y-auto text-xs text-gray-500">
-                  {detail.audit.length === 0 ? (
-                    <p className="text-gray-400">Sin actividad registrada</p>
-                  ) : (
-                    detail.audit.map((a) => (
-                      <p key={a.id}>
-                        <strong>{a.action}</strong> — {a.userName ?? 'Sistema'}
-                        {a.createdAt ? ` · ${new Date(a.createdAt).toLocaleString('es-EC')}` : ''}
-                      </p>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-6">
-                {confirmDelete ? (
-                  <div className="border border-red-200 bg-red-50 rounded-lg p-3">
-                    <p className="text-sm text-red-700 flex items-center gap-2 mb-2">
-                      <AlertTriangle className="w-4 h-4" /> Este medio está en uso. ¿Eliminar de todas formas y desvincular?
-                    </p>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="destructive" onClick={() => handleDelete(true)}>Eliminar y desvincular</Button>
-                      <Button size="sm" variant="outline" onClick={() => setConfirmDelete(false)}>Cancelar</Button>
-                    </div>
-                  </div>
-                ) : (
-                  <Button variant="destructive" onClick={() => handleDelete(false)} className="w-full">
-                    <Trash2 className="w-4 h-4 mr-2" /> Eliminar medio
-                  </Button>
-                )}
-              </div>
-            </div>
-          </div>
+          <Image src={resolveMediaUrl(detail.asset.storageKey)} alt={detail.asset.altText ?? ''} fill className="object-contain" />
         )}
-      </DialogContent>
-    </Dialog>
+      </div>
+      <div className="text-sm text-gray-500 space-y-1">
+        <p><strong>Dimensiones:</strong> {detail.asset.width ?? '?'} × {detail.asset.height ?? '?'}px</p>
+        {isVideoMime(detail.asset.mimeType) && (
+          <p><strong>Duración:</strong> {detail.asset.durationSeconds != null ? `${detail.asset.durationSeconds}s` : '?'}</p>
+        )}
+        <p><strong>Peso:</strong> {(detail.asset.sizeBytes / 1024).toFixed(1)} KB</p>
+        <p><strong>Formato:</strong> {detail.asset.mimeType}</p>
+        <p><strong>Carpeta:</strong> {detail.asset.folder}</p>
+        <p><strong>Ruta:</strong> <code className="text-xs">{detail.asset.storageKey}</code></p>
+      </div>
+
+      <div className="mt-4">
+        <h4 className="text-sm font-semibold mb-2">Usos relacionados</h4>
+        {detail.links.length === 0 ? (
+          <p className="text-sm text-gray-400">Sin usos — puede eliminarse libremente</p>
+        ) : (
+          <ul className="space-y-1">
+            {detail.links.map((link) => (
+              <li key={link.id} className="text-sm">
+                <Badge variant="outline" className="mr-2">{ENTITY_LABELS[link.entityType] ?? link.entityType}</Badge>
+                {link.entityName ?? link.entityId} <span className="text-gray-400">({link.role})</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+
+  const metadataBlock = detail && (
+    <div>
+      <div className="space-y-3">
+        <div>
+          <label className="block text-sm font-medium mb-1">Nombre de archivo</label>
+          <Input value={fileName} onChange={(e) => setFileName(e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Texto alternativo (alt)</label>
+          <Input value={altText} onChange={(e) => setAltText(e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Título</label>
+          <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Descripción (caption)</label>
+          <Textarea value={caption} onChange={(e) => setCaption(e.target.value)} rows={2} />
+        </div>
+        <Button onClick={handleSave} disabled={saving} className="w-full bg-[#111111]">
+          <Save className="w-4 h-4 mr-2" /> {saving ? 'Guardando...' : 'Guardar cambios'}
+        </Button>
+      </div>
+
+      {isVideoMime(detail.asset.mimeType) && (
+        <div className="mt-6">
+          <h4 className="text-sm font-semibold mb-2">Vista previa en tarjetas y grillas</h4>
+          <p className="text-xs text-gray-400 mb-2">
+            Elige qué fragmento del video se reproduce (mudo, en loop) cuando este medio es la portada de un producto o banner.
+          </p>
+          <VideoPreviewRangeEditor
+            assetId={detail.asset.id}
+            videoUrl={resolveMediaUrl(detail.asset.storageKey)}
+            durationSeconds={detail.asset.durationSeconds}
+            initialStart={detail.asset.previewStartSeconds}
+            initialDuration={detail.asset.previewDurationSeconds}
+            onSaved={fetchDetail}
+          />
+        </div>
+      )}
+    </div>
+  );
+
+  const commentsBlock = detail && (
+    <div>
+      <div className="space-y-2 max-h-32 overflow-y-auto mb-2">
+        {detail.comments.map((c) => (
+          <div key={c.id} className="text-sm bg-gray-50 rounded p-2">
+            <p>{c.body}</p>
+            <p className="text-xs text-gray-400 mt-1">{c.userName ?? 'Admin'}</p>
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <Input value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Agregar comentario..." />
+        <Button type="button" variant="outline" onClick={handleAddComment}>Enviar</Button>
+      </div>
+    </div>
+  );
+
+  const historyBlock = detail && (
+    <div className="space-y-1 max-h-28 overflow-y-auto text-xs text-gray-500">
+      {detail.audit.length === 0 ? (
+        <p className="text-gray-400">Sin actividad registrada</p>
+      ) : (
+        detail.audit.map((a) => (
+          <p key={a.id}>
+            <strong>{a.action}</strong> — {a.userName ?? 'Sistema'}
+            {a.createdAt ? ` · ${new Date(a.createdAt).toLocaleString('es-EC')}` : ''}
+          </p>
+        ))
+      )}
+    </div>
+  );
+
+  const deleteBlock = (
+    <div>
+      {confirmDelete ? (
+        <div className="border border-red-200 bg-red-50 rounded-lg p-3">
+          <p className="text-sm text-red-700 flex items-center gap-2 mb-2">
+            <AlertTriangle className="w-4 h-4" /> Este medio está en uso. ¿Eliminar de todas formas y desvincular?
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="destructive" onClick={() => handleDelete(true)}>Eliminar y desvincular</Button>
+            <Button size="sm" variant="outline" onClick={() => setConfirmDelete(false)}>Cancelar</Button>
+          </div>
+        </div>
+      ) : (
+        <Button variant="destructive" onClick={() => handleDelete(false)} className="w-full">
+          <Trash2 className="w-4 h-4 mr-2" /> Eliminar medio
+        </Button>
+      )}
+    </div>
+  );
+
+  let body: ReactNode = <div className="py-12 text-center text-gray-400">Cargando...</div>;
+
+  if (!loading && detail) {
+    body = isMobile ? (
+      // Mobile: vista previa siempre visible + resto agrupado en acordeón
+      // para evitar scroll infinito dentro del Drawer full-screen.
+      <div>
+        {previewBlock}
+        <Accordion type="multiple" defaultValue={['metadata']} className="mt-2">
+          <AccordionItem value="metadata">
+            <AccordionTrigger>Metadata</AccordionTrigger>
+            <AccordionContent>{metadataBlock}</AccordionContent>
+          </AccordionItem>
+          <AccordionItem value="comments">
+            <AccordionTrigger>Comentarios</AccordionTrigger>
+            <AccordionContent>{commentsBlock}</AccordionContent>
+          </AccordionItem>
+          <AccordionItem value="history">
+            <AccordionTrigger>Historial</AccordionTrigger>
+            <AccordionContent>{historyBlock}</AccordionContent>
+          </AccordionItem>
+        </Accordion>
+        <div className="mt-6">{deleteBlock}</div>
+      </div>
+    ) : (
+      // Desktop: layout sin cambios (grid de 2 columnas, todo visible).
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {previewBlock}
+        <div>
+          {metadataBlock}
+          <div className="mt-6">
+            <h4 className="text-sm font-semibold mb-2">Comentarios</h4>
+            {commentsBlock}
+          </div>
+          <div className="mt-6">
+            <h4 className="text-sm font-semibold mb-2">Historial</h4>
+            {historyBlock}
+          </div>
+          <div className="mt-6">{deleteBlock}</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <ResponsiveDialog
+      open={!!assetId}
+      onOpenChange={(open) => { if (!open) onClose(); }}
+      title="Detalle del medio"
+      contentClassName="max-w-3xl"
+      mobileFullScreen
+    >
+      {body}
+    </ResponsiveDialog>
   );
 }

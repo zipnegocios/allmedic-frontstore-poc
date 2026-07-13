@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { cn } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -26,6 +27,17 @@ interface ResponsiveDialogProps {
   description?: string;
   children: ReactNode;
   footer?: ReactNode;
+  /**
+   * Clases adicionales para el `DialogContent` en desktop (p. ej. para
+   * ampliar el ancho máximo por defecto de `sm:max-w-lg`). No afecta mobile.
+   */
+  contentClassName?: string;
+  /**
+   * En mobile, hace que el `Drawer` ocupe el alto completo de la pantalla
+   * (`100dvh`) en vez del `max-h-[85dvh]` por defecto. Pensado para
+   * contenido denso (galerías, formularios largos con muchas secciones).
+   */
+  mobileFullScreen?: boolean;
 }
 
 /**
@@ -40,13 +52,19 @@ export function ResponsiveDialog({
   description,
   children,
   footer,
+  contentClassName,
+  mobileFullScreen = false,
 }: ResponsiveDialogProps) {
   const isMobile = useIsMobile();
 
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="max-h-[85dvh]">
+        <DrawerContent
+          className={cn(
+            mobileFullScreen ? 'h-[100dvh] max-h-[100dvh] rounded-t-none' : 'max-h-[85dvh]'
+          )}
+        >
           <DrawerHeader>
             <DrawerTitle>{title}</DrawerTitle>
             {description && <DrawerDescription>{description}</DrawerDescription>}
@@ -60,7 +78,7 @@ export function ResponsiveDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85dvh] flex flex-col overflow-hidden">
+      <DialogContent className={cn('max-h-[85dvh] flex flex-col overflow-hidden', contentClassName)}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
