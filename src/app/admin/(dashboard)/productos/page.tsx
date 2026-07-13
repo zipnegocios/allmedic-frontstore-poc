@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/table';
 import { Search, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Package } from 'lucide-react';
 import { toast } from 'sonner';
+import { AdminListCard } from '@/components/admin/AdminListCard';
 
 interface Product {
   id: string;
@@ -77,17 +78,17 @@ export default function AdminProductsPage() {
 
   return (
     <div className="p-4 md:p-8">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4">
         <h1 className="text-3xl font-bold text-[#111111]">Productos</h1>
-        <div className="flex gap-4">
+        <div className="flex flex-col md:flex-row gap-3 md:gap-4">
           <Link href="/admin/productos/nuevo">
-            <Button className="bg-[#111111]">
+            <Button className="w-full md:w-auto min-h-11 bg-[#111111]">
               <Plus className="w-4 h-4 mr-2" />
               Nuevo Producto
             </Button>
           </Link>
           <Link href="/admin/productos/nuevo?rag=true">
-            <Button variant="outline">
+            <Button variant="outline" className="w-full md:w-auto min-h-11">
               <Package className="w-4 h-4 mr-2" />
               Crear con IA (RAG)
             </Button>
@@ -103,13 +104,13 @@ export default function AdminProductsPage() {
               placeholder="Buscar productos..."
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              className="pl-10"
+              className="pl-10 min-h-11"
             />
           </div>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="hidden md:block">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -178,13 +179,86 @@ export default function AdminProductsPage() {
         </CardContent>
       </Card>
 
+      {/* Vista tarjetas (mobile) — misma fuente de datos y handlers que la tabla */}
+      <div className="md:hidden">
+        {loading ? (
+          <p className="text-center py-8 text-gray-500">Cargando...</p>
+        ) : products.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            <Package className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+            <p className="mb-4">No hay productos</p>
+            <Link href="/admin/productos/nuevo">
+              <Button className="gap-2 min-h-11 bg-[#111111]">
+                <Plus className="w-4 h-4" />
+                Nuevo Producto
+              </Button>
+            </Link>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {products.map((product) => (
+              <AdminListCard
+                key={product.id}
+                href={`/admin/productos/${product.id}`}
+                aria-label={`Editar producto ${product.name}`}
+                title={product.name}
+                subtitle={`${product.sku || 'Sin SKU'} · ${product.brandName || '-'}`}
+                badges={
+                  <>
+                    {product.isNew && <Badge variant="secondary">Nuevo</Badge>}
+                    {product.isBestSeller && <Badge variant="default">Top</Badge>}
+                    {!product.isActive && <Badge variant="destructive">Inactivo</Badge>}
+                    {product.isActive && <Badge variant="outline">Activo</Badge>}
+                  </>
+                }
+                meta={
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span>{product.category}</span>
+                    <span aria-hidden="true">·</span>
+                    {product.priceSale ? (
+                      <>
+                        <span className="line-through">${product.priceNormal}</span>
+                        <span className="font-medium text-green-600">${product.priceSale}</span>
+                      </>
+                    ) : (
+                      <span className="font-medium text-[#111111]">${product.priceNormal}</span>
+                    )}
+                  </div>
+                }
+                actions={[
+                  {
+                    key: 'delete',
+                    label: 'Eliminar',
+                    icon: <Trash2 className="w-4 h-4" />,
+                    variant: 'destructive',
+                    onSelect: () => handleDelete(product.id),
+                  },
+                ]}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 mt-6">
-          <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-11 w-11"
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1}
+          >
             <ChevronLeft className="w-4 h-4" />
           </Button>
-          <span className="text-sm">Página {page} de {totalPages}</span>
-          <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+          <span className="text-sm px-2 text-center">Página {page} de {totalPages}</span>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-11 w-11"
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+          >
             <ChevronRight className="w-4 h-4" />
           </Button>
         </div>

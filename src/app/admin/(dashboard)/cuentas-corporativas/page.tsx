@@ -17,6 +17,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { AdminListCard, type AdminListCardAction } from '@/components/admin/AdminListCard';
+import { getCorporateAccountActionFlags } from '@/lib/corporate-account-actions';
 
 interface CorporateAccount {
   id: string;
@@ -92,13 +94,13 @@ export default function AdminCorporateAccountsPage() {
 
   return (
     <div className="p-4 md:p-8">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-bold text-[#111111]">Cuentas Corporativas</h1>
           <p className="text-sm text-gray-500 mt-1">Registro y aprobación de clientes del catálogo corporativo</p>
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-full md:w-48 min-h-11 md:min-h-9">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -109,7 +111,7 @@ export default function AdminCorporateAccountsPage() {
         </Select>
       </div>
 
-      <Card>
+      <Card className="hidden md:block">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -202,6 +204,79 @@ export default function AdminCorporateAccountsPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Vista tarjetas (mobile) — misma fuente de datos y handlers que la tabla */}
+      <div className="md:hidden">
+        {loading ? (
+          <p className="text-center py-8 text-gray-500">Cargando...</p>
+        ) : accounts.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            <Building2 className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+            <p>No hay cuentas corporativas con este filtro</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {accounts.map((account) => {
+              const statusInfo = STATUS_LABELS[account.status] || { label: account.status, variant: 'secondary' as const };
+              const isUpdating = updatingId === account.id;
+              const { canApprove, canReject, canSuspend } = getCorporateAccountActionFlags(account.status);
+
+              const cardActions: AdminListCardAction[] = [];
+              if (canApprove) {
+                cardActions.push({
+                  key: 'approve',
+                  label: 'Aprobar',
+                  icon: <Check className="w-4 h-4 text-[#34C759]" />,
+                  disabled: isUpdating,
+                  onSelect: () => updateStatus(account.id, 'APPROVED'),
+                });
+              }
+              if (canReject) {
+                cardActions.push({
+                  key: 'reject',
+                  label: 'Rechazar',
+                  icon: <X className="w-4 h-4" />,
+                  variant: 'destructive',
+                  disabled: isUpdating,
+                  onSelect: () => updateStatus(account.id, 'REJECTED'),
+                });
+              }
+              if (canSuspend) {
+                cardActions.push({
+                  key: 'suspend',
+                  label: 'Suspender',
+                  icon: <Ban className="w-4 h-4 text-amber-600" />,
+                  disabled: isUpdating,
+                  onSelect: () => updateStatus(account.id, 'SUSPENDED'),
+                });
+              }
+
+              return (
+                <AdminListCard
+                  key={account.id}
+                  href={`/admin/cuentas-corporativas/${account.id}`}
+                  aria-label={`Ver detalle de ${account.razonSocial}`}
+                  title={account.razonSocial}
+                  subtitle={account.email}
+                  badges={<Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>}
+                  meta={
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">{account.ruc}</code>
+                      <span aria-hidden="true">·</span>
+                      <span>{account.contactName}</span>
+                      <span aria-hidden="true">·</span>
+                      <span>{account.phone}</span>
+                      <span aria-hidden="true">·</span>
+                      <span>{account.city}</span>
+                    </div>
+                  }
+                  actions={cardActions}
+                />
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
