@@ -22,7 +22,7 @@ export default function AdminMediaPage() {
           <h1 className="text-3xl font-bold text-[#111111]">Media Library</h1>
           <p className="text-sm text-gray-500 mt-1">Gestión centralizada de imágenes en Cloudflare R2</p>
         </div>
-        <Button className="w-full md:w-auto min-h-11 bg-[#111111]" onClick={() => setUploadOpen(true)}>
+        <Button className="w-full md:w-auto min-h-11 md:h-9 md:min-h-0 bg-[#111111]" onClick={() => setUploadOpen(true)}>
           <Plus className="w-4 h-4 mr-2" />
           Subir medios
         </Button>
