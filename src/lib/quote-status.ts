@@ -12,3 +12,11 @@ export const QUOTE_CHANNEL_LABELS: Record<string, string> = {
   CORPORATE: 'Corporativo',
   RETAIL: 'Individual',
 };
+
+/**
+ * Determina si una cotización está vencida: no tiene un resultado (aceptada
+ * o rechazada) todavía y su fecha de expiración ya pasó.
+ */
+export function isQuoteExpired(quote: { outcome: string | null; expiresAt: string | null }): boolean {
+  return !quote.outcome && !!quote.expiresAt && new Date(quote.expiresAt) < new Date();
+}
