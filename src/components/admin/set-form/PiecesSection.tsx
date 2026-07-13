@@ -133,7 +133,7 @@ export function PiecesSection({
                                 <ChevronsUpDown className="w-4 h-4 opacity-50 ml-2 flex-shrink-0" />
                               </Button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-[420px] p-0" align="start">
+                            <PopoverContent className="w-[420px] max-w-[calc(100vw-2rem)] p-0" align="start">
                               <Command>
                                 <CommandInput placeholder="Buscar por nombre o marca..." />
                                 <CommandList>

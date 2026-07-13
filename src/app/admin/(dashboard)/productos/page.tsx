@@ -82,13 +82,13 @@ export default function AdminProductsPage() {
         <h1 className="text-3xl font-bold text-[#111111]">Productos</h1>
         <div className="flex flex-col md:flex-row gap-3 md:gap-4">
           <Link href="/admin/productos/nuevo">
-            <Button className="w-full md:w-auto min-h-11 bg-[#111111]">
+            <Button className="w-full md:w-auto min-h-11 md:h-9 md:min-h-0 bg-[#111111]">
               <Plus className="w-4 h-4 mr-2" />
               Nuevo Producto
             </Button>
           </Link>
           <Link href="/admin/productos/nuevo?rag=true">
-            <Button variant="outline" className="w-full md:w-auto min-h-11">
+            <Button variant="outline" className="w-full md:w-auto min-h-11 md:h-9 md:min-h-0">
               <Package className="w-4 h-4 mr-2" />
               Crear con IA (RAG)
             </Button>
