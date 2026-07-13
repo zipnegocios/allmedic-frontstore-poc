@@ -9,11 +9,22 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { RULE_TYPE_LABELS, type RuleTypeKey } from '@/lib/rule-config-schemas';
 import { RuleDocPanel } from './RuleDocPanel';
 import { RuleConflictsPanel } from './RuleConflictsPanel';
 import type { RuleConflict } from '@/lib/rules-engine';
-import { Trash2, Plus } from 'lucide-react';
+import { Trash2, Plus, BookOpen, ChevronLeft, ChevronRight, Save } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { cn } from '@/lib/utils';
+import {
+  RULE_FORM_WIZARD_STEPS,
+  getStepProgressLabel,
+  canNavigateToStep,
+  nextMaxVisitedIndex,
+  isTypeScopeStepValid,
+  isConfigStepValid,
+} from './rule-form/wizard-steps';
 
 type Scope = 'GLOBAL' | 'BRAND' | 'SET_GROUP' | 'SET' | 'PRODUCT';
 
@@ -92,6 +103,7 @@ const DEFAULT_PROMO_CONFIG_BY_KIND: Record<string, Record<string, unknown>> = {
 
 export function RuleForm({ mode, ruleId, initial, embedded = false, lockedScope, onSaved, onCancel }: RuleFormProps) {
   const router = useRouter();
+  const isMobile = useIsMobile();
   const [name, setName] = useState(initial?.name ?? '');
   const [ruleType, setRuleType] = useState<RuleTypeKey>(initial?.ruleType ?? 'MIN_QUANTITY');
   const [scope, setScope] = useState<Scope>(initial?.scope ?? lockedScope?.scope ?? 'GLOBAL');
@@ -110,6 +122,13 @@ export function RuleForm({ mode, ruleId, initial, embedded = false, lockedScope,
   const [conflicts, setConflicts] = useState<RuleConflict[]>([]);
   const [checkingConflicts, setCheckingConflicts] = useState(false);
   const [warningsAcknowledged, setWarningsAcknowledged] = useState(false);
+
+  // ─── Wizard mobile: paso actual, pasos ya visitados y Sheet de documentación ───
+  // Solo tiene efecto cuando `isMobile` es true; en desktop se ignora por
+  // completo (se renderiza siempre el mismo Card de 2 columnas).
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [maxVisitedStepIndex, setMaxVisitedStepIndex] = useState(0);
+  const [docSheetOpen, setDocSheetOpen] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -282,119 +301,287 @@ export function RuleForm({ mode, ruleId, initial, embedded = false, lockedScope,
   };
   const unavailableScopes = SCOPE_UNAVAILABLE_BY_TYPE[ruleType] ?? [];
 
+  // ─── Navegación del wizard mobile ───
+  const totalSteps = RULE_FORM_WIZARD_STEPS.length;
+  const currentStep = RULE_FORM_WIZARD_STEPS[currentStepIndex];
+  const isLastWizardStep = currentStepIndex === totalSteps - 1;
+  const saveDisabled =
+    saving ||
+    conflicts.some((c) => c.severity === 'ERROR') ||
+    (conflicts.some((c) => c.severity === 'WARNING') && !warningsAcknowledged);
+
+  function goToStep(index: number) {
+    if (!canNavigateToStep(index, maxVisitedStepIndex)) return;
+    setCurrentStepIndex(index);
+  }
+
+  function goToNextStep() {
+    if (currentStep.id === 'type-scope') {
+      if (!isTypeScopeStepValid({ name, scope, scopeId })) {
+        toast.error(scope !== 'GLOBAL' && !scopeId ? 'Selecciona un ámbito específico o cambia a Global' : 'El nombre es requerido');
+        return;
+      }
+    } else if (currentStep.id === 'config') {
+      if (!isConfigStepValid({ ruleType, config })) {
+        toast.error('Completa correctamente la configuración de la regla antes de continuar');
+        return;
+      }
+    }
+    const next = Math.min(currentStepIndex + 1, totalSteps - 1);
+    setCurrentStepIndex(next);
+    setMaxVisitedStepIndex((m) => nextMaxVisitedIndex(m, next));
+  }
+
+  function goToPreviousStep() {
+    setCurrentStepIndex((i) => Math.max(0, i - 1));
+  }
+
+  // Bloques de campos compartidos entre la vista desktop (Card único, como
+  // hoy) y los pasos del wizard mobile — misma JSX, un solo lugar de
+  // verdad, sin duplicar formulario.
+  const identificationFields = (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <Label className="mb-1 block">Nombre</Label>
+        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Mínimo 6 sets para uniformes escolares" />
+      </div>
+
+      <div>
+        <Label className="mb-1 block">Tipo de regla</Label>
+        <Select value={ruleType} onValueChange={(v) => handleRuleTypeChange(v as RuleTypeKey)} disabled={mode === 'edit'}>
+          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {(Object.keys(RULE_TYPE_LABELS) as RuleTypeKey[]).map((t) => (
+              <SelectItem key={t} value={t}>{RULE_TYPE_LABELS[t]}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {mode === 'edit' && <p className="text-xs text-gray-400 mt-1">El tipo de regla no se puede cambiar al editar.</p>}
+      </div>
+
+      <div>
+        <Label className="mb-1 block">Ámbito</Label>
+        <Select
+          value={scope}
+          onValueChange={(v) => { setScope(v as Scope); setScopeId(null); }}
+          disabled={scopeSelectDisabled}
+        >
+          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="GLOBAL">Global (todo el catálogo)</SelectItem>
+            <SelectItem value="BRAND" disabled={unavailableScopes.includes('BRAND')}>Marca</SelectItem>
+            <SelectItem value="SET_GROUP" disabled={unavailableScopes.includes('SET_GROUP')}>Grupo de Sets</SelectItem>
+            <SelectItem value="SET" disabled={unavailableScopes.includes('SET')}>Set específico</SelectItem>
+            <SelectItem value="PRODUCT" disabled={unavailableScopes.includes('PRODUCT')}>Producto específico</SelectItem>
+          </SelectContent>
+        </Select>
+        {comboLocked && <p className="text-xs text-gray-400 mt-1">Combo solo se configura en ámbito Global — los dos sets van en la configuración.</p>}
+        {!comboLocked && ruleType === 'VOLUME_DISCOUNT_RETAIL' && (
+          <p className="text-xs text-gray-400 mt-1">Descuento por volumen (individual) es un único descuento sobre todo el carrito retail — solo aplica en ámbito Global.</p>
+        )}
+        {lockedScope && (
+          <p className="text-xs text-gray-400 mt-1">Esta regla se crea con ámbito Set, fijado a este set — cámbialo desde el panel de reglas si necesitas otro ámbito.</p>
+        )}
+      </div>
+
+      {scope !== 'GLOBAL' && scope !== 'PRODUCT' && (
+        <div>
+          <Label className="mb-1 block">{scope === 'BRAND' ? 'Marca' : scope === 'SET_GROUP' ? 'Grupo de Sets' : 'Set'}</Label>
+          <Select value={scopeId ?? ''} onValueChange={setScopeId}>
+            <SelectTrigger className="w-full"><SelectValue placeholder="Selecciona..." /></SelectTrigger>
+            <SelectContent>
+              {scopeOptions[scope].map((o) => (
+                <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {scope === 'PRODUCT' && (
+        <div>
+          <Label className="mb-1 block">Producto</Label>
+          <Select value={scopeId ?? ''} onValueChange={setScopeId}>
+            <SelectTrigger className="w-full"><SelectValue placeholder="Selecciona un producto..." /></SelectTrigger>
+            <SelectContent>
+              {products.map((p) => (
+                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-gray-400 mt-1">
+            En el catálogo corporativo aplica a todo set que incluya este producto entre sus piezas; en el individual, a su ficha de producto.
+          </p>
+        </div>
+      )}
+
+      <div>
+        <Label className="mb-1 block">Prioridad (mayor gana en empates de ámbito)</Label>
+        <Input type="number" inputMode="numeric" value={priority} onChange={(e) => setPriority(Number(e.target.value))} />
+      </div>
+
+      {mode === 'edit' && (
+        <div className="flex items-center gap-2 pt-6">
+          <Switch checked={isActive} onCheckedChange={setIsActive} />
+          <Label>Regla activa</Label>
+        </div>
+      )}
+    </div>
+  );
+
+  const configFields = (
+    <div className="border-t border-[#E5E5E5] pt-6">
+      <h4 className="font-medium mb-3">Configuración de la regla</h4>
+      <RuleConfigFields ruleType={ruleType} config={config} onChange={updateConfig} setConfig={setConfig} sets={sets} colors={colors} />
+    </div>
+  );
+
+  const conflictsPanel = (
+    <RuleConflictsPanel
+      conflicts={conflicts}
+      checking={checkingConflicts}
+      warningsAcknowledged={warningsAcknowledged}
+      onAcknowledgeChange={setWarningsAcknowledged}
+    />
+  );
+
+  // Botón "Ver documentación" reutilizado en cada paso del wizard mobile —
+  // abre el mismo `RuleDocPanel` (contenido sin duplicar) dentro de un
+  // Sheet en vez de la columna lateral fija de desktop.
+  const docSheetTrigger = (
+    <Button type="button" variant="outline" size="sm" onClick={() => setDocSheetOpen(true)} className="min-h-11">
+      <BookOpen className="w-4 h-4 mr-2" />
+      Ver documentación
+    </Button>
+  );
+
+  if (isMobile) {
+    return (
+      <div className="space-y-4">
+        {/* ─── Indicador de progreso ─── */}
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-gray-500">
+            {getStepProgressLabel(currentStepIndex)}
+          </p>
+          <div className="flex gap-1.5" role="tablist" aria-label="Pasos del formulario">
+            {RULE_FORM_WIZARD_STEPS.map((step, index) => {
+              const isVisited = canNavigateToStep(index, maxVisitedStepIndex);
+              const isCurrent = index === currentStepIndex;
+              return (
+                <button
+                  key={step.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isCurrent}
+                  aria-label={`Paso ${index + 1}: ${step.label}`}
+                  disabled={!isVisited}
+                  onClick={() => goToStep(index)}
+                  className={cn(
+                    'min-h-11 flex-1 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111111]',
+                    isCurrent ? 'bg-[#111111]' : isVisited ? 'bg-gray-400' : 'bg-gray-200',
+                    !isVisited && 'cursor-not-allowed'
+                  )}
+                />
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ─── Contenido del paso actual ─── */}
+        <Card>
+          <CardContent className="p-6 space-y-6 motion-reduce:transition-none transition-opacity">
+            {currentStep.id === 'type-scope' && (
+              <>
+                {identificationFields}
+                {docSheetTrigger}
+              </>
+            )}
+
+            {currentStep.id === 'config' && (
+              <>
+                {configFields}
+                {docSheetTrigger}
+              </>
+            )}
+
+            {currentStep.id === 'review' && (
+              <>
+                {conflictsPanel}
+                {conflicts.length === 0 && !checkingConflicts && (
+                  <p className="text-sm text-gray-500">No se detectaron conflictos con otras reglas.</p>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ─── Barra sticky inferior: navegación del wizard + Guardar/Cancelar ─── */}
+        <div
+          className={cn(
+            'sticky z-10 flex items-center justify-between gap-2 border-t bg-white/95 backdrop-blur px-4 py-3',
+            !embedded && '-mx-4',
+            embedded
+              ? 'bottom-0 pb-[calc(0.75rem_+_env(safe-area-inset-bottom))]'
+              : 'bottom-[calc(5rem_+_env(safe-area-inset-bottom))]'
+          )}
+        >
+          <div className="flex items-center gap-2">
+            {embedded && (
+              <Button type="button" variant="outline" onClick={() => onCancel?.()} className="min-h-11">
+                Cancelar
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={goToPreviousStep}
+              disabled={currentStepIndex === 0}
+              className="min-h-11 min-w-11"
+            >
+              <ChevronLeft className="w-4 h-4 mr-1" />
+              Atrás
+            </Button>
+          </div>
+          {isLastWizardStep ? (
+            <Button type="button" onClick={handleSubmit} disabled={saveDisabled} className="min-h-11 bg-[#111111]">
+              <Save className="w-4 h-4 mr-2" />
+              {saving ? 'Guardando...' : mode === 'create' ? 'Crear regla' : 'Guardar cambios'}
+            </Button>
+          ) : (
+            <Button type="button" onClick={goToNextStep} className="min-h-11 bg-[#111111]">
+              Siguiente
+              <ChevronRight className="w-4 h-4 ml-1" />
+            </Button>
+          )}
+        </div>
+
+        {/* ─── Sheet: documentación bajo demanda (RuleDocPanel adaptado, sin duplicar) ─── */}
+        <Sheet open={docSheetOpen} onOpenChange={setDocSheetOpen}>
+          <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto rounded-t-2xl">
+            <SheetHeader>
+              <SheetTitle className="sr-only">Documentación del tipo de regla</SheetTitle>
+            </SheetHeader>
+            <div className="px-4 pb-6">
+              <RuleDocPanel ruleType={ruleType} scope={scope} onApplyExample={setConfig} forceExpanded />
+            </div>
+          </SheetContent>
+        </Sheet>
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6 items-start">
     <Card>
       <CardContent className="p-6 space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label className="mb-1 block">Nombre</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Mínimo 6 sets para uniformes escolares" />
-          </div>
+        {identificationFields}
 
-          <div>
-            <Label className="mb-1 block">Tipo de regla</Label>
-            <Select value={ruleType} onValueChange={(v) => handleRuleTypeChange(v as RuleTypeKey)} disabled={mode === 'edit'}>
-              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {(Object.keys(RULE_TYPE_LABELS) as RuleTypeKey[]).map((t) => (
-                  <SelectItem key={t} value={t}>{RULE_TYPE_LABELS[t]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {mode === 'edit' && <p className="text-xs text-gray-400 mt-1">El tipo de regla no se puede cambiar al editar.</p>}
-          </div>
+        {configFields}
 
-          <div>
-            <Label className="mb-1 block">Ámbito</Label>
-            <Select
-              value={scope}
-              onValueChange={(v) => { setScope(v as Scope); setScopeId(null); }}
-              disabled={scopeSelectDisabled}
-            >
-              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="GLOBAL">Global (todo el catálogo)</SelectItem>
-                <SelectItem value="BRAND" disabled={unavailableScopes.includes('BRAND')}>Marca</SelectItem>
-                <SelectItem value="SET_GROUP" disabled={unavailableScopes.includes('SET_GROUP')}>Grupo de Sets</SelectItem>
-                <SelectItem value="SET" disabled={unavailableScopes.includes('SET')}>Set específico</SelectItem>
-                <SelectItem value="PRODUCT" disabled={unavailableScopes.includes('PRODUCT')}>Producto específico</SelectItem>
-              </SelectContent>
-            </Select>
-            {comboLocked && <p className="text-xs text-gray-400 mt-1">Combo solo se configura en ámbito Global — los dos sets van en la configuración.</p>}
-            {!comboLocked && ruleType === 'VOLUME_DISCOUNT_RETAIL' && (
-              <p className="text-xs text-gray-400 mt-1">Descuento por volumen (individual) es un único descuento sobre todo el carrito retail — solo aplica en ámbito Global.</p>
-            )}
-            {lockedScope && (
-              <p className="text-xs text-gray-400 mt-1">Esta regla se crea con ámbito Set, fijado a este set — cámbialo desde el panel de reglas si necesitas otro ámbito.</p>
-            )}
-          </div>
-
-          {scope !== 'GLOBAL' && scope !== 'PRODUCT' && (
-            <div>
-              <Label className="mb-1 block">{scope === 'BRAND' ? 'Marca' : scope === 'SET_GROUP' ? 'Grupo de Sets' : 'Set'}</Label>
-              <Select value={scopeId ?? ''} onValueChange={setScopeId}>
-                <SelectTrigger className="w-full"><SelectValue placeholder="Selecciona..." /></SelectTrigger>
-                <SelectContent>
-                  {scopeOptions[scope].map((o) => (
-                    <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {scope === 'PRODUCT' && (
-            <div>
-              <Label className="mb-1 block">Producto</Label>
-              <Select value={scopeId ?? ''} onValueChange={setScopeId}>
-                <SelectTrigger className="w-full"><SelectValue placeholder="Selecciona un producto..." /></SelectTrigger>
-                <SelectContent>
-                  {products.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-gray-400 mt-1">
-                En el catálogo corporativo aplica a todo set que incluya este producto entre sus piezas; en el individual, a su ficha de producto.
-              </p>
-            </div>
-          )}
-
-          <div>
-            <Label className="mb-1 block">Prioridad (mayor gana en empates de ámbito)</Label>
-            <Input type="number" value={priority} onChange={(e) => setPriority(Number(e.target.value))} />
-          </div>
-
-          {mode === 'edit' && (
-            <div className="flex items-center gap-2 pt-6">
-              <Switch checked={isActive} onCheckedChange={setIsActive} />
-              <Label>Regla activa</Label>
-            </div>
-          )}
-        </div>
-
-        <div className="border-t border-[#E5E5E5] pt-6">
-          <h4 className="font-medium mb-3">Configuración de la regla</h4>
-          <RuleConfigFields ruleType={ruleType} config={config} onChange={updateConfig} setConfig={setConfig} sets={sets} colors={colors} />
-        </div>
-
-        <RuleConflictsPanel
-          conflicts={conflicts}
-          checking={checkingConflicts}
-          warningsAcknowledged={warningsAcknowledged}
-          onAcknowledgeChange={setWarningsAcknowledged}
-        />
+        {conflictsPanel}
 
         <div className="flex items-center gap-2">
-          <Button
-            onClick={handleSubmit}
-            disabled={
-              saving ||
-              conflicts.some((c) => c.severity === 'ERROR') ||
-              (conflicts.some((c) => c.severity === 'WARNING') && !warningsAcknowledged)
-            }
-          >
+          <Button onClick={handleSubmit} disabled={saveDisabled}>
             {saving ? 'Guardando...' : mode === 'create' ? 'Crear regla' : 'Guardar cambios'}
           </Button>
           {embedded && (

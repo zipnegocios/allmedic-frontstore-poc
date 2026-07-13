@@ -28,31 +28,44 @@ interface RuleDocPanelProps {
   ruleType: RuleTypeKey;
   scope: Scope;
   onApplyExample: (config: Record<string, unknown>) => void;
+  /**
+   * Usado cuando el panel se monta dentro de un Sheet/Drawer dedicado (ver
+   * wizard mobile de `RuleForm`, Task 9): el Sheet ya es el mecanismo de
+   * mostrar/ocultar, así que el contenido se renderiza siempre expandido y
+   * sin el botón de colapso propio (que solo tiene sentido cuando el panel
+   * convive en la misma pantalla que el resto del formulario, como en
+   * desktop o en la columna lateral clásica). No cambia el comportamiento
+   * por defecto — sigue siendo `false` para cualquier uso existente.
+   */
+  forceExpanded?: boolean;
 }
 
-export function RuleDocPanel({ ruleType, scope, onApplyExample }: RuleDocPanelProps) {
+export function RuleDocPanel({ ruleType, scope, onApplyExample, forceExpanded = false }: RuleDocPanelProps) {
   const [collapsed, setCollapsed] = useState(true);
   const doc = RULE_DOCS[ruleType];
   const scopeSupported = doc.supportedScopes.includes(scope as never);
+  const expanded = forceExpanded || !collapsed;
 
   return (
-    <Card className="lg:sticky lg:top-6">
-      <CardContent className="p-6">
-        <button
-          type="button"
-          onClick={() => setCollapsed((c) => !c)}
-          className="w-full flex items-center justify-between gap-2 lg:pointer-events-none lg:cursor-default"
-        >
-          <h3 className="font-semibold flex items-center gap-2">
-            <BookOpen className="w-4 h-4" />
-            Documentación
-          </h3>
-          <span className="lg:hidden text-gray-400">
-            {collapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-          </span>
-        </button>
+    <Card className={forceExpanded ? 'border-none shadow-none' : 'lg:sticky lg:top-6'}>
+      <CardContent className={forceExpanded ? 'p-0' : 'p-6'}>
+        {!forceExpanded && (
+          <button
+            type="button"
+            onClick={() => setCollapsed((c) => !c)}
+            className="w-full flex items-center justify-between gap-2 lg:pointer-events-none lg:cursor-default"
+          >
+            <h3 className="font-semibold flex items-center gap-2">
+              <BookOpen className="w-4 h-4" />
+              Documentación
+            </h3>
+            <span className="lg:hidden text-gray-400">
+              {collapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+            </span>
+          </button>
+        )}
 
-        <div className={cn('mt-4 space-y-5', collapsed && 'hidden lg:block')}>
+        <div className={cn(!forceExpanded && 'mt-4', 'space-y-5', !expanded && 'hidden lg:block')}>
           {/* Título + resumen */}
           <div>
             <h4 className="text-lg font-bold text-[#111111]">{doc.title}</h4>
