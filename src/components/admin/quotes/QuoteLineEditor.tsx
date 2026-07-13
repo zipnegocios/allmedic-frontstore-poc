@@ -159,7 +159,7 @@ export function QuoteLineEditor({
             <button
               key={opt.id}
               type="button"
-              className="w-full text-left py-2 px-1 hover:bg-gray-50 text-sm min-h-11"
+              className="w-full text-left py-2 px-1 hover:bg-gray-50 text-sm min-h-11 md:min-h-0"
               onClick={() => addCatalogItem(opt)}
             >
               {opt.name}
@@ -173,7 +173,7 @@ export function QuoteLineEditor({
   return (
     <div>
       <div className="flex gap-2 mb-3">
-        <Button variant="outline" size="sm" className="gap-2 min-h-11" onClick={() => setCatalogOpen(true)}>
+        <Button variant="outline" size="sm" className="gap-2 min-h-11 md:h-8" onClick={() => setCatalogOpen(true)}>
           <Plus className="w-4 h-4" />
           Agregar del catálogo
         </Button>
@@ -187,7 +187,7 @@ export function QuoteLineEditor({
         >
           <div className="space-y-3">{catalogSearchPanel}</div>
         </ResponsiveDialog>
-        <Button variant="outline" size="sm" className="gap-2 min-h-11" onClick={addFreeItem}>
+        <Button variant="outline" size="sm" className="gap-2 min-h-11 md:h-8" onClick={addFreeItem}>
           <Plus className="w-4 h-4" />
           Agregar línea libre
         </Button>
