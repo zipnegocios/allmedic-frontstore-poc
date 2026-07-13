@@ -664,8 +664,8 @@ export default function ProductForm({
                 'sticky z-10 flex items-center justify-between gap-2 border-t bg-white/95 backdrop-blur px-4 py-3',
                 !embedded && '-mx-4',
                 embedded
-                  ? 'bottom-0 pb-[calc(0.75rem+env(safe-area-inset-bottom))]'
-                  : 'bottom-[calc(5rem+env(safe-area-inset-bottom))]'
+                  ? 'bottom-0 pb-[calc(0.75rem_+_env(safe-area-inset-bottom))]'
+                  : 'bottom-[calc(5rem_+_env(safe-area-inset-bottom))]'
               )}
             >
               <div className="flex items-center gap-2">
