@@ -616,7 +616,7 @@ function RuleConfigFields({
   switch (ruleType) {
     case 'MIN_QUANTITY':
       return (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Label className="mb-1 block">Cantidad mínima</Label>
             <Input type="number" value={Number(config.min ?? 0)} onChange={(e) => onChange({ min: Number(e.target.value) })} />
@@ -644,7 +644,7 @@ function RuleConfigFields({
 
     case 'QUANTITY_RANGE':
       return (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Label className="mb-1 block">Mínimo</Label>
             <Input type="number" value={Number(config.min ?? 0)} onChange={(e) => onChange({ min: Number(e.target.value) })} />
@@ -674,7 +674,7 @@ function RuleConfigFields({
 
     case 'PRICE_VISIBILITY':
       return (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex items-center gap-2">
             <Switch checked={Boolean(config.showPrices)} onCheckedChange={(v) => onChange({ showPrices: v })} />
             <Label>Mostrar precios</Label>
@@ -781,7 +781,7 @@ function RuleConfigFields({
           </div>
 
           {kind === 'N_PLUS_ONE' && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label className="mb-1 block">Compra (buy)</Label>
                 <Input type="number" value={Number(config.buy ?? 0)} onChange={(e) => onChange({ buy: Number(e.target.value) })} />
@@ -816,7 +816,7 @@ function RuleConfigFields({
           )}
 
           {kind === 'NTH_UNIT_PCT' && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label className="mb-1 block">Cada N unidades (n)</Label>
                 <Input type="number" min={2} value={Number(config.n ?? 2)} onChange={(e) => onChange({ n: Number(e.target.value) })} />
@@ -834,7 +834,7 @@ function RuleConfigFields({
                 <Label className="mb-1 block">Subtotal mínimo del contexto ($)</Label>
                 <Input type="number" value={Number(config.minSubtotal ?? 0)} onChange={(e) => onChange({ minSubtotal: Number(e.target.value) })} />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label className="mb-1 block">Porcentaje de descuento</Label>
                   <Input
@@ -860,7 +860,7 @@ function RuleConfigFields({
 
           {kind === 'GIFT' && (
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label className="mb-1 block">Cantidad mínima (sets)</Label>
                   <Input
@@ -892,7 +892,7 @@ function RuleConfigFields({
 
           {kind === 'COMBO' && (
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label className="mb-1 block">Set disparador</Label>
                   <Select value={String(config.triggerSetId ?? '')} onValueChange={(v) => onChange({ triggerSetId: v })}>
@@ -909,7 +909,7 @@ function RuleConfigFields({
                   <Input type="number" value={Number(config.triggerMinQty ?? 1)} onChange={(e) => onChange({ triggerMinQty: Number(e.target.value) })} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label className="mb-1 block">Set objetivo (recibe el descuento)</Label>
                   <Select value={String(config.targetSetId ?? '')} onValueChange={(v) => onChange({ targetSetId: v })}>
@@ -934,7 +934,7 @@ function RuleConfigFields({
 
     case 'COLOR_RESTRICTION':
       return (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Label className="mb-1 block">Color</Label>
             <Select value={String(config.colorCode ?? '')} onValueChange={(v) => onChange({ colorCode: v })}>
