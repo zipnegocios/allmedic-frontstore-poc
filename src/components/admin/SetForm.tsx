@@ -1,115 +1,48 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Switch } from '@/components/ui/switch';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { toast } from 'sonner';
-import { ArrowLeft, Save, Plus, Trash2, AlertTriangle, ImageIcon, Pencil, ChevronsUpDown } from 'lucide-react';
+import { ArrowLeft, Save, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { MediaPicker } from '@/components/admin/media/MediaPicker';
 import { resolveMediaUrl } from '@/lib/media';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import ProductForm from '@/components/admin/ProductForm';
 import { RuleForm } from '@/components/admin/RuleForm';
-import { RULE_TYPE_LABELS, type RuleTypeKey } from '@/lib/rule-config-schemas';
-
-const SetItemSchema = z.object({
-  productId: z.string().min(1, 'Producto requerido'),
-  quantityPerSet: z.coerce.number().min(1, 'Cantidad mínima 1'),
-});
-
-const SetFormSchema = z.object({
-  name: z.string().min(1, 'Nombre requerido'),
-  slug: z.string().min(1, 'Slug requerido'),
-  description: z.string().optional(),
-  coverAssetId: z.string().optional(),
-  imageUrl: z.string().optional(), // solo para previsualización, no se persiste
-  setGroupId: z.string().optional(),
-  brandId: z.string().optional(),
-  isActive: z.boolean().default(true),
-  isFeatured: z.boolean().default(false),
-  priceManual: z.string().optional(),
-  priceManualSale: z.string().optional(),
-  manualDiscountEnd: z.string().optional(),
-  items: z.array(SetItemSchema).min(1, 'Agrega al menos una pieza al set'),
-});
-
-type SetFormData = z.infer<typeof SetFormSchema>;
-
-interface SetGroup {
-  id: string;
-  name: string;
-}
-
-interface Brand {
-  id: string;
-  name: string;
-  isActive: boolean;
-}
-
-interface EligibleProduct {
-  id: string;
-  name: string;
-  slug: string;
-  priceWholesale: string | null;
-  priceWholesaleSale: string | null;
-  priceNormal: string;
-  visibility: 'INDIVIDUAL' | 'GROUPS' | 'BOTH';
-  brandName: string | null;
-  imageUrl: string | null;
-  colors: { id: string; name: string; hex: string }[];
-  sizes: string[];
-  hasActiveVariant: boolean;
-}
-
-interface SetRuleRow {
-  id: string;
-  name: string;
-  ruleType: RuleTypeKey;
-  scope: 'GLOBAL' | 'BRAND' | 'SET_GROUP' | 'SET' | 'PRODUCT';
-  scopeId: string | null;
-  isActive: boolean;
-  priority: number;
-  isWinner: boolean;
-}
+import {
+  SetFormSchema,
+  type SetFormData,
+  type SetGroup,
+  type Brand,
+  type EligibleProduct,
+  type SetRuleRow,
+  productPrice,
+} from '@/components/admin/set-form/schema';
+import {
+  SET_FORM_WIZARD_STEPS,
+  getStepProgressLabel,
+  canNavigateToStep,
+  nextMaxVisitedIndex,
+} from '@/components/admin/set-form/wizard-steps';
+import { GeneralSection } from '@/components/admin/set-form/GeneralSection';
+import { PiecesSection } from '@/components/admin/set-form/PiecesSection';
+import { PriceSection } from '@/components/admin/set-form/PriceSection';
+import { RulesSection } from '@/components/admin/set-form/RulesSection';
 
 interface SetFormProps {
   setId?: string;
   initialData?: SetFormData;
 }
 
-const SELECT_EMPTY_VALUE = '__empty__';
-
-/** Precio efectivo de una pieza: rebajado al mayor si existe, si no el precio al mayor normal. */
-function productPrice(p: EligibleProduct | undefined): number | null {
-  if (!p) return null;
-  if (p.priceWholesaleSale) return Number(p.priceWholesaleSale);
-  if (p.priceWholesale) return Number(p.priceWholesale);
-  return null;
-}
-
 export default function SetForm({ setId, initialData }: SetFormProps) {
   const router = useRouter();
+  const isMobile = useIsMobile();
   const [groups, setGroups] = useState<SetGroup[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [products, setProducts] = useState<EligibleProduct[]>([]);
@@ -126,12 +59,19 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
   const [rulesLoading, setRulesLoading] = useState(false);
   const [ruleDrawer, setRuleDrawer] = useState<{ ruleId?: string } | null>(null);
 
+  // ─── Wizard mobile: paso actual y pasos ya visitados ───
+  // Solo tiene efecto cuando `isMobile` es true; en desktop se ignora por
+  // completo (se renderizan siempre los mismos 4 Cards en secuencia).
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [maxVisitedStepIndex, setMaxVisitedStepIndex] = useState(0);
+
   const {
     register,
     control,
     handleSubmit,
     watch,
     setValue,
+    trigger,
     formState: { errors },
   } = useForm<SetFormData>({
     resolver: zodResolver(SetFormSchema) as never,
@@ -253,7 +193,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
   }
 
   const rulesByType = useMemo(() => {
-    const map = new Map<RuleTypeKey, SetRuleRow[]>();
+    const map = new Map<SetRuleRow['ruleType'], SetRuleRow[]>();
     for (const r of setRules) {
       const list = map.get(r.ruleType) ?? [];
       list.push(r);
@@ -261,6 +201,30 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
     }
     return map;
   }, [setRules]);
+
+  // ─── Navegación del wizard mobile ───
+
+  const totalSteps = SET_FORM_WIZARD_STEPS.length;
+  const currentStep = SET_FORM_WIZARD_STEPS[currentStepIndex];
+  const isLastWizardStep = currentStepIndex === totalSteps - 1;
+
+  function goToStep(index: number) {
+    if (!canNavigateToStep(index, maxVisitedStepIndex)) return;
+    setCurrentStepIndex(index);
+  }
+
+  async function goToNextStep() {
+    const stepFields = currentStep.fields;
+    const valid = stepFields.length === 0 ? true : await trigger(stepFields as (keyof SetFormData)[]);
+    if (!valid) return;
+    const next = Math.min(currentStepIndex + 1, totalSteps - 1);
+    setCurrentStepIndex(next);
+    setMaxVisitedStepIndex((m) => nextMaxVisitedIndex(m, next));
+  }
+
+  function goToPreviousStep() {
+    setCurrentStepIndex((i) => Math.max(0, i - 1));
+  }
 
   if (loading) {
     return (
@@ -271,7 +235,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
   }
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="p-4 md:p-8 max-w-5xl">
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
           <Link href="/admin/sets">
@@ -290,438 +254,169 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
         </Button>
       </div>
 
-      <form onSubmit={(e) => { e.preventDefault(); handleSubmit(onSubmit)(); }} className="space-y-6">
-        <Card>
-          <CardContent className="p-6 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nombre *</Label>
-                <Input id="name" {...register('name')} />
-                {errors.name && <p className="text-sm text-red-500">{errors.name.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="slug">Slug *</Label>
-                <Input id="slug" {...register('slug')} />
-                {errors.slug && <p className="text-sm text-red-500">{errors.slug.message}</p>}
-              </div>
-            </div>
-
+      <form onSubmit={(e) => { e.preventDefault(); handleSubmit(onSubmit)(); }}>
+        {isMobile ? (
+          <div className="space-y-4">
+            {/* ─── Indicador de progreso ─── */}
             <div className="space-y-2">
-              <Label htmlFor="description">Descripción</Label>
-              <Textarea id="description" {...register('description')} rows={3} />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>Imagen de portada</Label>
-                <div className="flex items-center gap-3">
-                  <div className="w-16 h-12 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0">
-                    {watch('imageUrl') ? (
-                      <img src={watch('imageUrl')} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <ImageIcon className="w-4 h-4 text-gray-300" />
-                    )}
-                  </div>
-                  <Button type="button" size="sm" variant="outline" onClick={() => setPickerOpen(true)}>
-                    {watch('imageUrl') ? 'Cambiar' : 'Elegir imagen'}
-                  </Button>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Grupo de Sets</Label>
-                <Controller
-                  name="setGroupId"
-                  control={control}
-                  render={({ field }) => (
-                    <Select value={field.value || SELECT_EMPTY_VALUE} onValueChange={(v) => field.onChange(v === SELECT_EMPTY_VALUE ? '' : v)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Sin grupo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={SELECT_EMPTY_VALUE}>Sin grupo</SelectItem>
-                        {groups.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Marca (opcional)</Label>
-                <Controller
-                  name="brandId"
-                  control={control}
-                  render={({ field }) => (
-                    <Select value={field.value || SELECT_EMPTY_VALUE} onValueChange={(v) => field.onChange(v === SELECT_EMPTY_VALUE ? '' : v)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Multi-marca" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={SELECT_EMPTY_VALUE}>Multi-marca</SelectItem>
-                        {brands.map(b => (
-                          <SelectItem key={b.id} value={b.id} disabled={!b.isActive}>
-                            {b.name}{!b.isActive ? ' (Inactiva)' : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-6 pt-2">
-              <div className="flex items-center gap-2">
-                <Controller
-                  name="isActive"
-                  control={control}
-                  render={({ field }) => <Checkbox checked={field.value} onCheckedChange={field.onChange} />}
-                />
-                <Label>Activo</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Controller
-                  name="isFeatured"
-                  control={control}
-                  render={({ field }) => <Checkbox checked={field.value} onCheckedChange={field.onChange} />}
-                />
-                <Label>Destacado</Label>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* ── Piezas del Set ── */}
-        <Card>
-          <CardContent className="p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold">Piezas del Set</h3>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    append({ productId: '', quantityPerSet: 1 });
-                    setProductDrawer({ targetIndex: fields.length });
-                  }}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Crear producto nuevo
-                </Button>
-                <Button type="button" variant="outline" onClick={() => append({ productId: '', quantityPerSet: 1 })}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Agregar pieza
-                </Button>
-              </div>
-            </div>
-            {errors.items && typeof errors.items.message === 'string' && (
-              <p className="text-sm text-red-500">{errors.items.message}</p>
-            )}
-
-            {fields.length === 0 ? (
-              <p className="text-sm text-gray-500 py-6 text-center">
-                No hay piezas agregadas. Agrega al menos una pieza (producto con visibilidad &quot;Solo Grupos&quot; o &quot;Ambos&quot;).
+              <p className="text-sm font-medium text-gray-500">
+                {getStepProgressLabel(currentStepIndex)}
               </p>
-            ) : (
-              <div className="space-y-3">
-                {fields.map((field, index) => {
-                  const productId = items[index]?.productId;
-                  const product = products.find((p) => p.id === productId);
-                  const price = productPrice(product);
-                  const warnings: string[] = [];
-                  if (product) {
-                    if (product.visibility === 'INDIVIDUAL') {
-                      warnings.push('Visibilidad "Solo Individual" — no aparecerá en ningún set corporativo hasta que la cambies.');
-                    }
-                    if (price === null) {
-                      warnings.push('Sin precio al mayor asignado — no aporta al precio automático del set.');
-                    }
-                    if (!product.hasActiveVariant) {
-                      warnings.push('Sin variantes activas — no tiene stock disponible en ningún color/talla.');
-                    }
-                  }
+              <div className="flex gap-1.5" role="tablist" aria-label="Pasos del formulario">
+                {SET_FORM_WIZARD_STEPS.map((step, index) => {
+                  const isVisited = canNavigateToStep(index, maxVisitedStepIndex);
+                  const isCurrent = index === currentStepIndex;
                   return (
-                    <div key={field.id} className="p-3 border rounded-lg space-y-2">
-                      <div className="flex items-end gap-3">
-                        <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                          {product?.imageUrl ? (
-                            <img src={product.imageUrl} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-300">
-                              <ImageIcon className="w-4 h-4" />
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex-1 space-y-1">
-                          <Label className="text-xs">Producto *</Label>
-                          <Controller
-                            name={`items.${index}.productId`}
-                            control={control}
-                            render={({ field: selectField }) => (
-                              <Popover open={pieceComboOpen === index} onOpenChange={(open) => setPieceComboOpen(open ? index : null)}>
-                                <PopoverTrigger asChild>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    role="combobox"
-                                    className="w-full justify-between font-normal"
-                                  >
-                                    {product ? `${product.name}${product.brandName ? ` (${product.brandName})` : ''}` : 'Buscar producto...'}
-                                    <ChevronsUpDown className="w-4 h-4 opacity-50 ml-2 flex-shrink-0" />
-                                  </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-[420px] p-0" align="start">
-                                  <Command>
-                                    <CommandInput placeholder="Buscar por nombre o marca..." />
-                                    <CommandList>
-                                      <CommandEmpty>Sin resultados.</CommandEmpty>
-                                      <CommandGroup>
-                                        {products.map((p) => (
-                                          <CommandItem
-                                            key={p.id}
-                                            value={`${p.name} ${p.brandName ?? ''}`}
-                                            onSelect={() => {
-                                              selectField.onChange(p.id);
-                                              setPieceComboOpen(null);
-                                            }}
-                                          >
-                                            <div className="w-8 h-8 bg-gray-100 rounded overflow-hidden flex-shrink-0">
-                                              {p.imageUrl ? (
-                                                <img src={p.imageUrl} alt="" className="w-full h-full object-cover" />
-                                              ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-gray-300">
-                                                  <ImageIcon className="w-3 h-3" />
-                                                </div>
-                                              )}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                              <p className="text-sm truncate">{p.name}</p>
-                                              <p className="text-xs text-gray-400 truncate">
-                                                {p.brandName ?? 'Sin marca'} · {productPrice(p) !== null ? `$${productPrice(p)!.toFixed(2)}` : 'Sin precio'}
-                                              </p>
-                                            </div>
-                                          </CommandItem>
-                                        ))}
-                                      </CommandGroup>
-                                    </CommandList>
-                                  </Command>
-                                </PopoverContent>
-                              </Popover>
-                            )}
-                          />
-                        </div>
-
-                        <div className="w-28 space-y-1">
-                          <Label className="text-xs">Cantidad por set</Label>
-                          <Input type="number" min={1} {...register(`items.${index}.quantityPerSet`)} />
-                        </div>
-
-                        <div className="w-24 text-sm text-right">
-                          {productId && (
-                            price !== null ? (
-                              <span className="text-gray-600">${price.toFixed(2)}</span>
-                            ) : (
-                              <span className="flex items-center gap-1 text-amber-600 text-xs justify-end">
-                                <AlertTriangle className="w-3 h-3" /> Sin precio
-                              </span>
-                            )
-                          )}
-                        </div>
-
-                        {productId && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setProductDrawer({ productId, targetIndex: index })}
-                            title="Editar producto"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </Button>
-                        )}
-                        <Button type="button" variant="ghost" size="sm" onClick={() => remove(index)} className="text-red-500">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-
-                      {product && (product.colors.length > 0 || product.sizes.length > 0) && (
-                        <div className="flex items-center gap-3 pl-16 text-xs text-gray-500">
-                          {product.colors.length > 0 && (
-                            <div className="flex items-center gap-1">
-                              {product.colors.map((c) => (
-                                <span
-                                  key={c.id}
-                                  className="w-3 h-3 rounded-full border border-gray-300"
-                                  style={{ backgroundColor: c.hex }}
-                                  title={c.name}
-                                />
-                              ))}
-                            </div>
-                          )}
-                          {product.sizes.length > 0 && <span>Tallas: {product.sizes.join(', ')}</span>}
-                        </div>
+                    <button
+                      key={step.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={isCurrent}
+                      aria-label={`Paso ${index + 1}: ${step.label}`}
+                      disabled={!isVisited}
+                      onClick={() => goToStep(index)}
+                      className={cn(
+                        'min-h-11 flex-1 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111111]',
+                        isCurrent ? 'bg-[#111111]' : isVisited ? 'bg-gray-400' : 'bg-gray-200',
+                        !isVisited && 'cursor-not-allowed'
                       )}
-
-                      {warnings.length > 0 && (
-                        <div className="pl-16 space-y-1">
-                          {warnings.map((w, i) => (
-                            <p key={i} className="flex items-center gap-1.5 text-xs text-amber-600">
-                              <AlertTriangle className="w-3 h-3 flex-shrink-0" />
-                              {w}
-                              <button
-                                type="button"
-                                className="underline hover:no-underline"
-                                onClick={() => setProductDrawer({ productId, targetIndex: index })}
-                              >
-                                Completar en la ficha
-                              </button>
-                            </p>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    />
                   );
                 })}
               </div>
-            )}
-
-            {/* ── Vista previa de precio referencial ── */}
-            {fields.length > 0 && (
-              <div className="mt-4 p-4 bg-gray-50 rounded-lg border">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">Precio referencial del set (suma automática)</span>
-                  <span className="text-2xl font-bold text-[#111111]">${pricePreview.total.toFixed(2)}</span>
-                </div>
-                {pricePreview.hasMissing && (
-                  <Badge variant="destructive" className="mt-2 gap-1">
-                    <AlertTriangle className="w-3 h-3" />
-                    Una o más piezas no tienen precio al mayor asignado
-                  </Badge>
-                )}
-                <p className="text-xs text-gray-500 mt-2">
-                  Suma automática de precios al mayor (o rebajado al mayor si aplica) × cantidad por set.
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* ── Precio del set (híbrido) ── */}
-        <Card>
-          <CardContent className="p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold">Precio del set</h3>
-                <p className="text-xs text-gray-500">
-                  Por defecto el precio es automático (suma de piezas de arriba). Actívalo para fijar un precio propio del set.
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch checked={manualPriceEnabled} onCheckedChange={setManualPriceEnabled} />
-                <Label>Fijar precio manual del set</Label>
-              </div>
             </div>
 
-            {manualPriceEnabled && (
-              <div className="space-y-3 pt-2 border-t border-[#E5E5E5]">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="priceManual">Precio manual</Label>
-                    <Input id="priceManual" type="number" step="0.01" {...register('priceManual')} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="priceManualSale">Precio manual rebajado</Label>
-                    <Input id="priceManualSale" type="number" step="0.01" {...register('priceManualSale')} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="manualDiscountEnd">Fin de la rebaja</Label>
-                    <Input id="manualDiscountEnd" type="datetime-local" {...register('manualDiscountEnd')} />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg text-sm">
-                  <span className="text-gray-500">Suma automática de piezas (referencia)</span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">${pricePreview.total.toFixed(2)}</span>
-                    {deltaPct !== null && (
-                      <Badge variant={deltaPct < 0 ? 'default' : 'secondary'}>
-                        {deltaPct > 0 ? '+' : ''}{deltaPct}% vs. suma de piezas
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+            {/* ─── Contenido del paso actual ─── */}
+            <div className="motion-reduce:transition-none transition-opacity">
+              {currentStep.id === 'general' && (
+                <GeneralSection
+                  register={register}
+                  control={control}
+                  errors={errors}
+                  watch={watch}
+                  groups={groups}
+                  brands={brands}
+                  onOpenPicker={() => setPickerOpen(true)}
+                />
+              )}
 
-        {/* ── Reglas de este set ── */}
-        <Card>
-          <CardContent className="p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold">Reglas de este set</h3>
-                <p className="text-xs text-gray-500">
-                  Reglas de ámbito Set de este set, más las heredadas (Global, Marca, Grupo de Sets y Producto de sus piezas).
-                </p>
-              </div>
-              {setId && (
-                <Button type="button" variant="outline" onClick={() => setRuleDrawer({})}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Nueva regla para este set
-                </Button>
+              {currentStep.id === 'pieces' && (
+                <PiecesSection
+                  control={control}
+                  register={register}
+                  errors={errors}
+                  fields={fields}
+                  items={items}
+                  products={products}
+                  append={append}
+                  remove={remove}
+                  pieceComboOpen={pieceComboOpen}
+                  setPieceComboOpen={setPieceComboOpen}
+                  onOpenProductDrawer={setProductDrawer}
+                  pricePreview={pricePreview}
+                />
+              )}
+
+              {currentStep.id === 'price' && (
+                <PriceSection
+                  register={register}
+                  manualPriceEnabled={manualPriceEnabled}
+                  setManualPriceEnabled={setManualPriceEnabled}
+                  pricePreview={pricePreview}
+                  deltaPct={deltaPct}
+                />
+              )}
+
+              {currentStep.id === 'rules' && (
+                <RulesSection
+                  setId={setId}
+                  rulesLoading={rulesLoading}
+                  rulesByType={rulesByType}
+                  onNewRule={() => setRuleDrawer({})}
+                  onEditRule={(ruleId) => setRuleDrawer({ ruleId })}
+                />
               )}
             </div>
 
-            {!setId ? (
-              <p className="text-sm text-gray-500 py-6 text-center bg-gray-50 rounded-lg">
-                Guarda el set para gestionar sus reglas.
-              </p>
-            ) : rulesLoading ? (
-              <p className="text-sm text-gray-500 py-6 text-center">Cargando reglas...</p>
-            ) : setRules.length === 0 ? (
-              <p className="text-sm text-gray-500 py-6 text-center bg-gray-50 rounded-lg">
-                No hay reglas de negocio que afecten a este set todavía.
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {Array.from(rulesByType.entries()).map(([ruleType, rules]) => (
-                  <div key={ruleType}>
-                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                      {RULE_TYPE_LABELS[ruleType] ?? ruleType}
-                    </h4>
-                    <div className="space-y-1.5">
-                      {rules.map((r) => (
-                        <div
-                          key={r.id}
-                          className={cn(
-                            'flex items-center justify-between gap-3 px-3 py-2 rounded-lg border text-sm',
-                            r.isWinner ? 'border-[#111111] bg-[#F5F5F7]' : 'border-[#E5E5E5]'
-                          )}
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <Badge variant={r.scope === 'SET' ? 'default' : 'secondary'}>{r.scope}</Badge>
-                            <span className="truncate">{r.name}</span>
-                            {!r.isActive && <Badge variant="outline" className="text-gray-400">Inactiva</Badge>}
-                            {r.isWinner && <Badge className="bg-[#34C759]">Ganadora</Badge>}
-                          </div>
-                          {r.scope === 'SET' ? (
-                            <Button type="button" variant="ghost" size="sm" onClick={() => setRuleDrawer({ ruleId: r.id })}>
-                              <Pencil className="w-3.5 h-3.5" />
-                            </Button>
-                          ) : (
-                            <Link href={`/admin/reglas/${r.id}`} className="text-xs text-gray-400 hover:text-[#111111] flex-shrink-0">
-                              Ver en panel de reglas
-                            </Link>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+            {/* ─── Barra sticky inferior: navegación del wizard ─── */}
+            <div
+              className={cn(
+                'sticky z-10 flex items-center justify-between gap-2 border-t bg-white/95 backdrop-blur px-4 py-3 -mx-4',
+                'bottom-[calc(5rem_+_env(safe-area-inset-bottom))]'
+              )}
+            >
+              <Button
+                type="button"
+                variant="outline"
+                onClick={goToPreviousStep}
+                disabled={currentStepIndex === 0}
+                className="min-h-11 min-w-11"
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Atrás
+              </Button>
+              {isLastWizardStep ? (
+                <Button
+                  type="button"
+                  onClick={() => handleSubmit(onSubmit)()}
+                  disabled={saving}
+                  className="min-h-11 bg-[#111111]"
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  {saving ? 'Guardando...' : 'Guardar'}
+                </Button>
+              ) : (
+                <Button type="button" onClick={goToNextStep} className="min-h-11 bg-[#111111]">
+                  Siguiente
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <GeneralSection
+              register={register}
+              control={control}
+              errors={errors}
+              watch={watch}
+              groups={groups}
+              brands={brands}
+              onOpenPicker={() => setPickerOpen(true)}
+            />
+
+            <PiecesSection
+              control={control}
+              register={register}
+              errors={errors}
+              fields={fields}
+              items={items}
+              products={products}
+              append={append}
+              remove={remove}
+              pieceComboOpen={pieceComboOpen}
+              setPieceComboOpen={setPieceComboOpen}
+              onOpenProductDrawer={setProductDrawer}
+              pricePreview={pricePreview}
+            />
+
+            <PriceSection
+              register={register}
+              manualPriceEnabled={manualPriceEnabled}
+              setManualPriceEnabled={setManualPriceEnabled}
+              pricePreview={pricePreview}
+              deltaPct={deltaPct}
+            />
+
+            <RulesSection
+              setId={setId}
+              rulesLoading={rulesLoading}
+              rulesByType={rulesByType}
+              onNewRule={() => setRuleDrawer({})}
+              onEditRule={(ruleId) => setRuleDrawer({ ruleId })}
+            />
+          </div>
+        )}
       </form>
 
       <MediaPicker
