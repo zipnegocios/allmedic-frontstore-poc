@@ -61,7 +61,7 @@ export function CompanySettingsForm() {
       <CardContent className="p-6 space-y-4">
         <div>
           <Label className="mb-2 block">Logo (para el membrete del PDF)</Label>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             {logoUrl ? (
               <Image src={logoUrl} alt="Logo" width={120} height={60} className="object-contain border rounded" />
             ) : (
@@ -69,13 +69,13 @@ export function CompanySettingsForm() {
                 Sin logo
               </div>
             )}
-            <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
+            <Button variant="outline" size="sm" className="min-h-11 md:h-8 md:min-h-0" onClick={() => setPickerOpen(true)}>
               Seleccionar de la Biblioteca
             </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Label className="mb-1 block">Razón social</Label>
             <Input value={settings.razonSocial} onChange={(e) => setSettings({ ...settings, razonSocial: e.target.value })} />
@@ -84,7 +84,7 @@ export function CompanySettingsForm() {
             <Label className="mb-1 block">RUC</Label>
             <Input value={settings.ruc} onChange={(e) => setSettings({ ...settings, ruc: e.target.value })} />
           </div>
-          <div className="col-span-2">
+          <div className="md:col-span-2">
             <Label className="mb-1 block">Dirección</Label>
             <Input value={settings.address ?? ''} onChange={(e) => setSettings({ ...settings, address: e.target.value })} />
           </div>
@@ -106,7 +106,7 @@ export function CompanySettingsForm() {
           <Textarea value={settings.footerNote ?? ''} onChange={(e) => setSettings({ ...settings, footerNote: e.target.value })} rows={2} />
         </div>
 
-        <Button onClick={save} disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</Button>
+        <Button onClick={save} disabled={saving} className="w-full min-h-11 md:w-auto md:h-9 md:min-h-0">{saving ? 'Guardando...' : 'Guardar'}</Button>
       </CardContent>
 
       <MediaPicker

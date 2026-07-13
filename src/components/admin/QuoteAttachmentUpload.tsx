@@ -67,7 +67,7 @@ export function QuoteAttachmentUpload({ quoteId }: { quoteId: string }) {
   return (
     <div className="flex flex-wrap items-center gap-3">
       <Select value={type} onValueChange={setType}>
-        <SelectTrigger className="w-48">
+        <SelectTrigger className="w-full sm:w-48 min-h-11 sm:h-9 sm:min-h-0">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -82,6 +82,7 @@ export function QuoteAttachmentUpload({ quoteId }: { quoteId: string }) {
         variant="outline"
         disabled={uploading}
         onClick={() => inputRef.current?.click()}
+        className="w-full sm:w-auto min-h-11 sm:h-9 sm:min-h-0"
       >
         <UploadCloud className="w-4 h-4 mr-2" />
         {uploading ? 'Subiendo...' : 'Subir PDF'}

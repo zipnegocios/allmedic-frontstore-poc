@@ -8,6 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { AdminListCard } from '@/components/admin/AdminListCard';
 
 interface ValidityPreset {
   id: string;
@@ -62,45 +63,82 @@ export function ValidityPresetsPanel() {
 
   return (
     <Card>
-      <CardContent className="p-6">
+      <CardContent className="p-4 md:p-6">
         <h2 className="font-semibold mb-4">Presets de vigencia</h2>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nombre</TableHead>
-              <TableHead>Días</TableHead>
-              <TableHead>Activo</TableHead>
-              <TableHead className="w-16" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {presets.length === 0 ? (
-              <TableRow><TableCell colSpan={4} className="text-center text-gray-500 py-6">Sin presets de vigencia configurados — crea el primero.</TableCell></TableRow>
-            ) : presets.map((p) => (
-              <TableRow key={p.id}>
-                <TableCell>{p.name}</TableCell>
-                <TableCell>{p.days} días</TableCell>
-                <TableCell><Switch checked={p.isActive} onCheckedChange={() => toggleActive(p)} /></TableCell>
-                <TableCell>
-                  <Button size="icon" variant="ghost" className="text-red-500" onClick={() => remove(p.id)}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
 
-        <div className="flex gap-2 items-end mt-4 pt-4 border-t">
+        <div className="hidden md:block">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nombre</TableHead>
+                <TableHead>Días</TableHead>
+                <TableHead>Activo</TableHead>
+                <TableHead className="w-16" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {presets.length === 0 ? (
+                <TableRow><TableCell colSpan={4} className="text-center text-gray-500 py-6">Sin presets de vigencia configurados — crea el primero.</TableCell></TableRow>
+              ) : presets.map((p) => (
+                <TableRow key={p.id}>
+                  <TableCell>{p.name}</TableCell>
+                  <TableCell>{p.days} días</TableCell>
+                  <TableCell><Switch checked={p.isActive} onCheckedChange={() => toggleActive(p)} /></TableCell>
+                  <TableCell>
+                    <Button size="icon" variant="ghost" className="text-red-500" onClick={() => remove(p.id)}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Vista tarjetas (mobile) — misma fuente de datos y handlers que la tabla */}
+        <div className="md:hidden">
+          {presets.length === 0 ? (
+            <p className="text-center text-gray-500 py-6">Sin presets de vigencia configurados — crea el primero.</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {presets.map((p) => (
+                <AdminListCard
+                  key={p.id}
+                  title={p.name}
+                  subtitle={`${p.days} días`}
+                  inlineControl={
+                    <div className="flex items-center gap-2">
+                      <Switch checked={p.isActive} onCheckedChange={() => toggleActive(p)} />
+                      <span className="text-xs text-gray-500">{p.isActive ? 'Activo' : 'Inactivo'}</span>
+                    </div>
+                  }
+                  actions={[
+                    {
+                      key: 'delete',
+                      label: 'Eliminar',
+                      icon: <Trash2 className="w-4 h-4" />,
+                      variant: 'destructive',
+                      onSelect: () => remove(p.id),
+                    },
+                  ]}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col md:flex-row gap-2 md:items-end mt-4 pt-4 border-t">
           <div className="flex-1">
             <label className="text-xs text-gray-500 block mb-1">Nombre</label>
             <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder='Ej. "15 días"' />
           </div>
-          <div className="w-28">
+          <div className="w-full md:w-28">
             <label className="text-xs text-gray-500 block mb-1">Días</label>
             <Input type="number" value={newDays} onChange={(e) => setNewDays(e.target.value)} />
           </div>
-          <Button onClick={create} className="gap-2"><Plus className="w-4 h-4" />Agregar</Button>
+          <Button onClick={create} className="gap-2 w-full min-h-11 md:w-auto md:h-9 md:min-h-0">
+            <Plus className="w-4 h-4" />Agregar
+          </Button>
         </div>
       </CardContent>
     </Card>
