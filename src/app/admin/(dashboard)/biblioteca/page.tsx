@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ResponsiveDialog } from '@/components/admin/ResponsiveDialog';
 import { Plus } from 'lucide-react';
 import { MediaGallery } from '@/components/admin/media/MediaGallery';
 import { MediaUploadPanel } from '@/components/admin/media/MediaUploadPanel';
@@ -17,12 +17,12 @@ export default function AdminMediaPage() {
 
   return (
     <div className="p-4 md:p-8">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-[#111111]">Media Library</h1>
           <p className="text-sm text-gray-500 mt-1">Gestión centralizada de imágenes en Cloudflare R2</p>
         </div>
-        <Button className="bg-[#111111]" onClick={() => setUploadOpen(true)}>
+        <Button className="w-full md:w-auto min-h-11 bg-[#111111]" onClick={() => setUploadOpen(true)}>
           <Plus className="w-4 h-4 mr-2" />
           Subir medios
         </Button>
@@ -33,22 +33,22 @@ export default function AdminMediaPage() {
         onAssetClick={(asset: MediaAssetSummary) => setSelectedAssetId(asset.id)}
       />
 
-      <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Subir medios</DialogTitle>
-          </DialogHeader>
-          <MediaUploadPanel
-            folder={uploadFolder}
-            showFolderPicker
-            onFolderChange={setUploadFolder}
-            onUploaded={() => {
-              setRefreshKey((k) => k + 1);
-              setUploadOpen(false);
-            }}
-          />
-        </DialogContent>
-      </Dialog>
+      <ResponsiveDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        title="Subir medios"
+        contentClassName="max-w-lg"
+      >
+        <MediaUploadPanel
+          folder={uploadFolder}
+          showFolderPicker
+          onFolderChange={setUploadFolder}
+          onUploaded={() => {
+            setRefreshKey((k) => k + 1);
+            setUploadOpen(false);
+          }}
+        />
+      </ResponsiveDialog>
 
       <MediaDetailDialog
         assetId={selectedAssetId}
