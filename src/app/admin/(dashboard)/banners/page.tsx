@@ -9,14 +9,13 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from '@/components/ui/dialog';
+import { ResponsiveDialog } from '@/components/admin/ResponsiveDialog';
 import { Search, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { MediaPicker } from '@/components/admin/media/MediaPicker';
 import { MediaThumb } from '@/components/admin/media/MediaThumb';
 import { resolveMediaUrl } from '@/lib/media';
+import { AdminListCard } from '@/components/admin/AdminListCard';
 
 interface Banner {
   id: string;
@@ -169,7 +168,7 @@ export default function AdminBannersPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="hidden md:block">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -238,94 +237,153 @@ export default function AdminBannersPage() {
         </CardContent>
       </Card>
 
+      {/* Vista tarjetas (mobile) — misma fuente de datos y handlers que la tabla */}
+      <div className="md:hidden">
+        {loading ? (
+          <p className="text-center py-8 text-gray-500">Cargando...</p>
+        ) : banners.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            <ImageIcon className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+            <p className="mb-4">No hay banners registrados</p>
+            <Button className="gap-2 min-h-11 bg-[#111111]" onClick={openNew}>
+              <Plus className="w-4 h-4" />
+              Nuevo Banner
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {banners.map((banner) => (
+              <AdminListCard
+                key={banner.id}
+                onNavigate={() => openEdit(banner)}
+                aria-label={`Editar banner ${banner.title}`}
+                thumbnail={
+                  <div className="relative w-16 h-9 bg-gray-100 rounded overflow-hidden">
+                    {banner.imageDesktop && (
+                      <MediaThumb
+                        url={banner.imageDesktop}
+                        mimeType={banner.imageDesktopMimeType ?? ''}
+                        previewStart={banner.imageDesktopPreviewStart}
+                        previewDuration={banner.imageDesktopPreviewDuration}
+                        sizes="64px"
+                      />
+                    )}
+                  </div>
+                }
+                title={banner.title}
+                subtitle={
+                  banner.ctaText
+                    ? `${banner.ctaText} → ${banner.ctaLink}`
+                    : (banner.subtitle || undefined)
+                }
+                badges={
+                  banner.isActive ? <Badge variant="outline">Activo</Badge> : <Badge variant="destructive">Inactivo</Badge>
+                }
+                meta={<p>Orden: {banner.sortOrder}</p>}
+                actions={[
+                  {
+                    key: 'delete',
+                    label: 'Eliminar',
+                    icon: <Trash2 className="w-4 h-4" />,
+                    variant: 'destructive',
+                    onSelect: () => handleDelete(banner.id),
+                  },
+                ]}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 mt-6">
-          <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
+          <Button variant="outline" size="icon" className="h-11 w-11" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
             <ChevronLeft className="w-4 h-4" />
           </Button>
-          <span className="text-sm">Página {page} de {totalPages}</span>
-          <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+          <span className="text-sm px-2 text-center">Página {page} de {totalPages}</span>
+          <Button variant="outline" size="icon" className="h-11 w-11" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
             <ChevronRight className="w-4 h-4" />
           </Button>
         </div>
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editingBanner ? 'Editar Banner' : 'Nuevo Banner'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Título *</Label>
-              <Input value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label>Subtítulo</Label>
-              <Input value={formData.subtitle} onChange={e => setFormData({ ...formData, subtitle: e.target.value })} />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Medio Desktop * (foto o video)</Label>
-              <div className="flex items-center gap-3">
-                <div className="relative w-24 h-14 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0">
-                  {formData.imageDesktop ? (
-                    <MediaThumb url={formData.imageDesktop} mimeType={formData.imageDesktopMimeType} sizes="96px" />
-                  ) : (
-                    <ImageIcon className="w-5 h-5 text-gray-300" />
-                  )}
-                </div>
-                <Button type="button" size="sm" variant="outline" onClick={() => setPickerTarget('imageDesktop')}>
-                  {formData.imageDesktop ? 'Cambiar' : 'Elegir medio'}
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Medio Mobile (opcional, foto o video)</Label>
-              <div className="flex items-center gap-3">
-                <div className="relative w-24 h-14 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0">
-                  {formData.imageMobile ? (
-                    <MediaThumb url={formData.imageMobile} mimeType={formData.imageMobileMimeType} sizes="96px" />
-                  ) : (
-                    <ImageIcon className="w-5 h-5 text-gray-300" />
-                  )}
-                </div>
-                <Button type="button" size="sm" variant="outline" onClick={() => setPickerTarget('imageMobile')}>
-                  {formData.imageMobile ? 'Cambiar' : 'Elegir medio'}
-                </Button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Texto CTA</Label>
-                <Input value={formData.ctaText} onChange={e => setFormData({ ...formData, ctaText: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>Link CTA</Label>
-                <Input value={formData.ctaLink} onChange={e => setFormData({ ...formData, ctaLink: e.target.value })} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4 items-end">
-              <div className="space-y-2">
-                <Label>Orden</Label>
-                <Input type="number" value={formData.sortOrder} onChange={e => setFormData({ ...formData, sortOrder: Number(e.target.value) })} />
-              </div>
-              <div className="flex items-center gap-2 pb-2">
-                <input type="checkbox" checked={formData.isActive} onChange={e => setFormData({ ...formData, isActive: e.target.checked })} />
-                <Label>Activo</Label>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
+      <ResponsiveDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        title={editingBanner ? 'Editar Banner' : 'Nuevo Banner'}
+        footer={
+          <>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
             <Button onClick={handleSave} disabled={saving} className="bg-[#111111]">
               {saving ? 'Guardando...' : 'Guardar'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label>Título *</Label>
+            <Input value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} />
+          </div>
+          <div className="space-y-2">
+            <Label>Subtítulo</Label>
+            <Input value={formData.subtitle} onChange={e => setFormData({ ...formData, subtitle: e.target.value })} />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Medio Desktop * (foto o video)</Label>
+            <div className="flex items-center gap-3">
+              <div className="relative w-24 h-14 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0">
+                {formData.imageDesktop ? (
+                  <MediaThumb url={formData.imageDesktop} mimeType={formData.imageDesktopMimeType} sizes="96px" />
+                ) : (
+                  <ImageIcon className="w-5 h-5 text-gray-300" />
+                )}
+              </div>
+              <Button type="button" size="sm" variant="outline" onClick={() => setPickerTarget('imageDesktop')}>
+                {formData.imageDesktop ? 'Cambiar' : 'Elegir medio'}
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Medio Mobile (opcional, foto o video)</Label>
+            <div className="flex items-center gap-3">
+              <div className="relative w-24 h-14 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0">
+                {formData.imageMobile ? (
+                  <MediaThumb url={formData.imageMobile} mimeType={formData.imageMobileMimeType} sizes="96px" />
+                ) : (
+                  <ImageIcon className="w-5 h-5 text-gray-300" />
+                )}
+              </div>
+              <Button type="button" size="sm" variant="outline" onClick={() => setPickerTarget('imageMobile')}>
+                {formData.imageMobile ? 'Cambiar' : 'Elegir medio'}
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Texto CTA</Label>
+              <Input value={formData.ctaText} onChange={e => setFormData({ ...formData, ctaText: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Link CTA</Label>
+              <Input value={formData.ctaLink} onChange={e => setFormData({ ...formData, ctaLink: e.target.value })} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4 items-end">
+            <div className="space-y-2">
+              <Label>Orden</Label>
+              <Input type="number" value={formData.sortOrder} onChange={e => setFormData({ ...formData, sortOrder: Number(e.target.value) })} />
+            </div>
+            <div className="flex items-center gap-2 pb-2">
+              <input type="checkbox" checked={formData.isActive} onChange={e => setFormData({ ...formData, isActive: e.target.checked })} />
+              <Label>Activo</Label>
+            </div>
+          </div>
+        </div>
+      </ResponsiveDialog>
 
       <MediaPicker
         open={pickerTarget !== null}

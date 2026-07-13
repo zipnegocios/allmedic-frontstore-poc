@@ -10,6 +10,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Search, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
+import { AdminListCard } from '@/components/admin/AdminListCard';
 
 interface Store {
   id: string;
@@ -76,7 +77,7 @@ export default function AdminStoresPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="hidden md:block">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -119,6 +120,7 @@ export default function AdminStoresPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
+                        {/* CRUD no funcional aún (hallazgo de auditoría pre-existente): sin onClick, fuera del alcance de este task */}
                         <Button size="sm" variant="ghost"><Pencil className="w-4 h-4" /></Button>
                         <Button size="sm" variant="ghost"><Trash2 className="w-4 h-4 text-red-500" /></Button>
                       </div>
@@ -131,13 +133,75 @@ export default function AdminStoresPage() {
         </CardContent>
       </Card>
 
+      {/* Vista tarjetas (mobile) — misma fuente de datos que la tabla. CRUD no funcional
+          aún (hallazgo de auditoría pre-existente, fuera de alcance): las acciones se
+          muestran visualmente igual que en la tabla desktop, sin handler real. */}
+      <div className="md:hidden">
+        {loading ? (
+          <p className="text-center py-8 text-gray-500">Cargando...</p>
+        ) : stores.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            <MapPin className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+            <p className="mb-4">No hay sucursales registradas</p>
+            <Button className="gap-2 min-h-11 bg-[#111111]">
+              <Plus className="w-4 h-4" />
+              Nueva Sucursal
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {stores.map((store) => (
+              <AdminListCard
+                key={store.id}
+                thumbnail={
+                  <div className="w-10 h-10 rounded-md bg-gray-100 flex items-center justify-center">
+                    <MapPin className="w-4 h-4 text-gray-400" />
+                  </div>
+                }
+                title={
+                  <span className="inline-flex items-center gap-1.5">
+                    {store.name}
+                    {store.isMain && <Badge variant="default">Principal</Badge>}
+                  </span>
+                }
+                subtitle={store.address}
+                badges={
+                  <>
+                    {store.isActive ? <Badge variant="outline">Activa</Badge> : <Badge variant="destructive">Inactiva</Badge>}
+                    {store.acceptsOnline && <Badge variant="secondary">Online</Badge>}
+                  </>
+                }
+                meta={store.phone ? <p>{store.phone}</p> : undefined}
+                actions={[
+                  {
+                    key: 'edit',
+                    label: 'Editar',
+                    icon: <Pencil className="w-4 h-4" />,
+                    // No-op intencional: CRUD no funcional aún (ver comentario arriba)
+                    onSelect: () => {},
+                  },
+                  {
+                    key: 'delete',
+                    label: 'Eliminar',
+                    icon: <Trash2 className="w-4 h-4" />,
+                    variant: 'destructive',
+                    // No-op intencional: CRUD no funcional aún (ver comentario arriba)
+                    onSelect: () => {},
+                  },
+                ]}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 mt-6">
-          <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
+          <Button variant="outline" size="icon" className="h-11 w-11" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
             <ChevronLeft className="w-4 h-4" />
           </Button>
-          <span className="text-sm">Página {page} de {totalPages}</span>
-          <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+          <span className="text-sm px-2 text-center">Página {page} de {totalPages}</span>
+          <Button variant="outline" size="icon" className="h-11 w-11" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
             <ChevronRight className="w-4 h-4" />
           </Button>
         </div>
