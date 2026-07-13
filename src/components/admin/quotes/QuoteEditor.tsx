@@ -334,7 +334,7 @@ export function QuoteEditor({ initialQuote }: { initialQuote: QuoteEditorData })
     <>
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-semibold">Líneas</h2>
-        <Button variant="outline" size="sm" onClick={handleRecalculate} disabled={recalculating} className="gap-2 min-h-11 md:h-8">
+        <Button variant="outline" size="sm" onClick={handleRecalculate} disabled={recalculating} className="gap-2 min-h-11 md:h-8 md:min-h-0">
           <RefreshCw className={`w-4 h-4 ${recalculating ? 'animate-spin' : ''}`} />
           Recalcular sugeridos
         </Button>
@@ -450,22 +450,22 @@ export function QuoteEditor({ initialQuote }: { initialQuote: QuoteEditorData })
   // barra sticky del último paso del wizard (ver más abajo).
   const actionButtons = (
     <>
-      <Button onClick={handleSaveClick} disabled={saving} className="min-h-11 md:h-9">{saving ? 'Guardando...' : 'Guardar'}</Button>
+      <Button onClick={handleSaveClick} disabled={saving} className="min-h-11 md:h-9 md:min-h-0">{saving ? 'Guardando...' : 'Guardar'}</Button>
       {!isFinal && (
-        <Button variant="secondary" onClick={handleFinalize} disabled={saving || items.length === 0} className="min-h-11 md:h-9">
+        <Button variant="secondary" onClick={handleFinalize} disabled={saving || items.length === 0} className="min-h-11 md:h-9 md:min-h-0">
           Generar cotización definitiva
         </Button>
       )}
       {isFinal && (
         <>
-          <Button variant="outline" asChild className="gap-2 min-h-11 md:h-9">
+          <Button variant="outline" asChild className="gap-2 min-h-11 md:h-9 md:min-h-0">
             <a href={`/api/admin/quotes/${quote.id}/pdf`} target="_blank" rel="noopener noreferrer">
               <Download className="w-4 h-4" /> Descargar PDF
             </a>
           </Button>
           <Button
             variant="outline"
-            className="gap-2 min-h-11 md:h-9"
+            className="gap-2 min-h-11 md:h-9 md:min-h-0"
             disabled={saving || !quote.customerEmail}
             title={!quote.customerEmail ? 'La cotización no tiene correo de cliente' : undefined}
             onClick={() => handleAction('send-email', 'Cotización enviada por correo')}
@@ -474,7 +474,7 @@ export function QuoteEditor({ initialQuote }: { initialQuote: QuoteEditorData })
           </Button>
           <Button
             variant="outline"
-            className="gap-2 min-h-11 md:h-9"
+            className="gap-2 min-h-11 md:h-9 md:min-h-0"
             disabled={saving || quote.channel !== 'CORPORATE' || !quote.accountId}
             title={quote.channel !== 'CORPORATE' || !quote.accountId ? 'Solo disponible para cotizaciones corporativas con cuenta vinculada' : undefined}
             onClick={() => handleAction('publish', 'Publicada en el portal del cliente')}
@@ -483,10 +483,10 @@ export function QuoteEditor({ initialQuote }: { initialQuote: QuoteEditorData })
           </Button>
           {!quote.outcome && (
             <>
-              <Button variant="outline" className="gap-2 min-h-11 md:h-9 text-green-700" onClick={() => handleOutcome('ACCEPTED')}>
+              <Button variant="outline" className="gap-2 min-h-11 md:h-9 md:min-h-0 text-green-700" onClick={() => handleOutcome('ACCEPTED')}>
                 <Check className="w-4 h-4" /> Marcar Aceptada
               </Button>
-              <Button variant="outline" className="gap-2 min-h-11 md:h-9 text-red-700" onClick={() => handleOutcome('REJECTED')}>
+              <Button variant="outline" className="gap-2 min-h-11 md:h-9 md:min-h-0 text-red-700" onClick={() => handleOutcome('REJECTED')}>
                 <X className="w-4 h-4" /> Marcar Rechazada
               </Button>
             </>
