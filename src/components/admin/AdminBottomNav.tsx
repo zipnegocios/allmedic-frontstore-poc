@@ -38,6 +38,21 @@ export function isNavItemActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(href + '/');
 }
 
+/**
+ * Variante de `isNavItemActive` para usar en listas de navegación que incluyen
+ * la raíz del panel (`/admin`, Dashboard). A diferencia del resto de rutas,
+ * `/admin` no debe coincidir por prefijo, ya que `/admin/` es prefijo de
+ * absolutamente todas las demás rutas del admin (`/admin/productos`,
+ * `/admin/cotizaciones`, etc.), lo que provocaría que el Dashboard (y por lo
+ * tanto el tab "Más") se marque como activo en casi cualquier página.
+ */
+export function isNavItemActiveInList(pathname: string, href: string): boolean {
+  if (href === '/admin') {
+    return pathname === '/admin';
+  }
+  return isNavItemActive(pathname, href);
+}
+
 const primaryItems = [
   { href: '/admin/cotizaciones', label: 'Cotizaciones', icon: FileText },
   { href: '/admin/prospectos', label: 'Pedidos', icon: ShoppingCart },
@@ -62,7 +77,7 @@ export function AdminBottomNav() {
   const pathname = usePathname();
   const [isMoreOpen, setIsMoreOpen] = useState(false);
 
-  const isMoreActive = moreItems.some((item) => isNavItemActive(pathname, item.href));
+  const isMoreActive = moreItems.some((item) => isNavItemActiveInList(pathname, item.href));
 
   return (
     <>
@@ -113,7 +128,7 @@ export function AdminBottomNav() {
           <div className="grid grid-cols-3 gap-2 p-4 pt-0">
             {moreItems.map((item) => {
               const Icon = item.icon;
-              const isActive = isNavItemActive(pathname, item.href);
+              const isActive = isNavItemActiveInList(pathname, item.href);
               return (
                 <Link
                   key={item.href}
