@@ -10,6 +10,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Plus, Pencil, Trash2, Boxes, Star } from 'lucide-react';
 import { toast } from 'sonner';
+import { AdminListCard } from '@/components/admin/AdminListCard';
 
 interface AdminSet {
   id: string;
@@ -71,7 +72,7 @@ export default function AdminSetsPage() {
         </Link>
       </div>
 
-      <Card>
+      <Card className="hidden md:block">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -128,6 +129,64 @@ export default function AdminSetsPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Vista tarjetas (mobile) — misma fuente de datos y handlers que la tabla */}
+      <div className="md:hidden">
+        {loading ? (
+          <p className="text-center py-8 text-gray-500">Cargando...</p>
+        ) : sets.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            <Boxes className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+            <p className="mb-4">No hay sets corporativos registrados</p>
+            <Link href="/admin/sets/nuevo">
+              <Button className="gap-2 min-h-11 bg-[#111111]">
+                <Plus className="w-4 h-4" />
+                Nuevo Set
+              </Button>
+            </Link>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {sets.map((set) => (
+              <AdminListCard
+                key={set.id}
+                href={`/admin/sets/${set.id}`}
+                aria-label={`Editar set ${set.name}`}
+                title={
+                  <span className="inline-flex items-center gap-1.5">
+                    {set.isFeatured && (
+                      <Star className="w-4 h-4 shrink-0 text-amber-500 fill-amber-500" />
+                    )}
+                    {set.name}
+                  </span>
+                }
+                subtitle={`${set.groupName || '-'} · ${set.brandName || '-'}`}
+                badges={
+                  set.isActive ? (
+                    <Badge variant="outline">Activo</Badge>
+                  ) : (
+                    <Badge variant="destructive">Inactivo</Badge>
+                  )
+                }
+                meta={
+                  <Badge variant="secondary">
+                    {set.itemCount} {set.itemCount === 1 ? 'pieza' : 'piezas'}
+                  </Badge>
+                }
+                actions={[
+                  {
+                    key: 'delete',
+                    label: 'Eliminar',
+                    icon: <Trash2 className="w-4 h-4" />,
+                    variant: 'destructive',
+                    onSelect: () => handleDelete(set.id),
+                  },
+                ]}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

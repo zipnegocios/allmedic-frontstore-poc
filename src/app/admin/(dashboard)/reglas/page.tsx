@@ -12,6 +12,8 @@ import { Switch } from '@/components/ui/switch';
 import { Plus, Pencil, Trash2, Settings2, CheckCircle2, AlertTriangle, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { RULE_TYPE_LABELS, type RuleTypeKey } from '@/lib/rule-config-schemas';
+import { getRuleHealthStatus } from '@/lib/rule-health';
+import { AdminListCard } from '@/components/admin/AdminListCard';
 
 interface AdminRule {
   id: string;
@@ -26,10 +28,11 @@ interface AdminRule {
 }
 
 function HealthBadge({ rule }: { rule: AdminRule }) {
-  if (!rule.isActive) {
+  const status = getRuleHealthStatus(rule);
+  if (status === 'inactive') {
     return <span className="text-xs text-gray-400">—</span>;
   }
-  if (rule.conflictErrors > 0) {
+  if (status === 'error') {
     return (
       <span
         className="inline-flex items-center gap-1 text-xs text-red-600"
@@ -39,7 +42,7 @@ function HealthBadge({ rule }: { rule: AdminRule }) {
       </span>
     );
   }
-  if (rule.conflictWarnings > 0) {
+  if (status === 'warning') {
     return (
       <span
         className="inline-flex items-center gap-1 text-xs text-amber-600"
@@ -127,7 +130,7 @@ export default function AdminRulesPage() {
         </Link>
       </div>
 
-      <Card>
+      <Card className="hidden md:block">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -181,6 +184,63 @@ export default function AdminRulesPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Vista tarjetas (mobile) — misma fuente de datos y handlers que la tabla */}
+      <div className="md:hidden">
+        {loading ? (
+          <p className="text-center py-8 text-gray-500">Cargando...</p>
+        ) : rules.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            <Settings2 className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+            <p className="mb-4">No hay reglas de negocio registradas</p>
+            <Link href="/admin/reglas/nueva">
+              <Button className="gap-2 min-h-11 bg-[#111111]">
+                <Plus className="w-4 h-4" />
+                Nueva Regla
+              </Button>
+            </Link>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {rules.map((rule) => (
+              <AdminListCard
+                key={rule.id}
+                href={`/admin/reglas/${rule.id}`}
+                aria-label={`Editar regla ${rule.name}`}
+                title={rule.name}
+                subtitle={
+                  <span className="inline-flex items-center gap-1.5">
+                    <Badge variant="secondary">{RULE_TYPE_LABELS[rule.ruleType] ?? rule.ruleType}</Badge>
+                    <span>· {SCOPE_LABELS[rule.scope] ?? rule.scope}</span>
+                  </span>
+                }
+                badges={<HealthBadge rule={rule} />}
+                meta={<span>Prioridad {rule.priority}</span>}
+                inlineControl={
+                  <div className="flex min-h-11 items-center gap-2">
+                    <Switch
+                      checked={rule.isActive}
+                      onCheckedChange={() => handleToggleActive(rule)}
+                      aria-label={rule.isActive ? `Desactivar regla ${rule.name}` : `Activar regla ${rule.name}`}
+                      className="relative before:absolute before:-inset-[14px] before:content-['']"
+                    />
+                    <span className="text-sm text-gray-600">{rule.isActive ? 'Activa' : 'Inactiva'}</span>
+                  </div>
+                }
+                actions={[
+                  {
+                    key: 'delete',
+                    label: 'Eliminar',
+                    icon: <Trash2 className="w-4 h-4" />,
+                    variant: 'destructive',
+                    onSelect: () => handleDelete(rule.id),
+                  },
+                ]}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
