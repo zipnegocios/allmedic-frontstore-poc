@@ -113,7 +113,11 @@ export function AdminListCard({
               {subtitle && <p className="truncate text-sm text-gray-500">{subtitle}</p>}
             </div>
             {hasActions && (
-              <div onClick={handleActionsClick} className="shrink-0">
+              <div
+                onClick={handleActionsClick}
+                onKeyDown={stopCardNavigation}
+                className="shrink-0"
+              >
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -149,7 +153,11 @@ export function AdminListCard({
           {meta && <div className="text-sm text-gray-500">{meta}</div>}
 
           {inlineControl && (
-            <div onClick={stopCardNavigation} className="pt-0.5">
+            <div
+              onClick={stopCardNavigation}
+              onKeyDown={stopCardNavigation}
+              className="pt-0.5"
+            >
               {inlineControl}
             </div>
           )}
