@@ -7,6 +7,11 @@ function getEnv(name: string): string {
   return value;
 }
 
+/** Bucket lógico: MEDIA es la Biblioteca de medios (histórico), QUOTES es el bucket dedicado
+ * a PDFs de cotizaciones — ambos comparten cuenta/endpoint/credenciales de Cloudflare R2, solo
+ * cambia el nombre del bucket. */
+export type R2Target = "MEDIA" | "QUOTES";
+
 let client: S3Client | null = null;
 
 function getClient(): S3Client {
@@ -22,17 +27,17 @@ function getClient(): S3Client {
   return client;
 }
 
-function getBucket(): string {
-  return getEnv("R2_BUCKET");
+function getBucket(target: R2Target = "MEDIA"): string {
+  return target === "QUOTES" ? getEnv("R2_QUOTES_BUCKET") : getEnv("R2_BUCKET");
 }
 
-export async function presignPut(key: string, mimeType: string, sizeBytes: number): Promise<string> {
+export async function presignPut(key: string, mimeType: string, sizeBytes: number, target: R2Target = "MEDIA"): Promise<string> {
   // No se firma Cache-Control aquí: el bucket R2 solo permite Content-Type/Content-Length
   // en su política CORS (ver plan de imágenes), y cualquier header adicional en la firma
   // obliga al navegador a incluirlo en el preflight — si no está en AllowedHeaders del bucket,
   // el preflight falla con CORS y la subida se bloquea por completo.
   const command = new PutObjectCommand({
-    Bucket: getBucket(),
+    Bucket: getBucket(target),
     Key: key,
     ContentType: mimeType,
     ContentLength: sizeBytes,
@@ -40,12 +45,12 @@ export async function presignPut(key: string, mimeType: string, sizeBytes: numbe
   return getSignedUrl(getClient(), command, { expiresIn: 15 * 60 });
 }
 
-export async function deleteObject(key: string): Promise<void> {
-  await getClient().send(new DeleteObjectCommand({ Bucket: getBucket(), Key: key }));
+export async function deleteObject(key: string, target: R2Target = "MEDIA"): Promise<void> {
+  await getClient().send(new DeleteObjectCommand({ Bucket: getBucket(target), Key: key }));
 }
 
-export async function copyObject(fromKey: string, toKey: string): Promise<void> {
-  const bucket = getBucket();
+export async function copyObject(fromKey: string, toKey: string, target: R2Target = "MEDIA"): Promise<void> {
+  const bucket = getBucket(target);
   await getClient().send(new CopyObjectCommand({
     Bucket: bucket,
     Key: toKey,
@@ -53,18 +58,18 @@ export async function copyObject(fromKey: string, toKey: string): Promise<void> 
   }));
 }
 
-export async function headObject(key: string): Promise<{ sizeBytes: number; mimeType?: string } | null> {
+export async function headObject(key: string, target: R2Target = "MEDIA"): Promise<{ sizeBytes: number; mimeType?: string } | null> {
   try {
-    const result = await getClient().send(new HeadObjectCommand({ Bucket: getBucket(), Key: key }));
+    const result = await getClient().send(new HeadObjectCommand({ Bucket: getBucket(target), Key: key }));
     return { sizeBytes: result.ContentLength ?? 0, mimeType: result.ContentType };
   } catch {
     return null;
   }
 }
 
-export async function putObject(key: string, body: Buffer, mimeType: string, cacheControl?: string): Promise<void> {
+export async function putObject(key: string, body: Buffer, mimeType: string, cacheControl?: string, target: R2Target = "MEDIA"): Promise<void> {
   await getClient().send(new PutObjectCommand({
-    Bucket: getBucket(),
+    Bucket: getBucket(target),
     Key: key,
     Body: body,
     ContentType: mimeType,

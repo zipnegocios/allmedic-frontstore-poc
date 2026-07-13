@@ -1,8 +1,9 @@
-import { pgTable, text, integer, boolean, decimal, timestamp, jsonb, index, uuid as pgUuid } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, boolean, decimal, timestamp, jsonb, index, uuid as pgUuid, unique } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { uuid } from "@/lib/uuid";
-import { products, brands } from "./products";
+import { products, brands, productVariants } from "./products";
 import { users } from "./auth";
+import { leads } from "./commerce";
 
 // ─── Set Groups (Grupos de Sets - categorías para sets corporativos) ───
 export const setGroups = pgTable("set_groups", {
@@ -116,7 +117,7 @@ export const corporateAccountsRelations = relations(corporateAccounts, ({ one, m
   user: one(users, { fields: [corporateAccounts.userId], references: [users.id] }),
   approver: one(users, { fields: [corporateAccounts.approvedBy], references: [users.id] }),
   carts: many(corporateCarts),
-  quotes: many(quoteRequests),
+  quotes: many(quotes),
 }));
 
 // ─── Corporate Carts (Carritos persistidos en BD para clientes corporativos logueados) ───
@@ -132,57 +133,138 @@ export const corporateCartsRelations = relations(corporateCarts, ({ one }) => ({
   account: one(corporateAccounts, { fields: [corporateCarts.accountId], references: [corporateAccounts.id] }),
 }));
 
-// ─── Quote Requests (Solicitudes de cotización) ───
-export const quoteRequests = pgTable("quote_requests", {
+// ─── Tax Presets (Presets de impuestos administrables) ───
+export const taxPresets = pgTable("tax_presets", {
   id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
-  code: text("code").notNull().unique(), // ej. COT-2026-0001
-  accountId: pgUuid("account_id").references(() => corporateAccounts.id),
-  // Snapshot de datos del cliente al momento de envío
-  customerData: jsonb("customer_data").notNull(),
-  // Snapshot de items (sets, tallas, cantidades, precios REFERENCIALES)
-  items: jsonb("items").notNull(),
-  // Precio referencial calculado en servidor
-  referenceSubtotal: decimal("reference_subtotal", { precision: 10, scale: 2 }).notNull(),
-  // Precios REALES escritos por el equipo de ventas (Fase 4)
-  quotedItems: jsonb("quoted_items"),
-  quotedTotal: decimal("quoted_total", { precision: 10, scale: 2 }),
-  // Status: RECEIVED, IN_REVIEW, QUOTED, SENT, APPROVED, REJECTED, CLOSED
-  status: text("status").notNull().default("RECEIVED"),
-  internalNotes: text("internal_notes"),
+  name: text("name").notNull(), // "IVA 15%", "IVA 0%", "Exento"
+  rate: decimal("rate", { precision: 5, scale: 2 }).notNull(),
+  pricesIncludeTaxDefault: boolean("prices_include_tax_default").notNull().default(false),
+  isActive: boolean("is_active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 }, (table) => [
-  index("idx_quote_requests_code").on(table.code),
-  index("idx_quote_requests_status").on(table.status),
-  index("idx_quote_requests_account").on(table.accountId),
+  unique("uq_tax_presets_name").on(table.name),
 ]);
 
-export const quoteRequestsRelations = relations(quoteRequests, ({ one, many }) => ({
-  account: one(corporateAccounts, { fields: [quoteRequests.accountId], references: [corporateAccounts.id] }),
-  history: many(quoteStatusHistory),
-  attachments: many(quoteAttachments),
-}));
-
-// ─── Quote Status History (Historial de cambios de estado de solicitudes) ───
-export const quoteStatusHistory = pgTable("quote_status_history", {
+// ─── Validity Presets (Presets de vigencia administrables) ───
+export const validityPresets = pgTable("validity_presets", {
   id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
-  quoteId: pgUuid("quote_id").notNull().references(() => quoteRequests.id, { onDelete: "cascade" }),
-  fromStatus: text("from_status"),
-  toStatus: text("to_status").notNull(),
-  changedBy: pgUuid("changed_by").references(() => users.id),
-  note: text("note"),
+  name: text("name").notNull(), // "7 días", "15 días", "30 días"
+  days: integer("days").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-});
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => [
+  unique("uq_validity_presets_name").on(table.name),
+]);
 
-export const quoteStatusHistoryRelations = relations(quoteStatusHistory, ({ one }) => ({
-  quote: one(quoteRequests, { fields: [quoteStatusHistory.quoteId], references: [quoteRequests.id] }),
-  user: one(users, { fields: [quoteStatusHistory.changedBy], references: [users.id] }),
+// ─── Quotes (Cotizaciones — corporativas e individuales) ───
+export const quotes = pgTable("quotes", {
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
+  // Asignado solo al pasar a FINAL, formato COT-YYYY-NNNNN
+  quoteNumber: text("quote_number").unique(),
+  // Status: DRAFT | FINAL
+  status: text("status").notNull().default("DRAFT"),
+  // Outcome: ACCEPTED | REJECTED | null
+  outcome: text("outcome"),
+  // Channel: CORPORATE | RETAIL
+  channel: text("channel").notNull(),
+  accountId: pgUuid("account_id").references(() => corporateAccounts.id),
+  leadId: pgUuid("lead_id").references(() => leads.id),
+  // Snapshot del cliente — editable independientemente de la ficha origen
+  customerName: text("customer_name").notNull(),
+  customerIdNumber: text("customer_id_number"),
+  customerContactName: text("customer_contact_name"),
+  customerEmail: text("customer_email"),
+  customerPhone: text("customer_phone"),
+  customerAddress: text("customer_address"),
+  customerCity: text("customer_city"),
+  // Impuesto
+  taxPresetId: pgUuid("tax_preset_id").references(() => taxPresets.id),
+  taxRate: decimal("tax_rate", { precision: 5, scale: 2 }).notNull().default("0"),
+  pricesIncludeTax: boolean("prices_include_tax").notNull().default(false),
+  // Descuento global: PERCENTAGE | FIXED
+  discountType: text("discount_type"),
+  discountValue: decimal("discount_value", { precision: 10, scale: 2 }).notNull().default("0"),
+  // Vigencia
+  validityPresetId: pgUuid("validity_preset_id").references(() => validityPresets.id),
+  validityDays: integer("validity_days"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  // Totales cacheados (recalculados en cada guardado)
+  subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull().default("0"),
+  totalDiscount: decimal("total_discount", { precision: 10, scale: 2 }).notNull().default("0"),
+  totalTax: decimal("total_tax", { precision: 10, scale: 2 }).notNull().default("0"),
+  total: decimal("total", { precision: 10, scale: 2 }).notNull().default("0"),
+  notes: text("notes"),
+  pdfKey: text("pdf_key"),
+  pdfGeneratedAt: timestamp("pdf_generated_at", { withTimezone: true }),
+  sentByEmailAt: timestamp("sent_by_email_at", { withTimezone: true }),
+  publishedToPortalAt: timestamp("published_to_portal_at", { withTimezone: true }),
+  createdBy: pgUuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => [
+  index("idx_quotes_status").on(table.status),
+  index("idx_quotes_channel").on(table.channel),
+  index("idx_quotes_account").on(table.accountId),
+  index("idx_quotes_lead").on(table.leadId),
+  index("idx_quotes_expires").on(table.expiresAt),
+]);
+
+export const quotesRelations = relations(quotes, ({ one, many }) => ({
+  account: one(corporateAccounts, { fields: [quotes.accountId], references: [corporateAccounts.id] }),
+  lead: one(leads, { fields: [quotes.leadId], references: [leads.id] }),
+  taxPreset: one(taxPresets, { fields: [quotes.taxPresetId], references: [taxPresets.id] }),
+  validityPreset: one(validityPresets, { fields: [quotes.validityPresetId], references: [validityPresets.id] }),
+  creator: one(users, { fields: [quotes.createdBy], references: [users.id] }),
+  items: many(quoteItems),
+  documents: many(quoteDocuments),
 }));
 
-// ─── Quote Attachments (Documentos PDF adjuntos: cotización, factura, etc.) ───
-export const quoteAttachments = pgTable("quote_attachments", {
+// ─── Quote Items (Líneas de cotización — catálogo o libres) ───
+export const quoteItems = pgTable("quote_items", {
   id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
-  quoteId: pgUuid("quote_id").notNull().references(() => quoteRequests.id, { onDelete: "cascade" }),
+  quoteId: pgUuid("quote_id").notNull().references(() => quotes.id, { onDelete: "cascade" }),
+  // Kind: CATALOG | FREE
+  kind: text("kind").notNull(),
+  productId: pgUuid("product_id").references(() => products.id),
+  variantId: pgUuid("variant_id").references(() => productVariants.id),
+  setId: pgUuid("set_id").references(() => corporateSets.id),
+  size: text("size"),
+  color: text("color"),
+  // Obligatoria en FREE; autogenerada (editable) en CATALOG
+  description: text("description").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  suggestedUnitPrice: decimal("suggested_unit_price", { precision: 10, scale: 2 }),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull().default("0"),
+  // Descuento de línea: PERCENTAGE | FIXED
+  discountType: text("discount_type"),
+  discountValue: decimal("discount_value", { precision: 10, scale: 2 }).notNull().default("0"),
+  taxRateOverride: decimal("tax_rate_override", { precision: 5, scale: 2 }),
+  // Desglose del motor de reglas para esta línea (auditoría)
+  pricingBreakdown: jsonb("pricing_breakdown"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => [
+  index("idx_quote_items_quote").on(table.quoteId),
+  index("idx_quote_items_product").on(table.productId),
+  index("idx_quote_items_set").on(table.setId),
+]);
+
+export const quoteItemsRelations = relations(quoteItems, ({ one }) => ({
+  quote: one(quotes, { fields: [quoteItems.quoteId], references: [quotes.id] }),
+  product: one(products, { fields: [quoteItems.productId], references: [products.id] }),
+  variant: one(productVariants, { fields: [quoteItems.variantId], references: [productVariants.id] }),
+  set: one(corporateSets, { fields: [quoteItems.setId], references: [corporateSets.id] }),
+}));
+
+// ─── Quote Documents (Documentos adjuntos manuales: cotización, factura, nota de entrega, etc.) ───
+export const quoteDocuments = pgTable("quote_documents", {
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
+  quoteId: pgUuid("quote_id").notNull().references(() => quotes.id, { onDelete: "cascade" }),
   // Type: COTIZACION, FACTURA, NOTA_ENTREGA, OTRO
   type: text("type").notNull(),
   fileName: text("file_name"),
@@ -191,7 +273,13 @@ export const quoteAttachments = pgTable("quote_attachments", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
-export const quoteAttachmentsRelations = relations(quoteAttachments, ({ one }) => ({
-  quote: one(quoteRequests, { fields: [quoteAttachments.quoteId], references: [quoteRequests.id] }),
-  uploader: one(users, { fields: [quoteAttachments.uploadedBy], references: [users.id] }),
+export const quoteDocumentsRelations = relations(quoteDocuments, ({ one }) => ({
+  quote: one(quotes, { fields: [quoteDocuments.quoteId], references: [quotes.id] }),
+  uploader: one(users, { fields: [quoteDocuments.uploadedBy], references: [users.id] }),
 }));
+
+// ─── Quote Number Counters (Contador atómico de numeración por año) ───
+export const quoteNumberCounters = pgTable("quote_number_counters", {
+  year: integer("year").primaryKey(),
+  lastNumber: integer("last_number").notNull().default(0),
+});

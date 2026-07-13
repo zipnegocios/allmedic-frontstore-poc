@@ -10,9 +10,6 @@ import {
   setGroups as setGroupsTable,
   corporateSets as corporateSetsTable,
   setItems as setItemsTable,
-  quoteRequests as quoteRequestsTable,
-  quoteStatusHistory as quoteStatusHistoryTable,
-  quoteAttachments as quoteAttachmentsTable,
   corporateAccounts as corporateAccountsTable,
   businessRules as businessRulesTable,
   mediaLinks as mediaLinksTable,
@@ -433,6 +430,11 @@ export async function getAdminLeads(opts: {
 
 export async function updateLeadStatus(id: string, status: string) {
   await db.update(leadsTable).set({ status }).where(eq(leadsTable.id, id));
+}
+
+export async function getAdminLeadById(id: string) {
+  const [lead] = await db.select().from(leadsTable).where(eq(leadsTable.id, id)).limit(1);
+  return lead ?? null;
 }
 
 // ── Brands ──
@@ -856,22 +858,7 @@ export async function getGroupEligibleProducts() {
   });
 }
 
-// ── Quote Requests (Solicitudes de Cotización) — Fase 2: dashboard mínimo de solo lectura ──
-
-export async function getAdminQuotes() {
-  return db
-    .select({
-      id: quoteRequestsTable.id,
-      code: quoteRequestsTable.code,
-      customerData: quoteRequestsTable.customerData,
-      referenceSubtotal: quoteRequestsTable.referenceSubtotal,
-      quotedTotal: quoteRequestsTable.quotedTotal,
-      status: quoteRequestsTable.status,
-      createdAt: quoteRequestsTable.createdAt,
-    })
-    .from(quoteRequestsTable)
-    .orderBy(desc(quoteRequestsTable.createdAt));
-}
+// ── Cotizaciones: ver src/lib/quotes/service.ts (CRUD completo del módulo Cotizaciones Pro) ──
 
 // ── Corporate Accounts (Cuentas Corporativas) ──
 
@@ -901,79 +888,6 @@ export async function updateCorporateAccountStatus(
     .where(eq(corporateAccountsTable.id, id))
     .returning();
   return account;
-}
-
-export async function getAdminQuoteById(id: string) {
-  const [quote] = await db.select().from(quoteRequestsTable).where(eq(quoteRequestsTable.id, id)).limit(1);
-  if (!quote) return null;
-
-  let account = null;
-  if (quote.accountId) {
-    const [acc] = await db.select().from(corporateAccountsTable).where(eq(corporateAccountsTable.id, quote.accountId)).limit(1);
-    account = acc ?? null;
-  }
-
-  const [history, attachments] = await Promise.all([
-    getQuoteStatusHistory(id),
-    getQuoteAttachments(id),
-  ]);
-
-  return { ...quote, account, history, attachments };
-}
-
-export async function addQuoteAttachment(
-  quoteId: string,
-  data: { type: string; fileName: string; fileUrl: string; uploadedBy: string }
-) {
-  const [attachment] = await db.insert(quoteAttachmentsTable).values({ quoteId, ...data }).returning();
-  return attachment;
-}
-
-export async function getQuoteAttachments(quoteId: string) {
-  return db
-    .select()
-    .from(quoteAttachmentsTable)
-    .where(eq(quoteAttachmentsTable.quoteId, quoteId))
-    .orderBy(desc(quoteAttachmentsTable.createdAt));
-}
-
-export async function updateQuote(
-  id: string,
-  changes: {
-    quotedItems?: unknown;
-    quotedTotal?: string;
-    status?: string;
-    internalNotes?: string;
-  },
-  changedBy: string,
-  note?: string
-) {
-  const [current] = await db.select().from(quoteRequestsTable).where(eq(quoteRequestsTable.id, id)).limit(1);
-  if (!current) return null;
-
-  const [updated] = await db
-    .update(quoteRequestsTable)
-    .set({ ...changes, updatedAt: new Date() })
-    .where(eq(quoteRequestsTable.id, id))
-    .returning();
-
-  let historyEntry = null;
-  if (changes.status && changes.status !== current.status) {
-    [historyEntry] = await db
-      .insert(quoteStatusHistoryTable)
-      .values({ quoteId: id, fromStatus: current.status, toStatus: changes.status, changedBy, note })
-      .returning();
-  }
-
-  return { quote: updated, historyEntry };
-}
-
-export async function getQuoteStatusHistory(quoteId: string) {
-  return db
-    .select()
-    .from(quoteStatusHistoryTable)
-    .where(eq(quoteStatusHistoryTable.quoteId, quoteId))
-    .orderBy(desc(quoteStatusHistoryTable.createdAt));
 }
 
 // ── Business Rules (Motor de Reglas) ──

@@ -1,19 +1,19 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
-import { getCorporateAccountByUserId, getQuoteRequestsByAccountId } from '@/lib/corporate-data-service';
+import { getCorporateAccountByUserId, getQuotesByAccountId } from '@/lib/corporate-data-service';
 import { Clock, XCircle, Ban, FileText, Download } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
 const STATUS_LABELS: Record<string, string> = {
-  RECEIVED: 'Recibida',
-  IN_REVIEW: 'En revisión',
-  QUOTED: 'Cotizada',
-  SENT: 'Enviada',
-  APPROVED: 'Aprobada',
+  DRAFT: 'Borrador',
+  FINAL: 'Definitiva',
+};
+
+const OUTCOME_LABELS: Record<string, string> = {
+  ACCEPTED: 'Aceptada',
   REJECTED: 'Rechazada',
-  CLOSED: 'Cerrada',
 };
 
 const ATTACHMENT_LABELS: Record<string, string> = {
@@ -84,7 +84,7 @@ export default async function MiCuentaPage() {
     );
   }
 
-  const quotes = await getQuoteRequestsByAccountId(account.id);
+  const quotes = await getQuotesByAccountId(account.id);
 
   return (
     <main className="pt-14 sm:pt-16 min-h-screen">
@@ -119,19 +119,36 @@ export default async function MiCuentaPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {quotes.map((quote) => (
+            {quotes.map((quote) => {
+              const isExpired = !quote.outcome && !!quote.expiresAt && new Date(quote.expiresAt) < new Date();
+              return (
               <div key={quote.id} className="border border-[#E5E5E5] rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <code className="text-sm font-bold bg-gray-100 px-2 py-1 rounded">{quote.code}</code>
-                  <span className="text-xs px-2 py-1 bg-[#F5F5F7] rounded-full font-medium">
-                    {STATUS_LABELS[quote.status] || quote.status}
-                  </span>
+                  <code className="text-sm font-bold bg-gray-100 px-2 py-1 rounded">{quote.quoteNumber ?? 'Borrador'}</code>
+                  <div className="flex gap-2">
+                    {isExpired && (
+                      <span className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded-full font-medium">Vencida</span>
+                    )}
+                    <span className="text-xs px-2 py-1 bg-[#F5F5F7] rounded-full font-medium">
+                      {quote.outcome ? OUTCOME_LABELS[quote.outcome] : STATUS_LABELS[quote.status] || quote.status}
+                    </span>
+                  </div>
                 </div>
                 <p className="text-sm text-gray-500">
-                  {new Date(quote.createdAt!).toLocaleDateString('es-EC')} — Total referencial: $
-                  {Number(quote.referenceSubtotal).toFixed(2)}
-                  {quote.quotedTotal && ` — Total cotizado: $${Number(quote.quotedTotal).toFixed(2)}`}
+                  {new Date(quote.createdAt!).toLocaleDateString('es-EC')} — Total: $
+                  {Number(quote.total).toFixed(2)}
                 </p>
+                {quote.pdfKey && (
+                  <a
+                    href={`${process.env.R2_QUOTES_PUBLIC_URL ?? ''}/${quote.pdfKey}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-flex items-center gap-1 text-xs px-3 py-1.5 border border-[#E5E5E5] rounded-full hover:bg-[#F5F5F7] transition-colors"
+                  >
+                    <Download className="w-3 h-3" />
+                    Descargar cotización (PDF)
+                  </a>
+                )}
                 {quote.attachments.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {quote.attachments.map((att) => (
@@ -149,7 +166,8 @@ export default async function MiCuentaPage() {
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/db';
-import { quoteRequests, corporateAccounts } from '@/db/schema';
-import { sql, eq } from 'drizzle-orm';
+import { quotes, quoteItems, corporateAccounts } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import {
   getAllBusinessRules,
@@ -44,21 +44,12 @@ const QuoteRequestSchema = z.object({
   cart: z.object({ items: z.array(CartItemSchema).min(1) }),
 });
 
-async function generateQuoteCode(): Promise<string> {
-  const year = new Date().getFullYear();
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(quoteRequests)
-    .where(sql`extract(year from ${quoteRequests.createdAt}) = ${year}`);
-  const nextNumber = Number(count) + 1;
-  return `COT-${year}-${String(nextNumber).padStart(4, '0')}`;
-}
-
 /**
  * POST /api/corporate/quotes
- * Recibe una solicitud de cotización corporativa. Re-valida reglas y recalcula
- * precios EN SERVIDOR — el payload del cliente nunca se confía directamente
- * (regla de oro del proyecto: el servidor es la fuente de verdad).
+ * Recibe una solicitud de cotización corporativa y crea un BORRADOR en el módulo de
+ * Cotizaciones Pro (sin `quoteNumber` — se asigna solo al pasar a DEFINITIVA desde el panel
+ * admin). Re-valida reglas y recalcula precios EN SERVIDOR — el payload del cliente nunca se
+ * confía directamente (regla de oro del proyecto: el servidor es la fuente de verdad).
  */
 export async function POST(request: NextRequest) {
   try {
@@ -120,36 +111,67 @@ export async function POST(request: NextRequest) {
       accountId = account?.id ?? null;
     }
 
-    const code = await generateQuoteCode();
-
     const noteBlocks: string[] = [];
     if (informativeIssues.length > 0) {
       noteBlocks.push(`Avisos de inventario al momento de la solicitud:\n${informativeIssues.map((i) => `- ${i.message}`).join('\n')}`);
     }
     if (pricing.promoNotes.length > 0) {
-      // GIFT no tiene efecto monetario — la nota queda en internalNotes para que ventas la honre
+      // GIFT no tiene efecto monetario — la nota queda en notes para que ventas la honre
       // al elaborar la cotización real (regla de oro del proyecto: el snapshot vive en el servidor).
       noteBlocks.push(`Regalos/promociones informativas a honrar:\n${pricing.promoNotes.map((n) => `- ${n}`).join('\n')}`);
     }
-    const internalNotes = noteBlocks.length > 0 ? noteBlocks.join('\n\n') : null;
+    const notes = noteBlocks.length > 0 ? noteBlocks.join('\n\n') : null;
+
+    const totalDiscount = pricing.volumeDiscountAmount + pricing.promoDiscountAmount;
 
     const [quote] = await db
-      .insert(quoteRequests)
+      .insert(quotes)
       .values({
-        code,
+        status: 'DRAFT',
+        channel: 'CORPORATE',
         accountId,
-        customerData,
-        items: cart.items,
-        referenceSubtotal: pricing.total.toFixed(2),
-        status: 'RECEIVED',
-        internalNotes,
+        customerName: customerData.razonSocial,
+        customerIdNumber: customerData.ruc,
+        customerContactName: customerData.contactName,
+        customerEmail: customerData.email,
+        customerPhone: customerData.phone,
+        customerCity: customerData.city,
+        subtotal: pricing.subtotalBeforeDiscount.toFixed(2),
+        totalDiscount: totalDiscount.toFixed(2),
+        totalTax: '0',
+        total: pricing.total.toFixed(2),
+        notes,
       })
       .returning();
 
+    let sortOrder = 0;
+    for (const item of cart.items) {
+      const line = pricing.lines.find((l) => l.setId === item.setId);
+      const unitPrice = line?.unitPrice ?? 0;
+      for (const cartLine of item.lines) {
+        const sizes = Array.from(new Set(cartLine.pieceSelections.map((p) => p.size).filter(Boolean)));
+        const description = sizes.length > 0
+          ? `${item.setName ?? 'Set'} — Talla ${sizes.join('/')}`
+          : (item.setName ?? 'Set');
+        await db.insert(quoteItems).values({
+          quoteId: quote.id,
+          kind: 'CATALOG',
+          setId: item.setId,
+          size: sizes.length === 1 ? sizes[0] : null,
+          description,
+          quantity: cartLine.quantity,
+          suggestedUnitPrice: unitPrice.toFixed(2),
+          unitPrice: unitPrice.toFixed(2),
+          pricingBreakdown: { composition: cartLine.pieceSelections },
+          sortOrder: sortOrder++,
+        });
+      }
+    }
+
     return NextResponse.json(
       {
-        code: quote.code,
         id: quote.id,
+        quoteNumber: null,
         referenceSubtotal: pricing.total,
         warnings: informativeIssues.map((i) => i.message),
         promoNotes: pricing.promoNotes,

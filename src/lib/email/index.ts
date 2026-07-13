@@ -11,10 +11,16 @@ function getResend(): Resend | null {
   return _resend;
 }
 
+interface SendEmailAttachment {
+  filename: string;
+  content: Buffer;
+}
+
 interface SendEmailOptions {
   to: string | string[];
   subject: string;
   html: string;
+  attachments?: SendEmailAttachment[];
 }
 
 /**
@@ -22,7 +28,7 @@ interface SendEmailOptions {
  * hace fallback silencioso (log + no-op) en vez de fallar la operación
  * que disparó el correo (registro, cotización, etc.).
  */
-export async function sendEmail({ to, subject, html }: SendEmailOptions): Promise<void> {
+export async function sendEmail({ to, subject, html, attachments }: SendEmailOptions): Promise<void> {
   const resend = getResend();
   if (!resend) {
     console.log(`[email] RESEND_API_KEY no configurado — correo omitido: "${subject}" para ${to}`);
@@ -30,7 +36,7 @@ export async function sendEmail({ to, subject, html }: SendEmailOptions): Promis
   }
 
   try {
-    await resend.emails.send({ from: FROM_ADDRESS, to, subject, html });
+    await resend.emails.send({ from: FROM_ADDRESS, to, subject, html, attachments });
   } catch (err) {
     console.error('[email] Error enviando correo:', err);
   }

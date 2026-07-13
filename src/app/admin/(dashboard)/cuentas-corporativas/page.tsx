@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Building2, Check, X, Ban } from 'lucide-react';
+import { Building2, Check, X, Ban, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Select,
@@ -188,6 +189,9 @@ export default function AdminCorporateAccountsPage() {
                               <Ban className="w-4 h-4" />
                             </Button>
                           )}
+                          <Link href={`/admin/cuentas-corporativas/${account.id}`}>
+                            <Button size="sm" variant="ghost" title="Ver detalle"><Eye className="w-4 h-4" /></Button>
+                          </Link>
                         </div>
                       </TableCell>
                     </TableRow>

@@ -110,6 +110,24 @@ const QUOTE_STATUS_MESSAGES: Record<string, string> = {
   CLOSED: 'Tu solicitud ha sido cerrada.',
 };
 
+export function quoteSentEmail(params: { customerName: string; quoteNumber: string; total: number }): {
+  subject: string;
+  html: string;
+} {
+  const { customerName, quoteNumber, total } = params;
+  return {
+    subject: `Tu cotización ${quoteNumber} — AllMedic Uniforms`,
+    html: wrap(
+      'Tu Cotización',
+      `
+        <p>Hola ${customerName},</p>
+        <p>Adjuntamos tu cotización <strong>${quoteNumber}</strong> por un total de <strong>$${total.toFixed(2)}</strong>.</p>
+        <p>Si tienes alguna pregunta, contáctanos respondiendo este correo.</p>
+      `
+    ),
+  };
+}
+
 export function quoteStatusChangedEmail(params: { contactName: string; code: string; newStatus: string }): {
   subject: string;
   html: string;

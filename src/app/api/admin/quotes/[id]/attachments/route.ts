@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAdmin, getSessionUserId } from '@/lib/admin-auth';
-import { addQuoteAttachment } from '@/lib/admin-data-service';
+import { db } from '@/db';
+import { quoteDocuments } from '@/db/schema';
 import { resolveMediaUrl } from '@/lib/media';
 
 const ConfirmSchema = z.object({
@@ -13,7 +14,7 @@ const ConfirmSchema = z.object({
 /**
  * POST /api/admin/quotes/[id]/attachments
  * Confirma un adjunto ya subido a R2 (después del PUT al `uploadUrl` presignado)
- * y crea el registro en `quote_attachments`. No sube el archivo — solo registra.
+ * y crea el registro en `quote_documents`. No sube el archivo — solo registra.
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -26,12 +27,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'No se pudo identificar al administrador' }, { status: 500 });
     }
 
-    const attachment = await addQuoteAttachment(quoteId, {
-      type,
-      fileName,
-      fileUrl: resolveMediaUrl(key),
-      uploadedBy,
-    });
+    const [attachment] = await db
+      .insert(quoteDocuments)
+      .values({ quoteId, type, fileName, fileUrl: resolveMediaUrl(key), uploadedBy })
+      .returning();
 
     return NextResponse.json(attachment, { status: 201 });
   } catch (err) {

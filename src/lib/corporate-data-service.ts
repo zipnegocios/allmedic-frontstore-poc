@@ -9,12 +9,12 @@ import {
   productVariants as variantsTable,
   businessRules as businessRulesTable,
   corporateAccounts as corporateAccountsTable,
-  quoteRequests as quoteRequestsTable,
-  quoteAttachments as quoteAttachmentsTable,
+  quotes as quotesTable,
+  quoteDocuments as quoteDocumentsTable,
   mediaLinks as mediaLinksTable,
   mediaAssets as mediaAssetsTable,
 } from '@/db/schema';
-import { eq, and, inArray, asc, desc, sql } from 'drizzle-orm';
+import { eq, and, inArray, asc, desc, sql, isNotNull } from 'drizzle-orm';
 import type { BusinessRule, InventoryStockSnapshot, SetPieceInfo } from './rules-engine';
 import type { CorporateSetSummary, CorporateSetDetail, SetPiece, SetGroupSummary } from './corporate-types';
 import type { ProductColor, ProductVariant } from './types';
@@ -480,20 +480,22 @@ export async function getCorporateAccountByUserId(userId: string) {
   return account ?? null;
 }
 
-export async function getQuoteRequestsByAccountId(accountId: string) {
-  const quotes = await db
+/** Cotizaciones visibles en el portal del cliente: solo las publicadas explícitamente
+ * (`publishedToPortalAt`) — el resto son borradores/trabajo interno del vendedor. */
+export async function getQuotesByAccountId(accountId: string) {
+  const rows = await db
     .select()
-    .from(quoteRequestsTable)
-    .where(eq(quoteRequestsTable.accountId, accountId))
-    .orderBy(desc(quoteRequestsTable.createdAt));
+    .from(quotesTable)
+    .where(and(eq(quotesTable.accountId, accountId), isNotNull(quotesTable.publishedToPortalAt)))
+    .orderBy(desc(quotesTable.createdAt));
 
-  const quoteIds = quotes.map((q) => q.id);
-  const attachments = quoteIds.length > 0
-    ? await db.select().from(quoteAttachmentsTable).where(inArray(quoteAttachmentsTable.quoteId, quoteIds))
+  const quoteIds = rows.map((q) => q.id);
+  const documents = quoteIds.length > 0
+    ? await db.select().from(quoteDocumentsTable).where(inArray(quoteDocumentsTable.quoteId, quoteIds))
     : [];
 
-  return quotes.map((q) => ({
+  return rows.map((q) => ({
     ...q,
-    attachments: attachments.filter((a) => a.quoteId === q.id),
+    attachments: documents.filter((d) => d.quoteId === q.id),
   }));
 }

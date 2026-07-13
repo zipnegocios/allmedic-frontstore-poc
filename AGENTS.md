@@ -187,7 +187,8 @@ The schema is defined across multiple files in `src/db/schema/`:
 | **Auth** | `users`, `accounts`, `sessions`, `verificationTokens` | `auth.ts` |
 | **Catalog** | `brands`, `collections`, `colors`, `products`, `productVariants` | `products.ts` |
 | **Commerce** | `orders`, `orderItems`, `volumeDiscounts`, `cartItems` | `commerce.ts` |
-| **Corporate** | `setGroups`, `corporateSets`, `setItems`, `businessRules`, `corporateAccounts`, `corporateCarts`, `quoteRequests`, `quoteStatusHistory`, `quoteAttachments` | `corporate.ts` (NEW - Fase 1) |
+| **Corporate** | `setGroups`, `corporateSets`, `setItems`, `businessRules`, `corporateAccounts`, `corporateCarts`, `quotes`, `quoteItems`, `quoteDocuments`, `taxPresets`, `validityPresets`, `quoteNumberCounters` | `corporate.ts` |
+| **Settings** | `companySettings` | `settings.ts` |
 | **Stores** | `stores` | `products.ts` |
 | **RAG/Chat** | `documents`, `embeddings`, `chats` | `rag.ts`, `chats.ts` |
 
@@ -235,6 +236,34 @@ All API routes return JSON. The GET `/api/leads` route has a `// TODO: Add auth 
 
 ---
 
+## Módulo de Cotizaciones (`src/lib/quotes/`, `/admin/cotizaciones`, `/admin/configuracion`)
+
+Herramienta de venta asistida para construir cotizaciones corporativas e individuales, 100% editables por el vendedor, con precios sugeridos por el motor de reglas, impuestos flexibles, vigencia, y PDF con membrete almacenado en un bucket R2 dedicado.
+
+**Esquema** (`src/db/schema/corporate.ts`, `src/db/schema/settings.ts`):
+- `quotes` — cabecera: `status` (`DRAFT|FINAL`), `outcome` (`ACCEPTED|REJECTED|null`), `channel` (`CORPORATE|RETAIL`), FK opcional a `corporateAccounts`/`leads`, snapshot de cliente editable, configuración de impuesto/descuento/vigencia, totales cacheados, `pdfKey`/`pdfGeneratedAt`, `sentByEmailAt`, `publishedToPortalAt`.
+- `quoteItems` — líneas: `kind` (`CATALOG|FREE`), FKs opcionales a producto/variante/set, `unitPrice` (fijado por el vendedor) vs. `suggestedUnitPrice` (calculado por el motor), `pricingBreakdown` JSON de auditoría.
+- `quoteDocuments` — adjuntos manuales (cotización/factura/nota de entrega escaneadas), independientes del PDF generado por el sistema.
+- `taxPresets`, `validityPresets`, `companySettings` (singleton) — administrables desde `/admin/configuracion`.
+- `quoteNumberCounters` — contador atómico por año para `quoteNumber` (formato `COT-YYYY-NNNNN`), asignado solo al pasar a `FINAL`.
+
+**Flujo de estado:** `DRAFT` → `FINAL` (asigna `quoteNumber`, genera y sube el PDF) → `outcome` manual (`ACCEPTED`/`REJECTED`). Editar una cotización `FINAL` regenera el PDF sobre la misma `pdfKey` — el enlace ya compartido con el cliente siempre muestra la versión vigente.
+
+**Servicios puros** (sin dependencia de BD, con tests en `src/lib/quotes/__tests__/`):
+- `pricing.ts` — `resolveSuggestedPrice()` consume el motor de reglas (`src/lib/rules-engine/`, sin modificarlo) para sugerir precio por línea (volumen + promociones).
+- `totals.ts` — `computeQuoteTotals()` calcula subtotal → descuento global → impuesto (ambos modos: incluido/sumado, con overrides de tarifa por línea) → total. Mismo resultado en cliente (preview) y servidor (fuente de verdad).
+- `numbering.ts` — asignación atómica de `quoteNumber` vía `quote_number_counters`.
+
+**Servicios con BD** (`service.ts`, `finalize.ts`, `delivery.ts`): CRUD, transición a `FINAL`, envío por correo (adjunta el PDF vía Resend) y publicación en el portal del cliente corporativo (`/corporativo/mi-cuenta`, que solo muestra cotizaciones con `publishedToPortalAt` no nulo).
+
+**PDF:** `@react-pdf/renderer` (`pdf.ts`/`pdf-template.tsx`), subido al bucket R2 dedicado `cotizaciones` (variables `R2_QUOTES_BUCKET`/`R2_QUOTES_PUBLIC_URL`, mismas credenciales que la Media Library — ver `src/lib/r2.ts`, parametrizado por `target: 'MEDIA' | 'QUOTES'`). La clave del objeto incluye un token `nanoid` no adivinable.
+
+**Integraciones:**
+- `/admin/prospectos/[id]` (detalle de `leads`, canal individual) y `/admin/cuentas-corporativas/[id]` (detalle de cuenta corporativa) tienen un botón "Crear cotización" que pre-carga el borrador. Para prospectos, el `lead.status` pasa a `COTIZADO` en la misma transacción. El canal corporativo no tiene etapa de "prospecto" — pasa directo de `corporateAccounts` a `quotes`.
+- El checkout del carrito corporativo (`POST /api/corporate/quotes`) crea directamente un `quotes` en `DRAFT` con sus `quoteItems`, en vez del modelo JSONB legacy.
+
+---
+
 ## Code Style Guidelines
 
 ### TypeScript
@@ -275,9 +304,7 @@ Flat config (`eslint.config.js`):
 
 ## Testing
 
-**No test framework is currently configured.** There are zero `*.test.*` or `*.spec.*` files. No Jest, Vitest, Playwright, or Cypress in dependencies.
-
-If you add tests, the convention would be to place them next to the files they test or in a `__tests__` directory.
+Vitest is configured (`npm run test` → `vitest run`). Tests live in `__tests__/` directories next to the code they test — see `src/lib/rules-engine/__tests__/`, `src/lib/__tests__/set-pricing.test.ts`, and `src/lib/quotes/__tests__/` for the established convention. Coverage focuses on pure business-logic modules (rules engine, pricing, totals) — no DB/network mocking framework is set up, so modules that need one (Drizzle CRUD, R2, PDF generation) are validated manually rather than with automated integration tests.
 
 ---
 
@@ -315,8 +342,9 @@ There is **no CI/CD, Docker, or GitHub Actions** configured. Deployment is manua
 1. **README.md is outdated** — still references Vite + React Router. Use this `AGENTS.md` for accurate info.
 2. **`src/lib/dummy-data.ts` still exists** and may be referenced in legacy code. Prefer `data-service.ts` for all new work.
 3. **`src/legacy-pages/` directory** contains old page implementations. Gradually migrate to `src/app/` structure.
-4. **Rutas del panel admin en español** — todas las rutas de páginas bajo `/admin/*` (excepto `/admin`, `/admin/login`, `/admin/banners`, `/admin/sets` que ya usaban el término correcto) están en español: `/admin/productos`, `/admin/biblioteca`, `/admin/prospectos`, `/admin/marcas`, `/admin/colores`, `/admin/sucursales`, `/admin/grupos-de-sets`, `/admin/cuentas-corporativas`, `/admin/cotizaciones`, `/admin/reglas`. Las rutas viejas en inglés tienen redirects 301 permanentes en `next.config.ts`. Las rutas `/api/admin/*` permanecen en inglés, sin cambios.
-5. **Drizzle schema — corporate catalog** — `corporate.ts` (set_groups, corporate_sets, set_items, business_rules, corporate_accounts, corporate_carts, quote_requests, quote_status_history, quote_attachments) is implemented and exported from `src/db/schema/index.ts`. See `.claude/pre-plans/PLAN-catalogos-segmentados.md` for the original rules-engine design.
+4. **Rutas del panel admin en español** — todas las rutas de páginas bajo `/admin/*` (excepto `/admin`, `/admin/login`, `/admin/banners`, `/admin/sets` que ya usaban el término correcto) están en español: `/admin/productos`, `/admin/biblioteca`, `/admin/prospectos`, `/admin/marcas`, `/admin/colores`, `/admin/sucursales`, `/admin/grupos-de-sets`, `/admin/cuentas-corporativas`, `/admin/cotizaciones`, `/admin/reglas`, `/admin/configuracion`. Las rutas viejas en inglés tienen redirects 301 permanentes en `next.config.ts`. Las rutas `/api/admin/*` permanecen en inglés, sin cambios.
+5. **Drizzle schema — corporate catalog** — `corporate.ts` (set_groups, corporate_sets, set_items, business_rules, corporate_accounts, corporate_carts, quotes, quote_items, quote_documents, tax_presets, validity_presets, quote_number_counters) is implemented and exported from `src/db/schema/index.ts`. See `.claude/pre-plans/PLAN-catalogos-segmentados.md` for the original rules-engine design.
+6. **`db:push` no interactivo bloqueado por drift preexistente en `media_links`** — `drizzle-kit push` propone (sin necesidad real) volver a agregar el constraint `uniq_media_links`, que ya existe en la base y no tiene filas duplicadas. Es un falso positivo de la introspección de `drizzle-kit`, no relacionado con el módulo de cotizaciones — investigar antes de automatizar `db:push` en CI/CD.
 
 ---
 

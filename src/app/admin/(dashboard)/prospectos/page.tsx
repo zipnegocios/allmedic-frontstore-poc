@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   Table,
@@ -13,7 +14,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { LEAD_STATUS_LABELS, LEAD_STATUS_COLORS } from '@/lib/lead-status';
 
@@ -90,6 +91,7 @@ export default function AdminLeadsPage() {
                 <SelectItem value={ALL_STATUSES}>Todos</SelectItem>
                 <SelectItem value="SENT">Enviado</SelectItem>
                 <SelectItem value="PROCESSING">En proceso</SelectItem>
+                <SelectItem value="COTIZADO">Cotizado</SelectItem>
                 <SelectItem value="COMPLETED">Completado</SelectItem>
                 <SelectItem value="CANCELLED">Cancelado</SelectItem>
               </SelectContent>
@@ -109,16 +111,17 @@ export default function AdminLeadsPage() {
                 <TableHead>Total</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead>Fecha</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">Cargando...</TableCell>
+                  <TableCell colSpan={7} className="text-center py-8">Cargando...</TableCell>
                 </TableRow>
               ) : leads.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-gray-500">No hay pedidos</TableCell>
+                  <TableCell colSpan={7} className="text-center py-8 text-gray-500">No hay pedidos</TableCell>
                 </TableRow>
               ) : (
                 leads.map((lead) => (
@@ -145,6 +148,7 @@ export default function AdminLeadsPage() {
                         <SelectContent>
                           <SelectItem value="SENT">Enviado</SelectItem>
                           <SelectItem value="PROCESSING">En proceso</SelectItem>
+                          <SelectItem value="COTIZADO">Cotizado</SelectItem>
                           <SelectItem value="COMPLETED">Completado</SelectItem>
                           <SelectItem value="CANCELLED">Cancelado</SelectItem>
                         </SelectContent>
@@ -152,6 +156,11 @@ export default function AdminLeadsPage() {
                     </TableCell>
                     <TableCell className="text-sm text-gray-500">
                       {new Date(lead.createdAt).toLocaleDateString('es-EC')}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Link href={`/admin/prospectos/${lead.id}`}>
+                        <Button size="sm" variant="ghost"><Eye className="w-4 h-4" /></Button>
+                      </Link>
                     </TableCell>
                   </TableRow>
                 ))
