@@ -1,11 +1,11 @@
-import { pgTable, text, integer, timestamp, vector, index, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, vector, index, jsonb, uuid as pgUuid } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { uuid } from "@/lib/uuid";
 import { products } from "./products";
 
 export const productDocuments = pgTable("product_documents", {
   id: text("id").primaryKey().$defaultFn(() => uuid()),
-  productId: text("product_id").references(() => products.id, { onDelete: "cascade" }),
+  productId: pgUuid("product_id").references(() => products.id, { onDelete: "cascade" }),
   filename: text("filename").notNull(),
   content: text("content"),
   metadata: jsonb("metadata"),

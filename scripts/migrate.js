@@ -196,16 +196,10 @@ async function migrate() {
       )
     `);
 
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS product_images (
-        id TEXT PRIMARY KEY,
-        product_id TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-        color_id TEXT,
-        url TEXT NOT NULL,
-        alt TEXT,
-        sort_order INTEGER DEFAULT 0
-      )
-    `);
+    // Nota: la tabla legacy `product_images` (product_id TEXT) ya no se crea aquí —
+    // fue reemplazada por la Media Library (`media_assets`/`media_links`, ver src/db/schema/media.ts)
+    // y su definición chocaba con `products.id` (uuid en la base real), abortando el resto
+    // de esta migración en cada arranque.
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS stores (
@@ -321,7 +315,7 @@ async function migrate() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS product_documents (
         id TEXT PRIMARY KEY,
-        product_id TEXT REFERENCES products(id) ON DELETE CASCADE,
+        product_id UUID REFERENCES products(id) ON DELETE CASCADE,
         filename TEXT NOT NULL,
         content TEXT,
         metadata JSONB,
@@ -369,7 +363,6 @@ async function migrate() {
       `CREATE INDEX IF NOT EXISTS idx_products_active ON products(is_active)`,
       `CREATE INDEX IF NOT EXISTS idx_variants_product ON product_variants(product_id)`,
       `CREATE INDEX IF NOT EXISTS idx_variants_color ON product_variants(color_id)`,
-      `CREATE INDEX IF NOT EXISTS idx_images_product ON product_images(product_id)`,
       `CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status)`,
       `CREATE INDEX IF NOT EXISTS idx_leads_created ON leads(created_at)`,
       `CREATE INDEX IF NOT EXISTS idx_conversations_channel_external ON conversations(channel, external_id)`,
@@ -409,7 +402,7 @@ async function migrate() {
     await client.query(`
       INSERT INTO users (id, name, email, password, role, created_at)
       VALUES (
-        'usr-masteradmin',
+        gen_random_uuid(),
         'masteradmin',
         'allmedicuniforms@gmail.com',
         $1,
