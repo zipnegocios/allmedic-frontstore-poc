@@ -35,12 +35,12 @@ export default async function ProspectDetailPage({ params }: { params: Promise<{
         </Button>
       </Link>
 
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-[#111111]">{lead.customerName}</h1>
+      <div className="flex flex-col gap-3 mb-6 md:flex-row md:items-center md:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-3xl font-bold text-[#111111] break-words">{lead.customerName}</h1>
           <p className="text-sm text-gray-500">{lead.customerCity} · {lead.customerPhone}</p>
         </div>
-        <Badge className={LEAD_STATUS_COLORS[lead.status ?? ''] ?? ''}>
+        <Badge className={`self-start ${LEAD_STATUS_COLORS[lead.status ?? ''] ?? ''}`}>
           {LEAD_STATUS_LABELS[lead.status ?? ''] ?? lead.status}
         </Badge>
       </div>
@@ -50,9 +50,9 @@ export default async function ProspectDetailPage({ params }: { params: Promise<{
           <h2 className="font-semibold mb-3">Pedido original</h2>
           <div className="space-y-2">
             {items.map((item, i) => (
-              <div key={i} className="flex justify-between text-sm bg-[#F5F5F7] rounded px-3 py-2">
-                <span>{item.name} {item.size ? `— Talla ${item.size}` : ''}</span>
-                <span>{item.quantity} × ${item.price.toFixed(2)}</span>
+              <div key={i} className="flex flex-wrap justify-between gap-x-3 gap-y-1 text-sm bg-[#F5F5F7] rounded px-3 py-2">
+                <span className="break-words">{item.name} {item.size ? `— Talla ${item.size}` : ''}</span>
+                <span className="shrink-0">{item.quantity} × ${item.price.toFixed(2)}</span>
               </div>
             ))}
           </div>
@@ -78,7 +78,7 @@ export default async function ProspectDetailPage({ params }: { params: Promise<{
                   <Link
                     key={q.id}
                     href={`/admin/cotizaciones/${q.id}`}
-                    className="flex justify-between items-center text-sm border rounded px-3 py-2 hover:bg-gray-50"
+                    className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm border rounded px-3 py-2 hover:bg-gray-50"
                   >
                     <span className="font-medium">{q.quoteNumber ?? 'Borrador'}</span>
                     <span>${Number(q.total).toFixed(2)}</span>
