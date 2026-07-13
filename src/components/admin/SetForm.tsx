@@ -64,6 +64,7 @@ interface SetGroup {
 interface Brand {
   id: string;
   name: string;
+  isActive: boolean;
 }
 
 interface EligibleProduct {
@@ -356,7 +357,11 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value={SELECT_EMPTY_VALUE}>Multi-marca</SelectItem>
-                        {brands.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                        {brands.map(b => (
+                          <SelectItem key={b.id} value={b.id} disabled={!b.isActive}>
+                            {b.name}{!b.isActive ? ' (Inactiva)' : ''}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   )}

@@ -87,6 +87,7 @@ type ProductFormData = z.infer<typeof ProductFormSchema>;
 interface Brand {
   id: string;
   name: string;
+  isActive: boolean;
 }
 
 interface Color {
@@ -396,7 +397,9 @@ export default function ProductForm({
                           </SelectTrigger>
                           <SelectContent>
                             {brands.map(b => (
-                              <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                              <SelectItem key={b.id} value={b.id} disabled={!b.isActive}>
+                                {b.name}{!b.isActive ? ' (Inactiva)' : ''}
+                              </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
