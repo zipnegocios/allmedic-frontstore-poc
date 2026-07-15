@@ -11,6 +11,7 @@ import { nextQuoteNumber } from "./numbering";
 import { generateQuotePdf, type CompanySettingsForPdf } from "./pdf";
 import { uploadQuotePdf } from "./pdf-storage";
 import { getQuoteById } from "./service";
+import { checkQuoteCompleteness } from "./completeness";
 import { resolveMediaUrl } from "@/lib/media";
 
 // Alfabeto sin caracteres ambiguos (0/O, 1/l/I) — el token va en una URL pública.
@@ -51,9 +52,8 @@ function buildPdfKey(quoteNumber: string): string {
 export async function finalizeQuote(id: string) {
   const quote = await getQuoteById(id);
   if (!quote) throw new QuoteFinalizeError("Cotización no encontrada");
-  if (quote.status !== "DRAFT") throw new QuoteFinalizeError("La cotización ya es definitiva");
-  if (quote.items.length === 0) throw new QuoteFinalizeError("La cotización no tiene líneas");
-  if (!quote.customerName) throw new QuoteFinalizeError("Falta el nombre del cliente");
+  const completenessError = checkQuoteCompleteness(quote);
+  if (completenessError) throw new QuoteFinalizeError(completenessError);
 
   const settings = await loadCompanySettings();
 

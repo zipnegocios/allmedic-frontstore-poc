@@ -44,6 +44,27 @@ export interface SuggestedPriceResult {
   breakdown: QuotePricingBreakdownEntry[];
 }
 
+/** Una pieza del set elegida por el cliente al armar el carrito corporativo (ver `CartLineSchema` en `/api/corporate/quotes`). */
+export interface QuoteLineCompositionPiece {
+  productId: string;
+  size?: string;
+  color?: string;
+}
+
+/**
+ * `quoteItems.pricingBreakdown` tiene dos formas legítimas según el origen de la línea:
+ * - Array de `QuotePricingBreakdownEntry`: ajustes del motor de reglas sobre una línea resuelta
+ *   por `resolveSuggestedPrice` (recalcular sugeridos en el editor admin).
+ * - `{ composition }`: piezas de un set elegidas por el cliente en el carrito corporativo
+ *   público (`POST /api/corporate/quotes`) — no hay ajuste de reglas que mostrar, solo qué
+ *   producto/talla/color componen esa línea.
+ * Ambas formas deben poder ir y volver intactas en cada `PATCH` del editor admin.
+ */
+export type QuoteItemPricingBreakdown =
+  | QuotePricingBreakdownEntry[]
+  | { composition: QuoteLineCompositionPiece[] }
+  | null;
+
 /**
  * Resuelve el precio sugerido de una línea de cotización: precio base + ajustes del motor de
  * reglas (volumen y promociones) para el contexto de esa línea. No acumula entre líneas (a

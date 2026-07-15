@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/admin-auth';
 import { getQuoteById, updateQuote, softDeleteQuote } from '@/lib/quotes/service';
 import { computeQuoteTotals } from '@/lib/quotes/totals';
 import { regenerateQuotePdf } from '@/lib/quotes/finalize';
+import { PatchQuoteSchema } from '@/lib/quotes/validation';
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -20,54 +21,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   }
 }
 
-const QuoteItemSchema = z.object({
-  id: z.string().uuid().optional(),
-  kind: z.enum(['CATALOG', 'FREE']),
-  productId: z.string().uuid().nullable().optional(),
-  variantId: z.string().uuid().nullable().optional(),
-  setId: z.string().uuid().nullable().optional(),
-  size: z.string().nullable().optional(),
-  color: z.string().nullable().optional(),
-  description: z.string().min(1),
-  quantity: z.number().min(1),
-  suggestedUnitPrice: z.number().nullable().optional(),
-  unitPrice: z.number().min(0),
-  discountType: z.enum(['PERCENTAGE', 'FIXED']).nullable().optional(),
-  discountValue: z.number().min(0).optional(),
-  taxRateOverride: z.number().nullable().optional(),
-  pricingBreakdown: z
-    .array(z.object({ ruleId: z.string(), ruleName: z.string(), kind: z.string(), amount: z.number() }))
-    .nullable()
-    .optional(),
-  sortOrder: z.number(),
-});
-
-const PatchSchema = z.object({
-  customerName: z.string().min(1).optional(),
-  customerIdNumber: z.string().nullable().optional(),
-  customerContactName: z.string().nullable().optional(),
-  customerEmail: z.string().nullable().optional(),
-  customerPhone: z.string().nullable().optional(),
-  customerAddress: z.string().nullable().optional(),
-  customerCity: z.string().nullable().optional(),
-  taxPresetId: z.string().uuid().nullable().optional(),
-  taxRate: z.number().min(0).max(100).optional(),
-  pricesIncludeTax: z.boolean().optional(),
-  discountType: z.enum(['PERCENTAGE', 'FIXED']).nullable().optional(),
-  discountValue: z.number().min(0).optional(),
-  validityPresetId: z.string().uuid().nullable().optional(),
-  validityDays: z.number().nullable().optional(),
-  expiresAt: z.coerce.date().nullable().optional(),
-  notes: z.string().nullable().optional(),
-  items: z.array(QuoteItemSchema).optional(),
-  propagateToProfile: z.boolean().optional(),
-});
-
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAdmin();
     const { id } = await params;
-    const body = PatchSchema.parse(await request.json());
+    const body = PatchQuoteSchema.parse(await request.json());
 
     const current = await getQuoteById(id);
     if (!current) return NextResponse.json({ error: 'Cotización no encontrada' }, { status: 404 });
@@ -120,7 +78,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json(await getQuoteById(id));
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Validation error', details: err.issues }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: 'Los datos de la cotización no son válidos',
+          details: err.issues.map((issue) => ({ path: issue.path, message: issue.message })),
+        },
+        { status: 400 }
+      );
     }
     const message = err instanceof Error ? err.message : 'Unknown error';
     if (message === 'Unauthorized') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

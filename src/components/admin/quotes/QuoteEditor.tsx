@@ -65,6 +65,53 @@ function toNum(v: string | number | null | undefined): number {
   return v == null ? 0 : Number(v);
 }
 
+// Etiquetas en español para los campos del PATCH — usadas para traducir `details` del 400 en un
+// mensaje accionable (ver `PatchSchema` en `src/app/api/admin/quotes/[id]/route.ts`).
+const PATCH_FIELD_LABELS_ES: Record<string, string> = {
+  customerName: 'Nombre del cliente',
+  customerIdNumber: 'RUC / Cédula',
+  customerEmail: 'Correo',
+  customerPhone: 'Teléfono',
+  customerAddress: 'Dirección',
+  customerCity: 'Ciudad',
+  taxPresetId: 'Preset de impuesto',
+  taxRate: 'Tasa de impuesto',
+  discountType: 'Tipo de descuento',
+  discountValue: 'Valor del descuento',
+  validityPresetId: 'Preset de vigencia',
+  validityDays: 'Días de vigencia',
+  expiresAt: 'Fecha de vencimiento',
+  description: 'Descripción',
+  quantity: 'Cantidad',
+  unitPrice: 'Precio unitario',
+  pricingBreakdown: 'Desglose de precio',
+};
+
+function describePatchIssue(issue: { path: (string | number)[]; message: string }): string {
+  const [first, second, third] = issue.path;
+  if (first === 'items' && typeof second === 'number') {
+    const label = typeof third === 'string' ? (PATCH_FIELD_LABELS_ES[third] ?? third) : 'datos';
+    return `Línea ${second + 1} — ${label}`;
+  }
+  const field = typeof first === 'string' ? first : null;
+  return field ? (PATCH_FIELD_LABELS_ES[field] ?? field) : 'Datos de la cotización';
+}
+
+/** Convierte el cuerpo de error del PATCH (mensaje + `details` de Zod) en un toast accionable. */
+function formatPatchErrorMessage(data: unknown): string {
+  if (data && typeof data === 'object' && 'details' in data && Array.isArray((data as { details: unknown }).details)) {
+    const details = (data as { details: { path: (string | number)[]; message: string }[] }).details;
+    if (details.length > 0) {
+      const parts = [...new Set(details.slice(0, 3).map(describePatchIssue))];
+      return `No se pudo guardar — revisa: ${parts.join(', ')}`;
+    }
+  }
+  if (data && typeof data === 'object' && 'error' in data && typeof (data as { error: unknown }).error === 'string') {
+    return (data as { error: string }).error;
+  }
+  return 'Error al guardar la cotización';
+}
+
 export function QuoteEditor({ initialQuote }: { initialQuote: QuoteEditorData }) {
   const router = useRouter();
   const isMobile = useIsMobile();
@@ -135,14 +182,14 @@ export function QuoteEditor({ initialQuote }: { initialQuote: QuoteEditorData })
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(buildPatch()),
       });
-      if (!res.ok) throw new Error('Failed');
-      const updated = await res.json();
-      setQuote(updated);
-      setItems(updated.items);
+      const data = await res.json();
+      if (!res.ok) throw new Error(formatPatchErrorMessage(data));
+      setQuote(data);
+      setItems(data.items);
       if (showToast) toast.success('Cotización guardada');
-      return updated;
-    } catch {
-      toast.error('Error al guardar la cotización');
+      return data;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al guardar la cotización');
       return null;
     } finally {
       setSaving(false);

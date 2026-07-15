@@ -6,7 +6,7 @@ import { eq, desc, and, or, ilike, isNull, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
 import { quotes, quoteItems, corporateAccounts, leads, products, quoteDocuments } from "@/db/schema";
 import { getAllBusinessRules, getSetPricesByIds, getSetMetaByIds } from "@/lib/corporate-data-service";
-import { resolveSuggestedPrice, type QuoteLineContext, type QuotePricingBreakdownEntry } from "./pricing";
+import { resolveSuggestedPrice, type QuoteLineContext, type QuoteItemPricingBreakdown } from "./pricing";
 import { deleteObject } from "@/lib/r2";
 
 export type QuoteChannel = "CORPORATE" | "RETAIL";
@@ -30,7 +30,7 @@ export interface QuoteItemInput {
   discountType?: DiscountType | null;
   discountValue?: number;
   taxRateOverride?: number | null;
-  pricingBreakdown?: QuotePricingBreakdownEntry[] | null;
+  pricingBreakdown?: QuoteItemPricingBreakdown;
   sortOrder: number;
 }
 

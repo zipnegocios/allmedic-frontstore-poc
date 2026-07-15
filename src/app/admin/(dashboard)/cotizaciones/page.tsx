@@ -180,6 +180,7 @@ export default function AdminQuotesPage() {
         open={filtersOpen}
         onOpenChange={setFiltersOpen}
         title="Filtros"
+        description="Filtra el listado de cotizaciones por estado y canal."
         footer={
           <Button className="w-full min-h-11" onClick={() => setFiltersOpen(false)}>
             Ver resultados

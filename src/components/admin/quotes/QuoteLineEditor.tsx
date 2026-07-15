@@ -184,6 +184,11 @@ export function QuoteLineEditor({
             if (!open) setCatalogSearch('');
           }}
           title={channel === 'CORPORATE' ? 'Buscar set' : 'Buscar producto'}
+          description={
+            channel === 'CORPORATE'
+              ? 'Busca un set corporativo por nombre para agregarlo como línea de la cotización.'
+              : 'Busca un producto por nombre para agregarlo como línea de la cotización.'
+          }
         >
           <div className="space-y-3">{catalogSearchPanel}</div>
         </ResponsiveDialog>
