@@ -25,6 +25,70 @@ interface AdminSetItem {
   name: string;
   slug: string;
   imageUrl: string | null;
+  mimeType: string | null;
+  previewStart: number | null;
+  previewDuration: number | null;
+}
+
+/** Portada del set con fallback al ícono de caja si la URL falla al cargar (los sets no admiten video). */
+function SetCoverThumb({ set }: { set: AdminSet }) {
+  const [failed, setFailed] = useState(false);
+
+  if (!set.imageUrl || failed) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-350">
+        <Boxes className="w-5 h-5" />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={set.imageUrl}
+      alt={set.name}
+      className="w-full h-full object-cover"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+/** Miniatura de pieza consciente de tipo de medio (imagen o video) con fallback a iniciales si la carga falla. */
+function PieceThumb({ item }: { item: AdminSetItem }) {
+  const [failed, setFailed] = useState(false);
+  const isVideo = item.mimeType?.startsWith('video/') ?? false;
+
+  if (!item.imageUrl || failed) {
+    return (
+      <div className="h-full w-full flex items-center justify-center text-[8px] text-gray-400 font-bold bg-gray-200">
+        {item.name?.substring(0, 2).toUpperCase() || 'P'}
+      </div>
+    );
+  }
+
+  if (isVideo) {
+    return (
+      <video
+        src={item.imageUrl}
+        muted
+        playsInline
+        preload="metadata"
+        className="h-full w-full object-cover"
+        onLoadedMetadata={(e) => {
+          e.currentTarget.currentTime = item.previewStart ?? 0;
+        }}
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+
+  return (
+    <img
+      src={item.imageUrl}
+      alt={item.name ?? ''}
+      className="h-full w-full object-cover"
+      onError={() => setFailed(true)}
+    />
+  );
 }
 
 interface AdminSet {
@@ -192,17 +256,7 @@ export default function AdminSetsPage() {
                 <div className="flex gap-2.5 items-start shrink-0">
                   {/* Media (25% width, 9:16 aspect) */}
                   <div className="w-1/4 aspect-[9/16] bg-gray-50 rounded overflow-hidden relative shrink-0 border border-gray-100">
-                    {set.imageUrl ? (
-                      <img
-                        src={set.imageUrl}
-                        alt={set.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-350">
-                        <Boxes className="w-5 h-5" />
-                      </div>
-                    )}
+                    <SetCoverThumb set={set} />
                     {set.isFeatured && (
                       <div className="absolute top-1 left-1 bg-amber-500 text-white p-0.5 rounded-full shadow-md">
                         <Star className="w-2.5 h-2.5 fill-white text-white" />
@@ -258,17 +312,7 @@ export default function AdminSetsPage() {
                           className="h-6 w-6 rounded border border-gray-200 bg-gray-50 overflow-hidden hover:scale-110 transition-transform duration-200 cursor-help shrink-0"
                           title={item.name}
                         >
-                          {item.imageUrl ? (
-                            <img
-                              src={item.imageUrl}
-                              alt={item.name ?? ''}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <div className="h-full w-full flex items-center justify-center text-[8px] text-gray-400 font-bold bg-gray-200">
-                              {item.name?.substring(0, 2).toUpperCase() || 'P'}
-                            </div>
-                          )}
+                          <PieceThumb item={item} />
                         </div>
                       ))}
                     </div>

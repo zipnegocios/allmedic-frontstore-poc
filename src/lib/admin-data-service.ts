@@ -743,17 +743,22 @@ export async function getAdminSets() {
       name: string | null;
       slug: string;
       imageUrl: string | null;
+      mimeType: string | null;
+      previewStart: number | null;
+      previewDuration: number | null;
     }[]
   >();
   for (const item of setProducts) {
     const list = productsBySetMap.get(item.setId) || [];
-    const storageKey = productCovers.get(item.productId);
-    const imageUrl = storageKey ? resolveMediaUrl(storageKey) : null;
+    const cover = productCovers.get(item.productId);
     list.push({
       productId: item.productId,
       name: item.productName,
       slug: item.productSlug,
-      imageUrl,
+      imageUrl: cover?.url ?? null,
+      mimeType: cover?.mimeType ?? null,
+      previewStart: cover?.previewStart ?? null,
+      previewDuration: cover?.previewDuration ?? null,
     });
     productsBySetMap.set(item.setId, list);
   }
@@ -977,13 +982,23 @@ export async function getTrashedSets() {
 }
 
 
-async function getProductCoversMap(productIds: string[]): Promise<Map<string, string>> {
+interface ProductCoverInfo {
+  url: string;
+  mimeType: string;
+  previewStart: number | null;
+  previewDuration: number | null;
+}
+
+async function getProductCoversMap(productIds: string[]): Promise<Map<string, ProductCoverInfo>> {
   if (productIds.length === 0) return new Map();
   const links = await db
     .select({
       entityId: mediaLinksTable.entityId,
       role: mediaLinksTable.role,
       storageKey: mediaAssetsTable.storageKey,
+      mimeType: mediaAssetsTable.mimeType,
+      previewStart: mediaAssetsTable.previewStartSeconds,
+      previewDuration: mediaAssetsTable.previewDurationSeconds,
       sortOrder: mediaLinksTable.sortOrder,
     })
     .from(mediaLinksTable)
@@ -994,7 +1009,7 @@ async function getProductCoversMap(productIds: string[]): Promise<Map<string, st
       inArray(mediaLinksTable.entityId, productIds)
     ));
 
-  const coverMap = new Map<string, string>();
+  const coverMap = new Map<string, ProductCoverInfo>();
   const linksByProduct = new Map<string, typeof links>();
   for (const link of links) {
     if (!linksByProduct.has(link.entityId)) {
@@ -1006,15 +1021,16 @@ async function getProductCoversMap(productIds: string[]): Promise<Map<string, st
   for (const productId of productIds) {
     const productLinks = linksByProduct.get(productId) || [];
     const coverLink = productLinks.find((l) => l.role === 'COVER');
-    if (coverLink) {
-      coverMap.set(productId, resolveMediaUrl(coverLink.storageKey));
-      continue;
-    }
-    const galleryLinks = productLinks
+    const chosen = coverLink ?? productLinks
       .filter((l) => l.role === 'GALLERY')
-      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-    if (galleryLinks.length > 0) {
-      coverMap.set(productId, resolveMediaUrl(galleryLinks[0].storageKey));
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))[0];
+    if (chosen) {
+      coverMap.set(productId, {
+        url: resolveMediaUrl(chosen.storageKey),
+        mimeType: chosen.mimeType,
+        previewStart: chosen.previewStart,
+        previewDuration: chosen.previewDuration,
+      });
     }
   }
 
@@ -1083,7 +1099,7 @@ export async function getGroupEligibleProducts() {
     }
     return {
       ...p,
-      imageUrl: coverMap.get(p.id) ?? null,
+      imageUrl: coverMap.get(p.id)?.url ?? null,
       colors: Array.from(colorMap.values()),
       sizes: Array.from(sizeSet),
       hasActiveVariant,
