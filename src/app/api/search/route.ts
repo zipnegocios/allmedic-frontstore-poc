@@ -72,6 +72,7 @@ export async function GET(request: NextRequest) {
         const imageLinks = await db
           .select({
             productId: mediaLinksTable.entityId,
+            role: mediaLinksTable.role,
             storageKey: mediaAssetsTable.storageKey,
             mimeType: mediaAssetsTable.mimeType,
           })
@@ -79,16 +80,21 @@ export async function GET(request: NextRequest) {
           .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
           .where(and(
             eq(mediaLinksTable.entityType, 'PRODUCT'),
-            eq(mediaLinksTable.role, 'GALLERY'),
+            inArray(mediaLinksTable.role, ['GALLERY', 'COVER']),
             inArray(mediaLinksTable.entityId, productIds)
           ))
           .orderBy(asc(mediaLinksTable.sortOrder));
-        const images = imageLinks.map((i) => ({ productId: i.productId, url: resolveMediaUrl(i.storageKey), mimeType: i.mimeType }));
+        const images = imageLinks.map((i) => ({ productId: i.productId, role: i.role, url: resolveMediaUrl(i.storageKey), mimeType: i.mimeType }));
 
-        const enrichedProducts = products.map(product => ({
-          ...product,
-          images: images.filter(i => i.productId === product.id).slice(0, 1),
-        }));
+        const enrichedProducts = products.map(product => {
+          const productImages = images.filter(i => i.productId === product.id);
+          const cover = productImages.find(i => i.role === 'COVER') || productImages[0];
+          return {
+            ...product,
+            images: cover ? [cover] : [],
+          };
+        });
+
 
         // Log search query (best effort)
         try {

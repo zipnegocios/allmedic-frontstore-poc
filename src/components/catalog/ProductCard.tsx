@@ -42,7 +42,7 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
   
   const selectedColor = product.colors.find(c => c.id === selectedColorId);
   const variantWithColor = product.variants.find(v => v.colorId === selectedColorId);
-  const displayMedia = variantWithColor?.images[0];
+  const displayMedia = variantWithColor?.images[0] || product.cover || product.variants[0]?.images[0];
   
   const showPrices = usePriceVisibility({ brandId: product.brandId, productId: product.id });
   const hasDiscount = product.priceSale && product.priceSale < product.priceNormal;

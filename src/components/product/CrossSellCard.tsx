@@ -26,7 +26,7 @@ export function CrossSellCard({
   const showPrices = usePriceVisibility({ brandId: product.brandId, productId: product.id });
 
   const variantWithColor = product.variants.find(v => v.colorId === selectedColorId);
-  const displayMedia = variantWithColor?.images[0];
+  const displayMedia = variantWithColor?.images[0] || product.cover || product.variants[0]?.images[0];
 
   const handleAddClick = () => {
     if (!showSizeSelector) {

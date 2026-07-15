@@ -74,7 +74,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
   const isBackorder = selectedVariant?.status === 'BACKORDER';
 
   // Get display media (decisión: QuickView es vista expandida — video completo con sonido, no loop-preview)
-  const displayMedia = selectedVariant?.images[0] || product.variants[0]?.images[0];
+  const displayMedia = selectedVariant?.images[0] || product.cover || product.variants[0]?.images[0];
 
   const handleAddToCart = () => {
     if (!selectedColor) {

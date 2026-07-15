@@ -8,20 +8,13 @@ import {
 } from '../wizard-steps';
 
 describe('PRODUCT_FORM_WIZARD_STEPS', () => {
-  it('define exactamente 5 pasos en el orden del plan (Identificación, Precios, Contenido, Variantes, Medios)', () => {
+  it('define exactamente 4 pasos en el orden del plan (Identificación, Precios, Contenido, Variantes y Medios)', () => {
     expect(PRODUCT_FORM_WIZARD_STEPS.map((s) => s.id)).toEqual([
       'identification',
       'pricing',
       'content',
-      'variants',
-      'media',
+      'variants_and_media',
     ]);
-  });
-
-  it('respeta el orden variantes-antes-que-medios (las imágenes dependen de colorId de variantes)', () => {
-    const variantsIndex = PRODUCT_FORM_WIZARD_STEPS.findIndex((s) => s.id === 'variants');
-    const mediaIndex = PRODUCT_FORM_WIZARD_STEPS.findIndex((s) => s.id === 'media');
-    expect(variantsIndex).toBeLessThan(mediaIndex);
   });
 
   it('cada paso tiene una etiqueta en español no vacía', () => {
@@ -33,10 +26,11 @@ describe('PRODUCT_FORM_WIZARD_STEPS', () => {
 
 describe('getStepProgressLabel', () => {
   it('formatea "N/total · Etiqueta"', () => {
-    expect(getStepProgressLabel(0)).toBe('1/5 · Identificación');
-    expect(getStepProgressLabel(1)).toBe('2/5 · Precios y visibilidad');
-    expect(getStepProgressLabel(4)).toBe('5/5 · Medios');
+    expect(getStepProgressLabel(0)).toBe('1/4 · Identificación');
+    expect(getStepProgressLabel(1)).toBe('2/4 · Precios y visibilidad');
+    expect(getStepProgressLabel(3)).toBe('4/4 · Variantes y Medios');
   });
+
 
   it('retorna cadena vacía si el índice está fuera de rango', () => {
     expect(getStepProgressLabel(-1)).toBe('');

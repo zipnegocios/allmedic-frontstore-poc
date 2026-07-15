@@ -17,7 +17,7 @@ const VariantSchema = z.object({
 const ImageSchema = z.object({
   id: z.string().optional(),
   assetId: z.string().min(1),
-  colorId: z.string().optional(),
+  colorId: z.string().min(1),
   alt: z.string().optional(),
   sortOrder: z.number().default(0),
 });
@@ -49,7 +49,12 @@ const UpdateProductSchema = z.object({
   crossSellId: z.string().optional().nullable(),
   variants: z.array(VariantSchema).optional(),
   images: z.array(ImageSchema).optional(),
+  cover: z.object({
+    assetId: z.string().min(1),
+    alt: z.string().optional(),
+  }).optional(),
 });
+
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {

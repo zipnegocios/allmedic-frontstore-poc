@@ -158,7 +158,7 @@ export async function getAdminProductById(id: string) {
   const [product] = await db.select().from(productsTable).where(eq(productsTable.id, id)).limit(1);
   if (!product) return null;
 
-  const [variants, images, brand] = await Promise.all([
+  const [variants, images, cover, brand] = await Promise.all([
     db.select({
       id: variantsTable.id,
       productId: variantsTable.productId,
@@ -193,12 +193,29 @@ export async function getAdminProductById(id: string) {
         eq(mediaLinksTable.role, 'GALLERY')
       ))
       .orderBy(asc(mediaLinksTable.sortOrder)),
+    db.select({
+      id: mediaLinksTable.id,
+      assetId: mediaLinksTable.assetId,
+      alt: mediaLinksTable.altOverride,
+      storageKey: mediaAssetsTable.storageKey,
+      mimeType: mediaAssetsTable.mimeType,
+    })
+      .from(mediaLinksTable)
+      .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
+      .where(and(
+        eq(mediaLinksTable.entityType, 'PRODUCT'),
+        eq(mediaLinksTable.entityId, id),
+        eq(mediaLinksTable.role, 'COVER')
+      ))
+      .limit(1),
     db.select().from(brandsTable).where(eq(brandsTable.id, product.brandId)).limit(1),
   ]);
 
   const imagesWithUrl = images.map((i) => ({ ...i, url: resolveMediaUrl(i.storageKey) }));
+  const coverWithUrl = cover[0] ? { ...cover[0], url: resolveMediaUrl(cover[0].storageKey) } : null;
 
-  return { ...product, variants, images: imagesWithUrl, brand: brand[0] ?? null };
+  return { ...product, variants, images: imagesWithUrl, cover: coverWithUrl, brand: brand[0] ?? null };
+
 }
 
 export async function createProduct(data: typeof productsTable.$inferInsert) {
@@ -268,11 +285,12 @@ interface ProductWithRelationsInput {
   crossSellId?: string | null;
   variants?: VariantInput[];
   images?: ImageInput[];
+  cover?: { assetId: string; alt?: string };
 }
 
 export async function createProductWithRelations(input: ProductWithRelationsInput) {
   return await db.transaction(async (tx) => {
-    const { variants = [], images = [], ...productData } = input;
+    const { variants = [], images = [], cover, ...productData } = input;
 
     const [product] = await tx.insert(productsTable).values({
       ...productData,
@@ -308,6 +326,17 @@ export async function createProductWithRelations(input: ProductWithRelationsInpu
       );
     }
 
+    if (cover?.assetId) {
+      await tx.insert(mediaLinksTable).values({
+        assetId: cover.assetId,
+        entityType: 'PRODUCT',
+        entityId: product.id,
+        role: 'COVER',
+        sortOrder: 0,
+        altOverride: cover.alt || null,
+      });
+    }
+
     return product;
   });
 }
@@ -317,7 +346,7 @@ export async function updateProductWithRelations(
   input: Partial<ProductWithRelationsInput>
 ) {
   return await db.transaction(async (tx) => {
-    const { variants, images, ...productData } = input;
+    const { variants, images, cover, ...productData } = input;
 
     // Update product base
     if (Object.keys(productData).length > 0) {
@@ -381,10 +410,30 @@ export async function updateProductWithRelations(
       }
     }
 
+    // Replace cover: delete existing link, insert new
+    if (cover !== undefined) {
+      await tx.delete(mediaLinksTable).where(and(
+        eq(mediaLinksTable.entityType, 'PRODUCT'),
+        eq(mediaLinksTable.entityId, id),
+        eq(mediaLinksTable.role, 'COVER')
+      ));
+      if (cover?.assetId) {
+        await tx.insert(mediaLinksTable).values({
+          assetId: cover.assetId,
+          entityType: 'PRODUCT',
+          entityId: id,
+          role: 'COVER',
+          sortOrder: 0,
+          altOverride: cover.alt || null,
+        });
+      }
+    }
+
     const [product] = await tx.select().from(productsTable).where(eq(productsTable.id, id)).limit(1);
     return product;
   });
 }
+
 
 // ── Variants ──
 
@@ -788,6 +837,50 @@ export async function deleteSet(id: string) {
   await db.delete(corporateSetsTable).where(eq(corporateSetsTable.id, id));
 }
 
+async function getProductCoversMap(productIds: string[]): Promise<Map<string, string>> {
+  if (productIds.length === 0) return new Map();
+  const links = await db
+    .select({
+      entityId: mediaLinksTable.entityId,
+      role: mediaLinksTable.role,
+      storageKey: mediaAssetsTable.storageKey,
+      sortOrder: mediaLinksTable.sortOrder,
+    })
+    .from(mediaLinksTable)
+    .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
+    .where(and(
+      eq(mediaLinksTable.entityType, 'PRODUCT'),
+      inArray(mediaLinksTable.role, ['COVER', 'GALLERY']),
+      inArray(mediaLinksTable.entityId, productIds)
+    ));
+
+  const coverMap = new Map<string, string>();
+  const linksByProduct = new Map<string, typeof links>();
+  for (const link of links) {
+    if (!linksByProduct.has(link.entityId)) {
+      linksByProduct.set(link.entityId, []);
+    }
+    linksByProduct.get(link.entityId)!.push(link);
+  }
+
+  for (const productId of productIds) {
+    const productLinks = linksByProduct.get(productId) || [];
+    const coverLink = productLinks.find((l) => l.role === 'COVER');
+    if (coverLink) {
+      coverMap.set(productId, resolveMediaUrl(coverLink.storageKey));
+      continue;
+    }
+    const galleryLinks = productLinks
+      .filter((l) => l.role === 'GALLERY')
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    if (galleryLinks.length > 0) {
+      coverMap.set(productId, resolveMediaUrl(galleryLinks[0].storageKey));
+    }
+  }
+
+  return coverMap;
+}
+
 // ── Productos disponibles para armar sets (visibility GROUPS o BOTH) ──
 
 /**
@@ -833,7 +926,7 @@ export async function getGroupEligibleProducts() {
       .from(variantsTable)
       .leftJoin(colorsTable, eq(variantsTable.colorId, colorsTable.id))
       .where(inArray(variantsTable.productId, productIds)),
-    getSingleLinksUrlMap('PRODUCT', productIds, 'GALLERY'),
+    getProductCoversMap(productIds),
   ]);
 
   return products.map((p) => {
@@ -857,6 +950,7 @@ export async function getGroupEligibleProducts() {
     };
   });
 }
+
 
 // ── Cotizaciones: ver src/lib/quotes/service.ts (CRUD completo del módulo Cotizaciones Pro) ──
 

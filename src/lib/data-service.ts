@@ -100,6 +100,7 @@ function transformProduct(dbProduct: {
   }>;
   images: Array<{
     colorId: string | null;
+    role: string;
     url: string;
     mimeType: string;
     width: number | null;
@@ -119,7 +120,22 @@ function transformProduct(dbProduct: {
 
   // Build image lookup by colorId
   const imagesByColor = new Map<string, MediaItem[]>();
+  let cover: MediaItem | undefined = undefined;
+
   for (const img of dbProduct.images) {
+    if (img.role === 'COVER') {
+      cover = {
+        url: img.url,
+        type: isVideoMime(img.mimeType) ? 'video' : 'image',
+        mimeType: img.mimeType,
+        width: img.width,
+        height: img.height,
+        durationSeconds: img.durationSeconds,
+        previewStartSeconds: img.previewStartSeconds,
+        previewDurationSeconds: img.previewDurationSeconds,
+      };
+      continue;
+    }
     const key = img.colorId || '_default';
     if (!imagesByColor.has(key)) imagesByColor.set(key, []);
     imagesByColor.get(key)!.push({
@@ -172,11 +188,13 @@ function transformProduct(dbProduct: {
     availableSizes: Array.from(sizeSet) as Size[],
     availableFits: fitSet.size > 0 ? Array.from(fitSet) as Fit[] : undefined,
     variants,
+    cover,
     isNew: dbProduct.isNew,
     isBestSeller: dbProduct.isBestSeller,
     complementaryProduct: dbProduct.crossSellId ?? undefined,
   };
 }
+
 
 // ── Helper: fetch products with joins ──
 async function fetchProductsWithJoins(whereCondition?: SQL<unknown>) {
@@ -234,6 +252,7 @@ async function fetchProductsWithJoins(whereCondition?: SQL<unknown>) {
         .select({
           productId: mediaLinksTable.entityId,
           colorId: mediaLinksTable.colorId,
+          role: mediaLinksTable.role,
           storageKey: mediaAssetsTable.storageKey,
           mimeType: mediaAssetsTable.mimeType,
           width: mediaAssetsTable.width,
@@ -246,7 +265,7 @@ async function fetchProductsWithJoins(whereCondition?: SQL<unknown>) {
         .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
         .where(and(
           eq(mediaLinksTable.entityType, 'PRODUCT'),
-          eq(mediaLinksTable.role, 'GALLERY'),
+          inArray(mediaLinksTable.role, ['GALLERY', 'COVER']),
           inArray(mediaLinksTable.entityId, productIds)
         ))
         .orderBy(asc(mediaLinksTable.sortOrder))
@@ -254,6 +273,7 @@ async function fetchProductsWithJoins(whereCondition?: SQL<unknown>) {
   const images = imageLinks.map((i) => ({
     productId: i.productId,
     colorId: i.colorId,
+    role: i.role,
     url: resolveMediaUrl(i.storageKey),
     mimeType: i.mimeType,
     width: i.width,
@@ -262,6 +282,7 @@ async function fetchProductsWithJoins(whereCondition?: SQL<unknown>) {
     previewStartSeconds: i.previewStartSeconds,
     previewDurationSeconds: i.previewDurationSeconds,
   }));
+
 
   // Group by product
   return rows.map(product => {
@@ -596,3 +617,22 @@ export async function filterProducts(filters: {
 
   return products;
 }
+
+export function resolveCoverMedia(product: Product): MediaItem {
+  if (product.cover) return product.cover;
+  // Fallback to first GALLERY image of any variant
+  for (const variant of product.variants) {
+    if (variant.images && variant.images.length > 0) {
+      return variant.images[0];
+    }
+  }
+  // Fallback to placeholder
+  return {
+    url: '/images/placeholder-product.jpg',
+    type: 'image',
+    mimeType: 'image/jpeg',
+    width: null,
+    height: null,
+  };
+}
+

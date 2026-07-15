@@ -375,7 +375,7 @@ export function Header({ onCartClick, products, brands, stores }: HeaderProps) {
                       >
                         <div className="relative w-12 h-16 sm:w-14 sm:h-18 bg-[#F5F5F7] rounded overflow-hidden flex-shrink-0">
                           <MediaGridThumb
-                            item={product.variants[0]?.images[0]}
+                            item={product.cover || product.variants[0]?.images[0]}
                             fallback="/images/placeholder-product.jpg"
                             alt={product.name}
                             sizes="56px"

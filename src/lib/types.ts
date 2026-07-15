@@ -60,11 +60,13 @@ export interface Product {
   availableSizes: Size[];
   availableFits?: Fit[];
   variants: ProductVariant[];
+  cover?: MediaItem;
   isNew: boolean;
   isBestSeller: boolean;
   complementaryProduct?: string;
   volumeDiscounts?: VolumeDiscount[];
 }
+
 
 export interface CartItem {
   id: string;

@@ -97,7 +97,7 @@ interface ProductListItemProps {
 }
 
 export function ProductListItem({ product, onQuickView }: ProductListItemProps) {
-  const displayMedia = product.variants[0]?.images[0];
+  const displayMedia = product.cover || product.variants[0]?.images[0];
   const hasDiscount = product.priceSale && product.priceSale < product.priceNormal;
 
   return (

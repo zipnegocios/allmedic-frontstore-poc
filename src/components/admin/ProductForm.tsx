@@ -48,8 +48,8 @@ import {
   nextMaxVisitedIndex,
 } from '@/components/admin/product-form/wizard-steps';
 import { TagListEditor } from '@/components/admin/product-form/TagListEditor';
-import { VariantsSection } from '@/components/admin/product-form/VariantsSection';
-import { MediaSection } from '@/components/admin/product-form/MediaSection';
+import { VariantsMediaSection } from '@/components/admin/product-form/VariantsMediaSection';
+
 
 // ─── Component ───
 
@@ -79,11 +79,14 @@ export default function ProductForm({
   const [brands, setBrands] = useState<Brand[]>([]);
   const [colors, setColors] = useState<Color[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingProduct, setLoadingProduct] = useState(false);
   const [saving, setSaving] = useState(false);
   const [featureInput, setFeatureInput] = useState('');
   const [careInput, setCareInput] = useState('');
   const [styleInput, setStyleInput] = useState('');
-  const [pickerTargetIndex, setPickerTargetIndex] = useState<number | 'append' | null>(null);
+  const [pickerTargetIndex, setPickerTargetIndex] = useState<number | 'append' | 'cover' | null>(null);
+  const [pickerColorId, setPickerColorId] = useState<string | null>(null);
+
 
   // ─── Wizard mobile: paso actual y pasos ya visitados ───
   // Solo tiene efecto cuando `isMobile` es true; en desktop se ignora por
@@ -98,6 +101,7 @@ export default function ProductForm({
     watch,
     setValue,
     trigger,
+    reset,
     formState: { errors },
   } = useForm<ProductFormData>({
     resolver: zodResolver(ProductFormSchema) as any,
@@ -119,7 +123,15 @@ export default function ProductForm({
       styles: [],
       variants: [],
       images: [],
+      cover: {
+        assetId: '',
+        url: '',
+        storageKey: '',
+        mimeType: '',
+        alt: '',
+      },
     },
+
   });
 
   const {
@@ -138,8 +150,79 @@ export default function ProductForm({
   const careInstructions = watch('careInstructions');
   const styles = watch('styles');
 
+  // Fetch product details if editing embedded
+  useEffect(() => {
+    if (productId && !initialData) {
+      setLoadingProduct(true);
+      fetch(`/api/admin/products/${productId}`)
+        .then((res) => {
+          if (!res.ok) throw new Error('Error al cargar detalles del producto');
+          return res.json();
+        })
+        .then((product) => {
+          reset({
+            slug: product.slug,
+            name: product.name,
+            description: product.description || '',
+            sku: product.sku || '',
+            brandId: product.brandId,
+            collectionId: product.collectionId || '',
+            category: product.category,
+            productType: product.productType || '',
+            gender: product.gender,
+            priceNormal: product.priceNormal,
+            priceSale: product.priceSale || '',
+            discountPct: product.discountPct || undefined,
+            discountEnd: product.discountEnd
+              ? new Date(product.discountEnd).toISOString().slice(0, 16)
+              : '',
+            priceWholesale: product.priceWholesale || '',
+            priceWholesaleSale: product.priceWholesaleSale || '',
+            wholesaleDiscountEnd: product.wholesaleDiscountEnd
+              ? new Date(product.wholesaleDiscountEnd).toISOString().slice(0, 16)
+              : '',
+            visibility: (product.visibility as 'INDIVIDUAL' | 'GROUPS' | 'BOTH') || 'INDIVIDUAL',
+            isNew: product.isNew ?? false,
+            isBestSeller: product.isBestSeller ?? false,
+            isActive: product.isActive ?? true,
+            features: (product.features as string[]) || [],
+            careInstructions: (product.careInstructions as string[]) || [],
+            styles: (product.styles as string[]) || [],
+            crossSellId: product.crossSellId || '',
+            variants: product.variants.map((v: any) => ({
+              id: v.id,
+              colorId: v.colorId,
+              size: v.size,
+              fit: v.fit || '',
+              sku: v.sku,
+              status: v.status,
+              stock: v.stock ?? 0,
+              minStock: v.minStock ?? 5,
+            })),
+            images: product.images.map((i: any) => ({
+              id: i.id,
+              assetId: i.assetId,
+              colorId: i.colorId || '',
+              url: i.url,
+              storageKey: i.storageKey,
+              mimeType: i.mimeType,
+              alt: i.alt || '',
+              sortOrder: i.sortOrder ?? 0,
+            })),
+          });
+        })
+        .catch((err) => {
+          toast.error(err instanceof Error ? err.message : 'Error al cargar detalles');
+        })
+        .finally(() => {
+          setLoadingProduct(false);
+        });
+    }
+  }, [productId, initialData, reset]);
+
   // Fetch brands and colors
   useEffect(() => {
+
     async function fetchData() {
       setLoading(true);
       try {
@@ -259,7 +342,7 @@ export default function ProductForm({
     setCurrentStepIndex((i) => Math.max(0, i - 1));
   }
 
-  if (loading) {
+  if (loading || loadingProduct) {
     return (
       <div className="p-8">
         <p className="text-gray-500">Cargando...</p>
@@ -270,7 +353,10 @@ export default function ProductForm({
   const mediaPickerDialog = (
     <MediaPicker
       open={pickerTargetIndex !== null}
-      onClose={() => setPickerTargetIndex(null)}
+      onClose={() => {
+        setPickerTargetIndex(null);
+        setPickerColorId(null);
+      }}
       folder="PRODUCTS"
       segments={slugValue ? [slugValue] : []}
       multiple={pickerTargetIndex === 'append'}
@@ -279,7 +365,7 @@ export default function ProductForm({
           assets.forEach((asset, i) => {
             appendImage({
               assetId: asset.id,
-              colorId: '',
+              colorId: pickerColorId || '',
               url: resolveMediaUrl(asset.storageKey),
               storageKey: asset.storageKey,
               mimeType: asset.mimeType,
@@ -287,6 +373,14 @@ export default function ProductForm({
               sortOrder: imageFields.length + i,
             });
           });
+        } else if (pickerTargetIndex === 'cover' && assets[0]) {
+          setValue('cover.assetId', assets[0].id);
+          setValue('cover.url', resolveMediaUrl(assets[0].storageKey));
+          setValue('cover.storageKey', assets[0].storageKey);
+          setValue('cover.mimeType', assets[0].mimeType);
+          if (!watch('cover.alt')) {
+            setValue('cover.alt', assets[0].altText ?? '');
+          }
         } else if (typeof pickerTargetIndex === 'number' && assets[0]) {
           setValue(`images.${pickerTargetIndex}.assetId`, assets[0].id);
           setValue(`images.${pickerTargetIndex}.url`, resolveMediaUrl(assets[0].storageKey));
@@ -297,9 +391,11 @@ export default function ProductForm({
           }
         }
         setPickerTargetIndex(null);
+        setPickerColorId(null);
       }}
     />
   );
+
 
   return (
     <div className={embedded ? '' : 'p-4 md:p-8 max-w-5xl'}>
@@ -634,28 +730,26 @@ export default function ProductForm({
                 </Card>
               )}
 
-              {currentStep.id === 'variants' && (
-                <VariantsSection
+              {currentStep.id === 'variants_and_media' && (
+                <VariantsMediaSection
                   control={control}
                   register={register}
+                  watch={watch}
+                  setValue={setValue}
                   colors={colors}
                   variantFields={variantFields}
                   appendVariant={appendVariant}
                   removeVariant={removeVariant}
+                  imageFields={imageFields}
+                  removeImage={removeImage}
+                  onPickTarget={(target, colorId) => {
+                    setPickerTargetIndex(target);
+                    if (colorId) setPickerColorId(colorId);
+                  }}
                 />
               )}
 
-              {currentStep.id === 'media' && (
-                <MediaSection
-                  control={control}
-                  register={register}
-                  watch={watch}
-                  colors={colors}
-                  imageFields={imageFields}
-                  removeImage={removeImage}
-                  onPickTarget={setPickerTargetIndex}
-                />
-              )}
+
             </div>
 
             {/* ─── Barra sticky inferior: navegación del wizard + Guardar/Cancelar ─── */}
@@ -707,19 +801,16 @@ export default function ProductForm({
           <Tabs defaultValue="general" className="space-y-6">
             <TabsList className="bg-white border">
               <TabsTrigger value="general">General</TabsTrigger>
-              <TabsTrigger value="variants">
-                Variantes
+              <TabsTrigger value="variants_media">
+                Variantes y Medios
                 {variantFields.length > 0 && (
-                  <Badge variant="secondary" className="ml-2">{variantFields.length}</Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="images">
-                Medios
-                {imageFields.length > 0 && (
-                  <Badge variant="secondary" className="ml-2">{imageFields.length}</Badge>
+                  <Badge variant="secondary" className="ml-2">
+                    {variantFields.length} var · {imageFields.length} med
+                  </Badge>
                 )}
               </TabsTrigger>
             </TabsList>
+
 
             {/* ─── TAB GENERAL ─── */}
             <TabsContent value="general" className="space-y-6">
@@ -974,30 +1065,27 @@ export default function ProductForm({
               </Card>
             </TabsContent>
 
-            {/* ─── TAB VARIANTES ─── */}
-            <TabsContent value="variants" className="space-y-4">
-              <VariantsSection
+            {/* ─── TAB VARIANTES Y MEDIOS ─── */}
+            <TabsContent value="variants_media" className="space-y-4">
+              <VariantsMediaSection
                 control={control}
                 register={register}
+                watch={watch}
+                setValue={setValue}
                 colors={colors}
                 variantFields={variantFields}
                 appendVariant={appendVariant}
                 removeVariant={removeVariant}
+                imageFields={imageFields}
+                removeImage={removeImage}
+                onPickTarget={(target, colorId) => {
+                  setPickerTargetIndex(target);
+                  if (colorId) setPickerColorId(colorId);
+                }}
               />
             </TabsContent>
 
-            {/* ─── TAB MEDIOS (fotos y videos) ─── */}
-            <TabsContent value="images" className="space-y-4">
-              <MediaSection
-                control={control}
-                register={register}
-                watch={watch}
-                colors={colors}
-                imageFields={imageFields}
-                removeImage={removeImage}
-                onPickTarget={setPickerTargetIndex}
-              />
-            </TabsContent>
+
           </Tabs>
         )}
       </form>

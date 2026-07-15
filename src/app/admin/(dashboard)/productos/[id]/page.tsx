@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation';
 import { getAdminProductById } from '@/lib/admin-data-service';
 import ProductForm from '@/components/admin/ProductForm';
 
+export const dynamic = 'force-dynamic';
+
 interface EditProductPageProps {
   params: Promise<{ id: string }>;
 }
@@ -64,7 +66,18 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
       alt: i.alt || '',
       sortOrder: i.sortOrder ?? 0,
     })),
+    cover: product.cover
+      ? {
+          id: product.cover.id,
+          assetId: product.cover.assetId,
+          url: product.cover.url,
+          storageKey: product.cover.storageKey,
+          mimeType: product.cover.mimeType,
+          alt: product.cover.alt || '',
+        }
+      : { assetId: '', url: '', storageKey: '', mimeType: '', alt: '' },
   };
 
   return <ProductForm productId={id} initialData={initialData as any} />;
 }
+

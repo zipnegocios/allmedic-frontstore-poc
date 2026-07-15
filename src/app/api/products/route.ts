@@ -109,6 +109,7 @@ export async function GET(request: NextRequest) {
           .select({
             productId: mediaLinksTable.entityId,
             colorId: mediaLinksTable.colorId,
+            role: mediaLinksTable.role,
             storageKey: mediaAssetsTable.storageKey,
             mimeType: mediaAssetsTable.mimeType,
             altOverride: mediaLinksTable.altOverride,
@@ -118,7 +119,7 @@ export async function GET(request: NextRequest) {
           .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
           .where(and(
             eq(mediaLinksTable.entityType, 'PRODUCT'),
-            eq(mediaLinksTable.role, 'GALLERY'),
+            inArray(mediaLinksTable.role, ['GALLERY', 'COVER']),
             inArray(mediaLinksTable.entityId, productIds)
           ))
           .orderBy(asc(mediaLinksTable.sortOrder))
@@ -126,17 +127,23 @@ export async function GET(request: NextRequest) {
     const images = imageLinks.map((i) => ({
       productId: i.productId,
       colorId: i.colorId,
+      role: i.role,
       url: resolveMediaUrl(i.storageKey),
       mimeType: i.mimeType,
       alt: i.altOverride ?? i.altText,
     }));
 
     // Enrich products with variants and images
-    const enrichedProducts = products.map(product => ({
-      ...product,
-      variants: variants.filter(v => v.productId === product.id),
-      images: images.filter(i => i.productId === product.id),
-    }));
+    const enrichedProducts = products.map(product => {
+      const productImages = images.filter(i => i.productId === product.id);
+      const cover = productImages.find(i => i.role === 'COVER') || productImages[0];
+      return {
+        ...product,
+        variants: variants.filter(v => v.productId === product.id),
+        images: cover ? [cover, ...productImages.filter(i => i.role !== 'COVER')] : productImages,
+      };
+    });
+
 
     return NextResponse.json({
       products: enrichedProducts,

@@ -19,12 +19,21 @@ export const VariantSchema = z.object({
 export const ImageSchema = z.object({
   id: z.string().optional(),
   assetId: z.string().min(1, 'Medio requerido'),
-  colorId: z.string().optional(),
+  colorId: z.string().min(1, 'Color requerido'),
   url: z.string().optional(), // solo para previsualización en el form, no se persiste
   storageKey: z.string().optional(), // solo para previsualización en el form, no se persiste
   mimeType: z.string().optional(), // solo para previsualización en el form, no se persiste
   alt: z.string().optional(),
   sortOrder: z.coerce.number().default(0),
+});
+
+export const CoverSchema = z.object({
+  id: z.string().optional(),
+  assetId: z.string().min(1, 'Portada requerida'),
+  url: z.string().optional(),
+  storageKey: z.string().optional(),
+  mimeType: z.string().optional(),
+  alt: z.string().optional(),
 });
 
 export const ProductFormSchema = z.object({
@@ -54,7 +63,9 @@ export const ProductFormSchema = z.object({
   crossSellId: z.string().optional(),
   variants: z.array(VariantSchema).default([]),
   images: z.array(ImageSchema).default([]),
+  cover: CoverSchema,
 });
+
 
 export type ProductFormData = z.infer<typeof ProductFormSchema>;
 

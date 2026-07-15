@@ -8,7 +8,7 @@ import type { ProductFormData } from './schema';
  * nueva).
  */
 
-export type WizardStepId = 'identification' | 'pricing' | 'content' | 'variants' | 'media';
+export type WizardStepId = 'identification' | 'pricing' | 'content' | 'variants_and_media';
 
 export interface WizardStepDef {
   id: WizardStepId;
@@ -19,7 +19,7 @@ export interface WizardStepDef {
    * react-hook-form) que deben ser válidos para avanzar desde este paso.
    * Array vacío = el paso no bloquea el avance (no tiene campos requeridos).
    */
-  fields: Array<keyof ProductFormData | `variants` | `images`>;
+  fields: Array<keyof ProductFormData | `variants` | `images` | `cover`>;
 }
 
 export const PRODUCT_FORM_WIZARD_STEPS: WizardStepDef[] = [
@@ -39,16 +39,12 @@ export const PRODUCT_FORM_WIZARD_STEPS: WizardStepDef[] = [
     fields: [],
   },
   {
-    id: 'variants',
-    label: 'Variantes',
-    fields: ['variants'],
-  },
-  {
-    id: 'media',
-    label: 'Medios',
-    fields: ['images'],
+    id: 'variants_and_media',
+    label: 'Variantes y Medios',
+    fields: ['variants', 'images', 'cover'],
   },
 ];
+
 
 /**
  * Etiqueta de progreso a mostrar en el indicador del wizard, ej.
