@@ -5,7 +5,7 @@ import { z } from 'zod';
 
 const TrashActionSchema = z.object({
   action: z.enum(['restore', 'delete']),
-  entityType: z.enum(['SET']),
+  entityType: z.enum(['SET', 'QUOTE']),
   entityId: z.string().min(1),
 });
 

@@ -3,13 +3,45 @@ import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/admin-auth';
 import { db } from '@/db';
-import { companySettings } from '@/db/schema';
+import { companySettings, mediaAssets } from '@/db/schema';
+import { resolveMediaUrl } from '@/lib/media';
 
 export async function GET() {
   try {
     await requireAdmin();
-    const [row] = await db.select().from(companySettings).limit(1);
-    return NextResponse.json(row ?? null);
+    const [row] = await db
+      .select({
+        id: companySettings.id,
+        logoMediaId: companySettings.logoMediaId,
+        razonSocial: companySettings.razonSocial,
+        ruc: companySettings.ruc,
+        address: companySettings.address,
+        phones: companySettings.phones,
+        email: companySettings.email,
+        website: companySettings.website,
+        footerNote: companySettings.footerNote,
+        logoStorageKey: mediaAssets.storageKey,
+      })
+      .from(companySettings)
+      .leftJoin(mediaAssets, eq(companySettings.logoMediaId, mediaAssets.id))
+      .limit(1);
+
+    if (!row) {
+      return NextResponse.json(null);
+    }
+
+    return NextResponse.json({
+      id: row.id,
+      logoMediaId: row.logoMediaId,
+      razonSocial: row.razonSocial,
+      ruc: row.ruc,
+      address: row.address,
+      phones: row.phones,
+      email: row.email,
+      website: row.website,
+      footerNote: row.footerNote,
+      logoUrl: row.logoStorageKey ? resolveMediaUrl(row.logoStorageKey) : null,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     if (message === 'Unauthorized') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -29,20 +61,33 @@ const PatchSchema = z.object({
   footerNote: z.string().nullable().optional(),
 });
 
-/** Singleton: siempre actualiza la única fila existente (creada por el seed) — nunca crea una segunda. */
+/** Singleton: siempre actualiza la única fila existente, o la crea si no existe. */
 export async function PATCH(request: NextRequest) {
   try {
     await requireAdmin();
     const body = PatchSchema.parse(await request.json());
     const [existing] = await db.select({ id: companySettings.id }).from(companySettings).limit(1);
+
+    let updated;
     if (!existing) {
-      return NextResponse.json({ error: 'company_settings no está sembrada — correr db:seed:quotes' }, { status: 500 });
+      [updated] = await db
+        .insert(companySettings)
+        .values({
+          ...body,
+          updatedAt: new Date(),
+        })
+        .returning();
+    } else {
+      [updated] = await db
+        .update(companySettings)
+        .set({
+          ...body,
+          updatedAt: new Date(),
+        })
+        .where(eq(companySettings.id, existing.id))
+        .returning();
     }
-    const [updated] = await db
-      .update(companySettings)
-      .set({ ...body, updatedAt: new Date() })
-      .where(eq(companySettings.id, existing.id))
-      .returning();
+
     return NextResponse.json(updated);
   } catch (err) {
     if (err instanceof z.ZodError) {

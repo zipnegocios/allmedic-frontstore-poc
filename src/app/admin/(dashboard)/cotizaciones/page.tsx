@@ -7,7 +7,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { FileText, Eye, Mail, Globe, Plus, SlidersHorizontal } from 'lucide-react';
+import { FileText, Eye, Mail, Globe, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -16,6 +16,16 @@ import { QUOTE_STATUS_LABELS, QUOTE_OUTCOME_LABELS, QUOTE_CHANNEL_LABELS, isQuot
 import { countActiveFilters } from '@/lib/admin-list-filters';
 import { AdminListCard } from '@/components/admin/AdminListCard';
 import { ResponsiveDialog } from '@/components/admin/ResponsiveDialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface AdminQuote {
   id: string;
@@ -48,6 +58,10 @@ export default function AdminQuotesPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [channelFilter, setChannelFilter] = useState('ALL');
+  const [deleteTarget, setDeleteTarget] = useState<AdminQuote | null>(null);
+  const [securityInput, setSecurityInput] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
   const [search, setSearch] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -75,6 +89,24 @@ export default function AdminQuotesPage() {
     const timeout = setTimeout(fetchQuotes, 250);
     return () => clearTimeout(timeout);
   }, [fetchQuotes]);
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/quotes/${deleteTarget.id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Failed');
+      toast.success('Cotización enviada a la papelera');
+      fetchQuotes();
+      setDeleteTarget(null);
+    } catch {
+      toast.error('Error al enviar cotización a la papelera');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const statusFilterSelect = (
     <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -222,9 +254,23 @@ export default function AdminQuotesPage() {
                       </TableCell>
                       <TableCell>{new Date(q.createdAt).toLocaleDateString('es-EC')}</TableCell>
                       <TableCell className="text-right">
-                        <Link href={`/admin/cotizaciones/${q.id}`}>
-                          <Button size="sm" variant="ghost"><Eye className="w-4 h-4" /></Button>
-                        </Link>
+                        <div className="flex justify-end gap-1">
+                          <Link href={`/admin/cotizaciones/${q.id}`}>
+                            <Button size="sm" variant="ghost" title="Ver / Editar"><Eye className="w-4 h-4" /></Button>
+                          </Link>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setDeleteTarget(q);
+                              setSecurityInput('');
+                            }}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            title="Enviar a papelera"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -279,12 +325,79 @@ export default function AdminQuotesPage() {
                       {q.publishedToPortalAt && <Globe className="w-3.5 h-3.5 text-gray-400" aria-label="Publicada en portal" />}
                     </div>
                   }
+                  actions={[
+                    {
+                      key: 'delete',
+                      label: 'Enviar a papelera',
+                      icon: <Trash2 className="w-4 h-4 mr-2" />,
+                      variant: 'destructive',
+                      onSelect: () => {
+                        setDeleteTarget(q);
+                        setSecurityInput('');
+                      }
+                    }
+                  ]}
                 />
               );
             })}
           </div>
         )}
       </div>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent className="max-w-[450px]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-red-600" />
+              <span>Enviar cotización a la papelera</span>
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3 pt-2 text-gray-600" asChild>
+              <div>
+                {deleteTarget?.status === 'DRAFT' ? (
+                  <p>
+                    ¿Estás seguro de que deseas enviar esta cotización borrador de{' '}
+                    <span className="font-semibold text-gray-900">"{deleteTarget.customerName}"</span>{' '}
+                    a la papelera? Podrás restaurarla en cualquier momento desde la sección Papelera.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    <p>
+                      <span className="font-bold text-red-600">¡Atención!</span> Esta cotización es definitiva. Si la envías a la papelera:
+                    </p>
+                    <ul className="list-disc pl-5 space-y-1 text-sm">
+                      <li>El cliente perderá acceso inmediato desde su portal.</li>
+                      <li>Esto puede afectar el cierre de la venta.</li>
+                    </ul>
+                    <p>
+                      Para confirmar esta acción, escribe la palabra de seguridad{' '}
+                      <span className="font-bold text-gray-950">ELIMINAR</span> a continuación:
+                    </p>
+                    <Input
+                      placeholder="Escribe ELIMINAR"
+                      value={securityInput}
+                      onChange={(e) => setSecurityInput(e.target.value)}
+                      className="mt-1 h-10 border-gray-250 focus-visible:ring-[#111111]"
+                    />
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4">
+            <AlertDialogCancel className="rounded-lg">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleDelete();
+              }}
+              disabled={deleting || (deleteTarget?.status === 'FINAL' && securityInput !== 'ELIMINAR')}
+              className="bg-red-600 hover:bg-red-700 text-white rounded-lg"
+            >
+              {deleting ? 'Enviando...' : 'Confirmar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

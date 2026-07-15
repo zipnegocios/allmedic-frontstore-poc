@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/admin-auth';
-import { getQuoteById, updateQuote, deleteQuoteDraft } from '@/lib/quotes/service';
+import { getQuoteById, updateQuote, softDeleteQuote } from '@/lib/quotes/service';
 import { computeQuoteTotals } from '@/lib/quotes/totals';
 import { regenerateQuotePdf } from '@/lib/quotes/finalize';
 
@@ -131,12 +131,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAdmin();
+    const session = await requireAdmin();
     const { id } = await params;
-    const deleted = await deleteQuoteDraft(id);
-    if (!deleted) {
-      return NextResponse.json({ error: 'Solo se pueden eliminar cotizaciones en borrador' }, { status: 400 });
-    }
+    const adminUserId = (session.user as { id?: string })?.id ?? null;
+    await softDeleteQuote(id, adminUserId);
     return NextResponse.json({ ok: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';

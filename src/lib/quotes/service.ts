@@ -2,11 +2,12 @@
 // Consumido por las API routes de `/api/admin/quotes/**`. A diferencia del motor de reglas y
 // de `pricing.ts`/`totals.ts`, este módulo SÍ depende de la base de datos (Drizzle).
 
-import { eq, desc, and, or, ilike } from "drizzle-orm";
+import { eq, desc, and, or, ilike, isNull, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
-import { quotes, quoteItems, corporateAccounts, leads, products } from "@/db/schema";
+import { quotes, quoteItems, corporateAccounts, leads, products, quoteDocuments } from "@/db/schema";
 import { getAllBusinessRules, getSetPricesByIds, getSetMetaByIds } from "@/lib/corporate-data-service";
 import { resolveSuggestedPrice, type QuoteLineContext, type QuotePricingBreakdownEntry } from "./pricing";
+import { deleteObject } from "@/lib/r2";
 
 export type QuoteChannel = "CORPORATE" | "RETAIL";
 export type QuoteStatus = "DRAFT" | "FINAL";
@@ -84,7 +85,7 @@ export interface ListQuotesFilters {
 }
 
 export async function listQuotes(filters: ListQuotesFilters = {}) {
-  const conditions = [];
+  const conditions: any[] = [isNull(quotes.deletedAt)];
   if (filters.status) conditions.push(eq(quotes.status, filters.status));
   if (filters.channel) conditions.push(eq(quotes.channel, filters.channel));
   if (filters.search) {
@@ -94,7 +95,7 @@ export async function listQuotes(filters: ListQuotesFilters = {}) {
   return db
     .select()
     .from(quotes)
-    .where(conditions.length ? and(...conditions) : undefined)
+    .where(and(...conditions))
     .orderBy(desc(quotes.createdAt));
 }
 
@@ -186,12 +187,12 @@ export async function createQuoteFromAccount(accountId: string) {
 /** Todas las cotizaciones de un lead (prospecto individual) — a diferencia de
  * `getQuotesByAccountId` (portal del cliente), no filtra por publicación: el admin ve todo. */
 export async function listQuotesByLeadId(leadId: string) {
-  return db.select().from(quotes).where(eq(quotes.leadId, leadId)).orderBy(desc(quotes.createdAt));
+  return db.select().from(quotes).where(and(eq(quotes.leadId, leadId), isNull(quotes.deletedAt))).orderBy(desc(quotes.createdAt));
 }
 
 /** Todas las cotizaciones de una cuenta corporativa, vista admin (sin filtrar por publicación). */
 export async function listQuotesByAccountId(accountId: string) {
-  return db.select().from(quotes).where(eq(quotes.accountId, accountId)).orderBy(desc(quotes.createdAt));
+  return db.select().from(quotes).where(and(eq(quotes.accountId, accountId), isNull(quotes.deletedAt))).orderBy(desc(quotes.createdAt));
 }
 
 /** Reemplaza todas las líneas de una cotización — el editor guarda el estado completo de
@@ -382,3 +383,68 @@ export async function recalculateSuggested(id: string) {
 
   return getQuoteById(id);
 }
+
+export async function softDeleteQuote(id: string, deletedBy?: string | null) {
+  await db
+    .update(quotes)
+    .set({
+      deletedAt: new Date(),
+      deletedBy: deletedBy || null,
+      updatedAt: new Date(),
+    })
+    .where(eq(quotes.id, id));
+}
+
+export async function restoreQuote(id: string) {
+  await db
+    .update(quotes)
+    .set({
+      deletedAt: null,
+      deletedBy: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(quotes.id, id));
+}
+
+export async function permanentlyDeleteQuote(id: string) {
+  const quote = await getQuoteById(id);
+  if (!quote) return false;
+
+  // 1. Delete generated PDF in R2 if it exists
+  if (quote.pdfKey) {
+    try {
+      await deleteObject(quote.pdfKey, "QUOTES");
+    } catch (err) {
+      console.error(`Error deleting PDF key ${quote.pdfKey} from R2:`, err);
+    }
+  }
+
+  // 2. Delete quote documents (attachments) in R2
+  const docs = await db.select().from(quoteDocuments).where(eq(quoteDocuments.quoteId, id));
+  if (docs && docs.length > 0) {
+    for (const doc of docs) {
+      const quotesIdx = doc.fileUrl.indexOf("quotes/");
+      if (quotesIdx !== -1) {
+        const key = doc.fileUrl.substring(quotesIdx);
+        try {
+          await deleteObject(key, "MEDIA");
+        } catch (err) {
+          console.error(`Error deleting attachment key ${key} from R2:`, err);
+        }
+      }
+    }
+  }
+
+  // 3. Delete from DB (quoteItems and quoteDocuments will be deleted by Cascade FKs)
+  await db.delete(quotes).where(eq(quotes.id, id));
+  return true;
+}
+
+export async function listTrashedQuotes() {
+  return db
+    .select()
+    .from(quotes)
+    .where(isNotNull(quotes.deletedAt))
+    .orderBy(desc(quotes.deletedAt));
+}
+

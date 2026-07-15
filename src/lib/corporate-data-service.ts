@@ -490,7 +490,11 @@ export async function getQuotesByAccountId(accountId: string) {
   const rows = await db
     .select()
     .from(quotesTable)
-    .where(and(eq(quotesTable.accountId, accountId), isNotNull(quotesTable.publishedToPortalAt)))
+    .where(and(
+      eq(quotesTable.accountId, accountId),
+      isNotNull(quotesTable.publishedToPortalAt),
+      isNull(quotesTable.deletedAt)
+    ))
     .orderBy(desc(quotesTable.createdAt));
 
   const quoteIds = rows.map((q) => q.id);

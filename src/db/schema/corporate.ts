@@ -205,6 +205,8 @@ export const quotes = pgTable("quotes", {
   sentByEmailAt: timestamp("sent_by_email_at", { withTimezone: true }),
   publishedToPortalAt: timestamp("published_to_portal_at", { withTimezone: true }),
   createdBy: pgUuid("created_by").references(() => users.id),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  deletedBy: pgUuid("deleted_by").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 }, (table) => [
@@ -213,6 +215,7 @@ export const quotes = pgTable("quotes", {
   index("idx_quotes_account").on(table.accountId),
   index("idx_quotes_lead").on(table.leadId),
   index("idx_quotes_expires").on(table.expiresAt),
+  index("idx_quotes_deleted").on(table.deletedAt),
 ]);
 
 export const quotesRelations = relations(quotes, ({ one, many }) => ({

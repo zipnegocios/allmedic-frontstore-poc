@@ -32,7 +32,24 @@ export function CompanySettingsForm() {
   useEffect(() => {
     fetch('/api/admin/quote-config/company-settings')
       .then((r) => r.json())
-      .then((d: CompanySettings | null) => setSettings(d))
+      .then((d: (CompanySettings & { logoUrl?: string | null }) | null) => {
+        if (d) {
+          setSettings(d);
+          if (d.logoUrl) setLogoUrl(d.logoUrl);
+        } else {
+          setSettings({
+            id: '',
+            logoMediaId: null,
+            razonSocial: '',
+            ruc: '',
+            address: '',
+            phones: '',
+            email: '',
+            website: '',
+            footerNote: '',
+          });
+        }
+      })
       .catch(() => toast.error('Error al cargar datos de empresa'));
   }, []);
 
@@ -40,15 +57,30 @@ export function CompanySettingsForm() {
     if (!settings) return;
     setSaving(true);
     try {
+      const payload = {
+        logoMediaId: settings.logoMediaId || null,
+        razonSocial: settings.razonSocial?.trim() || '',
+        ruc: settings.ruc?.trim() || '',
+        address: settings.address?.trim() || null,
+        phones: settings.phones?.trim() || null,
+        email: settings.email?.trim() || null,
+        website: settings.website?.trim() || null,
+        footerNote: settings.footerNote?.trim() || null,
+      };
+
       const res = await fetch('/api/admin/quote-config/company-settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings),
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error('Failed');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed');
+      }
       toast.success('Datos de empresa actualizados');
-    } catch {
-      toast.error('Error al guardar');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error al guardar';
+      toast.error(msg === 'Failed' ? 'Error al guardar' : msg);
     } finally {
       setSaving(false);
     }

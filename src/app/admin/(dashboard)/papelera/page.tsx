@@ -22,7 +22,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Trash2, RotateCcw, Search, Trash, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -30,7 +29,7 @@ import { toast } from 'sonner';
 interface TrashedItem {
   id: string;
   name: string;
-  entityType: 'SET';
+  entityType: 'SET' | 'QUOTE';
   deletedAt: string;
   details: string;
 }
@@ -40,6 +39,8 @@ export default function TrashPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<TrashedItem | null>(null);
+  const [securityInput, setSecurityInput] = useState('');
 
   const fetchTrash = useCallback(async () => {
     setLoading(true);
@@ -96,6 +97,7 @@ export default function TrashPage() {
       if (!res.ok) throw new Error('Failed to delete');
       toast.success(`${name} eliminado definitivamente`);
       fetchTrash();
+      setDeleteTarget(null);
     } catch {
       toast.error('Error al eliminar definitivamente');
     } finally {
@@ -166,7 +168,7 @@ export default function TrashPage() {
                   <TableRow key={item.id} className="hover:bg-gray-50 transition-colors">
                     <TableCell>
                       <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200">
-                        {item.entityType === 'SET' ? 'Set Corporativo' : item.entityType}
+                        {item.entityType === 'SET' ? 'Set Corporativo' : item.entityType === 'QUOTE' ? 'Cotización' : item.entityType}
                       </Badge>
                     </TableCell>
                     <TableCell className="font-medium text-gray-900">{item.name}</TableCell>
@@ -194,42 +196,20 @@ export default function TrashPage() {
                           <span className="hidden sm:inline">Restaurar</span>
                         </Button>
 
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              disabled={actionInProgress !== null}
-                              className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg gap-1.5"
-                              title="Eliminar definitivamente"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span className="hidden sm:inline">Eliminar</span>
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent className="max-w-[450px]">
-                            <AlertDialogHeader>
-                              <div className="flex items-center gap-2 text-red-600 mb-2">
-                                <AlertTriangle className="w-5 h-5 shrink-0" />
-                                <AlertDialogTitle>¿Eliminar definitivamente?</AlertDialogTitle>
-                              </div>
-                              <AlertDialogDescription className="text-gray-600">
-                                Esta acción es <span className="font-semibold text-gray-950">irreversible</span>. 
-                                Se borrará definitivamente el set <span className="font-semibold text-gray-950">"{item.name}"</span>, 
-                                sus imágenes vinculadas y sus reglas de negocio asociadas. Las cotizaciones que lo referencien mantendrán su snapshot pero desvinculadas.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter className="mt-4">
-                              <AlertDialogCancel className="rounded-lg">Cancelar</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handlePermanentDelete(item.id, item.entityType, item.name)}
-                                className="bg-red-600 hover:bg-red-700 text-white rounded-lg"
-                              >
-                                Confirmar eliminación
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={actionInProgress !== null}
+                          onClick={() => {
+                            setDeleteTarget(item);
+                            setSecurityInput('');
+                          }}
+                          className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg gap-1.5"
+                          title="Eliminar definitivamente"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Eliminar</span>
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -239,6 +219,61 @@ export default function TrashPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent className="max-w-[450px]">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-2 text-red-600 mb-2">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              <AlertDialogTitle>¿Eliminar definitivamente?</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="space-y-3 text-gray-600" asChild>
+              <div>
+                {deleteTarget?.entityType === 'SET' ? (
+                  <p>
+                    Esta acción es <span className="font-semibold text-gray-950">irreversible</span>. 
+                    Se borrará definitivamente el set <span className="font-semibold text-gray-950">"{deleteTarget.name}"</span>, 
+                    sus imágenes vinculadas y sus reglas de negocio asociadas. Las cotizaciones que lo referencien mantendrán su snapshot pero desvinculadas.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    <p>
+                      Esta acción es <span className="font-semibold text-gray-950">irreversible</span>. 
+                      Se borrarán definitivamente los registros de la cotización <span className="font-semibold text-gray-950">"{deleteTarget?.name}"</span>, 
+                      sus partidas, sus documentos adjuntos y el archivo PDF de Cloudflare R2.
+                    </p>
+                    <p>
+                      Para confirmar esta acción, escribe la palabra de seguridad{' '}
+                      <span className="font-bold text-gray-950">ELIMINAR</span> a continuación:
+                    </p>
+                    <Input
+                      placeholder="Escribe ELIMINAR"
+                      value={securityInput}
+                      onChange={(e) => setSecurityInput(e.target.value)}
+                      className="mt-1 h-10 border-gray-250 focus-visible:ring-[#111111]"
+                    />
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4">
+            <AlertDialogCancel className="rounded-lg">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteTarget) {
+                  handlePermanentDelete(deleteTarget.id, deleteTarget.entityType, deleteTarget.name);
+                }
+              }}
+              disabled={actionInProgress !== null || (deleteTarget?.entityType === 'QUOTE' && securityInput !== 'ELIMINAR')}
+              className="bg-red-600 hover:bg-red-700 text-white rounded-lg"
+            >
+              Confirmar eliminación
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

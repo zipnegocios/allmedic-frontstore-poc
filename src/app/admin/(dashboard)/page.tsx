@@ -1,13 +1,14 @@
 import { db } from '@/db';
 import { products, productVariants, leads } from '@/db/schema';
 import { sql, eq, and, gte } from 'drizzle-orm';
-import { requireAdmin } from '@/lib/admin-auth';
+import { requireAdminPage } from '@/lib/admin-auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Package, ShoppingCart, AlertTriangle, TrendingUp } from 'lucide-react';
 import { LEAD_STATUS_LABELS } from '@/lib/lead-status';
 
 export default async function AdminDashboardPage() {
-  await requireAdmin();
+  await requireAdminPage();
+
 
   const [productCount, leadCount, lowStockCount] = await Promise.all([
     db.select({ count: sql<number>`count(*)` }).from(products).where(eq(products.isActive, true)),
