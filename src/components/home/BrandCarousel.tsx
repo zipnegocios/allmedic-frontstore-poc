@@ -210,7 +210,7 @@ export function BrandCarousel({ brands: brandsProp }: { brands?: BrandNavItem[] 
                     'active:scale-95'
                   )}>
                     {/* Logo */}
-                    <div className="aspect-square w-12 sm:w-16 flex items-center justify-center transition-all duration-300 group-hover:-translate-y-2 group-hover:scale-95">
+                    <div className="w-[95%] h-[75%] flex items-center justify-center transition-all duration-300 group-hover:-translate-y-2 group-hover:scale-95">
                       {brand.logoUrl ? (
                         <img
                           src={brand.logoUrl}
