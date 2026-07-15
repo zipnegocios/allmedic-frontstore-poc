@@ -50,11 +50,18 @@ export function BrandCarousel({ brands: brandsProp }: { brands?: BrandNavItem[] 
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    setIsMounted(true);
+    const timer = setTimeout(() => {
+      setIsMounted(true);
+      setItemsPerView(getItemsPerView());
+    }, 0);
+
     const handleResize = () => setItemsPerView(getItemsPerView());
-    handleResize();
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', handleResize);
+    };
   }, []);
 
   const maxIndex = Math.max(0, BRANDS.length - itemsPerView);
@@ -160,7 +167,7 @@ export function BrandCarousel({ brands: brandsProp }: { brands?: BrandNavItem[] 
         {/* Carousel Container */}
         <div
           ref={containerRef}
-          className="relative"
+          className="relative overflow-x-auto scrollbar-hide"
           onMouseEnter={() => setIsPaused(true)}
           onMouseLeave={() => {
             setIsPaused(false);
@@ -175,7 +182,7 @@ export function BrandCarousel({ brands: brandsProp }: { brands?: BrandNavItem[] 
         >
           {/* Track */}
           <div
-            className="flex gap-3 sm:gap-4 transition-transform duration-500 ease-out"
+            className="flex gap-3 sm:gap-4 transition-transform duration-500 ease-out scrollbar-hide"
             style={{
               transform: `translateX(-${currentIndex * (100 / itemsPerView + 1.5)}%)`,
             }}
@@ -196,13 +203,14 @@ export function BrandCarousel({ brands: brandsProp }: { brands?: BrandNavItem[] 
                   }}
                 >
                   <div className={cn(
-                    'bg-white rounded-xl p-4 sm:p-6 border border-[#E5E5E5]',
+                    'bg-white rounded-xl p-2 sm:p-3 border border-[#E5E5E5]',
+                    'aspect-[2/1] flex flex-col items-center justify-center relative overflow-hidden',
                     'transition-all duration-300 ease-out',
                     'hover:border-[#111111] hover:shadow-lg hover:-translate-y-1',
                     'active:scale-95'
                   )}>
                     {/* Logo */}
-                    <div className="aspect-square max-w-[80px] sm:max-w-[100px] mx-auto mb-3 sm:mb-4 flex items-center justify-center">
+                    <div className="aspect-square w-12 sm:w-16 flex items-center justify-center transition-all duration-300 group-hover:-translate-y-2 group-hover:scale-95">
                       {brand.logoUrl ? (
                         <img
                           src={brand.logoUrl}
@@ -214,32 +222,27 @@ export function BrandCarousel({ brands: brandsProp }: { brands?: BrandNavItem[] 
                             const parent = target.parentElement;
                             if (parent) {
                               const fallback = document.createElement('div');
-                              fallback.className = 'text-lg sm:text-xl font-bold text-[#111111] text-center';
+                              fallback.className = 'text-xs sm:text-sm font-bold text-[#111111] text-center';
                               fallback.textContent = brand.name;
                               parent.appendChild(fallback);
                             }
                           }}
                         />
                       ) : (
-                        <span className="text-lg sm:text-xl font-bold text-[#111111] text-center">
+                        <span className="text-xs sm:text-sm font-bold text-[#111111] text-center">
                           {brand.name}
                         </span>
                       )}
                     </div>
 
                     {/* Info */}
-                    <div className="text-center">
-                      <h3 className="text-sm sm:text-base font-semibold text-[#111111] mb-1 truncate">
-                        {brand.name}
-                      </h3>
-                      <p className="text-xs text-gray-400 line-clamp-1">
-                        {info.description}
-                      </p>
-                    </div>
+                    <p className="text-xs sm:text-sm text-[#111111] text-center font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 absolute bottom-1.5 sm:bottom-2 left-0 right-0 px-2 truncate pointer-events-none">
+                      {brand.name}
+                    </p>
 
                     {/* Featured Badge */}
                     {info.featured && (
-                      <span className="absolute -top-2 -right-2 px-2 py-0.5 bg-[#111111] text-white text-[10px] font-bold rounded-full">
+                      <span className="absolute top-1.5 right-1.5 px-2 py-0.5 bg-[#111111] text-white text-[9px] font-bold rounded-full">
                         TOP
                       </span>
                     )}

@@ -29,7 +29,8 @@ function CatalogoInner({ initialProducts, brandNames, availableColors }: Catalog
   const searchParams = useSearchParams();
   const router = useRouter();
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>('grid-1');
+  // Default to 4 columns on desktop, 2 columns on mobile (handled by responsive classes)
+  const [viewMode, setViewMode] = useState<ViewMode>('grid-4');
   const [itemsPerPage, setItemsPerPage] = useState<number>(20);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [sortBy, setSortBy] = useState<SortOption>('relevance');
