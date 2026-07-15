@@ -247,21 +247,21 @@ export default function AdminSetsPage() {
 
                 {/* Middle Area: Pieces thumbnails */}
                 {set.items && set.items.length > 0 && (
-                  <div className="flex flex-col space-y-1 pt-1">
-                    <span className="text-[9px] text-gray-400 font-bold tracking-wider uppercase">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[8px] text-gray-400 font-semibold tracking-wide uppercase leading-none">
                       Piezas:
                     </span>
-                    <div className="flex flex-wrap gap-1">
+                    <div className="flex flex-wrap gap-0.5">
                       {set.items.map((item, idx) => (
                         <div
                           key={item.productId || idx}
-                          className="h-6 w-6 rounded border border-gray-150 bg-gray-50 overflow-hidden shadow-xs hover:scale-110 transition-transform duration-200 cursor-help shrink-0"
+                          className="h-6 w-6 rounded border border-gray-200 bg-gray-50 overflow-hidden hover:scale-110 transition-transform duration-200 cursor-help shrink-0"
                           title={item.name}
                         >
                           {item.imageUrl ? (
                             <img
                               src={item.imageUrl}
-                              alt={item.name}
+                              alt={item.name ?? ''}
                               className="h-full w-full object-cover"
                             />
                           ) : (

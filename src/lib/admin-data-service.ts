@@ -748,7 +748,7 @@ export async function getAdminSets() {
   for (const item of setProducts) {
     const list = productsBySetMap.get(item.setId) || [];
     const storageKey = productCovers.get(item.productId);
-    const imageUrl = storageKey ? `${process.env.R2_PUBLIC_URL}/${storageKey}` : null;
+    const imageUrl = storageKey ? resolveMediaUrl(storageKey) : null;
     list.push({
       productId: item.productId,
       name: item.productName,
