@@ -60,7 +60,7 @@ export function GeneralSection({ register, control, errors, watch, groups, brand
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-2">
-            <Label>Imagen de portada</Label>
+            <Label>Imagen de portada *</Label>
             <div className="flex items-center gap-3">
               <div className="w-16 h-12 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0">
                 {watch('imageUrl') ? (
@@ -73,6 +73,7 @@ export function GeneralSection({ register, control, errors, watch, groups, brand
                 {watch('imageUrl') ? 'Cambiar' : 'Elegir imagen'}
               </Button>
             </div>
+            {errors.coverAssetId && <p className="text-sm text-red-500">{errors.coverAssetId.message}</p>}
           </div>
           <div className="space-y-2">
             <Label>Grupo de Sets</Label>

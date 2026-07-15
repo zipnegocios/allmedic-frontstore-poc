@@ -15,7 +15,7 @@ import {
   mediaLinks as mediaLinksTable,
   mediaAssets as mediaAssetsTable,
 } from '@/db/schema';
-import { eq, and, or, asc, desc, sql, like, inArray, type SQL } from 'drizzle-orm';
+import { eq, and, or, asc, desc, sql, like, inArray, isNull, isNotNull, type SQL } from 'drizzle-orm';
 import { resolveMediaUrl } from './media';
 import type { BusinessRule, RuleConflict } from '@/lib/rules-engine';
 
@@ -650,7 +650,7 @@ export async function getSetActiveStatusByIds(ids: string[]): Promise<Map<string
   const rows = await db
     .select({ id: corporateSetsTable.id, isActive: corporateSetsTable.isActive })
     .from(corporateSetsTable)
-    .where(inArray(corporateSetsTable.id, ids));
+    .where(and(inArray(corporateSetsTable.id, ids), isNull(corporateSetsTable.deletedAt)));
   return new Map(rows.map((r) => [r.id, r.isActive ?? false]));
 }
 
@@ -702,10 +702,11 @@ export async function getAdminSets() {
     .from(corporateSetsTable)
     .leftJoin(setGroupsTable, eq(corporateSetsTable.setGroupId, setGroupsTable.id))
     .leftJoin(brandsTable, eq(corporateSetsTable.brandId, brandsTable.id))
+    .where(isNull(corporateSetsTable.deletedAt))
     .orderBy(asc(corporateSetsTable.sortOrder));
 
   const setIds = rows.map(r => r.id);
-  const [itemCounts, coverMap] = await Promise.all([
+  const [itemCounts, coverMap, setProducts] = await Promise.all([
     setIds.length > 0
       ? db
           .select({ setId: setItemsTable.setId, count: sql<number>`count(*)` })
@@ -714,37 +715,104 @@ export async function getAdminSets() {
           .groupBy(setItemsTable.setId)
       : Promise.resolve([]),
     getSingleLinksUrlMap('SET', setIds, 'COVER'),
+    setIds.length > 0
+      ? db
+          .select({
+            setId: setItemsTable.setId,
+            productId: setItemsTable.productId,
+            productName: productsTable.name,
+            productSlug: productsTable.slug,
+          })
+          .from(setItemsTable)
+          .innerJoin(productsTable, eq(setItemsTable.productId, productsTable.id))
+          .where(inArray(setItemsTable.setId, setIds))
+          .orderBy(asc(setItemsTable.sortOrder))
+      : Promise.resolve([]),
   ]);
-  const countMap = new Map(itemCounts.map(c => [c.setId, Number(c.count)]));
 
-  return rows.map(r => ({ ...r, itemCount: countMap.get(r.id) ?? 0, imageUrl: coverMap.get(r.id) ?? null }));
+  const productIds = setProducts.map(sp => sp.productId);
+  const productCovers = await getProductCoversMap(productIds);
+
+  const countMap = new Map(itemCounts.map(c => [c.setId, Number(c.count)]));
+  
+  // Group products by set ID
+  const productsBySetMap = new Map<
+    string,
+    {
+      productId: string;
+      name: string | null;
+      slug: string;
+      imageUrl: string | null;
+    }[]
+  >();
+  for (const item of setProducts) {
+    const list = productsBySetMap.get(item.setId) || [];
+    const storageKey = productCovers.get(item.productId);
+    const imageUrl = storageKey ? `${process.env.R2_PUBLIC_URL}/${storageKey}` : null;
+    list.push({
+      productId: item.productId,
+      name: item.productName,
+      slug: item.productSlug,
+      imageUrl,
+    });
+    productsBySetMap.set(item.setId, list);
+  }
+
+  return rows.map(r => ({
+    ...r,
+    itemCount: countMap.get(r.id) ?? 0,
+    imageUrl: coverMap.get(r.id) ?? null,
+    items: productsBySetMap.get(r.id) || [],
+  }));
 }
+
 
 export async function getAdminSetById(id: string) {
   const [set] = await db.select().from(corporateSetsTable).where(eq(corporateSetsTable.id, id)).limit(1);
   if (!set) return null;
 
-  const items = await db
-    .select({
-      id: setItemsTable.id,
-      productId: setItemsTable.productId,
-      quantityPerSet: setItemsTable.quantityPerSet,
-      sortOrder: setItemsTable.sortOrder,
-      productName: productsTable.name,
-      productSlug: productsTable.slug,
-      priceWholesale: productsTable.priceWholesale,
-      priceWholesaleSale: productsTable.priceWholesaleSale,
-      priceNormal: productsTable.priceNormal,
-    })
-    .from(setItemsTable)
-    .leftJoin(productsTable, eq(setItemsTable.productId, productsTable.id))
-    .where(eq(setItemsTable.setId, id))
-    .orderBy(asc(setItemsTable.sortOrder));
+  const [items, coverResult] = await Promise.all([
+    db
+      .select({
+        id: setItemsTable.id,
+        productId: setItemsTable.productId,
+        quantityPerSet: setItemsTable.quantityPerSet,
+        sortOrder: setItemsTable.sortOrder,
+        productName: productsTable.name,
+        productSlug: productsTable.slug,
+        priceWholesale: productsTable.priceWholesale,
+        priceWholesaleSale: productsTable.priceWholesaleSale,
+        priceNormal: productsTable.priceNormal,
+      })
+      .from(setItemsTable)
+      .leftJoin(productsTable, eq(setItemsTable.productId, productsTable.id))
+      .where(eq(setItemsTable.setId, id))
+      .orderBy(asc(setItemsTable.sortOrder)),
+    db
+      .select({
+        id: mediaLinksTable.id,
+        assetId: mediaLinksTable.assetId,
+        url: sql<string>`concat(${sql.raw("'" + process.env.R2_PUBLIC_URL + "/'")}, ${mediaAssetsTable.storageKey})`,
+        storageKey: mediaAssetsTable.storageKey,
+        mimeType: mediaAssetsTable.mimeType,
+        alt: mediaLinksTable.altOverride,
+      })
+      .from(mediaLinksTable)
+      .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
+      .where(and(
+        eq(mediaLinksTable.entityType, 'SET'),
+        eq(mediaLinksTable.entityId, id),
+        eq(mediaLinksTable.role, 'COVER')
+      ))
+      .limit(1),
+  ]);
 
+  const cover = coverResult[0] || null;
   const imageUrl = await getSingleLinkUrl('SET', id, 'COVER');
 
-  return { ...set, imageUrl, items };
+  return { ...set, cover, imageUrl, items };
 }
+
 
 interface SetItemInput {
   id?: string;
@@ -833,9 +901,81 @@ export async function updateSetWithItems(id: string, input: Partial<CorporateSet
   return set;
 }
 
-export async function deleteSet(id: string) {
-  await db.delete(corporateSetsTable).where(eq(corporateSetsTable.id, id));
+export async function softDeleteSet(id: string) {
+  await db
+    .update(corporateSetsTable)
+    .set({ deletedAt: new Date() })
+    .where(eq(corporateSetsTable.id, id));
 }
+
+export async function restoreSet(id: string) {
+  await db
+    .update(corporateSetsTable)
+    .set({ deletedAt: null })
+    .where(eq(corporateSetsTable.id, id));
+}
+
+export async function permanentlyDeleteSet(id: string) {
+  await db.transaction(async (tx) => {
+    // 1. Eliminar relaciones set-piezas
+    await tx.delete(setItemsTable).where(eq(setItemsTable.setId, id));
+    // 2. Eliminar vínculos de medios polimórficos de tipo SET
+    await tx.delete(mediaLinksTable).where(and(
+      eq(mediaLinksTable.entityType, 'SET'),
+      eq(mediaLinksTable.entityId, id)
+    ));
+    // 3. Eliminar reglas de negocio asociadas a este set
+    await tx.delete(businessRulesTable).where(and(
+      eq(businessRulesTable.scope, 'SET'),
+      eq(businessRulesTable.scopeId, id)
+    ));
+    // 4. Eliminar el set corporativo propiamente dicho
+    await tx.delete(corporateSetsTable).where(eq(corporateSetsTable.id, id));
+  });
+}
+
+export async function getTrashedSets() {
+  const rows = await db
+    .select({
+      id: corporateSetsTable.id,
+      name: corporateSetsTable.name,
+      slug: corporateSetsTable.slug,
+      setGroupId: corporateSetsTable.setGroupId,
+      groupName: setGroupsTable.name,
+      brandId: corporateSetsTable.brandId,
+      brandName: brandsTable.name,
+      isActive: corporateSetsTable.isActive,
+      isFeatured: corporateSetsTable.isFeatured,
+      sortOrder: corporateSetsTable.sortOrder,
+      deletedAt: corporateSetsTable.deletedAt,
+    })
+    .from(corporateSetsTable)
+    .leftJoin(setGroupsTable, eq(corporateSetsTable.setGroupId, setGroupsTable.id))
+    .leftJoin(brandsTable, eq(corporateSetsTable.brandId, brandsTable.id))
+    .where(isNotNull(corporateSetsTable.deletedAt))
+    .orderBy(desc(corporateSetsTable.deletedAt));
+
+  const setIds = rows.map(r => r.id);
+  const [itemCounts, coverMap] = await Promise.all([
+    setIds.length > 0
+      ? db
+          .select({ setId: setItemsTable.setId, count: sql<number>`count(*)` })
+          .from(setItemsTable)
+          .where(inArray(setItemsTable.setId, setIds))
+          .groupBy(setItemsTable.setId)
+      : Promise.resolve([]),
+    getSingleLinksUrlMap('SET', setIds, 'COVER'),
+  ]);
+
+  const countMap = new Map(itemCounts.map(c => [c.setId, Number(c.count)]));
+
+  return rows.map(r => ({
+    ...r,
+    itemCount: countMap.get(r.id) ?? 0,
+    imageUrl: coverMap.get(r.id) ?? null,
+  }));
+}
+
 
 async function getProductCoversMap(productIds: string[]): Promise<Map<string, string>> {
   if (productIds.length === 0) return new Map();

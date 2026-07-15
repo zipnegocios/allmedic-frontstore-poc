@@ -14,7 +14,7 @@ import {
   mediaLinks as mediaLinksTable,
   mediaAssets as mediaAssetsTable,
 } from '@/db/schema';
-import { eq, and, inArray, asc, desc, sql, isNotNull } from 'drizzle-orm';
+import { eq, and, inArray, asc, desc, sql, isNotNull, isNull } from 'drizzle-orm';
 import type { BusinessRule, InventoryStockSnapshot, SetPieceInfo } from './rules-engine';
 import type { CorporateSetSummary, CorporateSetDetail, SetPiece, SetGroupSummary } from './corporate-types';
 import type { ProductColor, ProductVariant } from './types';
@@ -89,7 +89,7 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
     .from(corporateSetsTable)
     .leftJoin(setGroupsTable, eq(corporateSetsTable.setGroupId, setGroupsTable.id))
     .leftJoin(brandsTable, eq(corporateSetsTable.brandId, brandsTable.id))
-    .where(eq(corporateSetsTable.isActive, true))
+    .where(and(eq(corporateSetsTable.isActive, true), isNull(corporateSetsTable.deletedAt)))
     .orderBy(asc(corporateSetsTable.sortOrder));
 
   const setIds = rows.map((r) => r.id);
@@ -165,7 +165,11 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
     .from(corporateSetsTable)
     .leftJoin(setGroupsTable, eq(corporateSetsTable.setGroupId, setGroupsTable.id))
     .leftJoin(brandsTable, eq(corporateSetsTable.brandId, brandsTable.id))
-    .where(and(eq(corporateSetsTable.slug, slug), eq(corporateSetsTable.isActive, true)))
+    .where(and(
+      eq(corporateSetsTable.slug, slug),
+      eq(corporateSetsTable.isActive, true),
+      isNull(corporateSetsTable.deletedAt)
+    ))
     .limit(1);
 
   if (!set) return null;

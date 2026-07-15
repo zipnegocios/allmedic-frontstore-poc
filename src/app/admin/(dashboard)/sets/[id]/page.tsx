@@ -19,6 +19,7 @@ export default async function EditSetPage({ params }: EditSetPageProps) {
     slug: set.slug,
     description: set.description || '',
     imageUrl: set.imageUrl || '',
+    coverAssetId: set.cover?.assetId || '',
     setGroupId: set.setGroupId || '',
     brandId: set.brandId || '',
     isActive: set.isActive ?? true,

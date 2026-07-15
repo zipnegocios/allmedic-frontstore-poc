@@ -29,7 +29,7 @@ export const SET_FORM_WIZARD_STEPS: SetFormWizardStepDef[] = [
   {
     id: 'general',
     label: 'Datos generales',
-    fields: ['name', 'slug'],
+    fields: ['name', 'slug', 'coverAssetId'],
   },
   {
     id: 'pieces',

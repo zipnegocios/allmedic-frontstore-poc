@@ -39,10 +39,12 @@ export const corporateSets = pgTable("corporate_sets", {
   sortOrder: integer("sort_order").default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
 }, (table) => [
   index("idx_corporate_sets_active").on(table.isActive),
   index("idx_corporate_sets_featured").on(table.isFeatured),
   index("idx_corporate_sets_group").on(table.setGroupId),
+  index("idx_corporate_sets_deleted").on(table.deletedAt),
 ]);
 
 export const corporateSetsRelations = relations(corporateSets, ({ one, many }) => ({
@@ -231,7 +233,7 @@ export const quoteItems = pgTable("quote_items", {
   kind: text("kind").notNull(),
   productId: pgUuid("product_id").references(() => products.id),
   variantId: pgUuid("variant_id").references(() => productVariants.id),
-  setId: pgUuid("set_id").references(() => corporateSets.id),
+  setId: pgUuid("set_id").references(() => corporateSets.id, { onDelete: "set null" }),
   size: text("size"),
   color: text("color"),
   // Obligatoria en FREE; autogenerada (editable) en CATALOG

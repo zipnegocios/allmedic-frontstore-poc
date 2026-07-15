@@ -19,6 +19,7 @@ import {
   Images,
   Settings2,
   Settings,
+  Trash2,
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 
@@ -36,6 +37,7 @@ const navItems = [
   { href: '/admin/cuentas-corporativas', label: 'Cuentas Corporativas', icon: Building2 },
   { href: '/admin/cotizaciones', label: 'Cotizaciones', icon: FileText },
   { href: '/admin/reglas', label: 'Motor de Reglas', icon: Settings2 },
+  { href: '/admin/papelera', label: 'Papelera', icon: Trash2 },
   { href: '/admin/configuracion', label: 'Configuración', icon: Settings },
 ];
 

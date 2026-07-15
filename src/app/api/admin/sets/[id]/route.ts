@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
-import { getAdminSetById, updateSetWithItems, deleteSet } from '@/lib/admin-data-service';
+import { getAdminSetById, updateSetWithItems, softDeleteSet } from '@/lib/admin-data-service';
 import { z } from 'zod';
 
 const SetItemSchema = z.object({
@@ -69,7 +69,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   try {
     await requireAdmin();
     const { id } = await params;
-    await deleteSet(id);
+    await softDeleteSet(id);
     return NextResponse.json({ success: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';

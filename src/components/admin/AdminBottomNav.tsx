@@ -27,6 +27,7 @@ import {
   Settings2,
   Settings,
   Menu,
+  Trash2,
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 
@@ -70,6 +71,7 @@ const moreItems = [
   { href: '/admin/sets', label: 'Sets Corporativos', icon: Boxes },
   { href: '/admin/grupos-de-sets', label: 'Grupos de Sets', icon: Layers },
   { href: '/admin/reglas', label: 'Motor de Reglas', icon: Settings2 },
+  { href: '/admin/papelera', label: 'Papelera', icon: Trash2 },
   { href: '/admin/configuracion', label: 'Configuración', icon: Settings },
 ];
 
