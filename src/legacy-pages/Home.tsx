@@ -190,7 +190,8 @@ function QuickAccessCards() {
 
 // Featured Products Section Component
 function FeaturedProductsSection({ products }: { products: Product[] }) {
-  const [viewMode, setViewMode] = useState<ViewMode>('grid-1');
+  // Default to 4 columns on desktop, 2 columns on mobile (handled by responsive classes)
+  const [viewMode, setViewMode] = useState<ViewMode>('grid-4');
   const [itemsPerPage, setItemsPerPage] = useState<number>(8);
   const displayedProducts = products.slice(0, itemsPerPage);
 
