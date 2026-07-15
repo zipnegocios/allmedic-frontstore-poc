@@ -209,6 +209,16 @@ export default function ProductForm({
               alt: i.alt || '',
               sortOrder: i.sortOrder ?? 0,
             })),
+            cover: product.cover
+              ? {
+                  id: product.cover.id,
+                  assetId: product.cover.assetId,
+                  url: product.cover.url,
+                  storageKey: product.cover.storageKey,
+                  mimeType: product.cover.mimeType,
+                  alt: product.cover.alt || '',
+                }
+              : { assetId: '', url: '', storageKey: '', mimeType: '', alt: '' },
           });
         })
         .catch((err) => {
@@ -284,6 +294,24 @@ export default function ProductForm({
       setSaving(false);
     }
   }
+
+  const onInvalid = (errors: any) => {
+    console.error('Errores de validación en ProductForm:', errors);
+    
+    const getFirstErrorMessage = (obj: any): string | null => {
+      if (!obj) return null;
+      if (typeof obj.message === 'string') return obj.message;
+      for (const key of Object.keys(obj)) {
+        const nestedMsg = getFirstErrorMessage(obj[key]);
+        if (nestedMsg) return nestedMsg;
+      }
+      return null;
+    };
+
+    const firstMsg = getFirstErrorMessage(errors);
+    toast.error(`Error de validación: ${firstMsg || 'Complete todos los campos requeridos'}`);
+  };
+
 
   function addFeature() {
     if (featureInput.trim()) {
@@ -424,7 +452,7 @@ export default function ProductForm({
             </Button>
           )}
           <Button
-            onClick={() => handleSubmit(onSubmit)()}
+            onClick={() => handleSubmit(onSubmit, onInvalid)()}
             disabled={saving}
             className="bg-[#111111]"
           >
@@ -434,7 +462,7 @@ export default function ProductForm({
         </div>
       </div>
 
-      <form onSubmit={(e) => { e.preventDefault(); handleSubmit(onSubmit)(); }}>
+      <form onSubmit={(e) => { e.preventDefault(); handleSubmit(onSubmit, onInvalid)(); }}>
         {isMobile ? (
           <div className="space-y-4">
             {/* ─── Indicador de progreso ─── */}
@@ -782,7 +810,7 @@ export default function ProductForm({
               {isLastWizardStep ? (
                 <Button
                   type="button"
-                  onClick={() => handleSubmit(onSubmit)()}
+                  onClick={() => handleSubmit(onSubmit, onInvalid)()}
                   disabled={saving}
                   className="min-h-11 bg-[#111111]"
                 >
