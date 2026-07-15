@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Plus, Pencil, Trash2, Boxes, Star } from 'lucide-react';
@@ -142,19 +142,28 @@ export default function AdminSetsPage() {
           </Button>
         </Link>
       </div>
-
       {loading ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
           {[1, 2, 3, 4, 5, 6].map((n) => (
-            <Card key={n} className="overflow-hidden border border-gray-150 animate-pulse aspect-[9/16] flex flex-col justify-between">
-              <div className="h-24 bg-gray-200 shrink-0" />
-              <CardContent className="p-3.5 space-y-2 flex-1 flex flex-col justify-between">
-                <div className="space-y-2">
-                  <div className="h-4 bg-gray-200 rounded w-2/3" />
-                  <div className="h-3 bg-gray-200 rounded w-1/2" />
+            <Card key={n} className="overflow-hidden border border-gray-150 animate-pulse aspect-[9/16] p-3 flex flex-col justify-between">
+              <div className="flex-1 flex flex-col justify-between min-h-0">
+                <div className="flex gap-2.5 items-start shrink-0">
+                  <div className="w-1/4 aspect-[9/16] bg-gray-200 rounded shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-2/3" />
+                    <div className="h-3 bg-gray-200 rounded w-1/2" />
+                  </div>
                 </div>
-                <div className="h-10 bg-gray-200 rounded w-full pt-2" />
-              </CardContent>
+                <div className="space-y-1">
+                  <div className="h-2 bg-gray-200 rounded w-1/4" />
+                  <div className="flex gap-1">
+                    {[1, 2, 3].map((x) => (
+                      <div key={x} className="h-6 w-6 bg-gray-200 rounded shrink-0" />
+                    ))}
+                  </div>
+                </div>
+                <div className="h-8 bg-gray-200 rounded w-full pt-2" />
+              </div>
             </Card>
           ))}
         </div>
@@ -176,78 +185,77 @@ export default function AdminSetsPage() {
           {sets.map((set) => (
             <Card
               key={set.id}
-              className="overflow-hidden border border-gray-200 flex flex-col justify-between hover:shadow-md hover:border-gray-300 transition-all duration-200 bg-white aspect-[9/16]"
+              className="overflow-hidden border border-gray-200 flex flex-col justify-between hover:shadow-md hover:border-gray-300 transition-all duration-200 bg-white aspect-[9/16] p-3"
             >
-              <div className="relative h-24 w-full bg-gray-55 overflow-hidden group border-b border-gray-100 shrink-0">
-                {set.imageUrl ? (
-                  <img
-                    src={set.imageUrl}
-                    alt={set.name}
-                    className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
-                    <Boxes className="w-10 h-10" />
-                  </div>
-                )}
-                {set.isFeatured && (
-                  <div className="absolute top-3 left-3 bg-amber-500 text-white p-1.5 rounded-full shadow-md" title="Destacado">
-                    <Star className="w-4 h-4 fill-white text-white" />
-                  </div>
-                )}
-                <div className="absolute top-3 right-3">
-                  <Badge
-                    variant={set.isActive ? 'default' : 'secondary'}
-                    className={
-                      set.isActive
-                        ? 'bg-emerald-500 hover:bg-emerald-600 text-white border-none'
-                        : 'bg-gray-100 text-gray-500 border-none'
-                    }
-                  >
-                    {set.isActive ? 'Activo' : 'Inactivo'}
-                  </Badge>
-                </div>
-              </div>
-
-              <CardContent className="p-3.5 flex-1 flex flex-col justify-between space-y-2 overflow-hidden">
-                <div className="space-y-1.5">
-                  <h3 className="font-bold text-sm text-gray-900 leading-tight line-clamp-1" title={set.name}>
-                    {set.name}
-                  </h3>
-                  <div className="flex flex-wrap gap-1">
-                    {set.groupName && (
-                      <Badge
-                        variant="secondary"
-                        className="text-[9px] px-1 py-0.5 bg-gray-100 text-gray-700 border-none font-normal"
-                      >
-                        {set.groupName}
-                      </Badge>
+              <div className="flex-1 flex flex-col justify-between min-h-0">
+                {/* Top Row: Media + Info */}
+                <div className="flex gap-2.5 items-start shrink-0">
+                  {/* Media (25% width, 9:16 aspect) */}
+                  <div className="w-1/4 aspect-[9/16] bg-gray-50 rounded overflow-hidden relative shrink-0 border border-gray-100">
+                    {set.imageUrl ? (
+                      <img
+                        src={set.imageUrl}
+                        alt={set.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-350">
+                        <Boxes className="w-5 h-5" />
+                      </div>
                     )}
-                    {set.brandName && (
-                      <Badge
-                        variant="secondary"
-                        className="text-[9px] px-1 py-0.5 bg-gray-100 text-gray-700 border-none font-normal"
-                      >
-                        {set.brandName}
-                      </Badge>
+                    {set.isFeatured && (
+                      <div className="absolute top-1 left-1 bg-amber-500 text-white p-0.5 rounded-full shadow-md">
+                        <Star className="w-2.5 h-2.5 fill-white text-white" />
+                      </div>
                     )}
-                    <Badge variant="outline" className="text-[9px] px-1 py-0.5 font-normal text-gray-500 border-gray-200">
-                      {set.itemCount} {set.itemCount === 1 ? 'pza' : 'pzas'}
-                    </Badge>
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    <div className="space-y-0.5">
+                      <h3 className="font-bold text-xs text-gray-900 leading-tight line-clamp-2" title={set.name}>
+                        {set.name}
+                      </h3>
+                      <Badge
+                        variant={set.isActive ? 'default' : 'secondary'}
+                        className={`text-[8px] px-1 py-0 w-max border-none ${
+                          set.isActive
+                            ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+                            : 'bg-gray-100 text-gray-500 hover:bg-gray-150'
+                        }`}
+                      >
+                        {set.isActive ? 'Activo' : 'Inactivo'}
+                      </Badge>
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      {set.groupName && (
+                        <span className="text-[9px] text-gray-500 truncate" title={set.groupName}>
+                          Grupo: {set.groupName}
+                        </span>
+                      )}
+                      {set.brandName && (
+                        <span className="text-[9px] text-gray-400 truncate" title={set.brandName}>
+                          Marca: {set.brandName}
+                        </span>
+                      )}
+                      <Badge variant="outline" className="text-[8px] px-1 py-0.5 w-max font-normal text-gray-400 border-gray-200">
+                        {set.itemCount} {set.itemCount === 1 ? 'pza' : 'pzas'}
+                      </Badge>
+                    </div>
                   </div>
                 </div>
 
-                {/* Horizontal list of items (hidden on mobile) */}
+                {/* Middle Area: Pieces thumbnails */}
                 {set.items && set.items.length > 0 && (
-                  <div className="hidden md:flex flex-col space-y-1">
+                  <div className="flex flex-col space-y-1 pt-1">
                     <span className="text-[9px] text-gray-400 font-bold tracking-wider uppercase">
                       Piezas:
                     </span>
-                    <div className="flex -space-x-1.5 overflow-hidden py-0.5">
+                    <div className="flex flex-wrap gap-1">
                       {set.items.map((item, idx) => (
                         <div
                           key={item.productId || idx}
-                          className="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-gray-50 overflow-hidden shadow-sm hover:scale-110 transition-transform duration-200 cursor-help"
+                          className="h-6 w-6 rounded border border-gray-150 bg-gray-50 overflow-hidden shadow-xs hover:scale-110 transition-transform duration-200 cursor-help shrink-0"
                           title={item.name}
                         >
                           {item.imageUrl ? (
@@ -257,7 +265,7 @@ export default function AdminSetsPage() {
                               className="h-full w-full object-cover"
                             />
                           ) : (
-                            <div className="h-full w-full flex items-center justify-center text-[9px] text-gray-400 font-bold bg-gray-200">
+                            <div className="h-full w-full flex items-center justify-center text-[8px] text-gray-400 font-bold bg-gray-200">
                               {item.name?.substring(0, 2).toUpperCase() || 'P'}
                             </div>
                           )}
@@ -275,7 +283,7 @@ export default function AdminSetsPage() {
                       onCheckedChange={() => toggleActive(set.id, set.isActive)}
                       aria-label={`Cambiar estado de ${set.name}`}
                     />
-                    <span className="text-[10px] text-gray-500 font-medium select-none hidden sm:inline">
+                    <span className="text-[9px] text-gray-500 font-medium select-none hidden lg:inline">
                       {set.isActive ? 'Activo' : 'Inactivo'}
                     </span>
                   </div>
@@ -284,10 +292,10 @@ export default function AdminSetsPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-8 w-8 p-0 hover:bg-gray-100 rounded-lg text-gray-700"
+                        className="h-7 w-7 p-0 hover:bg-gray-100 rounded text-gray-700"
                         title="Editar"
                       >
-                        <Pencil className="w-3.5 h-3.5" />
+                        <Pencil className="w-3 h-3" />
                       </Button>
                     </Link>
 
@@ -296,10 +304,10 @@ export default function AdminSetsPage() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600 rounded-lg text-gray-550 group"
+                          className="h-7 w-7 p-0 hover:bg-red-50 hover:text-red-600 rounded text-gray-550 group"
                           title="Eliminar"
                         >
-                          <Trash2 className="w-3.5 h-3.5 text-gray-550 group-hover:text-red-600" />
+                          <Trash2 className="w-3 h-3 text-gray-550 group-hover:text-red-600" />
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent className="max-w-[450px]">
@@ -323,7 +331,7 @@ export default function AdminSetsPage() {
                     </AlertDialog>
                   </div>
                 </div>
-              </CardContent>
+              </div>
             </Card>
           ))}
         </div>
