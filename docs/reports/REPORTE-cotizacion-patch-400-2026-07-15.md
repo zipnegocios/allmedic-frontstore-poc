@@ -1,4 +1,9 @@
-# Reporte — Fallo al generar cotización definitiva (PATCH 400) en `/admin/cotizaciones`
+# Reporte — Fallo PATCH 400 en cotizaciones: transición a definitiva y edición de definitivas
+
+## Escenarios cubiertos
+
+- **Escenario B — Generar definitiva desde borrador:** `handleFinalize()` guarda primero vía PATCH; el 400 ocurría en ese guardado previo.
+- **Escenario A — Editar una DEFINITIVA existente y guardar (con regeneración de PDF):** mismo endpoint, **misma causa raíz**. Verificado contra la cotización `47a99368-df0a-4c24-a005-7b0a4c824f33` (hoy `COT-2026-00003`, FINAL, con `pdfKey`): sus líneas siguen llevando `pricingBreakdown: { composition }` tras la finalización, así que cada guardado posterior reenvía esa forma y el esquema viejo la rechazaba antes de llegar a `regenerateQuotePdf`. El payload exacto de `buildPatch()` para esa cotización valida `true` contra el esquema corregido.
 
 ## Causa raíz confirmada
 
@@ -31,7 +36,13 @@ El `PatchSchema` en `src/app/api/admin/quotes/[id]/route.ts` (antes del fix) dec
 - `/finalize` (`src/lib/quotes/finalize.ts`) ya devolvía mensajes específicos de incompletitud (`QuoteFinalizeError`) y el `QuoteEditor` ya los mostraba — no requería cambios, pero nunca se alcanzaba porque el `PATCH` previo fallaba primero.
 - La validación de completitud de `finalizeQuote()` se extrajo a `checkQuoteCompleteness()` (`src/lib/quotes/completeness.ts`), módulo puro, para poder testearla sin mockear transacciones de Drizzle. El orden transaccional (completitud → `quoteNumber` atómico → PDF → subida a R2) no cambió.
 
-### 3. Accesibilidad — warnings de Radix
+### 3. Regeneración del PDF al editar una definitiva — manejo de fallo
+
+Estado previo: el PATCH guardaba con `updateQuote` y luego llamaba `regenerateQuotePdf` (misma `pdfKey`, `putObject` sobreescribe el objeto en el bucket QUOTES — decisión de producto: sin versionado, el enlace compartido sirve siempre la versión vigente). Si la subida a R2 fallaba, el catch genérico respondía 500: el usuario creía que **nada** se guardó, cuando los cambios ya estaban persistidos y el PDF quedaba desactualizado en silencio.
+
+**Estrategia aplicada:** los cambios se guardan siempre; si la regeneración falla, el endpoint responde **200 con `pdfWarning`** ("Los cambios se guardaron, pero el PDF no pudo regenerarse. Vuelve a guardar para reintentar.") y el `QuoteEditor` lo muestra como toast de advertencia — el reintento es simplemente volver a guardar. `pdfGeneratedAt` solo se actualiza cuando la subida tuvo éxito, así la desactualización queda detectable en los datos. El toast de éxito "el PDF se regeneró" solo se muestra cuando realmente ocurrió.
+
+### 4. Accesibilidad — warnings de Radix
 - `QuoteLineEditor.tsx`: `description` en el diálogo de búsqueda de catálogo.
 - `cotizaciones/page.tsx`: `description` en el diálogo de filtros.
 

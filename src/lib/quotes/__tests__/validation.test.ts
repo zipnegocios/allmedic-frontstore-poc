@@ -79,4 +79,13 @@ describe("PatchQuoteSchema — round-trip del payload real de QuoteEditor.buildP
     const result = PatchQuoteSchema.safeParse(patchPayload);
     expect(result.success).toBe(true);
   });
+
+  it("acepta expiresAt como string ISO (así lo envía el editor tras aplicar un preset de vigencia)", () => {
+    const result = PatchQuoteSchema.safeParse({
+      customerName: "Hospital",
+      expiresAt: "2026-08-14T12:00:00.000Z",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.expiresAt).toBeInstanceOf(Date);
+  });
 });

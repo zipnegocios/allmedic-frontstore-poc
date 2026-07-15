@@ -186,7 +186,8 @@ export function QuoteEditor({ initialQuote }: { initialQuote: QuoteEditorData })
       if (!res.ok) throw new Error(formatPatchErrorMessage(data));
       setQuote(data);
       setItems(data.items);
-      if (showToast) toast.success('Cotización guardada');
+      if (data.pdfWarning) toast.warning(data.pdfWarning);
+      else if (showToast) toast.success('Cotización guardada');
       return data;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al guardar la cotización');
@@ -206,8 +207,10 @@ export function QuoteEditor({ initialQuote }: { initialQuote: QuoteEditorData })
 
   async function confirmSaveFinal() {
     setConfirmRegenerate(false);
-    await saveDraft();
-    toast.info('El PDF se regeneró con los cambios');
+    const updated = await saveDraft(false);
+    // Solo anunciar la regeneración si el guardado tuvo éxito y el PDF realmente se regeneró
+    // (si falló la subida a R2, saveDraft ya mostró la advertencia con el reintento).
+    if (updated && !updated.pdfWarning) toast.success('Cotización guardada — el PDF se regeneró con los cambios');
   }
 
   async function handleRecalculate() {

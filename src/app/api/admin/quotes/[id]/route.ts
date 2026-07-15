@@ -71,11 +71,24 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     });
     if (!updated) return NextResponse.json({ error: 'Cotización no encontrada' }, { status: 404 });
 
+    // Editar una DEFINITIVA regenera el PDF sobre la MISMA pdfKey (el enlace compartido sigue
+    // mostrando la versión vigente). Si la regeneración falla, los cambios YA están guardados:
+    // se responde 200 con una advertencia explícita (el reintento es volver a guardar) en vez
+    // de un 500 que haría creer al usuario que no se guardó nada. `pdfGeneratedAt` solo se
+    // actualiza cuando la subida a R2 tuvo éxito, así la desactualización queda detectable.
+    let pdfWarning: string | undefined;
     if (current.status === 'FINAL' && current.pdfKey) {
-      await regenerateQuotePdf(id);
+      try {
+        await regenerateQuotePdf(id);
+      } catch (pdfErr) {
+        console.error(`Error al regenerar el PDF de la cotización ${id}:`, pdfErr);
+        pdfWarning =
+          'Los cambios se guardaron, pero el PDF no pudo regenerarse. Vuelve a guardar para reintentar.';
+      }
     }
 
-    return NextResponse.json(await getQuoteById(id));
+    const fresh = await getQuoteById(id);
+    return NextResponse.json(pdfWarning ? { ...fresh, pdfWarning } : fresh);
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json(
