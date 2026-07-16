@@ -116,22 +116,50 @@ export async function getAdminProducts(opts: {
   brandId?: string;
   /** Filtra por `products.productTypeId` — fuente de verdad EAV. */
   productTypeId?: string;
+  collectionId?: string;
+  gender?: string;
+  visibility?: string;
   isActive?: boolean;
+  /** Filtro EAV por atributo/valor (ej. slug "corte", valor "Regular") — ambos deben
+   * pasarse juntos. Mismo patrón de containment JSONB que `filterProducts` en
+   * `src/lib/data-service.ts`. */
+  attributeSlug?: string;
+  attributeValue?: string;
   page?: number;
   limit?: number;
 }) {
-  const { search, brandId, productTypeId, isActive, page = 1, limit = 20 } = opts;
+  const {
+    search, brandId, productTypeId, collectionId, gender, visibility, isActive,
+    attributeSlug, attributeValue, page = 1, limit = 20,
+  } = opts;
   const conditions: SQL<unknown>[] = [];
 
   if (search) {
     conditions.push(or(
       like(productsTable.name, `%${search}%`),
-      like(productsTable.sku, `%${search}%`)
+      like(productsTable.sku, `%${search}%`),
+      like(productsTable.code, `%${search}%`)
     )!);
   }
   if (brandId) conditions.push(eq(productsTable.brandId, brandId));
   if (productTypeId) conditions.push(eq(productsTable.productTypeId, productTypeId));
+  if (collectionId) conditions.push(eq(productsTable.collectionId, collectionId));
+  if (gender) conditions.push(eq(productsTable.gender, gender));
+  if (visibility) conditions.push(eq(productsTable.visibility, visibility));
   if (isActive !== undefined) conditions.push(eq(productsTable.isActive, isActive));
+
+  if (attributeSlug && attributeValue) {
+    const containment = JSON.stringify({ styles: { [attributeSlug]: attributeValue } });
+    const matchingVariants = await db
+      .selectDistinct({ productId: variantsTable.productId })
+      .from(variantsTable)
+      .where(sql`${variantsTable.attributesPayload} @> ${containment}::jsonb`);
+    const matchingProductIds = matchingVariants.map(v => v.productId);
+    if (matchingProductIds.length === 0) {
+      return { products: [], total: 0, pages: 0 };
+    }
+    conditions.push(inArray(productsTable.id, matchingProductIds));
+  }
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -145,6 +173,8 @@ export async function getAdminProducts(opts: {
       code: productsTable.code,
       productTypeId: productsTable.productTypeId,
       productTypeName: productTypesTable.name,
+      collectionId: productsTable.collectionId,
+      collectionName: collectionsTable.name,
       gender: productsTable.gender,
       priceNormal: productsTable.priceNormal,
       priceSale: productsTable.priceSale,
@@ -158,14 +188,71 @@ export async function getAdminProducts(opts: {
       .from(productsTable)
       .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
       .leftJoin(productTypesTable, eq(productsTable.productTypeId, productTypesTable.id))
+      .leftJoin(collectionsTable, eq(productsTable.collectionId, collectionsTable.id))
       .where(where)
       .orderBy(desc(productsTable.createdAt))
       .limit(limit)
       .offset((page - 1) * limit),
   ]);
 
+  // Portadas en batch — mismo patrón que `getAdminProductById` (join media_links/media_assets,
+  // role='COVER'), pero para todos los productos de la página en una sola query.
+  const productIds = rows.map(r => r.id);
+  const covers = productIds.length > 0
+    ? await db
+        .select({
+          productId: mediaLinksTable.entityId,
+          storageKey: mediaAssetsTable.storageKey,
+        })
+        .from(mediaLinksTable)
+        .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
+        .where(and(
+          eq(mediaLinksTable.entityType, 'PRODUCT'),
+          eq(mediaLinksTable.role, 'COVER'),
+          inArray(mediaLinksTable.entityId, productIds)
+        ))
+    : [];
+  const coverUrlByProductId = new Map(covers.map(c => [c.productId, resolveMediaUrl(c.storageKey)]));
+
+  // Estilos EAV agregados por producto (union de `attributesPayload.styles` de todas
+  // sus variantes) — mismo patrón de agregación que `availableStyles` en
+  // `src/lib/data-service.ts`, para poder mostrar una columna "Atributos" compacta
+  // sin forzar al admin a abrir cada producto.
+  const variantStyles = productIds.length > 0
+    ? await db
+        .select({
+          productId: variantsTable.productId,
+          attributesPayload: variantsTable.attributesPayload,
+        })
+        .from(variantsTable)
+        .where(inArray(variantsTable.productId, productIds))
+    : [];
+  const stylesByProductId = new Map<string, Map<string, Set<string>>>();
+  for (const v of variantStyles) {
+    const styles = (v.attributesPayload as { styles?: Record<string, string> } | null)?.styles;
+    if (!styles) continue;
+    let entry = stylesByProductId.get(v.productId);
+    if (!entry) { entry = new Map(); stylesByProductId.set(v.productId, entry); }
+    for (const [slug, value] of Object.entries(styles)) {
+      if (!entry.has(slug)) entry.set(slug, new Set());
+      entry.get(slug)!.add(value);
+    }
+  }
+
+  const productsWithCover = rows.map(r => {
+    const stylesMap = stylesByProductId.get(r.id);
+    const styles: Record<string, string[]> = stylesMap
+      ? Object.fromEntries(Array.from(stylesMap.entries()).map(([slug, values]) => [slug, Array.from(values)]))
+      : {};
+    return {
+      ...r,
+      coverUrl: coverUrlByProductId.get(r.id) ?? null,
+      styles,
+    };
+  });
+
   return {
-    products: rows,
+    products: productsWithCover,
     total: countResult[0]?.count ?? 0,
     pages: Math.ceil((countResult[0]?.count ?? 0) / limit),
   };

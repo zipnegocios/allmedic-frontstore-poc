@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { Control, UseFormRegister, UseFormWatch, UseFormSetValue, FieldArrayWithId } from 'react-hook-form';
+import type { Control, UseFormRegister, UseFormWatch, UseFormSetValue, FieldArrayWithId, FieldErrors } from 'react-hook-form';
 import { Controller } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -17,6 +17,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Plus, Trash2, ImageIcon, AlertTriangle } from 'lucide-react';
 import { MediaThumb } from '@/components/admin/media/MediaThumb';
+import { cn } from '@/lib/utils';
 import type { ProductFormData, Color } from './schema';
 import { SIZES, STATUSES } from './schema';
 import { useProductTypeAttributes } from './useProductTypeAttributes';
@@ -46,6 +47,10 @@ interface VariantsMediaSectionProps {
   imageFields: FieldArrayWithId<ProductFormData, 'images', 'id'>[];
   removeImage: (index: number) => void;
   onPickTarget: (target: number | 'append' | 'cover', colorId?: string) => void;
+  /** Errores de validación por fila de variante (`errors.variants` de RHF) — sin esto,
+   * una matriz con filas inválidas (ej. sin Color/Talla) no muestra ningún indicador
+   * visual aquí, solo un toast genérico en el formulario padre. */
+  variantsErrors?: FieldErrors<ProductFormData>['variants'];
 }
 
 export function VariantsMediaSection({
@@ -61,6 +66,7 @@ export function VariantsMediaSection({
   imageFields,
   removeImage,
   onPickTarget,
+  variantsErrors,
 }: VariantsMediaSectionProps) {
   const { links: attributeLinks, valuesByAttribute, loading: loadingAttributes } = useProductTypeAttributes(productTypeId);
 
@@ -453,9 +459,17 @@ export function VariantsMediaSection({
                         {colorVariants.map((item, localIdx) => {
                           const v = item.v;
                           const absoluteIdx = item.idx;
+                          const rowError = variantsErrors?.[absoluteIdx];
+                          const rowMissing = [
+                            rowError?.colorId && 'Color',
+                            rowError?.size && 'Talla',
+                          ].filter(Boolean) as string[];
 
                           return (
-                            <div key={v.id || localIdx} className="p-2 space-y-2">
+                            <div
+                              key={v.id || localIdx}
+                              className={cn('p-2 space-y-2', rowMissing.length > 0 && 'bg-red-50 border-l-2 border-red-400')}
+                            >
                             <div className="grid grid-cols-12 gap-2 items-center text-center">
                               {/* Talla */}
                               <div className="col-span-3 text-left">
@@ -539,6 +553,12 @@ export function VariantsMediaSection({
                                 </Button>
                               </div>
                             </div>
+
+                            {rowMissing.length > 0 && (
+                              <p className="text-[10px] text-red-500 pl-1">
+                                Falta: {rowMissing.join(' y ')}
+                              </p>
+                            )}
 
                             {/* Atributos EAV de la variante (Fase 3.4) — editor fila a fila, uno
                                 por cada atributo declarado para el tipo de producto elegido. Se

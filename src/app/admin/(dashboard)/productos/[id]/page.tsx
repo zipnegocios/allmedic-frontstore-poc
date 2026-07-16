@@ -22,6 +22,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
     name: product.name,
     description: product.description || '',
     sku: product.sku || '',
+    code: product.code || '',
     brandId: product.brandId,
     collectionId: product.collectionId || '',
     productTypeId: product.productTypeId || '',

@@ -65,10 +65,17 @@ export async function GET(request: NextRequest) {
   try {
     await requireAdmin();
     const { searchParams } = new URL(request.url);
+    const isActiveParam = searchParams.get('isActive');
     const result = await getAdminProducts({
       search: searchParams.get('search') || undefined,
       brandId: searchParams.get('brandId') || undefined,
       productTypeId: searchParams.get('productTypeId') || undefined,
+      collectionId: searchParams.get('collectionId') || undefined,
+      gender: searchParams.get('gender') || undefined,
+      visibility: searchParams.get('visibility') || undefined,
+      isActive: isActiveParam === null ? undefined : isActiveParam === 'true',
+      attributeSlug: searchParams.get('attributeSlug') || undefined,
+      attributeValue: searchParams.get('attributeValue') || undefined,
       page: parseInt(searchParams.get('page') || '1'),
       limit: parseInt(searchParams.get('limit') || '20'),
     });

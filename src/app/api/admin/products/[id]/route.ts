@@ -32,6 +32,7 @@ const UpdateProductSchema = z.object({
   brandId: z.string().min(1).optional(),
   collectionId: z.string().optional(),
   productTypeId: z.string().optional(),
+  code: z.string().min(1).optional(),
   gender: z.string().min(1).optional(),
   priceNormal: z.string().min(1).optional(),
   priceSale: z.string().optional(),

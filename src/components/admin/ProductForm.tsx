@@ -26,7 +26,8 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { toast } from 'sonner';
-import { ArrowLeft, Save, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { ArrowLeft, Save, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Loader2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { MediaPicker } from '@/components/admin/media/MediaPicker';
 import { resolveMediaUrl } from '@/lib/media';
@@ -42,6 +43,7 @@ import {
   GENDERS,
   VISIBILITY_OPTIONS,
 } from '@/components/admin/product-form/schema';
+import { buildValidationSummary } from '@/components/admin/product-form/validation-summary';
 import {
   PRODUCT_FORM_WIZARD_STEPS,
   getStepProgressLabel,
@@ -88,6 +90,11 @@ export default function ProductForm({
   const [careInput, setCareInput] = useState('');
   const [pickerTargetIndex, setPickerTargetIndex] = useState<number | 'append' | 'cover' | null>(null);
   const [pickerColorId, setPickerColorId] = useState<string | null>(null);
+  // ─── Panel fijo de campos faltantes: se muestra tras un intento de guardado
+  // inválido y se recalcula en cada render desde `errors` (RHF revalida en vivo los
+  // campos que ya fallaron, así que la lista se va achicando sola a medida que el
+  // usuario corrige, sin necesitar otro submit). ───
+  const [showValidationBanner, setShowValidationBanner] = useState(false);
   // ─── Código de estilo: verificación de unicidad en vivo (Fase 3.4, ver brief C.1) ───
   const [codeStatus, setCodeStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   // Protección contra respuestas fuera de orden del debounce de check-code: cada
@@ -346,6 +353,7 @@ export default function ProductForm({
 
   async function onSubmit(data: ProductFormData) {
     setSaving(true);
+    setShowValidationBanner(false);
     try {
       const url = productId ? `/api/admin/products/${productId}` : '/api/admin/products';
       const method = productId ? 'PATCH' : 'POST';
@@ -375,20 +383,20 @@ export default function ProductForm({
 
   const onInvalid = (errors: any) => {
     console.error('Errores de validación en ProductForm:', errors);
-    
-    const getFirstErrorMessage = (obj: any): string | null => {
-      if (!obj) return null;
-      if (typeof obj.message === 'string') return obj.message;
-      for (const key of Object.keys(obj)) {
-        const nestedMsg = getFirstErrorMessage(obj[key]);
-        if (nestedMsg) return nestedMsg;
-      }
-      return null;
-    };
-
-    const firstMsg = getFirstErrorMessage(errors);
-    toast.error(`Error de validación: ${firstMsg || 'Complete todos los campos requeridos'}`);
+    setShowValidationBanner(true);
+    const summary = buildValidationSummary(errors);
+    toast.error(
+      summary.length > 0
+        ? `Faltan ${summary.length} campo${summary.length === 1 ? '' : 's'} obligatorio${summary.length === 1 ? '' : 's'} — revisa el panel de arriba`
+        : 'Complete todos los campos requeridos'
+    );
   };
+
+  // Recalculado en cada render desde `errors` (no un snapshot en estado): a medida
+  // que el usuario corrige un campo, RHF revalida ese campo en vivo (reValidateMode
+  // por defecto 'onChange' tras el primer intento fallido) y esta lista se achica
+  // sola, sin necesitar otro submit.
+  const validationSummary = buildValidationSummary(errors);
 
 
   function addFeature() {
@@ -556,6 +564,21 @@ export default function ProductForm({
       </div>
 
       <form onSubmit={(e) => { e.preventDefault(); handleSubmit(onSubmit, onInvalid)(); }}>
+        {showValidationBanner && validationSummary.length > 0 && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="w-4 h-4" />
+            <AlertTitle>
+              Faltan {validationSummary.length} campo{validationSummary.length === 1 ? '' : 's'} obligatorio{validationSummary.length === 1 ? '' : 's'} para poder guardar
+            </AlertTitle>
+            <AlertDescription>
+              <ul className="list-disc pl-4 space-y-0.5">
+                {validationSummary.map((msg, i) => (
+                  <li key={i}>{msg}</li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
+        )}
         {isMobile ? (
           <div className="space-y-4">
             {/* ─── Indicador de progreso ─── */}
@@ -886,6 +909,7 @@ export default function ProductForm({
                   removeVariant={removeVariant}
                   imageFields={imageFields}
                   removeImage={removeImage}
+                  variantsErrors={errors.variants}
                   onPickTarget={(target, colorId) => {
                     setPickerTargetIndex(target);
                     if (colorId) setPickerColorId(colorId);
@@ -1257,6 +1281,7 @@ export default function ProductForm({
                 removeVariant={removeVariant}
                 imageFields={imageFields}
                 removeImage={removeImage}
+                variantsErrors={errors.variants}
                 onPickTarget={(target, colorId) => {
                   setPickerTargetIndex(target);
                   if (colorId) setPickerColorId(colorId);
