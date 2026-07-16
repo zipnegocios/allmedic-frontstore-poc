@@ -62,7 +62,7 @@ async function checkDbAvailable(): Promise<boolean> {
 }
 
 // ── Gender mapping (DB enum → frontend string) ──
-const genderFromDb: Record<string, Gender> = {
+export const genderFromDb: Record<string, Gender> = {
   MUJER: 'Mujer',
   HOMBRE: 'Hombre',
   UNISEX: 'Unisex',

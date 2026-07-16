@@ -17,9 +17,10 @@ import {
 import { eq, and, inArray, asc, desc, sql, isNotNull, isNull } from 'drizzle-orm';
 import type { BusinessRule, InventoryStockSnapshot, SetPieceInfo } from './rules-engine';
 import type { CorporateSetSummary, CorporateSetDetail, SetPiece, SetGroupSummary } from './corporate-types';
-import type { ProductColor, ProductVariant } from './types';
+import type { ProductColor, ProductVariant, Gender } from './types';
 import { resolveMediaUrl, isVideoMime, type MediaItem } from './media';
 import { effectiveManualPrice } from './set-pricing';
+import { genderFromDb } from './data-service';
 
 async function getCoverImageMap(setIds: string[]): Promise<Map<string, string>> {
   if (setIds.length === 0) return new Map();
@@ -85,6 +86,7 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
       priceManual: corporateSetsTable.priceManual,
       priceManualSale: corporateSetsTable.priceManualSale,
       manualDiscountEnd: corporateSetsTable.manualDiscountEnd,
+      createdAt: corporateSetsTable.createdAt,
     })
     .from(corporateSetsTable)
     .leftJoin(setGroupsTable, eq(corporateSetsTable.setGroupId, setGroupsTable.id))
@@ -102,10 +104,32 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
       quantityPerSet: setItemsTable.quantityPerSet,
       priceWholesale: productsTable.priceWholesale,
       priceWholesaleSale: productsTable.priceWholesaleSale,
+      productName: productsTable.name,
+      category: productsTable.category,
+      gender: productsTable.gender,
     })
     .from(setItemsTable)
     .leftJoin(productsTable, eq(setItemsTable.productId, productsTable.id))
     .where(inArray(setItemsTable.setId, setIds));
+
+  const productIds = Array.from(new Set(items.map((i) => i.productId).filter((id): id is string => !!id)));
+
+  // Solo variantes activas ("sin opción muerta") alimentan colores/tallas/cortes agregados.
+  const variants = productIds.length > 0
+    ? await db
+        .select({
+          productId: variantsTable.productId,
+          colorId: variantsTable.colorId,
+          size: variantsTable.size,
+          fit: variantsTable.fit,
+          colorName: colorsTable.name,
+          colorCode: colorsTable.code,
+          colorHex: colorsTable.hex,
+        })
+        .from(variantsTable)
+        .leftJoin(colorsTable, eq(variantsTable.colorId, colorsTable.id))
+        .where(and(inArray(variantsTable.productId, productIds), eq(variantsTable.status, 'AVAILABLE')))
+    : [];
 
   const coverImages = await getCoverImageMap(setIds);
 
@@ -124,6 +148,26 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
     const manualPrice = effectiveManualPrice(set.priceManual, set.priceManualSale, set.manualDiscountEnd);
     const referencePrice = manualPrice ?? autoPrice;
     if (manualPrice !== null) hasMissingPrices = false;
+
+    const setProductIds = Array.from(new Set(setItems.map((i) => i.productId).filter((id): id is string => !!id)));
+    const categories = Array.from(new Set(setItems.map((i) => i.category).filter((c): c is string => !!c)));
+    const genders = Array.from(
+      new Set(setItems.map((i) => (i.gender ? genderFromDb[i.gender] : undefined)).filter((g): g is Gender => !!g))
+    );
+    const pieceNames = Array.from(new Set(setItems.map((i) => i.productName).filter((n): n is string => !!n)));
+
+    const setVariants = variants.filter((v) => setProductIds.includes(v.productId));
+    const colorMap = new Map<string, ProductColor>();
+    const sizeSet = new Set<string>();
+    const fitSet = new Set<string>();
+    for (const v of setVariants) {
+      if (v.colorId && !colorMap.has(v.colorId)) {
+        colorMap.set(v.colorId, { id: v.colorId, name: v.colorName || '', code: v.colorCode || '', hex: v.colorHex || '' });
+      }
+      sizeSet.add(v.size);
+      if (v.fit) fitSet.add(v.fit);
+    }
+
     return {
       id: set.id,
       slug: set.slug,
@@ -135,11 +179,18 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
       setGroupId: set.setGroupId,
       brandName: set.brandName,
       brandId: set.brandId,
-      productIds: Array.from(new Set(setItems.map((i) => i.productId).filter((id): id is string => !!id))),
+      productIds: setProductIds,
       isFeatured: set.isFeatured ?? false,
       pieceCount: setItems.length,
       referencePrice: setItems.length > 0 || manualPrice !== null ? referencePrice : null,
       hasMissingPrices,
+      colors: Array.from(colorMap.values()),
+      sizes: Array.from(sizeSet),
+      genders,
+      categories,
+      fits: Array.from(fitSet),
+      pieceNames,
+      createdAt: set.createdAt ? set.createdAt.toISOString() : new Date(0).toISOString(),
     };
   });
 }
@@ -161,6 +212,7 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
       priceManual: corporateSetsTable.priceManual,
       priceManualSale: corporateSetsTable.priceManualSale,
       manualDiscountEnd: corporateSetsTable.manualDiscountEnd,
+      createdAt: corporateSetsTable.createdAt,
     })
     .from(corporateSetsTable)
     .leftJoin(setGroupsTable, eq(corporateSetsTable.setGroupId, setGroupsTable.id))
@@ -184,6 +236,8 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
       productSlug: productsTable.slug,
       priceWholesale: productsTable.priceWholesale,
       priceWholesaleSale: productsTable.priceWholesaleSale,
+      category: productsTable.category,
+      gender: productsTable.gender,
     })
     .from(setItemsTable)
     .leftJoin(productsTable, eq(setItemsTable.productId, productsTable.id))
@@ -239,6 +293,12 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
   let referencePrice = 0;
   let hasMissingPrices = false;
 
+  const categoriesAgg = new Set<string>();
+  const gendersAgg = new Set<Gender>();
+  const colorMapAgg = new Map<string, ProductColor>();
+  const sizeSetAgg = new Set<string>();
+  const fitSetAgg = new Set<string>();
+
   const pieces: SetPiece[] = items.map((item) => {
     const price = wholesalePriceOf(item.priceWholesale, item.priceWholesaleSale);
     if (price === null) {
@@ -248,6 +308,18 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
     }
 
     const productVariants = variants.filter((v) => v.productId === item.productId);
+
+    if (item.category) categoriesAgg.add(item.category);
+    if (item.gender && genderFromDb[item.gender]) gendersAgg.add(genderFromDb[item.gender]);
+    for (const v of productVariants) {
+      if (v.status !== 'AVAILABLE') continue;
+      if (!colorMapAgg.has(v.colorId)) {
+        colorMapAgg.set(v.colorId, { id: v.colorId, name: v.colorName || '', code: v.colorCode || '', hex: v.colorHex || '' });
+      }
+      sizeSetAgg.add(v.size);
+      if (v.fit) fitSetAgg.add(v.fit);
+    }
+
     const colorMap = new Map<string, ProductColor>();
     const sizeSet = new Set<string>();
     for (const v of productVariants) {
@@ -321,6 +393,13 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
     pieceCount: pieces.length,
     referencePrice: pieces.length > 0 || manualPrice !== null ? (manualPrice ?? referencePrice) : null,
     hasMissingPrices: effectiveHasMissingPrices,
+    colors: Array.from(colorMapAgg.values()),
+    sizes: Array.from(sizeSetAgg),
+    genders: Array.from(gendersAgg),
+    categories: Array.from(categoriesAgg),
+    fits: Array.from(fitSetAgg),
+    pieceNames: pieces.map((p) => p.productName).filter((n) => !!n),
+    createdAt: set.createdAt ? set.createdAt.toISOString() : new Date(0).toISOString(),
     pieces,
   };
 }

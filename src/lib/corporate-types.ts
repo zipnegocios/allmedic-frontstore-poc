@@ -1,4 +1,5 @@
 import type { ProductColor, ProductVariant } from './types';
+import type { Gender } from './types';
 
 export interface SetGroupSummary {
   id: string;
@@ -38,6 +39,14 @@ export interface CorporateSetSummary {
   pieceCount: number;
   referencePrice: number | null;
   hasMissingPrices: boolean;
+  /** Atributos agregados de las piezas activas del set — usados por el filtrado de `/corporativo`. */
+  colors: ProductColor[];
+  sizes: string[];
+  genders: Gender[];
+  categories: string[];
+  fits: string[];
+  pieceNames: string[];
+  createdAt: string;
 }
 
 export interface CorporateSetDetail extends CorporateSetSummary {
