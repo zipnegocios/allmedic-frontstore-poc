@@ -39,7 +39,7 @@ export function FilterableProductSection({ products }: { products?: import('@/li
         return (
           p.name.toLowerCase().includes(query) ||
           p.brand.toLowerCase().includes(query) ||
-          p.category.toLowerCase().includes(query) ||
+          (p.productType?.name.toLowerCase().includes(query) ?? false) ||
           p.colors.some(c => c.name.toLowerCase().includes(query))
         );
       })

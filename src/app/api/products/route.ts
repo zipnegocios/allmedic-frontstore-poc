@@ -4,6 +4,7 @@ import {
   products as productsTable,
   brands as brandsTable,
   productVariants as variantsTable,
+  productTypes as productTypesTable,
   mediaLinks as mediaLinksTable,
   mediaAssets as mediaAssetsTable,
   colors as colorsTable,
@@ -11,6 +12,8 @@ import {
 import { eq, and, or, sql, asc, desc, inArray, ne } from 'drizzle-orm';
 import { PRODUCTS as DUMMY_PRODUCTS } from '@/lib/dummy-data';
 import { resolveMediaUrl } from '@/lib/media';
+import { CORTE_ATTRIBUTE_SLUG } from '@/lib/data-service';
+import type { AttributesPayload } from '@/lib/attributes-payload/build-payload';
 
 /**
  * GET /api/products
@@ -22,7 +25,11 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '12');
     const search = searchParams.get('search');
-    const category = searchParams.get('category');
+    // Filtra por `products.productTypeId` (EAV) — reemplaza al contrato legacy `?category=`
+    // (Fase 4 remanente: `category` ya no es fuente de verdad en ninguna ruta de lectura).
+    // Acepta el id directo o el slug del tipo de producto (join a `productTypes`).
+    const productTypeId = searchParams.get('productTypeId');
+    const productTypeSlug = searchParams.get('productTypeSlug');
     const brand = searchParams.get('brand');
 
     const skip = (page - 1) * limit;
@@ -41,8 +48,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (category) {
-      conditions.push(eq(productsTable.category, category));
+    if (productTypeId) {
+      conditions.push(eq(productsTable.productTypeId, productTypeId));
+    }
+
+    if (productTypeSlug) {
+      conditions.push(eq(productTypesTable.slug, productTypeSlug));
     }
 
     if (brand) {
@@ -54,6 +65,7 @@ export async function GET(request: NextRequest) {
       .select({ count: sql<number>`count(*)` })
       .from(productsTable)
       .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
+      .leftJoin(productTypesTable, eq(productsTable.productTypeId, productTypesTable.id))
       .where(and(...conditions));
 
     const total = countResult[0]?.count || 0;
@@ -65,7 +77,9 @@ export async function GET(request: NextRequest) {
         slug: productsTable.slug,
         name: productsTable.name,
         description: productsTable.description,
-        category: productsTable.category,
+        productTypeId: productsTable.productTypeId,
+        productTypeName: productTypesTable.name,
+        productTypeSlug: productTypesTable.slug,
         gender: productsTable.gender,
         priceNormal: productsTable.priceNormal,
         priceSale: productsTable.priceSale,
@@ -77,6 +91,7 @@ export async function GET(request: NextRequest) {
       })
       .from(productsTable)
       .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
+      .leftJoin(productTypesTable, eq(productsTable.productTypeId, productTypesTable.id))
       .where(and(...conditions))
       .limit(limit)
       .offset(skip)
@@ -92,17 +107,23 @@ export async function GET(request: NextRequest) {
             productId: variantsTable.productId,
             colorId: variantsTable.colorId,
             size: variantsTable.size,
-            fit: variantsTable.fit,
             sku: variantsTable.sku,
             status: variantsTable.status,
             colorName: colorsTable.name,
             colorCode: colorsTable.code,
             colorHex: colorsTable.hex,
+            attributesPayload: variantsTable.attributesPayload,
           })
           .from(variantsTable)
           .leftJoin(colorsTable, eq(variantsTable.colorId, colorsTable.id))
           .where(inArray(variantsTable.productId, productIds))
       : [];
+    // "Corte" ya no lee `product_variants.fit` (legacy) — se deriva de
+    // `attributesPayload.styles.corte` (EAV), mismo slug que `data-service.ts`.
+    const variantsWithFit = variants.map((v) => {
+      const payload = v.attributesPayload as AttributesPayload | null | undefined;
+      return { ...v, fit: payload?.styles?.[CORTE_ATTRIBUTE_SLUG] ?? null };
+    });
 
     const imageLinks = productIds.length > 0
       ? await db
@@ -139,7 +160,7 @@ export async function GET(request: NextRequest) {
       const cover = productImages.find(i => i.role === 'COVER') || productImages[0];
       return {
         ...product,
-        variants: variants.filter(v => v.productId === product.id),
+        variants: variantsWithFit.filter(v => v.productId === product.id),
         images: cover ? [cover, ...productImages.filter(i => i.role !== 'COVER')] : productImages,
       };
     });
@@ -161,7 +182,7 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '12');
     const search = searchParams.get('search');
-    const category = searchParams.get('category');
+    const productTypeId = searchParams.get('productTypeId');
     const brand = searchParams.get('brand');
 
     let filtered = [...DUMMY_PRODUCTS];
@@ -169,8 +190,8 @@ export async function GET(request: NextRequest) {
       const q = search.toLowerCase();
       filtered = filtered.filter(p => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q));
     }
-    if (category) {
-      filtered = filtered.filter(p => p.category === category);
+    if (productTypeId) {
+      filtered = filtered.filter(p => p.productType?.id === productTypeId);
     }
     if (brand) {
       filtered = filtered.filter(p => p.brand.toLowerCase().replace(/\s+/g, '-') === brand.toLowerCase());
@@ -186,7 +207,8 @@ export async function GET(request: NextRequest) {
         slug: p.slug,
         name: p.name,
         description: p.description,
-        category: p.category,
+        productTypeId: p.productType?.id ?? null,
+        productTypeName: p.productType?.name ?? null,
         gender: p.gender,
         priceNormal: String(p.priceNormal),
         priceSale: p.priceSale ? String(p.priceSale) : null,
@@ -200,7 +222,7 @@ export async function GET(request: NextRequest) {
           productId: p.id,
           colorId: v.colorId,
           size: v.size,
-          fit: v.fit ?? null,
+          fit: v.styles?.[CORTE_ATTRIBUTE_SLUG] ?? null,
           sku: v.sku,
           status: v.status,
           colorName: p.colors.find(c => c.id === v.colorId)?.name ?? '',

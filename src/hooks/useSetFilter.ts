@@ -10,13 +10,24 @@ import {
   type SetSortOption,
 } from '@/lib/set-filter-logic';
 
+/** Opción de estilo EAV (ej. "Corte") derivada de `set.availableStyles` — soporta cualquier
+ * atributo de estilo presente en los datos, no solo "corte". `label` es el slug capitalizado
+ * (no tenemos el `name` del atributo en el payload público, solo su slug estable). Mismo patrón
+ * que `StyleFilterOption` en `FilterSidebar.tsx` (catálogo individual). */
+export interface SetStyleFilterOption {
+  slug: string;
+  label: string;
+  values: string[];
+}
+
 export interface SetFilterOptions {
   groups: SetGroupSummary[];
-  categories: string[];
+  /** Nombres de `productTypes` (EAV) presentes entre los sets recibidos — dinámico, sin opción muerta. */
+  productTypes: string[];
   brands: string[];
   colors: { id: string; name: string; code: string; hex: string }[];
   sizes: string[];
-  fits: string[];
+  styleOptions: SetStyleFilterOption[];
 }
 
 const ITEMS_PER_PAGE_DEFAULT = 20;
@@ -28,25 +39,33 @@ export function useSetFilter(sets: CorporateSetSummary[], groups: SetGroupSummar
   const [currentPage, setCurrentPage] = useState<number>(1);
 
   const filterOptions: SetFilterOptions = useMemo(() => {
-    const categories = new Set<string>();
+    const productTypes = new Set<string>();
     const brands = new Set<string>();
     const colorMap = new Map<string, { id: string; name: string; code: string; hex: string }>();
     const sizes = new Set<string>();
-    const fits = new Set<string>();
+    const stylesMap = new Map<string, Set<string>>();
     for (const s of sets) {
-      for (const c of s.categories) categories.add(c);
+      for (const t of s.productTypes) productTypes.add(t);
       if (s.brandName) brands.add(s.brandName);
       for (const c of s.colors) if (!colorMap.has(c.id)) colorMap.set(c.id, c);
       for (const sz of s.sizes) sizes.add(sz);
-      for (const f of s.fits) fits.add(f);
+      for (const [slug, values] of Object.entries(s.availableStyles)) {
+        if (!stylesMap.has(slug)) stylesMap.set(slug, new Set());
+        for (const v of values) stylesMap.get(slug)!.add(v);
+      }
     }
+    const styleOptions: SetStyleFilterOption[] = Array.from(stylesMap.entries()).map(([slug, values]) => ({
+      slug,
+      label: slug.charAt(0).toUpperCase() + slug.slice(1),
+      values: Array.from(values).sort(),
+    }));
     return {
       groups,
-      categories: Array.from(categories).sort(),
+      productTypes: Array.from(productTypes).sort(),
       brands: Array.from(brands).sort(),
       colors: Array.from(colorMap.values()),
       sizes: Array.from(sizes),
-      fits: Array.from(fits).sort(),
+      styleOptions,
     };
   }, [sets, groups]);
 

@@ -1,5 +1,5 @@
-import { pgTable, text, integer, boolean, decimal, timestamp, jsonb, index, uuid as pgUuid } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { pgTable, text, integer, boolean, decimal, timestamp, jsonb, index, uniqueIndex, unique, uuid as pgUuid } from "drizzle-orm/pg-core";
+import { relations, sql } from "drizzle-orm";
 import { uuid } from "@/lib/uuid";
 
 // ─── Brands ───
@@ -18,16 +18,97 @@ export const brandsRelations = relations(brands, ({ many }) => ({
 }));
 
 // ─── Collections ───
+// Nota: `slug` era único global; se cambió a único compuesto (brand_id, slug) porque
+// la jerarquía real es Marca → Colección (dos marcas pueden llamar "Infinity" a su
+// colección). Auditoría confirmó 0 filas y 0 consumidores externos — cambio seguro.
 export const collections = pgTable("collections", {
   id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
   name: text("name").notNull(),
-  slug: text("slug").notNull().unique(),
+  slug: text("slug").notNull(),
   brandId: pgUuid("brand_id").notNull().references(() => brands.id),
-});
+  description: text("description"),
+  fabricTech: text("fabric_tech"),
+  isActive: boolean("is_active").default(true),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => [
+  unique("uq_collections_brand_slug").on(table.brandId, table.slug),
+]);
 
 export const collectionsRelations = relations(collections, ({ one, many }) => ({
   brand: one(brands, { fields: [collections.brandId], references: [brands.id] }),
   products: many(products),
+}));
+
+// ─── Product Types (por marca) ───
+export const productTypes = pgTable("product_types", {
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
+  brandId: pgUuid("brand_id").notNull().references(() => brands.id),
+  name: text("name").notNull(),
+  slug: text("slug").notNull(),
+  sortOrder: integer("sort_order").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => [
+  unique("uq_product_types_brand_slug").on(table.brandId, table.slug),
+]);
+
+export const productTypesRelations = relations(productTypes, ({ one, many }) => ({
+  brand: one(brands, { fields: [productTypes.brandId], references: [brands.id] }),
+  products: many(products),
+  typeAttributes: many(productTypeAttributes),
+}));
+
+// ─── Attributes (estilos/especificaciones EAV) ───
+export const attributes = pgTable("attributes", {
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  displayType: text("display_type").notNull().default("select"),
+  sortOrder: integer("sort_order").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const attributesRelations = relations(attributes, ({ many }) => ({
+  values: many(attributeValues),
+  typeAttributes: many(productTypeAttributes),
+}));
+
+// ─── Product Type ↔ Attribute (regla de dependencia) ───
+export const productTypeAttributes = pgTable("product_type_attributes", {
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
+  productTypeId: pgUuid("product_type_id").notNull().references(() => productTypes.id, { onDelete: "cascade" }),
+  attributeId: pgUuid("attribute_id").notNull().references(() => attributes.id, { onDelete: "cascade" }),
+  isRequired: boolean("is_required").default(false),
+  sortOrder: integer("sort_order").default(0),
+}, (table) => [
+  unique("uq_product_type_attributes").on(table.productTypeId, table.attributeId),
+]);
+
+export const productTypeAttributesRelations = relations(productTypeAttributes, ({ one }) => ({
+  productType: one(productTypes, { fields: [productTypeAttributes.productTypeId], references: [productTypes.id] }),
+  attribute: one(attributes, { fields: [productTypeAttributes.attributeId], references: [attributes.id] }),
+}));
+
+// ─── Attribute Values ───
+export const attributeValues = pgTable("attribute_values", {
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
+  attributeId: pgUuid("attribute_id").notNull().references(() => attributes.id, { onDelete: "cascade" }),
+  value: text("value").notNull(),
+  code: text("code"),
+  sortOrder: integer("sort_order").default(0),
+  isActive: boolean("is_active").default(true),
+}, (table) => [
+  unique("uq_attribute_values_attribute_value").on(table.attributeId, table.value),
+]);
+
+export const attributeValuesRelations = relations(attributeValues, ({ one, many }) => ({
+  attribute: one(attributes, { fields: [attributeValues.attributeId], references: [attributes.id] }),
+  variantValues: many(variantAttributeValues),
 }));
 
 // ─── Colors ───
@@ -49,10 +130,17 @@ export const products = pgTable("products", {
   name: text("name").notNull(),
   description: text("description"),
   sku: text("sku"),
+  // Código de estilo del fabricante (ej. "2624A"). Núcleo obligatorio de la
+  // taxonomía EAV — identificador único del producto-estilo. Único global.
+  code: text("code").notNull().unique(),
   brandId: pgUuid("brand_id").notNull().references(() => brands.id),
   collectionId: pgUuid("collection_id").references(() => collections.id),
-  category: text("category").notNull(),
-  productType: text("product_type"),
+  // `productTypeId` queda NULLABLE de forma deliberada (ver reporte de Fase 1):
+  // el backfill lo puebla al 100% para los datos actuales, pero se deja opcional
+  // a nivel de esquema porque el endurecimiento a NOT NULL depende de que el admin
+  // (Fase 3) garantice que todo alta futura lo asigne — forzarlo aquí acoplaría el
+  // esquema a un flujo de escritura que todavía no existe.
+  productTypeId: pgUuid("product_type_id").references(() => productTypes.id),
   gender: text("gender").notNull(),
   priceNormal: decimal("price_normal", { precision: 10, scale: 2 }).notNull(),
   priceSale: decimal("price_sale", { precision: 10, scale: 2 }),
@@ -68,12 +156,10 @@ export const products = pgTable("products", {
   crossSellId: pgUuid("cross_sell_id"),
   features: jsonb("features"),
   careInstructions: jsonb("care_instructions"),
-  styles: jsonb("styles"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 }, (table) => [
   index("idx_products_brand").on(table.brandId),
-  index("idx_products_category").on(table.category),
   index("idx_products_gender").on(table.gender),
   index("idx_products_active").on(table.isActive),
 ]);
@@ -81,6 +167,7 @@ export const products = pgTable("products", {
 export const productsRelations = relations(products, ({ one, many }) => ({
   brand: one(brands, { fields: [products.brandId], references: [brands.id] }),
   collection: one(collections, { fields: [products.collectionId], references: [collections.id] }),
+  productType: one(productTypes, { fields: [products.productTypeId], references: [productTypes.id] }),
   variants: many(productVariants),
 }));
 
@@ -90,8 +177,14 @@ export const productVariants = pgTable("product_variants", {
   productId: pgUuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
   colorId: pgUuid("color_id").notNull().references(() => colors.id),
   size: text("size").notNull(),
-  fit: text("fit"),
-  sku: text("sku").notNull().unique(),
+  // SKU de variante pasa a opcional (decisión ya tomada en el plan): el estilo se
+  // identifica por `products.code`, el SKU de fabricante puede no existir aún al
+  // dar de alta la matriz. Unicidad parcial: solo se exige entre los SKUs con valor.
+  sku: text("sku"),
+  // Payload desnormalizado para lectura pública (catálogo/filtros). Se rellena en la
+  // Fase 2 (servicio de sincronización) — aquí solo se agrega la columna con su
+  // default vacío, sin lógica de backfill real.
+  attributesPayload: jsonb("attributes_payload").notNull().default({}),
   status: text("status").notNull().default("AVAILABLE"),
   stock: integer("stock").default(0),
   location: text("location"),
@@ -101,9 +194,31 @@ export const productVariants = pgTable("product_variants", {
 }, (table) => [
   index("idx_variants_product").on(table.productId),
   index("idx_variants_color").on(table.colorId),
+  uniqueIndex("uq_variants_sku_not_null").on(table.sku).where(sql`${table.sku} IS NOT NULL`),
+  index("idx_variants_attributes_payload").using("gin", table.attributesPayload),
 ]);
 
-export const productVariantsRelations = relations(productVariants, ({ one }) => ({
+export const productVariantsRelations = relations(productVariants, ({ one, many }) => ({
   product: one(products, { fields: [productVariants.productId], references: [products.id] }),
   color: one(colors, { fields: [productVariants.colorId], references: [colors.id] }),
+  attributeValues: many(variantAttributeValues),
+}));
+
+// ─── Variant ↔ Attribute Value ───
+// Un solo valor por atributo por variante: se documenta como decisión de Fase 1 que
+// esta invariante NO se fuerza con constraint compuesta a nivel de tabla (requeriría
+// desnormalizar attributeId aquí o un trigger) — queda como validación de servicio en
+// la Fase 2 (mismo criterio que el resto de la lógica de negocio de la taxonomía).
+export const variantAttributeValues = pgTable("variant_attribute_values", {
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
+  variantId: pgUuid("variant_id").notNull().references(() => productVariants.id, { onDelete: "cascade" }),
+  attributeValueId: pgUuid("attribute_value_id").notNull().references(() => attributeValues.id, { onDelete: "cascade" }),
+}, (table) => [
+  index("idx_variant_attribute_values_variant").on(table.variantId),
+  unique("uq_variant_attribute_value").on(table.variantId, table.attributeValueId),
+]);
+
+export const variantAttributeValuesRelations = relations(variantAttributeValues, ({ one }) => ({
+  variant: one(productVariants, { fields: [variantAttributeValues.variantId], references: [productVariants.id] }),
+  attributeValue: one(attributeValues, { fields: [variantAttributeValues.attributeValueId], references: [attributeValues.id] }),
 }));

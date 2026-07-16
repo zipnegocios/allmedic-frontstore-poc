@@ -18,7 +18,9 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Trash2, ImageIcon, AlertTriangle } from 'lucide-react';
 import { MediaThumb } from '@/components/admin/media/MediaThumb';
 import type { ProductFormData, Color } from './schema';
-import { SIZES, FITS, STATUSES } from './schema';
+import { SIZES, STATUSES } from './schema';
+import { useProductTypeAttributes } from './useProductTypeAttributes';
+import { AttributeMatrixSection } from './AttributeMatrixSection';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -35,6 +37,9 @@ interface VariantsMediaSectionProps {
   watch: UseFormWatch<ProductFormData>;
   setValue: UseFormSetValue<ProductFormData>;
   colors: Color[];
+  /** Tipo de producto elegido en la pestaña General — impulsa qué atributos EAV
+   * están disponibles para el generador de matriz y el editor fila a fila. */
+  productTypeId: string | undefined;
   variantFields: FieldArrayWithId<ProductFormData, 'variants', 'id'>[];
   appendVariant: (value: Omit<ProductFormData['variants'][number], 'id'> & { id?: string }) => void;
   removeVariant: (index: number) => void;
@@ -49,6 +54,7 @@ export function VariantsMediaSection({
   watch,
   setValue,
   colors,
+  productTypeId,
   variantFields,
   appendVariant,
   removeVariant,
@@ -56,6 +62,7 @@ export function VariantsMediaSection({
   removeImage,
   onPickTarget,
 }: VariantsMediaSectionProps) {
+  const { links: attributeLinks, valuesByAttribute, loading: loadingAttributes } = useProductTypeAttributes(productTypeId);
 
   // Estado para el diálogo de advertencia de coherencia al borrar la última variante de un color
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -150,11 +157,11 @@ export function VariantsMediaSection({
     appendVariant({
       colorId: selectedNewColorId,
       size: 'M',
-      fit: '',
       sku: '',
       status: 'AVAILABLE',
       stock: 0,
       minStock: 5,
+      attributeValueIds: [],
     });
     setSelectedNewColorId('');
   };
@@ -297,6 +304,17 @@ export function VariantsMediaSection({
         </div>
       )}
 
+      {/* ─── GENERADOR DE MATRIZ DE VARIANTES (Fase 3.4) ─── */}
+      <AttributeMatrixSection
+        productTypeId={productTypeId}
+        links={attributeLinks}
+        valuesByAttribute={valuesByAttribute}
+        loading={loadingAttributes}
+        colors={colors}
+        variantFields={variantFields}
+        appendVariant={appendVariant}
+      />
+
       {/* ─── LISTADO DE GRUPOS POR COLOR ─── */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -407,11 +425,11 @@ export function VariantsMediaSection({
                           appendVariant({
                             colorId: colorId,
                             size: 'M',
-                            fit: '',
                             sku: '',
                             status: 'AVAILABLE',
                             stock: 0,
                             minStock: 5,
+                            attributeValueIds: [],
                           })
                         }
                         className="h-7 text-[10px] bg-white"
@@ -424,9 +442,8 @@ export function VariantsMediaSection({
                     {colorVariants.length > 0 && (
                       <div className="border rounded-lg overflow-hidden bg-white divide-y">
                         <div className="grid grid-cols-12 gap-2 bg-gray-50 p-2 text-[10px] font-bold text-gray-500 uppercase tracking-wider text-center items-center">
-                          <div className="col-span-2 text-left pl-1">Talla</div>
-                          <div className="col-span-2 text-left">Fit</div>
-                          <div className="col-span-3 text-left">SKU</div>
+                          <div className="col-span-3 text-left pl-1">Talla</div>
+                          <div className="col-span-4 text-left">SKU</div>
                           <div className="col-span-2">Estado</div>
                           <div className="col-span-1">Stock</div>
                           <div className="col-span-1">Mín</div>
@@ -438,9 +455,10 @@ export function VariantsMediaSection({
                           const absoluteIdx = item.idx;
 
                           return (
-                            <div key={v.id || localIdx} className="grid grid-cols-12 gap-2 p-2 items-center text-center">
+                            <div key={v.id || localIdx} className="p-2 space-y-2">
+                            <div className="grid grid-cols-12 gap-2 items-center text-center">
                               {/* Talla */}
-                              <div className="col-span-2 text-left">
+                              <div className="col-span-3 text-left">
                                 <Controller
                                   name={`variants.${absoluteIdx}.size`}
                                   control={control}
@@ -459,32 +477,8 @@ export function VariantsMediaSection({
                                 />
                               </div>
 
-                              {/* Fit */}
-                              <div className="col-span-2 text-left">
-                                <Controller
-                                  name={`variants.${absoluteIdx}.fit`}
-                                  control={control}
-                                  render={({ field }) => (
-                                    <Select
-                                      value={field.value || '__empty__'}
-                                      onValueChange={(val) => field.onChange(val === '__empty__' ? '' : val)}
-                                    >
-                                      <SelectTrigger className="h-8 text-xs bg-white">
-                                        <SelectValue placeholder="—" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="__empty__">—</SelectItem>
-                                        {FITS.map((f) => (
-                                          <SelectItem key={f} value={f}>{f}</SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  )}
-                                />
-                              </div>
-
                               {/* SKU */}
-                              <div className="col-span-3 text-left">
+                              <div className="col-span-4 text-left">
                                 <Input
                                   className="h-8 text-xs bg-white"
                                   {...register(`variants.${absoluteIdx}.sku`)}
@@ -544,6 +538,53 @@ export function VariantsMediaSection({
                                   <Trash2 className="w-4 h-4" />
                                 </Button>
                               </div>
+                            </div>
+
+                            {/* Atributos EAV de la variante (Fase 3.4) — editor fila a fila, uno
+                                por cada atributo declarado para el tipo de producto elegido. Se
+                                autocompletan al generar la matriz; editables aquí para ajustes
+                                puntuales. */}
+                            {attributeLinks.length > 0 && (
+                              <div className="flex flex-wrap gap-2 pl-1">
+                                {attributeLinks.map((link) => {
+                                  const options = valuesByAttribute[link.attributeId] ?? [];
+                                  if (options.length === 0) return null;
+                                  return (
+                                    <Controller
+                                      key={link.attributeId}
+                                      name={`variants.${absoluteIdx}.attributeValueIds`}
+                                      control={control}
+                                      render={({ field }) => {
+                                        const currentIds = field.value || [];
+                                        const currentValueId =
+                                          currentIds.find((id) => options.some((o) => o.id === id)) || '__empty__';
+                                        return (
+                                          <Select
+                                            value={currentValueId}
+                                            onValueChange={(val) => {
+                                              const withoutAttr = currentIds.filter(
+                                                (id) => !options.some((o) => o.id === id)
+                                              );
+                                              field.onChange(val === '__empty__' ? withoutAttr : [...withoutAttr, val]);
+                                            }}
+                                          >
+                                            <SelectTrigger className="h-7 text-[10px] bg-white w-auto min-w-28">
+                                              <SelectValue placeholder={link.attributeName} />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="__empty__">— {link.attributeName} —</SelectItem>
+                                              {options.map((o) => (
+                                                <SelectItem key={o.id} value={o.id}>{o.value}</SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+                                        );
+                                      }}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            )}
                             </div>
                           );
                         })}

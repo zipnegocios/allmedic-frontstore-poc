@@ -7,6 +7,7 @@ import {
   brands as brandsTable,
   colors as colorsTable,
   productVariants as variantsTable,
+  productTypes as productTypesTable,
   businessRules as businessRulesTable,
   corporateAccounts as corporateAccountsTable,
   quotes as quotesTable,
@@ -20,7 +21,8 @@ import type { CorporateSetSummary, CorporateSetDetail, SetPiece, SetGroupSummary
 import type { ProductColor, ProductVariant, Gender } from './types';
 import { resolveMediaUrl, isVideoMime, type MediaItem } from './media';
 import { effectiveManualPrice } from './set-pricing';
-import { genderFromDb } from './data-service';
+import { genderFromDb, CORTE_ATTRIBUTE_SLUG } from './data-service';
+import type { AttributesPayload } from './attributes-payload/build-payload';
 
 async function getCoverImageMap(setIds: string[]): Promise<Map<string, string>> {
   if (setIds.length === 0) return new Map();
@@ -105,26 +107,28 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
       priceWholesale: productsTable.priceWholesale,
       priceWholesaleSale: productsTable.priceWholesaleSale,
       productName: productsTable.name,
-      category: productsTable.category,
+      productTypeId: productsTable.productTypeId,
+      productTypeName: productTypesTable.name,
       gender: productsTable.gender,
     })
     .from(setItemsTable)
     .leftJoin(productsTable, eq(setItemsTable.productId, productsTable.id))
+    .leftJoin(productTypesTable, eq(productsTable.productTypeId, productTypesTable.id))
     .where(inArray(setItemsTable.setId, setIds));
 
   const productIds = Array.from(new Set(items.map((i) => i.productId).filter((id): id is string => !!id)));
 
-  // Solo variantes activas ("sin opción muerta") alimentan colores/tallas/cortes agregados.
+  // Solo variantes activas ("sin opción muerta") alimentan colores/tallas/cortes/estilos agregados.
   const variants = productIds.length > 0
     ? await db
         .select({
           productId: variantsTable.productId,
           colorId: variantsTable.colorId,
           size: variantsTable.size,
-          fit: variantsTable.fit,
           colorName: colorsTable.name,
           colorCode: colorsTable.code,
           colorHex: colorsTable.hex,
+          attributesPayload: variantsTable.attributesPayload,
         })
         .from(variantsTable)
         .leftJoin(colorsTable, eq(variantsTable.colorId, colorsTable.id))
@@ -150,7 +154,7 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
     if (manualPrice !== null) hasMissingPrices = false;
 
     const setProductIds = Array.from(new Set(setItems.map((i) => i.productId).filter((id): id is string => !!id)));
-    const categories = Array.from(new Set(setItems.map((i) => i.category).filter((c): c is string => !!c)));
+    const productTypes = Array.from(new Set(setItems.map((i) => i.productTypeName).filter((n): n is string => !!n)));
     const genders = Array.from(
       new Set(setItems.map((i) => (i.gender ? genderFromDb[i.gender] : undefined)).filter((g): g is Gender => !!g))
     );
@@ -159,14 +163,23 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
     const setVariants = variants.filter((v) => setProductIds.includes(v.productId));
     const colorMap = new Map<string, ProductColor>();
     const sizeSet = new Set<string>();
-    const fitSet = new Set<string>();
+    const stylesMap = new Map<string, Set<string>>();
     for (const v of setVariants) {
       if (v.colorId && !colorMap.has(v.colorId)) {
         colorMap.set(v.colorId, { id: v.colorId, name: v.colorName || '', code: v.colorCode || '', hex: v.colorHex || '' });
       }
       sizeSet.add(v.size);
-      if (v.fit) fitSet.add(v.fit);
+      const payload = v.attributesPayload as AttributesPayload | null | undefined;
+      if (payload?.styles) {
+        for (const [slug, value] of Object.entries(payload.styles)) {
+          if (!stylesMap.has(slug)) stylesMap.set(slug, new Set());
+          stylesMap.get(slug)!.add(value);
+        }
+      }
     }
+    const availableStyles: Record<string, string[]> = Object.fromEntries(
+      Array.from(stylesMap.entries(), ([slug, values]) => [slug, Array.from(values)])
+    );
 
     return {
       id: set.id,
@@ -187,8 +200,8 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
       colors: Array.from(colorMap.values()),
       sizes: Array.from(sizeSet),
       genders,
-      categories,
-      fits: Array.from(fitSet),
+      productTypes,
+      availableStyles,
       pieceNames,
       createdAt: set.createdAt ? set.createdAt.toISOString() : new Date(0).toISOString(),
     };
@@ -236,11 +249,13 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
       productSlug: productsTable.slug,
       priceWholesale: productsTable.priceWholesale,
       priceWholesaleSale: productsTable.priceWholesaleSale,
-      category: productsTable.category,
+      productTypeId: productsTable.productTypeId,
+      productTypeName: productTypesTable.name,
       gender: productsTable.gender,
     })
     .from(setItemsTable)
     .leftJoin(productsTable, eq(setItemsTable.productId, productsTable.id))
+    .leftJoin(productTypesTable, eq(productsTable.productTypeId, productTypesTable.id))
     .where(eq(setItemsTable.setId, set.id))
     .orderBy(asc(setItemsTable.sortOrder));
 
@@ -252,12 +267,12 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
           productId: variantsTable.productId,
           colorId: variantsTable.colorId,
           size: variantsTable.size,
-          fit: variantsTable.fit,
           sku: variantsTable.sku,
           status: variantsTable.status,
           colorName: colorsTable.name,
           colorCode: colorsTable.code,
           colorHex: colorsTable.hex,
+          attributesPayload: variantsTable.attributesPayload,
         })
         .from(variantsTable)
         .leftJoin(colorsTable, eq(variantsTable.colorId, colorsTable.id))
@@ -293,11 +308,11 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
   let referencePrice = 0;
   let hasMissingPrices = false;
 
-  const categoriesAgg = new Set<string>();
+  const productTypesAgg = new Set<string>();
   const gendersAgg = new Set<Gender>();
   const colorMapAgg = new Map<string, ProductColor>();
   const sizeSetAgg = new Set<string>();
-  const fitSetAgg = new Set<string>();
+  const stylesMapAgg = new Map<string, Set<string>>();
 
   const pieces: SetPiece[] = items.map((item) => {
     const price = wholesalePriceOf(item.priceWholesale, item.priceWholesaleSale);
@@ -309,7 +324,7 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
 
     const productVariants = variants.filter((v) => v.productId === item.productId);
 
-    if (item.category) categoriesAgg.add(item.category);
+    if (item.productTypeName) productTypesAgg.add(item.productTypeName);
     if (item.gender && genderFromDb[item.gender]) gendersAgg.add(genderFromDb[item.gender]);
     for (const v of productVariants) {
       if (v.status !== 'AVAILABLE') continue;
@@ -317,7 +332,13 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
         colorMapAgg.set(v.colorId, { id: v.colorId, name: v.colorName || '', code: v.colorCode || '', hex: v.colorHex || '' });
       }
       sizeSetAgg.add(v.size);
-      if (v.fit) fitSetAgg.add(v.fit);
+      const payload = v.attributesPayload as AttributesPayload | null | undefined;
+      if (payload?.styles) {
+        for (const [slug, value] of Object.entries(payload.styles)) {
+          if (!stylesMapAgg.has(slug)) stylesMapAgg.set(slug, new Set());
+          stylesMapAgg.get(slug)!.add(value);
+        }
+      }
     }
 
     const colorMap = new Map<string, ProductColor>();
@@ -348,15 +369,19 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
       });
     }
 
-    const mappedVariants: ProductVariant[] = productVariants.map((v) => ({
-      id: v.id,
-      sku: v.sku,
-      colorId: v.colorId,
-      size: v.size as ProductVariant['size'],
-      fit: (v.fit as ProductVariant['fit']) || undefined,
-      images: imagesByColor.get(v.colorId) || imagesByColor.get('_default') || [],
-      status: v.status as ProductVariant['status'],
-    }));
+    const mappedVariants: ProductVariant[] = productVariants.map((v) => {
+      const payload = v.attributesPayload as AttributesPayload | null | undefined;
+      return {
+        id: v.id,
+        sku: v.sku ?? '',
+        colorId: v.colorId,
+        size: v.size as ProductVariant['size'],
+        fit: (payload?.styles?.[CORTE_ATTRIBUTE_SLUG] as ProductVariant['fit'] | undefined) ?? undefined,
+        styles: payload?.styles ?? {},
+        images: imagesByColor.get(v.colorId) || imagesByColor.get('_default') || [],
+        status: v.status as ProductVariant['status'],
+      };
+    });
 
     return {
       setItemId: item.setItemId,
@@ -396,8 +421,10 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
     colors: Array.from(colorMapAgg.values()),
     sizes: Array.from(sizeSetAgg),
     genders: Array.from(gendersAgg),
-    categories: Array.from(categoriesAgg),
-    fits: Array.from(fitSetAgg),
+    productTypes: Array.from(productTypesAgg),
+    availableStyles: Object.fromEntries(
+      Array.from(stylesMapAgg.entries(), ([slug, values]) => [slug, Array.from(values)])
+    ),
     pieceNames: pieces.map((p) => p.productName).filter((n) => !!n),
     createdAt: set.createdAt ? set.createdAt.toISOString() : new Date(0).toISOString(),
     pieces,

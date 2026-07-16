@@ -74,7 +74,7 @@ export function Header({ onCartClick, products, brands, stores }: HeaderProps) {
           results = products.filter(p =>
             p.name.toLowerCase().includes(q) ||
             p.brand.toLowerCase().includes(q) ||
-            p.category.toLowerCase().includes(q) ||
+            (p.productType?.name.toLowerCase().includes(q) ?? false) ||
             p.colors.some(c => c.name.toLowerCase().includes(q))
           );
         } else {

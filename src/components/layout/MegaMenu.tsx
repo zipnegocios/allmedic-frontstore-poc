@@ -28,7 +28,7 @@ export function MegaMenu({ isOpen, onClose, products: productsProp, brands: bran
   // Get featured products (best sellers)
   const getFeaturedProducts = () => PRODUCTS.filter(p => p.isBestSeller).slice(0, 6);
   const getNewArrivals = () => PRODUCTS.filter(p => p.isNew).slice(0, 6);
-  const getProductsByCategory = (category: string) => PRODUCTS.filter(p => p.category === category).slice(0, 6);
+  const getProductsByCategory = (category: string) => PRODUCTS.filter(p => p.productType?.name === category).slice(0, 6);
   const [activeTab, setActiveTab] = useState<'products' | 'brands' | 'stores'>('products');
   const [currentIndex, setCurrentIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);

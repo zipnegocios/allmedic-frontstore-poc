@@ -5,22 +5,24 @@ export interface SetFilterState {
   search: string;
   groups: string[];
   gender: Gender | null;
-  categories: string[];
+  /** Nombres de `productTypes` (EAV) seleccionados — fuente de verdad para el filtro "Tipo de Producto". */
+  productTypes: string[];
   brands: string[];
   colors: string[];
   sizes: string[];
-  fits: string[];
+  /** Estilos EAV seleccionados: slug de atributo → valores seleccionados. Ej: `{ corte: ['Regular'] }`. */
+  selectedStyles: Record<string, string[]>;
 }
 
 export const EMPTY_SET_FILTERS: SetFilterState = {
   search: '',
   groups: [],
   gender: null,
-  categories: [],
+  productTypes: [],
   brands: [],
   colors: [],
   sizes: [],
-  fits: [],
+  selectedStyles: {},
 };
 
 export type SetSortOption = 'relevance' | 'price-asc' | 'price-desc' | 'newest';
@@ -32,7 +34,7 @@ export function matchesSetFilters(set: CorporateSetSummary, filters: SetFilterSt
   if (filters.gender && !set.genders.includes(filters.gender)) {
     return false;
   }
-  if (filters.categories.length > 0 && !set.categories.some((c) => filters.categories.includes(c))) {
+  if (filters.productTypes.length > 0 && !set.productTypes.some((t) => filters.productTypes.includes(t))) {
     return false;
   }
   if (filters.brands.length > 0 && (!set.brandName || !filters.brands.includes(set.brandName))) {
@@ -44,8 +46,10 @@ export function matchesSetFilters(set: CorporateSetSummary, filters: SetFilterSt
   if (filters.sizes.length > 0 && !set.sizes.some((s) => filters.sizes.includes(s))) {
     return false;
   }
-  if (filters.fits.length > 0 && !set.fits.some((f) => filters.fits.includes(f))) {
-    return false;
+  for (const [slug, values] of Object.entries(filters.selectedStyles)) {
+    if (values.length === 0) continue;
+    const setValues = set.availableStyles[slug] ?? [];
+    if (!setValues.some((v) => values.includes(v))) return false;
   }
 
   const query = filters.search.trim().toLowerCase();
@@ -81,11 +85,11 @@ export function countActiveSetFilters(filters: SetFilterState): number {
   return (
     filters.groups.length +
     (filters.gender ? 1 : 0) +
-    filters.categories.length +
+    filters.productTypes.length +
     filters.brands.length +
     filters.colors.length +
     filters.sizes.length +
-    filters.fits.length
+    Object.values(filters.selectedStyles).reduce((sum, values) => sum + values.length, 0)
   );
 }
 

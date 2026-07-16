@@ -6,12 +6,14 @@ import {
   stores as storesTable,
   banners as bannersTable,
   productVariants as variantsTable,
+  productTypes as productTypesTable,
   mediaLinks as mediaLinksTable,
   mediaAssets as mediaAssetsTable,
 } from '@/db/schema';
 import type { Product, ProductColor, ProductVariant, Store, Gender, Size, Fit, BrandNavItem } from './types';
 import { eq, and, or, asc, sql, inArray, gte, lte, ne, type SQL } from 'drizzle-orm';
 import { resolveMediaUrl, isVideoMime, type MediaItem } from './media';
+import type { AttributesPayload } from './attributes-payload/build-payload';
 import {
   PRODUCTS as DUMMY_PRODUCTS,
   BRANDS as DUMMY_BRANDS,
@@ -61,6 +63,13 @@ async function checkDbAvailable(): Promise<boolean> {
   }
 }
 
+// Slug estable del atributo EAV "Corte" — reemplaza a `product_variants.fit` (legacy) como fuente
+// de verdad del "Fit"/"Corte" en toda la app (PDP, carrito, WhatsApp, Quick View corporativo).
+// Confirmado por `scripts/migrate-catalog-taxonomy-backfill.ts` y por los tests de
+// `attributes-payload`/`AttributeMatrixSection` — no confundir con `corte_pantalon` u otros slugs
+// de atributos de estilo específicos por tipo de producto.
+export const CORTE_ATTRIBUTE_SLUG = 'corte';
+
 // ── Gender mapping (DB enum → frontend string) ──
 export const genderFromDb: Record<string, Gender> = {
   MUJER: 'Mujer',
@@ -76,7 +85,9 @@ function transformProduct(dbProduct: {
   description: string | null;
   brandName: string;
   brandId: string | null;
-  category: string;
+  productTypeId: string | null;
+  productTypeName: string | null;
+  productTypeSlug: string | null;
   gender: string;
   priceNormal: string;
   priceSale: string | null;
@@ -91,12 +102,12 @@ function transformProduct(dbProduct: {
     id: string;
     colorId: string;
     size: string;
-    fit: string | null;
-    sku: string;
+    sku: string | null;
     status: string;
     colorName: string;
     colorCode: string;
     colorHex: string;
+    attributesPayload: unknown;
   }>;
   images: Array<{
     colorId: string | null;
@@ -150,24 +161,43 @@ function transformProduct(dbProduct: {
     });
   }
 
-  // Build unique sizes
+  // Build unique sizes + agregado EAV de estilos (slug de atributo → valores únicos) a través de
+  // todas las variantes. `fit`/`availableFits` ("Corte") ya NO leen `product_variants.fit`
+  // (legacy): se derivan de `attributesPayload.styles.corte` (EAV) — mismo slug confirmado por el
+  // backfill de taxonomía (`scripts/migrate-catalog-taxonomy-backfill.ts`) y por
+  // `productTypeAttributes`/`AttributeMatrixSection` en el admin.
   const sizeSet = new Set<string>();
   const fitSet = new Set<string>();
+  const stylesMap = new Map<string, Set<string>>();
   for (const v of dbProduct.variants) {
     sizeSet.add(v.size);
-    if (v.fit) fitSet.add(v.fit);
+    const payload = v.attributesPayload as AttributesPayload | null | undefined;
+    if (payload?.styles) {
+      for (const [slug, value] of Object.entries(payload.styles)) {
+        if (!stylesMap.has(slug)) stylesMap.set(slug, new Set());
+        stylesMap.get(slug)!.add(value);
+      }
+      if (payload.styles[CORTE_ATTRIBUTE_SLUG]) fitSet.add(payload.styles[CORTE_ATTRIBUTE_SLUG]);
+    }
   }
+  const availableStyles: Record<string, string[]> | undefined = stylesMap.size > 0
+    ? Object.fromEntries(Array.from(stylesMap.entries(), ([slug, values]) => [slug, Array.from(values)]))
+    : undefined;
 
   // Transform variants
-  const variants: ProductVariant[] = dbProduct.variants.map(v => ({
-    id: v.id,
-    sku: v.sku,
-    colorId: v.colorId,
-    size: v.size as Size,
-    fit: v.fit as Fit | undefined,
-    images: imagesByColor.get(v.colorId) || imagesByColor.get('_default') || [],
-    status: v.status as ProductVariant['status'],
-  }));
+  const variants: ProductVariant[] = dbProduct.variants.map(v => {
+    const payload = v.attributesPayload as AttributesPayload | null | undefined;
+    return {
+      id: v.id,
+      sku: v.sku ?? '',
+      colorId: v.colorId,
+      size: v.size as Size,
+      fit: (payload?.styles?.[CORTE_ATTRIBUTE_SLUG] as Fit | undefined) ?? undefined,
+      styles: payload?.styles ?? {},
+      images: imagesByColor.get(v.colorId) || imagesByColor.get('_default') || [],
+      status: v.status as ProductVariant['status'],
+    };
+  });
 
   return {
     id: dbProduct.id,
@@ -175,7 +205,9 @@ function transformProduct(dbProduct: {
     name: dbProduct.name,
     brand: dbProduct.brandName,
     brandId: dbProduct.brandId ?? undefined,
-    category: dbProduct.category,
+    productType: dbProduct.productTypeId && dbProduct.productTypeName && dbProduct.productTypeSlug
+      ? { id: dbProduct.productTypeId, name: dbProduct.productTypeName, slug: dbProduct.productTypeSlug }
+      : undefined,
     gender: genderFromDb[dbProduct.gender] || 'Unisex',
     description: dbProduct.description || '',
     features: (dbProduct.features as string[]) || [],
@@ -187,6 +219,7 @@ function transformProduct(dbProduct: {
     colors: Array.from(colorMap.values()),
     availableSizes: Array.from(sizeSet) as Size[],
     availableFits: fitSet.size > 0 ? Array.from(fitSet) as Fit[] : undefined,
+    availableStyles,
     variants,
     cover,
     isNew: dbProduct.isNew,
@@ -206,7 +239,9 @@ async function fetchProductsWithJoins(whereCondition?: SQL<unknown>) {
       description: productsTable.description,
       brandName: sql<string>`COALESCE(${brandsTable.name}, '')`,
       brandId: productsTable.brandId,
-      category: productsTable.category,
+      productTypeId: productsTable.productTypeId,
+      productTypeName: productTypesTable.name,
+      productTypeSlug: productTypesTable.slug,
       gender: productsTable.gender,
       priceNormal: productsTable.priceNormal,
       priceSale: productsTable.priceSale,
@@ -219,7 +254,8 @@ async function fetchProductsWithJoins(whereCondition?: SQL<unknown>) {
       careInstructions: productsTable.careInstructions,
     })
     .from(productsTable)
-    .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id));
+    .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
+    .leftJoin(productTypesTable, eq(productsTable.productTypeId, productTypesTable.id));
 
   const rows = whereCondition
     ? await baseQuery.where(whereCondition)
@@ -235,12 +271,12 @@ async function fetchProductsWithJoins(whereCondition?: SQL<unknown>) {
           productId: variantsTable.productId,
           colorId: variantsTable.colorId,
           size: variantsTable.size,
-          fit: variantsTable.fit,
           sku: variantsTable.sku,
           status: variantsTable.status,
           colorName: sql<string>`COALESCE(${colorsTable.name}, '')`,
           colorCode: sql<string>`COALESCE(${colorsTable.code}, '')`,
           colorHex: sql<string>`COALESCE(${colorsTable.hex}, '')`,
+          attributesPayload: variantsTable.attributesPayload,
         })
         .from(variantsTable)
         .leftJoin(colorsTable, eq(variantsTable.colorId, colorsTable.id))
@@ -350,7 +386,7 @@ export async function searchProductsDb(query: string): Promise<Product[]> {
     return DUMMY_PRODUCTS.filter(p =>
       p.name.toLowerCase().includes(q) ||
       p.brand.toLowerCase().includes(q) ||
-      p.category.toLowerCase().includes(q) ||
+      (p.productType?.name.toLowerCase().includes(q) ?? false) ||
       p.description.toLowerCase().includes(q)
     );
   }
@@ -361,7 +397,7 @@ export async function searchProductsDb(query: string): Promise<Product[]> {
       or(
         sql`${productsTable.name} ILIKE ${likeQuery}`,
         sql`${productsTable.description} ILIKE ${likeQuery}`,
-        sql`${productsTable.category} ILIKE ${likeQuery}`,
+        sql`${productTypesTable.name} ILIKE ${likeQuery}`,
         sql`${brandsTable.name} ILIKE ${likeQuery}`
       )
     )
@@ -556,21 +592,25 @@ export async function getHeroSlides(): Promise<HeroSlideData[]> {
 
 export async function filterProducts(filters: {
   gender?: Gender;
-  categories?: string[];
+  /** Filtra por `products.productTypeId` — fuente de verdad EAV (reemplaza a `category` legacy). */
+  productTypeIds?: string[];
   brands?: string[];
   colors?: string[];
   sizes?: string[];
-  fits?: string[];
+  /** Filtro por un valor de estilo EAV (ej. slug "corte", valor "Regular"). Ambos deben pasarse juntos. */
+  styleSlug?: string;
+  styleValue?: string;
   priceMin?: number;
   priceMax?: number;
 }): Promise<Product[]> {
   if (!await checkDbAvailable()) {
     return DUMMY_PRODUCTS.filter(product => {
       if (filters.gender && product.gender !== filters.gender && product.gender !== 'Unisex') return false;
-      if (filters.categories?.length && !filters.categories.includes(product.category)) return false;
+      if (filters.productTypeIds?.length && !(product.productType && filters.productTypeIds.includes(product.productType.id))) return false;
       if (filters.brands?.length && !filters.brands.includes(product.brand)) return false;
       if (filters.colors?.length && !product.colors.some(c => filters.colors!.includes(c.name))) return false;
       if (filters.sizes?.length && !product.availableSizes.some(s => filters.sizes!.includes(s))) return false;
+      if (filters.styleSlug && filters.styleValue && !product.availableStyles?.[filters.styleSlug]?.includes(filters.styleValue)) return false;
       const price = product.priceSale || product.priceNormal;
       if (filters.priceMin !== undefined && price < filters.priceMin) return false;
       if (filters.priceMax !== undefined && price > filters.priceMax) return false;
@@ -586,12 +626,27 @@ export async function filterProducts(filters: {
     conditions.push(or(eq(productsTable.gender, genderDb), eq(productsTable.gender, 'UNISEX'))!);
   }
 
-  if (filters.categories?.length) {
-    conditions.push(inArray(productsTable.category, filters.categories));
+  if (filters.productTypeIds?.length) {
+    conditions.push(inArray(productsTable.productTypeId, filters.productTypeIds));
   }
 
   if (filters.brands?.length) {
     conditions.push(inArray(brandsTable.name, filters.brands));
+  }
+
+  // Filtro EAV por estilo: jsonb containment (`@>`) sobre `attributesPayload.styles` —
+  // resuelve primero el subconjunto de productIds cuyas variantes calzan, luego lo
+  // aplica como condición `IN` sobre la query principal (join a productTypes/brands
+  // ya no involucra a variantsTable, así que no podemos filtrar en el mismo SELECT).
+  if (filters.styleSlug && filters.styleValue) {
+    const containment = JSON.stringify({ styles: { [filters.styleSlug]: filters.styleValue } });
+    const matchingVariants = await db
+      .selectDistinct({ productId: variantsTable.productId })
+      .from(variantsTable)
+      .where(sql`${variantsTable.attributesPayload} @> ${containment}::jsonb`);
+    const matchingProductIds = matchingVariants.map(v => v.productId);
+    if (matchingProductIds.length === 0) return [];
+    conditions.push(inArray(productsTable.id, matchingProductIds));
   }
 
   if (filters.priceMin !== undefined) {
@@ -610,9 +665,6 @@ export async function filterProducts(filters: {
   }
   if (filters.sizes?.length) {
     products = products.filter(p => p.availableSizes.some(s => filters.sizes!.includes(s)));
-  }
-  if (filters.fits?.length) {
-    products = products.filter(p => p.availableFits?.some(f => filters.fits!.includes(f)));
   }
 
   return products;

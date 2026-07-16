@@ -232,13 +232,17 @@ export function Product({ product, complementaryProduct: complementaryProductPro
           <Link href="/catalogo" className="hover:text-[#111111] transition-colors">
             Catálogo
           </Link>
-          <ChevronRight className="w-4 h-4" strokeWidth={1.5} />
-          <Link
-            href={`/catalogo?category=${product.category}`}
-            className="hover:text-[#111111] transition-colors"
-          >
-            {product.category}
-          </Link>
+          {product.productType && (
+            <>
+              <ChevronRight className="w-4 h-4" strokeWidth={1.5} />
+              <Link
+                href={`/catalogo?productTypeId=${product.productType.id}`}
+                className="hover:text-[#111111] transition-colors"
+              >
+                {product.productType.name}
+              </Link>
+            </>
+          )}
           <ChevronRight className="w-4 h-4" strokeWidth={1.5} />
           <span className="text-[#111111] truncate">{product.name}</span>
         </nav>

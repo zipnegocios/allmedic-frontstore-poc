@@ -15,7 +15,7 @@ interface SetFilterSidebarProps {
   onClose: () => void;
 }
 
-type ArrayFilterKey = 'groups' | 'categories' | 'brands' | 'colors' | 'sizes' | 'fits';
+type ArrayFilterKey = 'groups' | 'productTypes' | 'brands' | 'colors' | 'sizes';
 
 export function SetFilterSidebar({ filters, filterOptions, onFilterChange, isOpen, onClose }: SetFilterSidebarProps) {
   const toggleArrayFilter = (key: ArrayFilterKey, value: string) => {
@@ -24,18 +24,32 @@ export function SetFilterSidebar({ filters, filterOptions, onFilterChange, isOpe
     onFilterChange({ [key]: newValue });
   };
 
+  const toggleStyleValue = (slug: string, value: string) => {
+    const current = filters.selectedStyles[slug] || [];
+    const newValues = current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
+    onFilterChange({ selectedStyles: { ...filters.selectedStyles, [slug]: newValues } });
+  };
+
   const clearFilters = () => {
-    onFilterChange({ groups: [], gender: null, categories: [], brands: [], colors: [], sizes: [], fits: [] });
+    onFilterChange({
+      groups: [],
+      gender: null,
+      productTypes: [],
+      brands: [],
+      colors: [],
+      sizes: [],
+      selectedStyles: {},
+    });
   };
 
   const hasActiveFilters =
     filters.groups.length > 0 ||
     filters.gender !== null ||
-    filters.categories.length > 0 ||
+    filters.productTypes.length > 0 ||
     filters.brands.length > 0 ||
     filters.colors.length > 0 ||
     filters.sizes.length > 0 ||
-    filters.fits.length > 0;
+    Object.values(filters.selectedStyles).some((values) => values.length > 0);
 
   const sidebarContent = (
     <>
@@ -100,19 +114,19 @@ export function SetFilterSidebar({ filters, filterOptions, onFilterChange, isOpe
           </div>
         </div>
 
-        {filterOptions.categories.length > 0 && (
+        {filterOptions.productTypes.length > 0 && (
           <div>
-            <h3 className="text-xs uppercase tracking-widest text-gray-400 mb-3">Categoría</h3>
+            <h3 className="text-xs uppercase tracking-widest text-gray-400 mb-3">Tipo de Producto</h3>
             <div className="space-y-2">
-              {filterOptions.categories.map((category) => (
-                <label key={category} className="flex items-center gap-2 cursor-pointer">
+              {filterOptions.productTypes.map((productType) => (
+                <label key={productType} className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={filters.categories.includes(category)}
-                    onChange={() => toggleArrayFilter('categories', category)}
+                    checked={filters.productTypes.includes(productType)}
+                    onChange={() => toggleArrayFilter('productTypes', productType)}
                     className="w-4 h-4 accent-[#111111] rounded"
                   />
-                  <span className="text-sm text-[#333333]">{category}</span>
+                  <span className="text-sm text-[#333333]">{productType}</span>
                 </label>
               ))}
             </div>
@@ -186,24 +200,26 @@ export function SetFilterSidebar({ filters, filterOptions, onFilterChange, isOpe
           </div>
         )}
 
-        {filterOptions.fits.length > 0 && (
-          <div>
-            <h3 className="text-xs uppercase tracking-widest text-gray-400 mb-3">Corte</h3>
+        {/* Estilos EAV (ej. Corte) — un bloque por cada atributo de estilo presente en los datos,
+            no hardcodeado: soporta cualquier atributo que aparezca en `set.availableStyles`. */}
+        {filterOptions.styleOptions.map((styleOption) => (
+          <div key={styleOption.slug}>
+            <h3 className="text-xs uppercase tracking-widest text-gray-400 mb-3">{styleOption.label}</h3>
             <div className="space-y-2">
-              {filterOptions.fits.map((fit) => (
-                <label key={fit} className="flex items-center gap-2 cursor-pointer">
+              {styleOption.values.map((value) => (
+                <label key={value} className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={filters.fits.includes(fit)}
-                    onChange={() => toggleArrayFilter('fits', fit)}
+                    checked={(filters.selectedStyles[styleOption.slug] || []).includes(value)}
+                    onChange={() => toggleStyleValue(styleOption.slug, value)}
                     className="w-4 h-4 accent-[#111111] rounded"
                   />
-                  <span className="text-sm text-[#333333]">{fit}</span>
+                  <span className="text-sm text-[#333333]">{value}</span>
                 </label>
               ))}
             </div>
           </div>
-        )}
+        ))}
       </div>
     </>
   );

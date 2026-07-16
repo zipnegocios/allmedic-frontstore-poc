@@ -3,6 +3,7 @@ import { db } from '@/db';
 import {
   products as productsTable,
   brands as brandsTable,
+  productTypes as productTypesTable,
   mediaLinks as mediaLinksTable,
   mediaAssets as mediaAssetsTable,
 } from '@/db/schema';
@@ -39,7 +40,9 @@ export async function GET(request: NextRequest) {
           slug: productsTable.slug,
           name: productsTable.name,
           description: productsTable.description,
-          category: productsTable.category,
+          productTypeId: productsTable.productTypeId,
+          productTypeName: productTypesTable.name,
+          productTypeSlug: productTypesTable.slug,
           gender: productsTable.gender,
           priceNormal: productsTable.priceNormal,
           priceSale: productsTable.priceSale,
@@ -51,6 +54,7 @@ export async function GET(request: NextRequest) {
         })
         .from(productsTable)
         .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
+        .leftJoin(productTypesTable, eq(productsTable.productTypeId, productTypesTable.id))
         .where(
           and(
             eq(productsTable.isActive, true),
@@ -58,8 +62,9 @@ export async function GET(request: NextRequest) {
             or(
               sql`${productsTable.name} ILIKE ${likeQuery}`,
               sql`${productsTable.description} ILIKE ${likeQuery}`,
-              sql`${productsTable.category} ILIKE ${likeQuery}`,
-              sql`${productsTable.sku} ILIKE ${likeQuery}`
+              sql`${productsTable.sku} ILIKE ${likeQuery}`,
+              // Búsqueda por nombre de tipo de producto (EAV) — reemplaza la rama legacy de `category`.
+              sql`${productTypesTable.name} ILIKE ${likeQuery}`
             )!
           )
         )
@@ -120,7 +125,7 @@ export async function GET(request: NextRequest) {
       slug: p.slug,
       name: p.name,
       description: p.description,
-      category: p.category,
+      productTypeName: p.productType?.name ?? null,
       gender: p.gender,
       priceNormal: String(p.priceNormal),
       priceSale: p.priceSale ? String(p.priceSale) : null,

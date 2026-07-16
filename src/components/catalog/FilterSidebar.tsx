@@ -2,10 +2,25 @@
 
 import { useState, useEffect } from 'react';
 import { X, SlidersHorizontal } from 'lucide-react';
-import type { CatalogFilters, Gender, Category, Size, Fit, ProductColor } from '@/lib/types';
+import type { CatalogFilters, Gender, Size, ProductColor } from '@/lib/types';
 import { AVAILABLE_COLORS as DEFAULT_COLORS, BRANDS as DEFAULT_BRANDS } from '@/lib/dummy-data';
 import { ColorSwatch } from './ColorSwatch';
 import { cn } from '@/lib/utils';
+
+/** Opción de "Tipo de Producto" (EAV) derivada de los productos realmente presentes en el catálogo. */
+export interface ProductTypeOption {
+  id: string;
+  name: string;
+}
+
+/** Opción de estilo EAV (ej. "Corte") derivada de `product.availableStyles` — soporta cualquier
+ * atributo de estilo presente en los datos, no solo "corte". `label` es el slug capitalizado
+ * (no tenemos el `name` del atributo en el payload público, solo su slug estable). */
+export interface StyleFilterOption {
+  slug: string;
+  label: string;
+  values: string[];
+}
 
 interface FilterSidebarProps {
   filters: CatalogFilters;
@@ -14,11 +29,13 @@ interface FilterSidebarProps {
   onClose: () => void;
   brandNames?: string[];
   availableColors?: ProductColor[];
+  /** Opciones de "Tipo de Producto" — derivadas de `product.productType` de los productos cargados. Sin opción muerta. */
+  productTypeOptions?: ProductTypeOption[];
+  /** Opciones de estilo (ej. "Corte") — derivadas de `product.availableStyles`. Sin opción muerta. */
+  styleOptions?: StyleFilterOption[];
 }
 
-const categories: Category[] = ['Camisas', 'Pantalones', 'Chaquetas', 'Batas', 'Accesorios'];
 const sizes: Size[] = ['XXS', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', 'OS'];
-const fits: Fit[] = ['Petite', 'Short', 'Regular', 'Tall'];
 
 export function FilterSidebar({
   filters,
@@ -27,9 +44,13 @@ export function FilterSidebar({
   onClose,
   brandNames,
   availableColors,
+  productTypeOptions,
+  styleOptions,
 }: FilterSidebarProps) {
   const BRANDS = brandNames || DEFAULT_BRANDS;
   const AVAILABLE_COLORS = availableColors || DEFAULT_COLORS;
+  const PRODUCT_TYPES = productTypeOptions || [];
+  const STYLE_OPTIONS = styleOptions || [];
   const [localFilters, setLocalFilters] = useState<CatalogFilters>(filters);
 
   useEffect(() => {
@@ -45,7 +66,7 @@ export function FilterSidebar({
     onFilterChange(newFilters);
   };
 
-  const toggleArrayFilter = <K extends 'categories' | 'brands' | 'colors' | 'sizes' | 'fits'>(
+  const toggleArrayFilter = <K extends 'categories' | 'productTypeIds' | 'brands' | 'colors' | 'sizes' | 'fits'>(
     key: K,
     value: string
   ) => {
@@ -56,14 +77,25 @@ export function FilterSidebar({
     updateFilter(key, newValue as CatalogFilters[K]);
   };
 
+  const toggleStyleValue = (slug: string, value: string) => {
+    const current = localFilters.selectedStyles[slug] || [];
+    const newValues = current.includes(value)
+      ? current.filter(v => v !== value)
+      : [...current, value];
+    const selectedStyles = { ...localFilters.selectedStyles, [slug]: newValues };
+    updateFilter('selectedStyles', selectedStyles);
+  };
+
   const clearFilters = () => {
     const emptyFilters: CatalogFilters = {
       gender: null,
       categories: [],
+      productTypeIds: [],
       brands: [],
       colors: [],
       sizes: [],
       fits: [],
+      selectedStyles: {},
       priceMin: 0,
       priceMax: 200,
     };
@@ -73,11 +105,11 @@ export function FilterSidebar({
 
   const hasActiveFilters =
     localFilters.gender !== null ||
-    localFilters.categories.length > 0 ||
+    localFilters.productTypeIds.length > 0 ||
     localFilters.brands.length > 0 ||
     localFilters.colors.length > 0 ||
     localFilters.sizes.length > 0 ||
-    localFilters.fits.length > 0;
+    Object.values(localFilters.selectedStyles).some(values => values.length > 0);
 
   const sidebarContent = (
     <>
@@ -129,23 +161,25 @@ export function FilterSidebar({
           </div>
         </div>
 
-        {/* Category */}
-        <div>
-          <h3 className="text-xs uppercase tracking-widest text-gray-400 mb-3">Categoría</h3>
-          <div className="space-y-2">
-            {categories.map(category => (
-              <label key={category} className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={localFilters.categories.includes(category)}
-                  onChange={() => toggleArrayFilter('categories', category)}
-                  className="w-4 h-4 accent-[#111111] rounded"
-                />
-                <span className="text-sm text-[#333333]">{category}</span>
-              </label>
-            ))}
+        {/* Tipo de Producto (EAV) — opciones derivadas de los productos realmente presentes */}
+        {PRODUCT_TYPES.length > 0 && (
+          <div>
+            <h3 className="text-xs uppercase tracking-widest text-gray-400 mb-3">Tipo de Producto</h3>
+            <div className="space-y-2">
+              {PRODUCT_TYPES.map(productType => (
+                <label key={productType.id} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={localFilters.productTypeIds.includes(productType.id)}
+                    onChange={() => toggleArrayFilter('productTypeIds', productType.id)}
+                    className="w-4 h-4 accent-[#111111] rounded"
+                  />
+                  <span className="text-sm text-[#333333]">{productType.name}</span>
+                </label>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Brand */}
         <div>
@@ -211,23 +245,26 @@ export function FilterSidebar({
           </div>
         </div>
 
-        {/* Fit */}
-        <div>
-          <h3 className="text-xs uppercase tracking-widest text-gray-400 mb-3">Corte</h3>
-          <div className="space-y-2">
-            {fits.map(fit => (
-              <label key={fit} className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={localFilters.fits.includes(fit)}
-                  onChange={() => toggleArrayFilter('fits', fit)}
-                  className="w-4 h-4 accent-[#111111] rounded"
-                />
-                <span className="text-sm text-[#333333]">{fit}</span>
-              </label>
-            ))}
+        {/* Estilos EAV (ej. Corte) — un bloque por cada atributo de estilo presente en los datos,
+            no hardcodeado a "corte": soporta cualquier atributo que aparezca en `availableStyles`. */}
+        {STYLE_OPTIONS.map(styleOption => (
+          <div key={styleOption.slug}>
+            <h3 className="text-xs uppercase tracking-widest text-gray-400 mb-3">{styleOption.label}</h3>
+            <div className="space-y-2">
+              {styleOption.values.map(value => (
+                <label key={value} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={(localFilters.selectedStyles[styleOption.slug] || []).includes(value)}
+                    onChange={() => toggleStyleValue(styleOption.slug, value)}
+                    className="w-4 h-4 accent-[#111111] rounded"
+                  />
+                  <span className="text-sm text-[#333333]">{value}</span>
+                </label>
+              ))}
+            </div>
           </div>
-        </div>
+        ))}
 
         {/* Price Range */}
         <div>

@@ -9,11 +9,18 @@ export const VariantSchema = z.object({
   id: z.string().optional(),
   colorId: z.string().min(1, 'Color requerido'),
   size: z.string().min(1, 'Talla requerida'),
-  fit: z.string().optional(),
-  sku: z.string().min(1, 'SKU requerido'),
+  // `fit` legacy retirado del form (Fase 4 remanente): el "Corte" se captura 100%
+  // vía `attributeValueIds` (EAV), armado por `AttributeMatrixSection`.
+  // Opcional (Fase 3.4): el estilo se identifica por `products.code`; el SKU de
+  // variante puede completarse después, celda a celda, tras generar la matriz.
+  sku: z.string().optional(),
   status: z.enum(['AVAILABLE', 'BACKORDER', 'OUT_OF_STOCK']).default('AVAILABLE'),
   stock: z.coerce.number().min(0).default(0),
   minStock: z.coerce.number().min(0).default(5),
+  // Valores de atributos EAV aplicables a esta variante (Fase 3.4) — combinación de
+  // los que "varían por variante" + los propagados de "valor único para todo el
+  // estilo", armados por el generador de matriz (`AttributeMatrixSection`).
+  attributeValueIds: z.array(z.string()).default([]),
 });
 
 export const ImageSchema = z.object({
@@ -43,8 +50,16 @@ export const ProductFormSchema = z.object({
   sku: z.string().optional(),
   brandId: z.string().min(1, 'Marca requerida'),
   collectionId: z.string().optional(),
-  category: z.string().min(1, 'Categoría requerida'),
-  productType: z.string().optional(),
+  // Código de estilo del fabricante (Fase 3.4) — núcleo obligatorio de la taxonomía
+  // EAV (`products.code`, NOT NULL UNIQUE desde Fase 1). Verificado en vivo contra
+  // `/api/admin/products/check-code` (ver `ProductForm.tsx`).
+  code: z.string().min(1, 'Código de estilo requerido'),
+  // FK a `productTypes` (Fase 3.2/3.4) — reemplaza al selector de `category`
+  // hardcoded como fuente de verdad en el form. Requerido a nivel de form (aunque
+  // `products.productTypeId` sea nullable en DB, ver comentario en el esquema):
+  // sin un tipo de producto elegido no hay atributos EAV que ofrecer ni un valor
+  // razonable que derivar para `category`/`productType` (ver `ProductForm.tsx`).
+  productTypeId: z.string().min(1, 'Tipo de producto requerido'),
   gender: z.string().min(1, 'Género requerido'),
   priceNormal: z.string().min(1, 'Precio requerido'),
   priceSale: z.string().optional(),
@@ -59,7 +74,6 @@ export const ProductFormSchema = z.object({
   isActive: z.boolean().default(true),
   features: z.array(z.string()).default([]),
   careInstructions: z.array(z.string()).default([]),
-  styles: z.array(z.string()).default([]),
   crossSellId: z.string().optional(),
   variants: z.array(VariantSchema).default([]),
   images: z.array(ImageSchema).default([]),
@@ -84,16 +98,52 @@ export interface Color {
   hex: string;
 }
 
+// ─── Tipos EAV (Fase 3.4) ───
+
+export interface CollectionOption {
+  id: string;
+  name: string;
+  brandId: string;
+  isActive: boolean | null;
+}
+
+export interface ProductTypeOption {
+  id: string;
+  name: string;
+  brandId: string;
+  isActive: boolean | null;
+}
+
+/** Atributo asociado a un tipo de producto (`GET /api/admin/product-types/[id]/attributes`). */
+export interface ProductTypeAttributeLink {
+  id: string;
+  productTypeId: string;
+  attributeId: string;
+  isRequired: boolean | null;
+  sortOrder: number | null;
+  attributeName: string;
+  attributeSlug: string;
+  displayType: string;
+}
+
+/** Valor de atributo (`GET /api/admin/attributes/[id]/values`). */
+export interface AttributeValueOption {
+  id: string;
+  attributeId: string;
+  value: string;
+  code: string | null;
+  sortOrder: number | null;
+  isActive: boolean | null;
+}
+
 // ─── Constantes compartidas ───
 
-export const CATEGORIES = ['Camisas', 'Pantalones', 'Chaquetas', 'Conjuntos', 'Accesorios', 'Batas'];
 export const GENDERS = [
   { value: 'MUJER', label: 'Mujer' },
   { value: 'HOMBRE', label: 'Hombre' },
   { value: 'UNISEX', label: 'Unisex' },
 ];
 export const SIZES = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '2XL', '3XL', '4XL', '5XL', 'OS'];
-export const FITS = ['Petite', 'Regular', 'Tall', 'Short'];
 export const SELECT_EMPTY_VALUE = '__empty__';
 
 export const VISIBILITY_OPTIONS = [

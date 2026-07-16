@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,7 +9,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Tag, ImageIcon } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Tag, ImageIcon, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 import { ResponsiveDialog } from '@/components/admin/ResponsiveDialog';
 import { Label } from '@/components/ui/label';
@@ -190,6 +191,11 @@ export default function AdminBrandsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
+                        <Link href={`/admin/marcas/${brand.id}`}>
+                          <Button size="sm" variant="outline">
+                            <Layers className="w-4 h-4 mr-1" /> Colecciones y tipos
+                          </Button>
+                        </Link>
                         <Button size="sm" variant="ghost" onClick={() => openEdit(brand)}><Pencil className="w-4 h-4" /></Button>
                         <Button size="sm" variant="ghost" onClick={() => handleDelete(brand.id)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
                       </div>
@@ -242,6 +248,12 @@ export default function AdminBrandsPage() {
                 }
                 meta={brand.description ? <p className="truncate">{brand.description}</p> : undefined}
                 actions={[
+                  {
+                    key: 'collections',
+                    label: 'Colecciones y tipos',
+                    icon: <Layers className="w-4 h-4" />,
+                    onSelect: () => { window.location.href = `/admin/marcas/${brand.id}`; },
+                  },
                   {
                     key: 'delete',
                     label: 'Eliminar',

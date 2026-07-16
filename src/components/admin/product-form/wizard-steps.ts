@@ -26,7 +26,7 @@ export const PRODUCT_FORM_WIZARD_STEPS: WizardStepDef[] = [
   {
     id: 'identification',
     label: 'Identificación',
-    fields: ['name', 'slug', 'brandId', 'category', 'gender'],
+    fields: ['name', 'slug', 'brandId', 'productTypeId', 'code', 'gender'],
   },
   {
     id: 'pricing',

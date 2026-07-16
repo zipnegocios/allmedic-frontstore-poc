@@ -1,4 +1,24 @@
-import type { Product, Store, ProductColor, ProductVariant, Size, Gender, Fit } from './types';
+import type { Product, Store, ProductColor, ProductVariant, Size, Gender, Fit, ProductTypeRef } from './types';
+
+// Duplicado intencional de `CORTE_ATTRIBUTE_SLUG` (`src/lib/data-service.ts`): `data-service.ts`
+// importa `PRODUCTS`/`DUMMY_PRODUCTS` de este módulo, así que importar de vuelta desde
+// `data-service.ts` crearía un ciclo de módulos. El slug del atributo "corte" es estable
+// (ver `CORTE_ATTRIBUTE_SLUG` en `data-service.ts`), así que se referencia por su valor literal.
+const DUMMY_CORTE_ATTRIBUTE_SLUG = 'corte';
+
+// Deriva un ProductTypeRef determinista a partir del nombre de categoría legacy, para que
+// los consumidores migrados a `productType` (ej. useProductFilter, MegaMenu, /api/products
+// en su rama de fallback) sigan funcionando cuando el catálogo real está caído y se usa
+// esta data dummy como último recurso.
+function productTypeFromCategory(category: string): ProductTypeRef {
+  const slug = category
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+  return { id: `dummy-${slug}`, name: category, slug };
+}
 
 // Colors
 export const COLORS: ProductColor[] = [
@@ -75,6 +95,10 @@ function generateVariants(
         colorId,
         size,
         fit: fits?.[0],
+        // Mantiene styles.corte en sync con fit (legacy) - algunos consumidores
+        // (ej. rama de fallback dummy de /api/products) leen el corte desde el
+        // EAV (`CORTE_ATTRIBUTE_SLUG`) en vez del campo legacy `fit`.
+        styles: fits?.[0] ? { [DUMMY_CORTE_ATTRIBUTE_SLUG]: fits[0] } : {},
         images: [{
           url: `/images/product-${imgNum}-${colorFile}-1.jpg`,
           type: 'image',
@@ -97,7 +121,7 @@ export const PRODUCTS: Product[] = [
     slug: 'figs-casma-scrub-top',
     name: 'Casma Scrub Top',
     brand: 'FIGS',
-    category: 'Camisas',
+    productType: productTypeFromCategory('Camisas'),
     gender: 'Mujer',
     description: 'El Casma Scrub Top de FIGS combina estilo y funcionalidad. Con tejido elástico de cuatro direcciones y tecnología FIONx que repele líquidos.',
     features: [
@@ -133,7 +157,7 @@ export const PRODUCTS: Product[] = [
     slug: 'figs-yola-scrub-pants',
     name: 'Yola Scrub Pants',
     brand: 'FIGS',
-    category: 'Pantalones',
+    productType: productTypeFromCategory('Pantalones'),
     gender: 'Mujer',
     description: 'Pantalones scrub Yola con cintura elástica y ajuste cómodo. Perfectos para largas jornadas de trabajo.',
     features: [
@@ -160,7 +184,7 @@ export const PRODUCTS: Product[] = [
     slug: 'cherokee-workwear-scrub-top',
     name: 'Workwear Scrub Top',
     brand: 'Cherokee',
-    category: 'Camisas',
+    productType: productTypeFromCategory('Camisas'),
     gender: 'Unisex',
     description: 'El clásico scrub top de Cherokee Workwear. Duradero, cómodo y asequible.',
     features: [
@@ -188,7 +212,7 @@ export const PRODUCTS: Product[] = [
     slug: 'greys-anatomy-lexie-scrub-top',
     name: 'Lexie Scrub Top',
     brand: 'Grey\'s Anatomy',
-    category: 'Camisas',
+    productType: productTypeFromCategory('Camisas'),
     gender: 'Mujer',
     description: 'Elegante scrub top con detalles de moda. Tejido suave que se siente increíble contra la piel.',
     features: [
@@ -213,7 +237,7 @@ export const PRODUCTS: Product[] = [
     slug: 'wonderwink-four-stretch-scrub-top',
     name: 'Four-Stretch Scrub Top',
     brand: 'WonderWink',
-    category: 'Camisas',
+    productType: productTypeFromCategory('Camisas'),
     gender: 'Mujer',
     description: 'Scrub top con elástico de cuatro direcciones para máxima comodidad y movimiento.',
     features: [
@@ -241,7 +265,7 @@ export const PRODUCTS: Product[] = [
     slug: 'koi-lindsey-scrub-pants',
     name: 'Lindsey Scrub Pants',
     brand: 'Koi',
-    category: 'Pantalones',
+    productType: productTypeFromCategory('Pantalones'),
     gender: 'Mujer',
     description: 'Pantalones scrub Lindsey con estilo único y funcionalidad superior.',
     features: [
@@ -266,7 +290,7 @@ export const PRODUCTS: Product[] = [
     slug: 'dickies-eds-scrub-top',
     name: 'EDS Scrub Top',
     brand: 'Dickies',
-    category: 'Camisas',
+    productType: productTypeFromCategory('Camisas'),
     gender: 'Unisex',
     description: 'El clásico EDS de Dickies. Confiabilidad y durabilidad desde 1922.',
     features: [
@@ -294,7 +318,7 @@ export const PRODUCTS: Product[] = [
     slug: 'figs-catarina-scrub-top',
     name: 'Catarina Scrub Top',
     brand: 'FIGS',
-    category: 'Camisas',
+    productType: productTypeFromCategory('Camisas'),
     gender: 'Mujer',
     description: 'Scrub top Catarina con diseño elegante y funcionalidad superior.',
     features: [
@@ -383,7 +407,6 @@ export function getFeaturedProducts(): Product[] {
 
 export function filterProducts(filters: {
   gender?: Gender;
-  categories?: string[];
   brands?: string[];
   colors?: string[];
   sizes?: string[];
@@ -393,9 +416,6 @@ export function filterProducts(filters: {
 }): Product[] {
   return PRODUCTS.filter(product => {
     if (filters.gender && product.gender !== filters.gender && product.gender !== 'Unisex') {
-      return false;
-    }
-    if (filters.categories?.length && !filters.categories.includes(product.category)) {
       return false;
     }
     if (filters.brands?.length && !filters.brands.includes(product.brand)) {
@@ -427,7 +447,7 @@ export function searchProducts(query: string): Product[] {
     const basicMatch = 
       p.name.toLowerCase().includes(lowerQuery) ||
       p.brand.toLowerCase().includes(lowerQuery) ||
-      p.category.toLowerCase().includes(lowerQuery) ||
+      (p.productType?.name.toLowerCase().includes(lowerQuery) ?? false) ||
       p.description.toLowerCase().includes(lowerQuery) ||
       p.gender.toLowerCase().includes(lowerQuery);
     

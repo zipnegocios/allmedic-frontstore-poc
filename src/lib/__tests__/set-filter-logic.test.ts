@@ -29,8 +29,8 @@ function makeSet(overrides: Partial<CorporateSetSummary> = {}): CorporateSetSumm
     colors: [{ id: 'c-navy', name: 'Navy', code: 'NVY', hex: '#1B2A4A' }],
     sizes: ['M'],
     genders: ['Unisex'],
-    categories: ['Camisas'],
-    fits: ['Regular'],
+    productTypes: ['Camisas'],
+    availableStyles: { corte: ['Regular'] },
     pieceNames: ['Camisa Clínica', 'Pantalón Cargo'],
     createdAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
@@ -83,6 +83,18 @@ describe('matchesSetFilters', () => {
     const set = makeSet({ name: 'Set Radiología Avanzado' });
     const result = matchesSetFilters(set, filters({ search: 'RADIOLOGÍA' }));
     expect(result).toBe(true);
+  });
+
+  it('matches by productTypes (EAV)', () => {
+    const set = makeSet({ productTypes: ['Camisas Clínicas'] });
+    expect(matchesSetFilters(set, filters({ productTypes: ['Camisas Clínicas'] }))).toBe(true);
+    expect(matchesSetFilters(set, filters({ productTypes: ['Pantalones'] }))).toBe(false);
+  });
+
+  it('matches by selectedStyles against set.availableStyles', () => {
+    const set = makeSet({ availableStyles: { corte: ['Regular', 'Petite'] } });
+    expect(matchesSetFilters(set, filters({ selectedStyles: { corte: ['Petite'] } }))).toBe(true);
+    expect(matchesSetFilters(set, filters({ selectedStyles: { corte: ['Tall'] } }))).toBe(false);
   });
 });
 

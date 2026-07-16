@@ -23,7 +23,8 @@ interface Product {
   slug: string;
   name: string;
   sku: string | null;
-  category: string;
+  /** Nombre de `productTypes` (EAV) — fuente de verdad nueva. `null` si el producto no tiene `productTypeId` asignado. */
+  productTypeName: string | null;
   gender: string;
   priceNormal: string;
   priceSale: string | null;
@@ -32,6 +33,12 @@ interface Product {
   isBestSeller: boolean;
   isActive: boolean;
   brandName: string | null;
+}
+
+/** Nombre a mostrar en el listado admin para el "tipo" de un producto: usa `productTypeName`
+ * (EAV, fuente de verdad); si el producto no tiene `productTypeId` asignado, muestra un placeholder. */
+function displayProductType(product: Pick<Product, 'productTypeName'>): string {
+  return product.productTypeName || 'Sin tipo asignado';
 }
 
 export default function AdminProductsPage() {
@@ -117,7 +124,7 @@ export default function AdminProductsPage() {
               <TableRow>
                 <TableHead>Producto</TableHead>
                 <TableHead>Marca</TableHead>
-                <TableHead>Categoría</TableHead>
+                <TableHead>Tipo de Producto</TableHead>
                 <TableHead>Precio</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
@@ -142,7 +149,7 @@ export default function AdminProductsPage() {
                       </div>
                     </TableCell>
                     <TableCell>{product.brandName || '-'}</TableCell>
-                    <TableCell>{product.category}</TableCell>
+                    <TableCell>{displayProductType(product)}</TableCell>
                     <TableCell>
                       <div>
                         <span className="font-medium">${product.priceNormal}</span>
@@ -213,7 +220,7 @@ export default function AdminProductsPage() {
                 }
                 meta={
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span>{product.category}</span>
+                    <span>{displayProductType(product)}</span>
                     <span aria-hidden="true">·</span>
                     {product.priceSale ? (
                       <>

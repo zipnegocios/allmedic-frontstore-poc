@@ -20,6 +20,7 @@ export function useProductFilter(itemsPerPage: number = 12, products?: Product[]
     gender: null,
     categories: [],
     category: null,
+    productTypeIds: [],
     brands: [],
     brand: null,
     colors: [],
@@ -32,6 +33,7 @@ export function useProductFilter(itemsPerPage: number = 12, products?: Product[]
     collections: [],
     style: null,
     styles: [],
+    selectedStyles: {},
     priceMin: 0,
     priceMax: 200,
   });
@@ -41,11 +43,14 @@ export function useProductFilter(itemsPerPage: number = 12, products?: Product[]
 
   // Get filter options from products
   const filterOptions: FilterOptions = useMemo(() => {
-    const categories = [...new Set(PRODUCTS.map(p => p.category))];
+    // EAV: "Categoría" en home = product.productType?.name (antes: product.category legacy).
+    // Sin opción muerta — solo tipos de producto realmente presentes en los datos.
+    const categories = [...new Set(PRODUCTS.map(p => p.productType?.name).filter((v): v is string => !!v))];
     const brands = [...new Set(PRODUCTS.map(p => p.brand))];
     const colors = [...new Map(PRODUCTS.flatMap(p => p.colors).map(c => [c.name, c])).values()];
     const sizes = [...new Set(PRODUCTS.flatMap(p => p.availableSizes))];
-    const fits = [...new Set(PRODUCTS.flatMap(p => p.availableFits || []))];
+    // EAV: "Corte" en home = product.availableStyles.corte (antes: product.availableFits legacy).
+    const fits = [...new Set(PRODUCTS.flatMap(p => p.availableStyles?.corte ?? []))];
 
     return {
       categories,
@@ -64,7 +69,8 @@ export function useProductFilter(itemsPerPage: number = 12, products?: Product[]
       if (filters.gender && product.gender !== filters.gender && product.gender !== 'Unisex') {
         return false;
       }
-      if (filters.categories.length > 0 && !filters.categories.includes(product.category)) {
+      // EAV: "Categoría" (dropdown único de HierarchicalFilter) filtra por productType.name.
+      if (filters.category && product.productType?.name !== filters.category) {
         return false;
       }
       if (filters.brands.length > 0 && !filters.brands.includes(product.brand)) {
@@ -76,7 +82,8 @@ export function useProductFilter(itemsPerPage: number = 12, products?: Product[]
       if (filters.sizes.length > 0 && !product.availableSizes.some(s => filters.sizes.includes(s))) {
         return false;
       }
-      if (filters.fits.length > 0 && !product.availableFits?.some(f => filters.fits.includes(f))) {
+      // EAV: "Corte" (dropdown único de HierarchicalFilter) filtra por availableStyles.corte.
+      if (filters.fit && !product.availableStyles?.corte?.includes(filters.fit)) {
         return false;
       }
       const price = product.priceSale || product.priceNormal;
@@ -103,13 +110,13 @@ export function useProductFilter(itemsPerPage: number = 12, products?: Product[]
     return filteredProducts.slice(startIndex, startIndex + itemsPerPage);
   }, [filteredProducts, currentPage, itemsPerPage]);
 
-  const activeFilterCount = 
+  const activeFilterCount =
     (filters.gender ? 1 : 0) +
-    filters.categories.length +
+    (filters.category ? 1 : 0) +
     filters.brands.length +
     filters.colors.length +
     filters.sizes.length +
-    filters.fits.length;
+    (filters.fit ? 1 : 0);
 
   const hasActiveFilters = activeFilterCount > 0;
 
@@ -123,6 +130,7 @@ export function useProductFilter(itemsPerPage: number = 12, products?: Product[]
       gender: null,
       categories: [],
       category: null,
+      productTypeIds: [],
       brands: [],
       brand: null,
       colors: [],
@@ -135,6 +143,7 @@ export function useProductFilter(itemsPerPage: number = 12, products?: Product[]
       collections: [],
       style: null,
       styles: [],
+      selectedStyles: {},
       priceMin: 0,
       priceMax: 200,
     });

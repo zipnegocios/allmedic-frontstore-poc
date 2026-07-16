@@ -6,11 +6,15 @@ import { z } from 'zod';
 const VariantSchema = z.object({
   colorId: z.string().min(1),
   size: z.string().min(1),
-  fit: z.string().optional(),
-  sku: z.string().min(1),
+  // `fit` legacy retirado (Fase 4 remanente): el "Corte" se captura vía `attributeValueIds` (EAV).
+  // Opcional (Fase 3.4, ver `productVariants.sku` en el esquema): el estilo se
+  // identifica por `products.code`, el SKU de fabricante por variante puede no
+  // existir aún al generar la matriz desde el admin.
+  sku: z.string().optional(),
   status: z.enum(['AVAILABLE', 'BACKORDER', 'OUT_OF_STOCK']).default('AVAILABLE'),
   stock: z.number().default(0),
   minStock: z.number().default(5),
+  attributeValueIds: z.array(z.string()).default([]),
 });
 
 const ImageSchema = z.object({
@@ -25,10 +29,14 @@ const CreateProductSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   sku: z.string().optional(),
+  // Código de estilo del fabricante — obligatorio en products.code (ver Fase 1 de
+  // la migración de taxonomía). El formulario de admin aún no expone este campo
+  // (llega en la Fase 3); hasta entonces, esta ruta responde 400 en vez de dejar
+  // que Postgres rechace el INSERT con un error opaco de NOT NULL.
+  code: z.string().min(1),
   brandId: z.string().min(1),
   collectionId: z.string().optional(),
-  category: z.string().min(1),
-  productType: z.string().optional(),
+  productTypeId: z.string().optional(),
   gender: z.string().min(1),
   priceNormal: z.string().min(1),
   priceSale: z.string().optional(),
@@ -43,7 +51,6 @@ const CreateProductSchema = z.object({
   isActive: z.boolean().default(true),
   features: z.array(z.string()).default([]),
   careInstructions: z.array(z.string()).default([]),
-  styles: z.array(z.string()).default([]),
   crossSellId: z.string().optional(),
   variants: z.array(VariantSchema).default([]),
   images: z.array(ImageSchema).default([]),
@@ -61,7 +68,7 @@ export async function GET(request: NextRequest) {
     const result = await getAdminProducts({
       search: searchParams.get('search') || undefined,
       brandId: searchParams.get('brandId') || undefined,
-      category: searchParams.get('category') || undefined,
+      productTypeId: searchParams.get('productTypeId') || undefined,
       page: parseInt(searchParams.get('page') || '1'),
       limit: parseInt(searchParams.get('limit') || '20'),
     });

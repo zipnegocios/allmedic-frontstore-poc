@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
@@ -26,7 +26,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { toast } from 'sonner';
-import { ArrowLeft, Save, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Save, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { MediaPicker } from '@/components/admin/media/MediaPicker';
 import { resolveMediaUrl } from '@/lib/media';
@@ -37,7 +37,8 @@ import {
   type ProductFormData,
   type Brand,
   type Color,
-  CATEGORIES,
+  type CollectionOption,
+  type ProductTypeOption,
   GENDERS,
   VISIBILITY_OPTIONS,
 } from '@/components/admin/product-form/schema';
@@ -78,14 +79,22 @@ export default function ProductForm({
   const isMobile = useIsMobile();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [colors, setColors] = useState<Color[]>([]);
+  const [collections, setCollections] = useState<CollectionOption[]>([]);
+  const [productTypeOptions, setProductTypeOptions] = useState<ProductTypeOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingProduct, setLoadingProduct] = useState(false);
   const [saving, setSaving] = useState(false);
   const [featureInput, setFeatureInput] = useState('');
   const [careInput, setCareInput] = useState('');
-  const [styleInput, setStyleInput] = useState('');
   const [pickerTargetIndex, setPickerTargetIndex] = useState<number | 'append' | 'cover' | null>(null);
   const [pickerColorId, setPickerColorId] = useState<string | null>(null);
+  // ─── Código de estilo: verificación de unicidad en vivo (Fase 3.4, ver brief C.1) ───
+  const [codeStatus, setCodeStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  // Protección contra respuestas fuera de orden del debounce de check-code: cada
+  // request lleva un id incremental y un AbortController; solo se aplica el
+  // resultado si sigue siendo la request más reciente en vuelo.
+  const codeCheckRequestIdRef = useRef(0);
+  const codeCheckAbortRef = useRef<AbortController | null>(null);
 
 
   // ─── Wizard mobile: paso actual y pasos ya visitados ───
@@ -111,7 +120,9 @@ export default function ProductForm({
       description: '',
       sku: '',
       brandId: '',
-      category: '',
+      collectionId: '',
+      code: '',
+      productTypeId: '',
       gender: 'UNISEX',
       priceNormal: '',
       visibility: initialVisibility ?? 'INDIVIDUAL',
@@ -120,7 +131,6 @@ export default function ProductForm({
       isActive: true,
       features: [],
       careInstructions: [],
-      styles: [],
       variants: [],
       images: [],
       cover: {
@@ -148,7 +158,6 @@ export default function ProductForm({
 
   const features = watch('features');
   const careInstructions = watch('careInstructions');
-  const styles = watch('styles');
 
   // Fetch product details if editing embedded
   useEffect(() => {
@@ -167,8 +176,8 @@ export default function ProductForm({
             sku: product.sku || '',
             brandId: product.brandId,
             collectionId: product.collectionId || '',
-            category: product.category,
-            productType: product.productType || '',
+            code: product.code || '',
+            productTypeId: product.productTypeId || '',
             gender: product.gender,
             priceNormal: product.priceNormal,
             priceSale: product.priceSale || '',
@@ -187,17 +196,16 @@ export default function ProductForm({
             isActive: product.isActive ?? true,
             features: (product.features as string[]) || [],
             careInstructions: (product.careInstructions as string[]) || [],
-            styles: (product.styles as string[]) || [],
             crossSellId: product.crossSellId || '',
             variants: product.variants.map((v: any) => ({
               id: v.id,
               colorId: v.colorId,
               size: v.size,
-              fit: v.fit || '',
-              sku: v.sku,
+              sku: v.sku || '',
               status: v.status,
               stock: v.stock ?? 0,
               minStock: v.minStock ?? 5,
+              attributeValueIds: (v.attributeValueIds as string[]) || [],
             })),
             images: product.images.map((i: any) => ({
               id: i.id,
@@ -265,6 +273,76 @@ export default function ProductForm({
       setValue('slug', nameValue.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''));
     }
   }, [nameValue, slugValue, productId, setValue]);
+
+  // ─── Selects dependientes Marca → Colección/Tipo de Producto (Fase 3.4, brief A) ───
+  const brandIdValue = watch('brandId');
+  useEffect(() => {
+    if (!brandIdValue) {
+      setCollections([]);
+      setProductTypeOptions([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const [colRes, ptRes] = await Promise.all([
+          fetch(`/api/admin/collections?brandId=${brandIdValue}`),
+          fetch(`/api/admin/product-types?brandId=${brandIdValue}`),
+        ]);
+        if (cancelled) return;
+        if (colRes.ok) setCollections((await colRes.json()).collections || []);
+        if (ptRes.ok) setProductTypeOptions((await ptRes.json()).productTypes || []);
+      } catch {
+        if (!cancelled) toast.error('Error al cargar colecciones/tipos de producto de la marca');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [brandIdValue]);
+
+  // `productTypeId` elegido — impulsa qué atributos EAV ofrece el generador de
+  // matriz (`AttributeMatrixSection`/`VariantsMediaSection`). Los campos legacy
+  // `category`/`productType`/`styles` fueron eliminados del esquema (Fase 5).
+  const productTypeIdValue = watch('productTypeId');
+
+  // ─── Código de Estilo: verificación de unicidad en vivo (Fase 3.4, brief C.1) ───
+  const codeValue = watch('code');
+  useEffect(() => {
+    const trimmed = codeValue?.trim();
+    if (!trimmed) {
+      setCodeStatus('idle');
+      return;
+    }
+    setCodeStatus('checking');
+    const handle = setTimeout(async () => {
+      // Cancela cualquier request anterior todavía en vuelo y reclama un nuevo id.
+      codeCheckAbortRef.current?.abort();
+      const controller = new AbortController();
+      codeCheckAbortRef.current = controller;
+      const requestId = ++codeCheckRequestIdRef.current;
+      try {
+        const params = new URLSearchParams({ code: trimmed });
+        if (productId) params.set('excludeProductId', productId);
+        const res = await fetch(`/api/admin/products/check-code?${params.toString()}`, {
+          signal: controller.signal,
+        });
+        if (requestId !== codeCheckRequestIdRef.current) return; // respuesta obsoleta, ignorar
+        if (!res.ok) {
+          setCodeStatus('idle');
+          return;
+        }
+        const json = await res.json();
+        if (requestId !== codeCheckRequestIdRef.current) return;
+        setCodeStatus(json.available ? 'available' : 'taken');
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        if (requestId !== codeCheckRequestIdRef.current) return;
+        setCodeStatus('idle');
+      }
+    }, 450);
+    return () => clearTimeout(handle);
+  }, [codeValue, productId]);
 
   async function onSubmit(data: ProductFormData) {
     setSaving(true);
@@ -335,17 +413,6 @@ export default function ProductForm({
     setValue('careInstructions', careInstructions.filter((_, i) => i !== idx));
   }
 
-  function addStyle() {
-    if (styleInput.trim()) {
-      setValue('styles', [...styles, styleInput.trim()]);
-      setStyleInput('');
-    }
-  }
-
-  function removeStyle(idx: number) {
-    setValue('styles', styles.filter((_, i) => i !== idx));
-  }
-
   // ─── Navegación del wizard mobile ───
 
   const totalSteps = PRODUCT_FORM_WIZARD_STEPS.length;
@@ -377,6 +444,32 @@ export default function ProductForm({
       </div>
     );
   }
+
+  // ─── Feedback visual del check de unicidad del código de estilo (brief C.1) ───
+  const codeStatusIndicator = (() => {
+    if (codeStatus === 'checking') {
+      return (
+        <p className="text-xs text-gray-500 flex items-center gap-1.5">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Verificando disponibilidad...
+        </p>
+      );
+    }
+    if (codeStatus === 'available') {
+      return (
+        <p className="text-xs text-emerald-600 flex items-center gap-1.5">
+          <CheckCircle2 className="w-3.5 h-3.5" /> Código disponible
+        </p>
+      );
+    }
+    if (codeStatus === 'taken') {
+      return (
+        <p className="text-xs text-red-500 flex items-center gap-1.5">
+          <XCircle className="w-3.5 h-3.5" /> Este código ya está en uso por otro producto
+        </p>
+      );
+    }
+    return null;
+  })();
 
   const mediaPickerDialog = (
     <MediaPicker
@@ -519,7 +612,14 @@ export default function ProductForm({
                         name="brandId"
                         control={control}
                         render={({ field }) => (
-                          <Select value={field.value} onValueChange={field.onChange}>
+                          <Select
+                            value={field.value}
+                            onValueChange={(val) => {
+                              field.onChange(val);
+                              setValue('collectionId', '');
+                              setValue('productTypeId', '');
+                            }}
+                          >
                             <SelectTrigger id="m-brandId">
                               <SelectValue placeholder="Seleccionar marca" />
                             </SelectTrigger>
@@ -536,24 +636,56 @@ export default function ProductForm({
                       {errors.brandId && <p className="text-sm text-red-500">{errors.brandId.message}</p>}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="m-category">Categoría *</Label>
+                      <Label htmlFor="m-collectionId">Colección</Label>
                       <Controller
-                        name="category"
+                        name="collectionId"
                         control={control}
                         render={({ field }) => (
-                          <Select value={field.value} onValueChange={field.onChange}>
-                            <SelectTrigger id="m-category">
-                              <SelectValue placeholder="Seleccionar categoría" />
+                          <Select
+                            value={field.value || '__empty__'}
+                            onValueChange={(val) => field.onChange(val === '__empty__' ? '' : val)}
+                            disabled={!brandIdValue}
+                          >
+                            <SelectTrigger id="m-collectionId">
+                              <SelectValue placeholder="Sin colección" />
                             </SelectTrigger>
                             <SelectContent>
-                              {CATEGORIES.map(c => (
-                                <SelectItem key={c} value={c}>{c}</SelectItem>
+                              <SelectItem value="__empty__">— Sin colección —</SelectItem>
+                              {collections.map(c => (
+                                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         )}
                       />
-                      {errors.category && <p className="text-sm text-red-500">{errors.category.message}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="m-productTypeId">Tipo de Producto *</Label>
+                      <Controller
+                        name="productTypeId"
+                        control={control}
+                        render={({ field }) => (
+                          <Select value={field.value} onValueChange={field.onChange} disabled={!brandIdValue}>
+                            <SelectTrigger id="m-productTypeId">
+                              <SelectValue placeholder={brandIdValue ? 'Seleccionar tipo de producto' : 'Elige una marca primero'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {productTypeOptions.map(pt => (
+                                <SelectItem key={pt.id} value={pt.id} disabled={!pt.isActive}>
+                                  {pt.name}{!pt.isActive ? ' (Inactivo)' : ''}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                      {errors.productTypeId && <p className="text-sm text-red-500">{errors.productTypeId.message}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="m-code">Código de Estilo *</Label>
+                      <Input id="m-code" {...register('code')} placeholder="Ej: 2624A" />
+                      {errors.code && <p className="text-sm text-red-500">{errors.code.message}</p>}
+                      {codeStatusIndicator}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="m-gender">Género *</Label>
@@ -573,10 +705,6 @@ export default function ProductForm({
                           </Select>
                         )}
                       />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="m-productType">Tipo de Producto</Label>
-                      <Input id="m-productType" {...register('productType')} placeholder="Ej: Scrub, Bata..." />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="m-description">Descripción</Label>
@@ -735,25 +863,12 @@ export default function ProductForm({
                           />
                         </AccordionContent>
                       </AccordionItem>
-                      <AccordionItem value="styles">
-                        <AccordionTrigger className="px-4">
-                          Estilos
-                          {styles.length > 0 && (
-                            <Badge variant="secondary" className="ml-2">{styles.length}</Badge>
-                          )}
-                        </AccordionTrigger>
-                        <AccordionContent className="px-4">
-                          <TagListEditor
-                            placeholder="Agregar estilo..."
-                            values={styles}
-                            inputValue={styleInput}
-                            onInputChange={setStyleInput}
-                            onAdd={addStyle}
-                            onRemove={removeStyle}
-                          />
-                        </AccordionContent>
-                      </AccordionItem>
                     </Accordion>
+                    <p className="px-4 pb-2 pt-3 text-xs text-gray-500">
+                      Los estilos del producto ahora se gestionan como atributos por
+                      variante en el paso &quot;Variantes y Medios&quot; (Colores/Tallas y los
+                      atributos del Tipo de Producto elegido).
+                    </p>
                   </CardContent>
                 </Card>
               )}
@@ -765,6 +880,7 @@ export default function ProductForm({
                   watch={watch}
                   setValue={setValue}
                   colors={colors}
+                  productTypeId={productTypeIdValue}
                   variantFields={variantFields}
                   appendVariant={appendVariant}
                   removeVariant={removeVariant}
@@ -873,7 +989,14 @@ export default function ProductForm({
                         name="brandId"
                         control={control}
                         render={({ field }) => (
-                          <Select value={field.value} onValueChange={field.onChange}>
+                          <Select
+                            value={field.value}
+                            onValueChange={(val) => {
+                              field.onChange(val);
+                              setValue('collectionId', '');
+                              setValue('productTypeId', '');
+                            }}
+                          >
                             <SelectTrigger>
                               <SelectValue placeholder="Seleccionar marca" />
                             </SelectTrigger>
@@ -890,28 +1013,60 @@ export default function ProductForm({
                       {errors.brandId && <p className="text-sm text-red-500">{errors.brandId.message}</p>}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="category">Categoría *</Label>
+                      <Label htmlFor="collectionId">Colección</Label>
                       <Controller
-                        name="category"
+                        name="collectionId"
                         control={control}
                         render={({ field }) => (
-                          <Select value={field.value} onValueChange={field.onChange}>
+                          <Select
+                            value={field.value || '__empty__'}
+                            onValueChange={(val) => field.onChange(val === '__empty__' ? '' : val)}
+                            disabled={!brandIdValue}
+                          >
                             <SelectTrigger>
-                              <SelectValue placeholder="Seleccionar categoría" />
+                              <SelectValue placeholder="Sin colección" />
                             </SelectTrigger>
                             <SelectContent>
-                              {CATEGORIES.map(c => (
-                                <SelectItem key={c} value={c}>{c}</SelectItem>
+                              <SelectItem value="__empty__">— Sin colección —</SelectItem>
+                              {collections.map(c => (
+                                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         )}
                       />
-                      {errors.category && <p className="text-sm text-red-500">{errors.category.message}</p>}
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="productTypeId">Tipo de Producto *</Label>
+                      <Controller
+                        name="productTypeId"
+                        control={control}
+                        render={({ field }) => (
+                          <Select value={field.value} onValueChange={field.onChange} disabled={!brandIdValue}>
+                            <SelectTrigger>
+                              <SelectValue placeholder={brandIdValue ? 'Seleccionar tipo de producto' : 'Elige una marca primero'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {productTypeOptions.map(pt => (
+                                <SelectItem key={pt.id} value={pt.id} disabled={!pt.isActive}>
+                                  {pt.name}{!pt.isActive ? ' (Inactivo)' : ''}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                      {errors.productTypeId && <p className="text-sm text-red-500">{errors.productTypeId.message}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="code">Código de Estilo *</Label>
+                      <Input id="code" {...register('code')} placeholder="Ej: 2624A" />
+                      {errors.code && <p className="text-sm text-red-500">{errors.code.message}</p>}
+                      {codeStatusIndicator}
+                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="gender">Género *</Label>
                       <Controller
@@ -931,6 +1086,9 @@ export default function ProductForm({
                         )}
                       />
                     </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="priceNormal">Precio Normal *</Label>
                       <Input id="priceNormal" type="number" step="0.01" inputMode="decimal" {...register('priceNormal')} />
@@ -950,10 +1108,6 @@ export default function ProductForm({
                     <div className="space-y-2">
                       <Label htmlFor="discountEnd">Fin de descuento</Label>
                       <Input id="discountEnd" type="datetime-local" {...register('discountEnd')} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="productType">Tipo de Producto</Label>
-                      <Input id="productType" {...register('productType')} placeholder="Ej: Scrub, Bata..." />
                     </div>
                   </div>
 
@@ -1077,18 +1231,14 @@ export default function ProductForm({
                 </CardContent>
               </Card>
 
-              {/* Styles */}
+              {/* Estilos: gestionados ahora como atributos EAV por variante (Fase 3.4) */}
               <Card>
-                <CardContent className="p-6 space-y-4">
-                  <TagListEditor
-                    title="Estilos"
-                    placeholder="Agregar estilo..."
-                    values={styles}
-                    inputValue={styleInput}
-                    onInputChange={setStyleInput}
-                    onAdd={addStyle}
-                    onRemove={removeStyle}
-                  />
+                <CardContent className="p-6">
+                  <p className="text-xs text-gray-500">
+                    Los estilos del producto ahora se gestionan como atributos por
+                    variante en la pestaña &quot;Variantes y Medios&quot; (Colores/Tallas y los
+                    atributos del Tipo de Producto elegido).
+                  </p>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -1101,6 +1251,7 @@ export default function ProductForm({
                 watch={watch}
                 setValue={setValue}
                 colors={colors}
+                productTypeId={productTypeIdValue}
                 variantFields={variantFields}
                 appendVariant={appendVariant}
                 removeVariant={removeVariant}

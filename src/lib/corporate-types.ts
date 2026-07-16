@@ -43,8 +43,10 @@ export interface CorporateSetSummary {
   colors: ProductColor[];
   sizes: string[];
   genders: Gender[];
-  categories: string[];
-  fits: string[];
+  /** Nombres de `productTypes` (EAV) presentes entre las piezas del set — fuente de verdad para filtros. Vacío si ninguna pieza tiene `productTypeId` asignado. */
+  productTypes: string[];
+  /** Agregado EAV de `variants[].styles` a través de todas las piezas del set: slug de atributo → valores únicos presentes. */
+  availableStyles: Record<string, string[]>;
   pieceNames: string[];
   createdAt: string;
 }

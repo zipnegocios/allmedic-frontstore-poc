@@ -14,10 +14,23 @@ import {
   businessRules as businessRulesTable,
   mediaLinks as mediaLinksTable,
   mediaAssets as mediaAssetsTable,
+  collections as collectionsTable,
+  productTypes as productTypesTable,
+  attributes as attributesTable,
+  attributeValues as attributeValuesTable,
+  productTypeAttributes as productTypeAttributesTable,
+  variantAttributeValues as variantAttributeValuesTable,
 } from '@/db/schema';
-import { eq, and, or, asc, desc, sql, like, inArray, isNull, isNotNull, type SQL } from 'drizzle-orm';
+import { eq, and, or, ne, asc, desc, sql, like, inArray, isNull, isNotNull, type SQL } from 'drizzle-orm';
 import { resolveMediaUrl } from './media';
 import type { BusinessRule, RuleConflict } from '@/lib/rules-engine';
+import {
+  syncVariantAttributesPayload,
+  recalculateVariantPayloadsForProduct,
+  recalculateVariantPayloadsForCollection,
+  recalculateVariantPayloadsForProductType,
+  recalculateVariantPayloadsForAttributeValue,
+} from '@/lib/attributes-payload';
 
 // ── Helpers de vínculos de un solo medio (marcas/banners/sets) ──
 
@@ -101,12 +114,13 @@ async function getSingleLinksMediaMap(entityType: 'BRAND' | 'BANNER' | 'SET', en
 export async function getAdminProducts(opts: {
   search?: string;
   brandId?: string;
-  category?: string;
+  /** Filtra por `products.productTypeId` — fuente de verdad EAV. */
+  productTypeId?: string;
   isActive?: boolean;
   page?: number;
   limit?: number;
 }) {
-  const { search, brandId, category, isActive, page = 1, limit = 20 } = opts;
+  const { search, brandId, productTypeId, isActive, page = 1, limit = 20 } = opts;
   const conditions: SQL<unknown>[] = [];
 
   if (search) {
@@ -116,7 +130,7 @@ export async function getAdminProducts(opts: {
     )!);
   }
   if (brandId) conditions.push(eq(productsTable.brandId, brandId));
-  if (category) conditions.push(eq(productsTable.category, category));
+  if (productTypeId) conditions.push(eq(productsTable.productTypeId, productTypeId));
   if (isActive !== undefined) conditions.push(eq(productsTable.isActive, isActive));
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -128,7 +142,9 @@ export async function getAdminProducts(opts: {
       slug: productsTable.slug,
       name: productsTable.name,
       sku: productsTable.sku,
-      category: productsTable.category,
+      code: productsTable.code,
+      productTypeId: productsTable.productTypeId,
+      productTypeName: productTypesTable.name,
       gender: productsTable.gender,
       priceNormal: productsTable.priceNormal,
       priceSale: productsTable.priceSale,
@@ -141,6 +157,7 @@ export async function getAdminProducts(opts: {
     })
       .from(productsTable)
       .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
+      .leftJoin(productTypesTable, eq(productsTable.productTypeId, productTypesTable.id))
       .where(where)
       .orderBy(desc(productsTable.createdAt))
       .limit(limit)
@@ -164,7 +181,6 @@ export async function getAdminProductById(id: string) {
       productId: variantsTable.productId,
       colorId: variantsTable.colorId,
       size: variantsTable.size,
-      fit: variantsTable.fit,
       sku: variantsTable.sku,
       status: variantsTable.status,
       stock: variantsTable.stock,
@@ -214,7 +230,30 @@ export async function getAdminProductById(id: string) {
   const imagesWithUrl = images.map((i) => ({ ...i, url: resolveMediaUrl(i.storageKey) }));
   const coverWithUrl = cover[0] ? { ...cover[0], url: resolveMediaUrl(cover[0].storageKey) } : null;
 
-  return { ...product, variants, images: imagesWithUrl, cover: coverWithUrl, brand: brand[0] ?? null };
+  // Atributos EAV asignados a cada variante (Fase 3.4) — para que el admin pueda
+  // prefiltrar/editar la matriz de una variante existente en `ProductForm`.
+  const variantIds = variants.map((v) => v.id);
+  const variantAttributeRows = variantIds.length > 0
+    ? await db
+        .select({
+          variantId: variantAttributeValuesTable.variantId,
+          attributeValueId: variantAttributeValuesTable.attributeValueId,
+        })
+        .from(variantAttributeValuesTable)
+        .where(inArray(variantAttributeValuesTable.variantId, variantIds))
+    : [];
+  const attributeValueIdsByVariant = new Map<string, string[]>();
+  for (const row of variantAttributeRows) {
+    const list = attributeValueIdsByVariant.get(row.variantId) ?? [];
+    list.push(row.attributeValueId);
+    attributeValueIdsByVariant.set(row.variantId, list);
+  }
+  const variantsWithAttributes = variants.map((v) => ({
+    ...v,
+    attributeValueIds: attributeValueIdsByVariant.get(v.id) ?? [],
+  }));
+
+  return { ...product, variants: variantsWithAttributes, images: imagesWithUrl, cover: coverWithUrl, brand: brand[0] ?? null };
 
 }
 
@@ -233,16 +272,41 @@ export async function deleteProduct(id: string) {
   await db.update(productsTable).set({ isActive: false }).where(eq(productsTable.id, id));
 }
 
+/**
+ * Verifica disponibilidad global de `products.code` (Fase 3.4 — check en vivo del
+ * campo Código de Estilo en `ProductForm`). `excludeProductId` permite guardar sin
+ * conflicto al editar el propio producto (su propio código no cuenta como colisión).
+ */
+export async function isProductCodeAvailable(code: string, excludeProductId?: string): Promise<boolean> {
+  const conditions: SQL<unknown>[] = [eq(productsTable.code, code)];
+  if (excludeProductId) conditions.push(ne(productsTable.id, excludeProductId));
+  const [existing] = await db
+    .select({ id: productsTable.id })
+    .from(productsTable)
+    .where(and(...conditions))
+    .limit(1);
+  return !existing;
+}
+
 // ── Product with Relations (Transactional) ──
 
 interface VariantInput {
   colorId: string;
   size: string;
-  fit?: string;
-  sku: string;
+  // `fit` legacy retirado (Fase 4 remanente): el "Corte" se captura 100% vía
+  // `attributeValueIds` (EAV) — ver `variantAttributeValues` más abajo.
+  // SKU de variante es opcional (ver comentario en `productVariants.sku`, Fase 1):
+  // el estilo se identifica por `products.code`, el SKU de fabricante puede no
+  // existir aún al dar de alta la matriz de variantes (Fase 3.4).
+  sku?: string;
   status: string;
   stock: number;
   minStock: number;
+  // Valores de atributos EAV aplicables a esta variante (Fase 3.4): combinación de
+  // los atributos que "varían por variante" + los propagados de "valor único para
+  // todo el estilo" que arma el generador de matriz del admin. Se persisten en
+  // `variantAttributeValues` tras insertar la variante.
+  attributeValueIds?: string[];
 }
 
 interface ImageInput {
@@ -263,10 +327,17 @@ interface ProductWithRelationsInput {
   name: string;
   description?: string;
   sku?: string;
+  // Código de estilo del fabricante — núcleo obligatorio de la taxonomía EAV
+  // (products.code NOT NULL UNIQUE, ver Fase 1 de la migración de catálogo). El
+  // campo para capturarlo en el admin (`ProductForm`) llega en una fase posterior;
+  // por ahora se exige aquí para reflejar honestamente la restricción de la BD.
+  code: string;
   brandId: string;
   collectionId?: string;
-  category: string;
-  productType?: string;
+  // FK opcional a `productTypes`: impulsa qué atributos EAV aplican al producto
+  // vía `productTypeAttributes`. Nullable a nivel de esquema (ver comentario en
+  // `products.productTypeId`), pero el form de admin ya lo exige.
+  productTypeId?: string | null;
   gender: string;
   priceNormal: string;
   priceSale?: string;
@@ -281,7 +352,6 @@ interface ProductWithRelationsInput {
   isActive?: boolean;
   features?: string[];
   careInstructions?: string[];
-  styles?: string[];
   crossSellId?: string | null;
   variants?: VariantInput[];
   images?: ImageInput[];
@@ -289,7 +359,7 @@ interface ProductWithRelationsInput {
 }
 
 export async function createProductWithRelations(input: ProductWithRelationsInput) {
-  return await db.transaction(async (tx) => {
+  const product = await db.transaction(async (tx) => {
     const { variants = [], images = [], cover, ...productData } = input;
 
     const [product] = await tx.insert(productsTable).values({
@@ -304,12 +374,27 @@ export async function createProductWithRelations(input: ProductWithRelationsInpu
     }).returning();
 
     if (variants.length > 0) {
-      await tx.insert(variantsTable).values(
+      const insertedVariants = await tx.insert(variantsTable).values(
         variants.map(v => ({
-          ...v,
+          colorId: v.colorId,
+          size: v.size,
+          sku: v.sku || null,
+          status: v.status,
+          stock: v.stock,
+          minStock: v.minStock,
           productId: product.id,
         }))
+      ).returning({ id: variantsTable.id });
+
+      const variantAttributeRows = insertedVariants.flatMap((inserted, idx) =>
+        (variants[idx].attributeValueIds ?? []).map(attributeValueId => ({
+          variantId: inserted.id,
+          attributeValueId,
+        }))
       );
+      if (variantAttributeRows.length > 0) {
+        await tx.insert(variantAttributeValuesTable).values(variantAttributeRows);
+      }
     }
 
     if (images.length > 0) {
@@ -339,13 +424,19 @@ export async function createProductWithRelations(input: ProductWithRelationsInpu
 
     return product;
   });
+
+  // Sincroniza attributes_payload de las variantes recién creadas (fuera de la
+  // transacción: la escritura de variantes ya está confirmada en la BD).
+  await recalculateVariantPayloadsForProduct(product.id);
+
+  return product;
 }
 
 export async function updateProductWithRelations(
   id: string,
   input: Partial<ProductWithRelationsInput>
 ) {
-  return await db.transaction(async (tx) => {
+  const product = await db.transaction(async (tx) => {
     const { variants, images, cover, ...productData } = input;
 
     // Update product base
@@ -375,16 +466,32 @@ export async function updateProductWithRelations(
       await tx.update(productsTable).set(updateData).where(eq(productsTable.id, id));
     }
 
-    // Replace variants: delete existing, insert new
+    // Replace variants: delete existing (cascada elimina sus `variantAttributeValues`,
+    // ver FK `onDelete: cascade` en el esquema), insert new + sus attributeValueIds.
     if (variants !== undefined) {
       await tx.delete(variantsTable).where(eq(variantsTable.productId, id));
       if (variants.length > 0) {
-        await tx.insert(variantsTable).values(
+        const insertedVariants = await tx.insert(variantsTable).values(
           variants.map(v => ({
-            ...v,
+            colorId: v.colorId,
+            size: v.size,
+            sku: v.sku || null,
+            status: v.status,
+            stock: v.stock,
+            minStock: v.minStock,
             productId: id,
           }))
+        ).returning({ id: variantsTable.id });
+
+        const variantAttributeRows = insertedVariants.flatMap((inserted, idx) =>
+          (variants[idx].attributeValueIds ?? []).map(attributeValueId => ({
+            variantId: inserted.id,
+            attributeValueId,
+          }))
         );
+        if (variantAttributeRows.length > 0) {
+          await tx.insert(variantAttributeValuesTable).values(variantAttributeRows);
+        }
       }
     }
 
@@ -432,6 +539,13 @@ export async function updateProductWithRelations(
     const [product] = await tx.select().from(productsTable).where(eq(productsTable.id, id)).limit(1);
     return product;
   });
+
+  // Sincroniza attributes_payload de todas las variantes del producto: cubre tanto
+  // el reemplazo de variantes como cambios a nivel de producto (code, brand,
+  // collection, productType, gender) que se reflejan en el payload de cada variante.
+  await recalculateVariantPayloadsForProduct(id);
+
+  return product;
 }
 
 
@@ -443,11 +557,13 @@ export async function getVariantsByProduct(productId: string) {
 
 export async function createVariant(data: typeof variantsTable.$inferInsert) {
   const [variant] = await db.insert(variantsTable).values(data).returning();
+  await syncVariantAttributesPayload(variant.id);
   return variant;
 }
 
 export async function updateVariant(id: string, data: Partial<typeof variantsTable.$inferInsert>) {
   const [variant] = await db.update(variantsTable).set(data).where(eq(variantsTable.id, id)).returning();
+  await syncVariantAttributesPayload(variant.id);
   return variant;
 }
 
@@ -513,6 +629,15 @@ export async function updateBrand(id: string, data: Partial<typeof brandsTable.$
 
 export async function deleteBrand(id: string) {
   await db.delete(brandsTable).where(eq(brandsTable.id, id));
+}
+
+/** Marca por id, con su logo resuelto — usado por la ficha de marca (`/admin/marcas/[id]`),
+ * que además gestiona colecciones y tipos de producto de esa marca (Fase 3). */
+export async function getAdminBrandById(id: string) {
+  const [brand] = await db.select().from(brandsTable).where(eq(brandsTable.id, id)).limit(1);
+  if (!brand) return null;
+  const logoUrl = await getSingleLinkUrl('BRAND', id, 'LOGO');
+  return { ...brand, logoUrl };
 }
 
 // ── Colors ──
@@ -1196,4 +1321,184 @@ export async function updateRule(
 
 export async function deleteRule(id: string) {
   await db.delete(businessRulesTable).where(eq(businessRulesTable.id, id));
+}
+
+// ── Collections (Fase 3.1 — CRUD asociado a marca) ──
+
+export async function getAdminCollections(brandId?: string) {
+  const where = brandId ? eq(collectionsTable.brandId, brandId) : undefined;
+  return db.select().from(collectionsTable).where(where).orderBy(asc(collectionsTable.sortOrder));
+}
+
+export async function getAdminCollectionById(id: string) {
+  const [collection] = await db.select().from(collectionsTable).where(eq(collectionsTable.id, id)).limit(1);
+  return collection ?? null;
+}
+
+export async function createCollection(data: typeof collectionsTable.$inferInsert) {
+  const [collection] = await db.insert(collectionsTable).values(data).returning();
+  return collection;
+}
+
+/**
+ * Actualiza una colección. Si `data.name` cambia, dispara el recálculo en cascada
+ * de `attributes_payload` (Fase 2) para todas las variantes de los productos de
+ * esta colección, ya que el nombre de la colección forma parte del payload.
+ */
+export async function updateCollection(id: string, data: Partial<typeof collectionsTable.$inferInsert>) {
+  const [collection] = await db.update(collectionsTable).set(data).where(eq(collectionsTable.id, id)).returning();
+  if (data.name !== undefined) {
+    await recalculateVariantPayloadsForCollection(id);
+  }
+  return collection;
+}
+
+export async function deleteCollection(id: string) {
+  await db.delete(collectionsTable).where(eq(collectionsTable.id, id));
+}
+
+// ── Product Types (Fase 3.2 — CRUD asociado a marca) ──
+
+export async function getAdminProductTypes(brandId?: string) {
+  const where = brandId ? eq(productTypesTable.brandId, brandId) : undefined;
+  return db.select().from(productTypesTable).where(where).orderBy(asc(productTypesTable.sortOrder));
+}
+
+export async function getAdminProductTypeById(id: string) {
+  const [productType] = await db.select().from(productTypesTable).where(eq(productTypesTable.id, id)).limit(1);
+  return productType ?? null;
+}
+
+export async function createProductType(data: typeof productTypesTable.$inferInsert) {
+  const [productType] = await db.insert(productTypesTable).values(data).returning();
+  return productType;
+}
+
+/**
+ * Actualiza un tipo de producto. Si `data.name` cambia, dispara el recálculo en
+ * cascada de `attributes_payload` (Fase 2) para todas las variantes de los
+ * productos de este tipo, ya que el nombre forma parte del payload.
+ */
+export async function updateProductType(id: string, data: Partial<typeof productTypesTable.$inferInsert>) {
+  const [productType] = await db.update(productTypesTable).set(data).where(eq(productTypesTable.id, id)).returning();
+  if (data.name !== undefined) {
+    await recalculateVariantPayloadsForProductType(id);
+  }
+  return productType;
+}
+
+export async function deleteProductType(id: string) {
+  await db.delete(productTypesTable).where(eq(productTypesTable.id, id));
+}
+
+// ── Product Type ↔ Attribute (Fase 3.2 — "estilos asociados") ──
+
+/** Atributos asociados a un tipo de producto, con su `isRequired`/`sortOrder` y el
+ * nombre/slug/displayType del atributo (para no requerir una segunda consulta en la UI). */
+export async function getProductTypeAttributes(productTypeId: string) {
+  return db
+    .select({
+      id: productTypeAttributesTable.id,
+      productTypeId: productTypeAttributesTable.productTypeId,
+      attributeId: productTypeAttributesTable.attributeId,
+      isRequired: productTypeAttributesTable.isRequired,
+      sortOrder: productTypeAttributesTable.sortOrder,
+      attributeName: attributesTable.name,
+      attributeSlug: attributesTable.slug,
+      displayType: attributesTable.displayType,
+    })
+    .from(productTypeAttributesTable)
+    .innerJoin(attributesTable, eq(productTypeAttributesTable.attributeId, attributesTable.id))
+    .where(eq(productTypeAttributesTable.productTypeId, productTypeId))
+    .orderBy(asc(productTypeAttributesTable.sortOrder));
+}
+
+/**
+ * Asocia (o re-asocia) un atributo a un tipo de producto — upsert sobre la
+ * constraint única `(product_type_id, attribute_id)`: si la asociación ya existe,
+ * actualiza `isRequired`/`sortOrder` en vez de fallar. Decisión de forma de API
+ * (Fase 3.2): un único POST idempotente en vez de exigir PATCH separado para
+ * editar una asociación existente.
+ */
+export async function addProductTypeAttribute(
+  productTypeId: string,
+  attributeId: string,
+  isRequired: boolean,
+  sortOrder: number
+) {
+  const [link] = await db
+    .insert(productTypeAttributesTable)
+    .values({ productTypeId, attributeId, isRequired, sortOrder })
+    .onConflictDoUpdate({
+      target: [productTypeAttributesTable.productTypeId, productTypeAttributesTable.attributeId],
+      set: { isRequired, sortOrder },
+    })
+    .returning();
+  return link;
+}
+
+export async function removeProductTypeAttribute(productTypeId: string, attributeId: string) {
+  await db
+    .delete(productTypeAttributesTable)
+    .where(
+      and(
+        eq(productTypeAttributesTable.productTypeId, productTypeId),
+        eq(productTypeAttributesTable.attributeId, attributeId)
+      )
+    );
+}
+
+// ── Attributes / Attribute Values (Fase 3.3) ──
+
+export async function getAdminAttributes() {
+  return db.select().from(attributesTable).orderBy(asc(attributesTable.sortOrder));
+}
+
+export async function getAdminAttributeById(id: string) {
+  const [attribute] = await db.select().from(attributesTable).where(eq(attributesTable.id, id)).limit(1);
+  return attribute ?? null;
+}
+
+export async function createAttribute(data: typeof attributesTable.$inferInsert) {
+  const [attribute] = await db.insert(attributesTable).values(data).returning();
+  return attribute;
+}
+
+export async function updateAttribute(id: string, data: Partial<typeof attributesTable.$inferInsert>) {
+  const [attribute] = await db.update(attributesTable).set(data).where(eq(attributesTable.id, id)).returning();
+  return attribute;
+}
+
+export async function deleteAttribute(id: string) {
+  await db.delete(attributesTable).where(eq(attributesTable.id, id));
+}
+
+export async function getAttributeValues(attributeId: string) {
+  return db
+    .select()
+    .from(attributeValuesTable)
+    .where(eq(attributeValuesTable.attributeId, attributeId))
+    .orderBy(asc(attributeValuesTable.sortOrder));
+}
+
+export async function createAttributeValue(data: typeof attributeValuesTable.$inferInsert) {
+  const [value] = await db.insert(attributeValuesTable).values(data).returning();
+  return value;
+}
+
+/**
+ * Actualiza un valor de atributo. Si `data.value` cambia (renombrado), dispara el
+ * recálculo en cascada de `attributes_payload` (Fase 2) para todas las variantes
+ * que tienen este valor asignado.
+ */
+export async function updateAttributeValue(id: string, data: Partial<typeof attributeValuesTable.$inferInsert>) {
+  const [value] = await db.update(attributeValuesTable).set(data).where(eq(attributeValuesTable.id, id)).returning();
+  if (data.value !== undefined) {
+    await recalculateVariantPayloadsForAttributeValue(id);
+  }
+  return value;
+}
+
+export async function deleteAttributeValue(id: string) {
+  await db.delete(attributeValuesTable).where(eq(attributeValuesTable.id, id));
 }

@@ -4,7 +4,7 @@ import { Suspense, useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Search, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ProductCard } from '@/components/catalog/ProductCard';
-import { FilterSidebar, FilterButton } from '@/components/catalog/FilterSidebar';
+import { FilterSidebar, FilterButton, type ProductTypeOption, type StyleFilterOption } from '@/components/catalog/FilterSidebar';
 import { LayoutSwitcher, ProductListItem, type ViewMode } from '@/components/catalog/LayoutSwitcher';
 import type { CatalogFilters, Product, ProductColor } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -39,21 +39,49 @@ function CatalogoInner({ initialProducts, brandNames, availableColors }: Catalog
   const [filters, setFilters] = useState<CatalogFilters>(() => {
     const gender = searchParams.get('gender') as CatalogFilters['gender'];
     const brand = searchParams.get('brand');
-    const category = searchParams.get('category');
+    const productTypeId = searchParams.get('productTypeId');
 
     return {
       gender: gender || null,
-      categories: category ? [category as any] : [],
+      categories: [],
+      productTypeIds: productTypeId ? [productTypeId] : [],
       brands: brand ? [brand] : [],
       colors: [],
       sizes: [],
       fits: [],
+      selectedStyles: {},
       priceMin: 0,
       priceMax: 200,
     };
   });
 
   const [searchQuery] = useState(() => searchParams.get('q') || '');
+
+  // Opciones de filtro derivadas de los productos realmente presentes (principio "sin opción
+  // muerta") — reemplaza las listas hardcodeadas de categorías/cortes legacy.
+  const productTypeOptions = useMemo<ProductTypeOption[]>(() => {
+    const map = new Map<string, string>();
+    for (const p of initialProducts) {
+      if (p.productType) map.set(p.productType.id, p.productType.name);
+    }
+    return Array.from(map, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [initialProducts]);
+
+  const styleOptions = useMemo<StyleFilterOption[]>(() => {
+    const map = new Map<string, Set<string>>();
+    for (const p of initialProducts) {
+      if (!p.availableStyles) continue;
+      for (const [slug, values] of Object.entries(p.availableStyles)) {
+        if (!map.has(slug)) map.set(slug, new Set());
+        for (const v of values) map.get(slug)!.add(v);
+      }
+    }
+    return Array.from(map, ([slug, values]) => ({
+      slug,
+      label: slug.charAt(0).toUpperCase() + slug.slice(1).replace(/_/g, ' '),
+      values: Array.from(values).sort(),
+    }));
+  }, [initialProducts]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -63,7 +91,7 @@ function CatalogoInner({ initialProducts, brandNames, availableColors }: Catalog
   useEffect(() => {
     const params = new URLSearchParams();
     if (filters.gender) params.set('gender', filters.gender);
-    if (filters.categories.length === 1) params.set('category', filters.categories[0]);
+    if (filters.productTypeIds.length === 1) params.set('productTypeId', filters.productTypeIds[0]);
     if (filters.brands.length === 1) params.set('brand', filters.brands[0]);
     if (searchQuery) params.set('q', searchQuery);
     const queryString = params.toString();
@@ -77,8 +105,8 @@ function CatalogoInner({ initialProducts, brandNames, availableColors }: Catalog
     if (filters.gender) {
       products = products.filter(p => p.gender === filters.gender || p.gender === 'Unisex');
     }
-    if (filters.categories.length > 0) {
-      products = products.filter(p => filters.categories.includes(p.category));
+    if (filters.productTypeIds.length > 0) {
+      products = products.filter(p => p.productType && filters.productTypeIds.includes(p.productType.id));
     }
     if (filters.brands.length > 0) {
       products = products.filter(p => filters.brands.includes(p.brand));
@@ -89,8 +117,11 @@ function CatalogoInner({ initialProducts, brandNames, availableColors }: Catalog
     if (filters.sizes.length > 0) {
       products = products.filter(p => p.availableSizes.some(s => filters.sizes.includes(s)));
     }
-    if (filters.fits.length > 0) {
-      products = products.filter(p => p.availableFits?.some(f => filters.fits.includes(f)));
+    const selectedStyleEntries = Object.entries(filters.selectedStyles).filter(([, values]) => values.length > 0);
+    if (selectedStyleEntries.length > 0) {
+      products = products.filter(p =>
+        selectedStyleEntries.every(([slug, values]) => p.availableStyles?.[slug]?.some(v => values.includes(v)))
+      );
     }
     if (filters.priceMin > 0 || filters.priceMax < 200) {
       products = products.filter(p => {
@@ -105,7 +136,7 @@ function CatalogoInner({ initialProducts, brandNames, availableColors }: Catalog
         p =>
           p.name.toLowerCase().includes(query) ||
           p.brand.toLowerCase().includes(query) ||
-          p.category.toLowerCase().includes(query) ||
+          (p.productType?.name.toLowerCase().includes(query) ?? false) ||
           p.colors.some(c => c.name.toLowerCase().includes(query))
       );
     }
@@ -116,7 +147,7 @@ function CatalogoInner({ initialProducts, brandNames, availableColors }: Catalog
         p =>
           p.name.toLowerCase().includes(query) ||
           p.brand.toLowerCase().includes(query) ||
-          p.category.toLowerCase().includes(query) ||
+          (p.productType?.name.toLowerCase().includes(query) ?? false) ||
           p.description.toLowerCase().includes(query) ||
           p.colors.some(c => c.name.toLowerCase().includes(query) || c.code.toLowerCase().includes(query)) ||
           p.availableSizes.some(s => s.toLowerCase().includes(query)) ||
@@ -160,11 +191,11 @@ function CatalogoInner({ initialProducts, brandNames, availableColors }: Catalog
 
   const activeFilterCount =
     (filters.gender ? 1 : 0) +
-    filters.categories.length +
+    filters.productTypeIds.length +
     filters.brands.length +
     filters.colors.length +
     filters.sizes.length +
-    filters.fits.length;
+    Object.values(filters.selectedStyles).reduce((sum, values) => sum + values.length, 0);
 
   const hasActiveFilters = activeFilterCount > 0;
 
@@ -191,10 +222,12 @@ function CatalogoInner({ initialProducts, brandNames, availableColors }: Catalog
                   setFilters({
                     gender: null,
                     categories: [],
+                    productTypeIds: [],
                     brands: [],
                     colors: [],
                     sizes: [],
                     fits: [],
+                    selectedStyles: {},
                     priceMin: 0,
                     priceMax: 200,
                   })
@@ -279,6 +312,8 @@ function CatalogoInner({ initialProducts, brandNames, availableColors }: Catalog
             onClose={() => setIsFilterOpen(false)}
             brandNames={brandNames}
             availableColors={availableColors}
+            productTypeOptions={productTypeOptions}
+            styleOptions={styleOptions}
           />
 
           <div className="flex-1">
@@ -403,10 +438,12 @@ function CatalogoInner({ initialProducts, brandNames, availableColors }: Catalog
                     setFilters({
                       gender: null,
                       categories: [],
+                      productTypeIds: [],
                       brands: [],
                       colors: [],
                       sizes: [],
                       fits: [],
+                      selectedStyles: {},
                       priceMin: 0,
                       priceMax: 200,
                     })

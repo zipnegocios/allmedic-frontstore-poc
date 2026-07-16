@@ -166,7 +166,9 @@ function QuickAccessCards() {
   const cards = [
     { title: 'Damas', image: 'https://media.allmedicuniforms.com/site/category-women.jpg', link: '/catalogo?gender=Mujer' },
     { title: 'Caballeros', image: 'https://media.allmedicuniforms.com/site/category-men.jpg', link: '/catalogo?gender=Hombre' },
-    { title: 'Accesorios', image: 'https://media.allmedicuniforms.com/site/category-accessories.jpg', link: '/catalogo?category=Accesorios' },
+    // `?category=` legacy ya no filtra en `/catalogo` (Fase 4 remanente) — usa el buscador de
+    // texto libre (`?q=`), que ya matchea contra `productType?.name` (EAV).
+    { title: 'Accesorios', image: 'https://media.allmedicuniforms.com/site/category-accessories.jpg', link: '/catalogo?q=Accesorios' },
   ];
 
   return (

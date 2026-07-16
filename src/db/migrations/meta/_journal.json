@@ -8,6 +8,27 @@
       "when": 1784108927943,
       "tag": "0000_warm_thunderball",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1784176805783,
+      "tag": "0001_sloppy_scarlet_spider",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784177852200,
+      "tag": "0002_certain_nico_minoru",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784203312521,
+      "tag": "0003_hard_bishop",
+      "breakpoints": true
     }
   ]
 }
