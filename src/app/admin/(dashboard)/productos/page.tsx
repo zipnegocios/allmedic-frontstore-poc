@@ -312,7 +312,12 @@ export default function AdminProductsPage() {
   ]);
 
   const visibleColumnDefs = COLUMN_DEFS.filter((c) => visibleColumns.has(c.key));
-  const desktopColSpan = 2 + visibleColumnDefs.length; // Producto + Acciones + toggleables
+  // "Miniatura" no tiene columna propia: se renderiza inline dentro de la celda
+  // "Producto" (junto al nombre), así que se excluye de los headers/celdas
+  // genéricas para no desalinear el resto de las columnas con un header fantasma
+  // sin celda correspondiente.
+  const tableColumnDefs = visibleColumnDefs.filter((c) => c.key !== 'thumbnail');
+  const desktopColSpan = 2 + tableColumnDefs.length; // Producto + Acciones + toggleables (sin miniatura)
 
   const filtersContent = (
     <div className="flex flex-col gap-4 py-2">
@@ -486,7 +491,7 @@ export default function AdminProductsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Producto</TableHead>
-                {visibleColumnDefs.map((col) => <TableHead key={col.key}>{col.label}</TableHead>)}
+                {tableColumnDefs.map((col) => <TableHead key={col.key}>{col.label}</TableHead>)}
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
@@ -513,8 +518,7 @@ export default function AdminProductsPage() {
                         </div>
                       </div>
                     </TableCell>
-                    {visibleColumnDefs.map((col) => {
-                      if (col.key === 'thumbnail') return null; // ya se muestra junto al nombre
+                    {tableColumnDefs.map((col) => {
                       switch (col.key) {
                         case 'brand':
                           return <TableCell key={col.key}>{product.brandName || '-'}</TableCell>;
