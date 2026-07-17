@@ -14,10 +14,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, Info } from 'lucide-react';
+import { Sparkles, Info, Plus } from 'lucide-react';
 import Link from 'next/link';
 import type { ProductFormData, Color, ProductTypeAttributeLink, AttributeValueOption } from './schema';
 import { SIZES } from './schema';
+import { AddColorDialog } from './AddColorDialog';
 
 // ─── Decisión de diseño (Fase 3.4, ver brief D.2) ───
 // Por cada atributo declarado para el Tipo de Producto elegido, el admin marca uno
@@ -64,6 +65,10 @@ interface AttributeMatrixSectionProps {
   colors: Color[];
   variantFields: ProductFormData['variants'][number][];
   appendVariant: (value: Omit<ProductFormData['variants'][number], 'id'> & { id?: string }) => void;
+  /** Se dispara al crear un color desde el diálogo "+ Agregar color" — el llamador
+   * (`ProductForm`) lo agrega a la lista de colores disponibles en todo el formulario,
+   * no solo aquí. */
+  onColorCreated?: (color: Color) => void;
 }
 
 export function AttributeMatrixSection({
@@ -74,12 +79,21 @@ export function AttributeMatrixSection({
   colors,
   variantFields,
   appendVariant,
+  onColorCreated,
 }: AttributeMatrixSectionProps) {
   const [selectedColorIds, setSelectedColorIds] = useState<string[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [modeByAttribute, setModeByAttribute] = useState<Record<string, AttributeMode>>({});
   const [fixedValueByAttribute, setFixedValueByAttribute] = useState<Record<string, string>>({});
   const [varyingValuesByAttribute, setVaryingValuesByAttribute] = useState<Record<string, string[]>>({});
+  const [addColorOpen, setAddColorOpen] = useState(false);
+
+  function handleColorCreated(color: Color) {
+    onColorCreated?.(color);
+    // Autoseleccionarlo: el caso de uso típico de "+ Agregar color" es que el admin
+    // lo necesita YA para la matriz que está armando, no solo para el catálogo general.
+    setSelectedColorIds((prev) => [...prev, color.id]);
+  }
 
   function toggle(list: string[], value: string): string[] {
     return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
@@ -218,7 +232,19 @@ export function AttributeMatrixSection({
 
         {/* Colores */}
         <div className="space-y-2">
-          <Label className="text-xs font-semibold text-gray-700">Colores</Label>
+          <div className="flex items-center justify-between">
+            <Label className="text-xs font-semibold text-gray-700">Colores</Label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setAddColorOpen(true)}
+              className="h-6 text-[10px] px-2 bg-white"
+            >
+              <Plus className="w-3 h-3 mr-1" />
+              Agregar color
+            </Button>
+          </div>
           <div className="flex flex-wrap gap-2">
             {colors.map((c) => (
               <button
@@ -337,6 +363,8 @@ export function AttributeMatrixSection({
           Generar Matriz de Variantes
         </Button>
       </CardContent>
+
+      <AddColorDialog open={addColorOpen} onOpenChange={setAddColorOpen} onCreated={handleColorCreated} />
     </Card>
   );
 }

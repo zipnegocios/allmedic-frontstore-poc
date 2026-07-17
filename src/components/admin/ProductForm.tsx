@@ -308,6 +308,13 @@ export default function ProductForm({
     };
   }, [brandIdValue]);
 
+  // Alta rápida de color desde el generador de matriz (sin salir del formulario,
+  // ver `AttributeMatrixSection`/`AddColorDialog`) — se agrega a la lista de
+  // colores disponibles en todo el formulario, no solo en ese componente.
+  function handleColorCreated(color: Color) {
+    setColors((prev) => [...prev, color].sort((a, b) => a.name.localeCompare(b.name)));
+  }
+
   // `productTypeId` elegido — impulsa qué atributos EAV ofrece el generador de
   // matriz (`AttributeMatrixSection`/`VariantsMediaSection`). Los campos legacy
   // `category`/`productType`/`styles` fueron eliminados del esquema (Fase 5).
@@ -910,6 +917,7 @@ export default function ProductForm({
                   imageFields={imageFields}
                   removeImage={removeImage}
                   variantsErrors={errors.variants}
+                  onColorCreated={handleColorCreated}
                   onPickTarget={(target, colorId) => {
                     setPickerTargetIndex(target);
                     if (colorId) setPickerColorId(colorId);
@@ -1282,6 +1290,7 @@ export default function ProductForm({
                 imageFields={imageFields}
                 removeImage={removeImage}
                 variantsErrors={errors.variants}
+                onColorCreated={handleColorCreated}
                 onPickTarget={(target, colorId) => {
                   setPickerTargetIndex(target);
                   if (colorId) setPickerColorId(colorId);

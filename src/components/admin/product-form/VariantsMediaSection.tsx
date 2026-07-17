@@ -51,6 +51,10 @@ interface VariantsMediaSectionProps {
    * una matriz con filas inválidas (ej. sin Color/Talla) no muestra ningún indicador
    * visual aquí, solo un toast genérico en el formulario padre. */
   variantsErrors?: FieldErrors<ProductFormData>['variants'];
+  /** Se dispara al crear un color desde el generador de matriz (`AttributeMatrixSection`)
+   * sin salir del formulario — el llamador (`ProductForm`) actualiza su lista de
+   * colores disponibles. */
+  onColorCreated?: (color: Color) => void;
 }
 
 export function VariantsMediaSection({
@@ -67,6 +71,7 @@ export function VariantsMediaSection({
   removeImage,
   onPickTarget,
   variantsErrors,
+  onColorCreated,
 }: VariantsMediaSectionProps) {
   const { links: attributeLinks, valuesByAttribute, loading: loadingAttributes } = useProductTypeAttributes(productTypeId);
 
@@ -319,6 +324,7 @@ export function VariantsMediaSection({
         colors={colors}
         variantFields={variantFields}
         appendVariant={appendVariant}
+        onColorCreated={onColorCreated}
       />
 
       {/* ─── LISTADO DE GRUPOS POR COLOR ─── */}
