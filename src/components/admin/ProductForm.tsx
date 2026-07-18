@@ -86,6 +86,12 @@ export default function ProductForm({
   const [loading, setLoading] = useState(false);
   const [loadingProduct, setLoadingProduct] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingStay, setSavingStay] = useState(false);
+  // Id real del producto en el servidor una vez creado — separado de la prop
+  // `productId` (que sigue reflejando la URL/modo original) para que "Guardar y
+  // quedarse" pueda pasar de POST a PATCH en clics subsiguientes sin navegar ni
+  // cambiar el título del formulario a "Editar Producto".
+  const [createdProductId, setCreatedProductId] = useState<string | undefined>(productId);
   const [featureInput, setFeatureInput] = useState('');
   const [careInput, setCareInput] = useState('');
   const [pickerTargetIndex, setPickerTargetIndex] = useState<number | 'append' | 'cover' | null>(null);
@@ -102,6 +108,9 @@ export default function ProductForm({
   // resultado si sigue siendo la request más reciente en vuelo.
   const codeCheckRequestIdRef = useRef(0);
   const codeCheckAbortRef = useRef<AbortController | null>(null);
+  // Referencia al banner de validación — al fallar el guardado, lo llevamos a la
+  // vista aunque el usuario esté scrolleado en la sección de variantes/medios.
+  const validationBannerRef = useRef<HTMLDivElement | null>(null);
 
 
   // ─── Wizard mobile: paso actual y pasos ya visitados ───
@@ -337,7 +346,7 @@ export default function ProductForm({
       const requestId = ++codeCheckRequestIdRef.current;
       try {
         const params = new URLSearchParams({ code: trimmed });
-        if (productId) params.set('excludeProductId', productId);
+        if (createdProductId) params.set('excludeProductId', createdProductId);
         const res = await fetch(`/api/admin/products/check-code?${params.toString()}`, {
           signal: controller.signal,
         });
@@ -356,14 +365,14 @@ export default function ProductForm({
       }
     }, 450);
     return () => clearTimeout(handle);
-  }, [codeValue, productId]);
+  }, [codeValue, createdProductId]);
 
   async function onSubmit(data: ProductFormData) {
     setSaving(true);
     setShowValidationBanner(false);
     try {
-      const url = productId ? `/api/admin/products/${productId}` : '/api/admin/products';
-      const method = productId ? 'PATCH' : 'POST';
+      const url = createdProductId ? `/api/admin/products/${createdProductId}` : '/api/admin/products';
+      const method = createdProductId ? 'PATCH' : 'POST';
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
@@ -374,7 +383,8 @@ export default function ProductForm({
         throw new Error(err.error || 'Error al guardar');
       }
       const saved = await res.json();
-      toast.success(productId ? 'Producto actualizado' : 'Producto creado');
+      if (!createdProductId) setCreatedProductId(saved.id);
+      toast.success(createdProductId ? 'Producto actualizado' : 'Producto creado');
       if (embedded) {
         onSaved?.(saved);
         return;
@@ -388,6 +398,35 @@ export default function ProductForm({
     }
   }
 
+  // "Guardar y quedarse": misma lógica de guardado que `onSubmit`, pero sin
+  // navegar — el admin sigue editando en la misma pantalla. Útil para ir
+  // guardando avances en formularios largos (variantes, medios) sin el viaje de
+  // ida y vuelta a la lista.
+  async function onSaveAndStay(data: ProductFormData) {
+    setSavingStay(true);
+    setShowValidationBanner(false);
+    try {
+      const url = createdProductId ? `/api/admin/products/${createdProductId}` : '/api/admin/products';
+      const method = createdProductId ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Error al guardar');
+      }
+      const saved = await res.json();
+      if (!createdProductId) setCreatedProductId(saved.id);
+      toast.success('Cambios guardados');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al guardar');
+    } finally {
+      setSavingStay(false);
+    }
+  }
+
   const onInvalid = (errors: any) => {
     console.error('Errores de validación en ProductForm:', errors);
     setShowValidationBanner(true);
@@ -397,6 +436,11 @@ export default function ProductForm({
         ? `Faltan ${summary.length} campo${summary.length === 1 ? '' : 's'} obligatorio${summary.length === 1 ? '' : 's'} — revisa el panel de arriba`
         : 'Complete todos los campos requeridos'
     );
+    // El banner puede quedar fuera de la vista si el usuario está scrolleado en
+    // secciones más abajo (ej. variantes/medios) — lo traemos a la vista.
+    requestAnimationFrame(() => {
+      validationBannerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   };
 
   // Recalculado en cada render desde `errors` (no un snapshot en estado): a medida
@@ -572,7 +616,7 @@ export default function ProductForm({
 
       <form onSubmit={(e) => { e.preventDefault(); handleSubmit(onSubmit, onInvalid)(); }}>
         {showValidationBanner && validationSummary.length > 0 && (
-          <Alert variant="destructive" className="mb-4">
+          <Alert ref={validationBannerRef} variant="destructive" className="mb-4">
             <AlertCircle className="w-4 h-4" />
             <AlertTitle>
               Faltan {validationSummary.length} campo{validationSummary.length === 1 ? '' : 's'} obligatorio{validationSummary.length === 1 ? '' : 's'} para poder guardar
@@ -1304,6 +1348,22 @@ export default function ProductForm({
       </form>
 
       {mediaPickerDialog}
+
+      {/* ─── Botón flotante "Guardar y quedarse" ─── */}
+      {!embedded && (
+        <Button
+          type="button"
+          onClick={() => handleSubmit(onSaveAndStay, onInvalid)()}
+          disabled={saving || savingStay}
+          className={cn(
+            'fixed z-40 right-4 md:right-8 bg-[#111111] shadow-lg',
+            'bottom-[calc(9rem_+_env(safe-area-inset-bottom))] md:bottom-6'
+          )}
+        >
+          <Save className="w-4 h-4 mr-2" />
+          {savingStay ? 'Guardando...' : 'Guardar y quedarse'}
+        </Button>
+      )}
     </div>
   );
 }

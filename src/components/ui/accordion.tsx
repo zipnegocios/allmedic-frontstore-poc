@@ -26,10 +26,16 @@ function AccordionItem({
 function AccordionTrigger({
   className,
   children,
+  actions,
   ...props
-}: React.ComponentProps<typeof AccordionPrimitive.Trigger>) {
+}: React.ComponentProps<typeof AccordionPrimitive.Trigger> & {
+  /** Controles adicionales (ej. un botón "Eliminar") renderizados como hermanos
+   * del trigger dentro de la misma cabecera, en vez de anidados dentro de su
+   * `<button>` — evita un botón-dentro-de-botón inválido en HTML. */
+  actions?: React.ReactNode
+}) {
   return (
-    <AccordionPrimitive.Header className="flex">
+    <AccordionPrimitive.Header className="flex items-center">
       <AccordionPrimitive.Trigger
         data-slot="accordion-trigger"
         className={cn(
@@ -41,6 +47,11 @@ function AccordionTrigger({
         {children}
         <ChevronDownIcon className="text-muted-foreground pointer-events-none size-4 shrink-0 translate-y-0.5 transition-transform duration-200" />
       </AccordionPrimitive.Trigger>
+      {actions && (
+        <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+          {actions}
+        </div>
+      )}
     </AccordionPrimitive.Header>
   )
 }

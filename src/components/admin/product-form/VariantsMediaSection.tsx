@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Control, UseFormRegister, UseFormWatch, UseFormSetValue, FieldArrayWithId, FieldErrors } from 'react-hook-form';
 import { Controller } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Plus, Trash2, ImageIcon, AlertTriangle } from 'lucide-react';
 import { MediaThumb } from '@/components/admin/media/MediaThumb';
 import { cn } from '@/lib/utils';
@@ -98,6 +99,24 @@ export function VariantsMediaSection({
   const colorlessImages = imageFields.filter((img) => !img.colorId);
   const hasColorlessImages = colorlessImages.length > 0;
 
+  // Sección "Configuración por Color" como acordeón de una sola apertura: solo un
+  // color expandido a la vez para simplificar el panel cuando hay varios.
+  const [expandedColorId, setExpandedColorId] = useState<string | undefined>(() => activeColorIds[0]);
+
+  // Tras un intento de guardado inválido, si alguna variante colapsada tiene error,
+  // expandimos automáticamente el primer color afectado para que sea encontrable
+  // sin tener que abrir cada sección manualmente.
+  useEffect(() => {
+    if (!variantsErrors || !Array.isArray(variantsErrors)) return;
+    const firstErrorColorId = activeColorIds.find((colorId) =>
+      variantFields.some((v, idx) => v.colorId === colorId && variantsErrors[idx])
+    );
+    if (firstErrorColorId) setExpandedColorId(firstErrorColorId);
+    // Solo reacciona a cambios en los errores de validación (ej. tras un submit
+    // fallido), no en cada render por cambios de `activeColorIds`/`variantFields`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [variantsErrors]);
+
   // Manejar eliminación de una variante
   const handleDeleteVariantClick = (variantIdx: number, colorId: string) => {
     const colorVariants = variantFields.filter((v) => v.colorId === colorId);
@@ -174,6 +193,7 @@ export function VariantsMediaSection({
       minStock: 5,
       attributeValueIds: [],
     });
+    setExpandedColorId(selectedNewColorId);
     setSelectedNewColorId('');
   };
 
@@ -325,6 +345,7 @@ export function VariantsMediaSection({
         variantFields={variantFields}
         appendVariant={appendVariant}
         onColorCreated={onColorCreated}
+        onMatrixGenerated={(colorIds) => colorIds[0] && setExpandedColorId(colorIds[0])}
       />
 
       {/* ─── LISTADO DE GRUPOS POR COLOR ─── */}
@@ -371,7 +392,14 @@ export function VariantsMediaSection({
             </CardContent>
           </Card>
         ) : (
-          activeColorIds.map((colorId) => {
+          <Accordion
+            type="single"
+            collapsible
+            value={expandedColorId}
+            onValueChange={(value) => setExpandedColorId(value || undefined)}
+            className="space-y-3"
+          >
+          {activeColorIds.map((colorId) => {
             const colorObj = colors.find((c) => c.id === colorId);
             const colorName = colorObj?.name || 'Color desconocido';
             const colorHex = colorObj?.hex || '#ccc';
@@ -385,39 +413,53 @@ export function VariantsMediaSection({
               .map((img, idx) => ({ img, idx }))
               .filter((item) => item.img.colorId === colorId);
 
+            const colorHasError = colorVariants.some((item) => variantsErrors?.[item.idx]);
+
             return (
-              <Card key={colorId} className="border-gray-200 shadow-sm overflow-hidden">
-                {/* Cabecera del Grupo de Color */}
-                <div className="bg-gray-50 dark:bg-gray-900 border-b px-4 py-3 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-5 h-5 rounded-full border border-gray-300 shadow-sm" style={{ backgroundColor: colorHex }} />
+              <AccordionItem
+                key={colorId}
+                value={colorId}
+                className="border border-gray-200 shadow-sm overflow-hidden rounded-lg bg-white"
+              >
+                <AccordionTrigger
+                  className="px-4 py-3 bg-gray-50 dark:bg-gray-900 hover:no-underline hover:bg-gray-100 [&[data-state=open]]:border-b rounded-none"
+                  actions={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        // Eliminar todo el grupo de color
+                        const variantsToDelete = colorVariants.map(item => item.idx);
+                        const imagesToDelete = colorImages.map(item => item.idx);
+
+                        // Eliminar variantes
+                        variantsToDelete.reverse().forEach(idx => removeVariant(idx));
+                        // Eliminar imágenes
+                        imagesToDelete.reverse().forEach(idx => removeImage(idx));
+                      }}
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 px-2 mr-2"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 mr-1" />
+                      Eliminar color
+                    </Button>
+                  }
+                >
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <div className="w-5 h-5 rounded-full border border-gray-300 shadow-sm shrink-0" style={{ backgroundColor: colorHex }} />
                     <span className="font-semibold text-sm text-gray-900">{colorName}</span>
                     <Badge variant="secondary" className="text-[10px]">
                       {colorVariants.length} tallas · {colorImages.length} fotos/videos
                     </Badge>
+                    {colorHasError && (
+                      <Badge variant="destructive" className="text-[10px]">
+                        <AlertTriangle className="w-3 h-3 mr-1" /> Con errores
+                      </Badge>
+                    )}
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      // Eliminar todo el grupo de color
-                      const variantsToDelete = colorVariants.map(item => item.idx);
-                      const imagesToDelete = colorImages.map(item => item.idx);
+                </AccordionTrigger>
 
-                      // Eliminar variantes
-                      variantsToDelete.reverse().forEach(idx => removeVariant(idx));
-                      // Eliminar imágenes
-                      imagesToDelete.reverse().forEach(idx => removeImage(idx));
-                    }}
-                    className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 px-2"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 mr-1" />
-                    Eliminar color
-                  </Button>
-                </div>
-
-                <CardContent className="p-4 space-y-6">
+                <AccordionContent className="p-4 pt-4 space-y-6">
                   {/* Sección 1: Variantes (Tallas) */}
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -454,11 +496,10 @@ export function VariantsMediaSection({
                     {colorVariants.length > 0 && (
                       <div className="border rounded-lg overflow-hidden bg-white divide-y">
                         <div className="grid grid-cols-12 gap-2 bg-gray-50 p-2 text-[10px] font-bold text-gray-500 uppercase tracking-wider text-center items-center">
-                          <div className="col-span-3 text-left pl-1">Talla</div>
-                          <div className="col-span-4 text-left">SKU</div>
-                          <div className="col-span-2">Estado</div>
-                          <div className="col-span-1">Stock</div>
-                          <div className="col-span-1">Mín</div>
+                          <div className="col-span-4 text-left pl-1">Talla</div>
+                          <div className="col-span-3">Estado</div>
+                          <div className="col-span-2">Stock</div>
+                          <div className="col-span-2">Mín</div>
                           <div className="col-span-1">Acción</div>
                         </div>
 
@@ -478,7 +519,7 @@ export function VariantsMediaSection({
                             >
                             <div className="grid grid-cols-12 gap-2 items-center text-center">
                               {/* Talla */}
-                              <div className="col-span-3 text-left">
+                              <div className="col-span-4 text-left">
                                 <Controller
                                   name={`variants.${absoluteIdx}.size`}
                                   control={control}
@@ -497,17 +538,8 @@ export function VariantsMediaSection({
                                 />
                               </div>
 
-                              {/* SKU */}
-                              <div className="col-span-4 text-left">
-                                <Input
-                                  className="h-8 text-xs bg-white"
-                                  {...register(`variants.${absoluteIdx}.sku`)}
-                                  placeholder="SKU"
-                                />
-                              </div>
-
                               {/* Estado */}
-                              <div className="col-span-2">
+                              <div className="col-span-3">
                                 <Controller
                                   name={`variants.${absoluteIdx}.status`}
                                   control={control}
@@ -527,7 +559,7 @@ export function VariantsMediaSection({
                               </div>
 
                               {/* Stock */}
-                              <div className="col-span-1">
+                              <div className="col-span-2">
                                 <Input
                                   className="h-8 text-xs bg-white text-center px-1"
                                   type="number"
@@ -537,7 +569,7 @@ export function VariantsMediaSection({
                               </div>
 
                               {/* Stock Mínimo */}
-                              <div className="col-span-1">
+                              <div className="col-span-2">
                                 <Input
                                   className="h-8 text-xs bg-white text-center px-1"
                                   type="number"
@@ -693,10 +725,11 @@ export function VariantsMediaSection({
                       </div>
                     )}
                   </div>
-                </CardContent>
-              </Card>
+                </AccordionContent>
+              </AccordionItem>
             );
-          })
+          })}
+          </Accordion>
         )}
       </div>
 

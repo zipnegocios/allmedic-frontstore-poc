@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import '@/index.css';
 import { SessionProvider } from '@/components/providers/SessionProvider';
+import { Toaster } from '@/components/ui/sonner';
 
 export const metadata: Metadata = {
   title: 'All Medic - Uniformes Médicos Americanos | Ecuador',
@@ -26,6 +27,7 @@ export default function RootLayout({
     <html lang="es">
       <body>
         <SessionProvider>{children}</SessionProvider>
+        <Toaster />
       </body>
     </html>
   );

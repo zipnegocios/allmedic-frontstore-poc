@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
-import { ArrowLeft, Save, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Save, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { MediaPicker } from '@/components/admin/media/MediaPicker';
 import { resolveMediaUrl } from '@/lib/media';
@@ -34,6 +35,7 @@ import { GeneralSection } from '@/components/admin/set-form/GeneralSection';
 import { PiecesSection } from '@/components/admin/set-form/PiecesSection';
 import { PriceSection } from '@/components/admin/set-form/PriceSection';
 import { RulesSection } from '@/components/admin/set-form/RulesSection';
+import { buildSetValidationSummary } from '@/components/admin/set-form/validation-summary';
 
 interface SetFormProps {
   setId?: string;
@@ -48,6 +50,12 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
   const [products, setProducts] = useState<EligibleProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingStay, setSavingStay] = useState(false);
+  // Id real del set en el servidor una vez creado — separado de la prop `setId`
+  // (que sigue reflejando la URL/modo original) para que "Guardar y quedarse"
+  // pueda pasar de POST a PATCH en clics subsiguientes sin navegar.
+  const [createdSetId, setCreatedSetId] = useState<string | undefined>(setId);
+  const [showValidationBanner, setShowValidationBanner] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pieceComboOpen, setPieceComboOpen] = useState<number | null>(null);
 
@@ -159,20 +167,25 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
     ? Math.round(((priceManualNumber - pricePreview.total) / pricePreview.total) * 100)
     : null;
 
+  function buildSetPayload(data: SetFormData) {
+    return {
+      ...data,
+      setGroupId: data.setGroupId || null,
+      brandId: data.brandId || null,
+      priceManual: manualPriceEnabled ? (data.priceManual || null) : null,
+      priceManualSale: manualPriceEnabled ? (data.priceManualSale || null) : null,
+      manualDiscountEnd: manualPriceEnabled ? (data.manualDiscountEnd || null) : null,
+      items: data.items.map((item, idx) => ({ ...item, sortOrder: idx })),
+    };
+  }
+
   async function onSubmit(data: SetFormData) {
     setSaving(true);
+    setShowValidationBanner(false);
     try {
-      const payload = {
-        ...data,
-        setGroupId: data.setGroupId || null,
-        brandId: data.brandId || null,
-        priceManual: manualPriceEnabled ? (data.priceManual || null) : null,
-        priceManualSale: manualPriceEnabled ? (data.priceManualSale || null) : null,
-        manualDiscountEnd: manualPriceEnabled ? (data.manualDiscountEnd || null) : null,
-        items: data.items.map((item, idx) => ({ ...item, sortOrder: idx })),
-      };
-      const url = setId ? `/api/admin/sets/${setId}` : '/api/admin/sets';
-      const method = setId ? 'PATCH' : 'POST';
+      const payload = buildSetPayload(data);
+      const url = createdSetId ? `/api/admin/sets/${createdSetId}` : '/api/admin/sets';
+      const method = createdSetId ? 'PATCH' : 'POST';
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
@@ -182,7 +195,9 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
         const err = await res.json();
         throw new Error(err.error || 'Error al guardar');
       }
-      toast.success(setId ? 'Set actualizado' : 'Set creado');
+      const saved = await res.json();
+      if (!createdSetId) setCreatedSetId(saved.id);
+      toast.success(createdSetId ? 'Set actualizado' : 'Set creado');
       router.push('/admin/sets');
       router.refresh();
     } catch (err) {
@@ -191,6 +206,46 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
       setSaving(false);
     }
   }
+
+  // "Guardar y quedarse": misma lógica que `onSubmit` pero sin navegar, para ir
+  // guardando avances del set sin salir del formulario.
+  async function onSaveAndStay(data: SetFormData) {
+    setSavingStay(true);
+    setShowValidationBanner(false);
+    try {
+      const payload = buildSetPayload(data);
+      const url = createdSetId ? `/api/admin/sets/${createdSetId}` : '/api/admin/sets';
+      const method = createdSetId ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Error al guardar');
+      }
+      const saved = await res.json();
+      if (!createdSetId) setCreatedSetId(saved.id);
+      toast.success('Cambios guardados');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al guardar');
+    } finally {
+      setSavingStay(false);
+    }
+  }
+
+  const onInvalid = (errors: FieldErrors<SetFormData>) => {
+    setShowValidationBanner(true);
+    const summary = buildSetValidationSummary(errors);
+    toast.error(
+      summary.length > 0
+        ? `Faltan ${summary.length} campo${summary.length === 1 ? '' : 's'} obligatorio${summary.length === 1 ? '' : 's'} — revisa el panel de arriba`
+        : 'Complete todos los campos requeridos'
+    );
+  };
+
+  const validationSummary = buildSetValidationSummary(errors);
 
   const rulesByType = useMemo(() => {
     const map = new Map<SetRuleRow['ruleType'], SetRuleRow[]>();
@@ -248,13 +303,28 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
             {setId ? 'Editar Set Corporativo' : 'Nuevo Set Corporativo'}
           </h1>
         </div>
-        <Button onClick={() => handleSubmit(onSubmit)()} disabled={saving} className="bg-[#111111]">
+        <Button onClick={() => handleSubmit(onSubmit, onInvalid)()} disabled={saving} className="bg-[#111111]">
           <Save className="w-4 h-4 mr-2" />
           {saving ? 'Guardando...' : 'Guardar'}
         </Button>
       </div>
 
-      <form onSubmit={(e) => { e.preventDefault(); handleSubmit(onSubmit)(); }}>
+      <form onSubmit={(e) => { e.preventDefault(); handleSubmit(onSubmit, onInvalid)(); }}>
+        {showValidationBanner && validationSummary.length > 0 && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="w-4 h-4" />
+            <AlertTitle>
+              Faltan {validationSummary.length} campo{validationSummary.length === 1 ? '' : 's'} obligatorio{validationSummary.length === 1 ? '' : 's'} para poder guardar
+            </AlertTitle>
+            <AlertDescription>
+              <ul className="list-disc pl-4 space-y-0.5">
+                {validationSummary.map((msg, i) => (
+                  <li key={i}>{msg}</li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
+        )}
         {isMobile ? (
           <div className="space-y-4">
             {/* ─── Indicador de progreso ─── */}
@@ -358,7 +428,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
               {isLastWizardStep ? (
                 <Button
                   type="button"
-                  onClick={() => handleSubmit(onSubmit)()}
+                  onClick={() => handleSubmit(onSubmit, onInvalid)()}
                   disabled={saving}
                   className="min-h-11 bg-[#111111]"
                 >
@@ -418,6 +488,20 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
           </div>
         )}
       </form>
+
+      {/* ─── Botón flotante "Guardar y quedarse" ─── */}
+      <Button
+        type="button"
+        onClick={() => handleSubmit(onSaveAndStay, onInvalid)()}
+        disabled={saving || savingStay}
+        className={cn(
+          'fixed z-40 right-4 md:right-8 bg-[#111111] shadow-lg',
+          'bottom-[calc(9rem_+_env(safe-area-inset-bottom))] md:bottom-6'
+        )}
+      >
+        <Save className="w-4 h-4 mr-2" />
+        {savingStay ? 'Guardando...' : 'Guardar y quedarse'}
+      </Button>
 
       <MediaPicker
         open={pickerOpen}

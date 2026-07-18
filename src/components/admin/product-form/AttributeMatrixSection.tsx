@@ -69,6 +69,10 @@ interface AttributeMatrixSectionProps {
    * (`ProductForm`) lo agrega a la lista de colores disponibles en todo el formulario,
    * no solo aquí. */
   onColorCreated?: (color: Color) => void;
+  /** Se dispara al terminar de generar la matriz con al menos una variante nueva —
+   * el llamador (`VariantsMediaSection`) lo usa para expandir automáticamente la
+   * sección "Configuración por Color" del primer color recién generado. */
+  onMatrixGenerated?: (colorIds: string[]) => void;
 }
 
 export function AttributeMatrixSection({
@@ -80,6 +84,7 @@ export function AttributeMatrixSection({
   variantFields,
   appendVariant,
   onColorCreated,
+  onMatrixGenerated,
 }: AttributeMatrixSectionProps) {
   const [selectedColorIds, setSelectedColorIds] = useState<string[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
@@ -176,6 +181,7 @@ export function AttributeMatrixSection({
       toast.info('No se generaron variantes nuevas (todas las combinaciones ya existían)');
     } else {
       toast.success(`${created} variante(s) generada(s)`);
+      onMatrixGenerated?.(selectedColorIds);
     }
   }
 
