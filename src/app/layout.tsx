@@ -5,7 +5,6 @@ import { SessionProvider } from '@/components/providers/SessionProvider';
 export const metadata: Metadata = {
   title: 'All Medic - Uniformes Médicos Americanos | Ecuador',
   description: 'Catálogo de productos médicos Allmedic',
-  icons: '/favicon.ico',
 };
 
 export default function RootLayout({
