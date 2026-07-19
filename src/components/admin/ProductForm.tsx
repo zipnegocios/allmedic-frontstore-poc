@@ -669,7 +669,15 @@ export default function ProductForm({
 
 
   return (
-    <div className={embedded ? '' : 'p-4 md:p-8 max-w-5xl'}>
+    <div
+      className={cn(
+        embedded ? 'p-4 md:p-6' : 'p-4 md:p-8 max-w-5xl',
+        // El drawer de sets es muy ancho (`sm:max-w-[90vw]`) — el wizard está
+        // pensado para una columna angosta, así que se acota y centra en vez de
+        // estirarse a lo ancho de todo el drawer.
+        embedded && useWizardLayout && 'max-w-xl mx-auto'
+      )}
+    >
       <div className="flex items-center justify-between mb-8">
         {embedded ? (
           <h2 className="text-xl font-bold text-[#111111]">
