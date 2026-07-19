@@ -961,6 +961,7 @@ export default function ProductForm({
                   imageFields={imageFields}
                   removeImage={removeImage}
                   variantsErrors={errors.variants}
+                  formErrors={errors}
                   onColorCreated={handleColorCreated}
                   onPickTarget={(target, colorId) => {
                     setPickerTargetIndex(target);
@@ -1334,6 +1335,7 @@ export default function ProductForm({
                 imageFields={imageFields}
                 removeImage={removeImage}
                 variantsErrors={errors.variants}
+                formErrors={errors}
                 onColorCreated={handleColorCreated}
                 onPickTarget={(target, colorId) => {
                   setPickerTargetIndex(target);

@@ -32,6 +32,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { buildValidationSummaryGrouped } from './validation-summary';
 
 interface VariantsMediaSectionProps {
   control: Control<ProductFormData>;
@@ -52,6 +60,11 @@ interface VariantsMediaSectionProps {
    * una matriz con filas inválidas (ej. sin Color/Talla) no muestra ningún indicador
    * visual aquí, solo un toast genérico en el formulario padre. */
   variantsErrors?: FieldErrors<ProductFormData>['variants'];
+  /** Errores de validación completos del formulario (`formState.errors`) — usado
+   * únicamente para el modal de detalle que se abre al hacer clic en el badge
+   * "Con errores" de un color, que mapea tanto la ficha general como
+   * variantes/medios en un solo lugar. */
+  formErrors?: FieldErrors<ProductFormData>;
   /** Se dispara al crear un color desde el generador de matriz (`AttributeMatrixSection`)
    * sin salir del formulario — el llamador (`ProductForm`) actualiza su lista de
    * colores disponibles. */
@@ -72,9 +85,16 @@ export function VariantsMediaSection({
   removeImage,
   onPickTarget,
   variantsErrors,
+  formErrors,
   onColorCreated,
 }: VariantsMediaSectionProps) {
   const { links: attributeLinks, valuesByAttribute, loading: loadingAttributes } = useProductTypeAttributes(productTypeId);
+
+  // Modal de detalle de errores — se abre al hacer clic en el badge "Con errores"
+  // de cualquier color; muestra el mapeo completo (ficha general + variantes y
+  // medios), no solo lo que falla en ese color puntual.
+  const [errorModalOpen, setErrorModalOpen] = useState(false);
+  const errorSummary = buildValidationSummaryGrouped(formErrors ?? {});
 
   // Estado para el diálogo de advertencia de coherencia al borrar la última variante de un color
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -452,7 +472,24 @@ export function VariantsMediaSection({
                       {colorVariants.length} tallas · {colorImages.length} fotos/videos
                     </Badge>
                     {colorHasError && (
-                      <Badge variant="destructive" className="text-[10px]">
+                      <Badge
+                        variant="destructive"
+                        role="button"
+                        tabIndex={0}
+                        className="text-[10px] cursor-pointer hover:bg-destructive/80"
+                        onClick={(e) => {
+                          // Evita que el clic también dispare el toggle del acordeón.
+                          e.stopPropagation();
+                          setErrorModalOpen(true);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            setErrorModalOpen(true);
+                          }
+                        }}
+                      >
                         <AlertTriangle className="w-3 h-3 mr-1" /> Con errores
                       </Badge>
                     )}
@@ -774,6 +811,47 @@ export function VariantsMediaSection({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ─── MODAL DE DETALLE DE ERRORES ─── */}
+      <Dialog open={errorModalOpen} onOpenChange={setErrorModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="w-4 h-4" />
+              Campos obligatorios pendientes
+            </DialogTitle>
+            <DialogDescription>
+              Estos son los campos que faltan completar para poder guardar el producto.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold text-gray-700">Ficha General</p>
+              {errorSummary.general.length > 0 ? (
+                <ul className="list-disc pl-4 text-sm text-red-600 space-y-0.5">
+                  {errorSummary.general.map((msg, i) => (
+                    <li key={i}>{msg}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-gray-400">Sin errores en esta sección.</p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold text-gray-700">Variantes y Medios</p>
+              {errorSummary.variantsMedia.length > 0 ? (
+                <ul className="list-disc pl-4 text-sm text-red-600 space-y-0.5">
+                  {errorSummary.variantsMedia.map((msg, i) => (
+                    <li key={i}>{msg}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-gray-400">Sin errores en esta sección.</p>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

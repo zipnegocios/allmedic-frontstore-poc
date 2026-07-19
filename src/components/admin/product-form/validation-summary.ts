@@ -14,25 +14,32 @@ const TOP_LEVEL_LABELS: Partial<Record<keyof ProductFormData, string>> = {
   priceNormal: 'Precio Normal',
 };
 
+export interface GroupedValidationSummary {
+  /** Errores de la pestaña "General" (nombre, marca, precio, portada, etc.). */
+  general: string[];
+  /** Errores de la pestaña "Variantes y Medios" (filas de talla/color y medios). */
+  variantsMedia: string[];
+}
+
 /**
- * Construye una lista de mensajes legibles a partir de `formState.errors` de
- * `ProductForm`, para mostrarlos completos en un panel de alerta — a diferencia del
- * toast anterior, que solo mostraba el primer error encontrado por DFS y dejaba al
- * usuario sin saber cuántos/cuáles campos faltaban (ej. varias filas de `variants`
- * inválidas a la vez).
+ * Construye el resumen de errores agrupado por sección del formulario — usado por
+ * el modal de detalle que se abre al hacer clic en el badge "Con errores" de un
+ * color, y por `buildValidationSummary` (versión plana, para el banner/toast).
  */
-export function buildValidationSummary(errors: FieldErrors<ProductFormData>): string[] {
-  const messages: string[] = [];
+export function buildValidationSummaryGrouped(errors: FieldErrors<ProductFormData>): GroupedValidationSummary {
+  const general: string[] = [];
 
   for (const key of Object.keys(TOP_LEVEL_LABELS) as (keyof ProductFormData)[]) {
     if (errors[key]) {
-      messages.push(TOP_LEVEL_LABELS[key]!);
+      general.push(TOP_LEVEL_LABELS[key]!);
     }
   }
 
   if (errors.cover?.assetId) {
-    messages.push('Portada del Producto');
+    general.push('Portada del Producto');
   }
+
+  const variantsMedia: string[] = [];
 
   const variantErrors = errors.variants;
   if (Array.isArray(variantErrors)) {
@@ -42,7 +49,7 @@ export function buildValidationSummary(errors: FieldErrors<ProductFormData>): st
       if (variantError.colorId) missing.push('Color');
       if (variantError.size) missing.push('Talla');
       if (missing.length > 0) {
-        messages.push(`Variante ${idx + 1}: falta ${missing.join(' y ')}`);
+        variantsMedia.push(`Variante ${idx + 1}: falta ${missing.join(' y ')}`);
       }
     });
   }
@@ -55,10 +62,22 @@ export function buildValidationSummary(errors: FieldErrors<ProductFormData>): st
       if (imageError.assetId) missing.push('imagen');
       if (imageError.colorId) missing.push('color asociado');
       if (missing.length > 0) {
-        messages.push(`Medio ${idx + 1}: falta ${missing.join(' y ')}`);
+        variantsMedia.push(`Medio ${idx + 1}: falta ${missing.join(' y ')}`);
       }
     });
   }
 
-  return messages;
+  return { general, variantsMedia };
+}
+
+/**
+ * Construye una lista plana de mensajes legibles a partir de `formState.errors` de
+ * `ProductForm`, para mostrarlos completos en el banner/toast — a diferencia del
+ * toast original, que solo mostraba el primer error encontrado por DFS y dejaba al
+ * usuario sin saber cuántos/cuáles campos faltaban (ej. varias filas de `variants`
+ * inválidas a la vez).
+ */
+export function buildValidationSummary(errors: FieldErrors<ProductFormData>): string[] {
+  const { general, variantsMedia } = buildValidationSummaryGrouped(errors);
+  return [...general, ...variantsMedia];
 }
