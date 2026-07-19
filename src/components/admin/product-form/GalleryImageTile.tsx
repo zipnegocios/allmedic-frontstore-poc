@@ -21,6 +21,10 @@ interface GalleryImageTileProps {
   mimeType: string;
   alt: string | undefined;
   isPrimary: boolean;
+  /** Posición 1-based dentro de la galería del color (según `sortOrder`) — se
+   * muestra como badge numérico en las imágenes que no son la principal, y
+   * cambia al reordenar (drag o estrella). */
+  position: number;
   register: UseFormRegister<ProductFormData>;
   onRemove: () => void;
   onSetPrimary: () => void;
@@ -36,6 +40,7 @@ export function GalleryImageTile({
   mimeType,
   alt,
   isPrimary,
+  position,
   register,
   onRemove,
   onSetPrimary,
@@ -57,11 +62,15 @@ export function GalleryImageTile({
       ref={setNodeRef}
       style={style}
       className={cn(
-        'relative aspect-square bg-white rounded-lg border overflow-hidden shadow-xs group',
+        // `min-w-0`: sin esto, los items de un grid no se achican más allá de su
+        // contenido intrínseco (mínimo implícito `min-width: auto` de CSS Grid) —
+        // con textos largos u otros elementos eso podía ensanchar la celda más
+        // allá de su columna y desbordar la imagen fuera del recorte del card.
+        'relative aspect-square min-w-0 w-full bg-white rounded-lg border overflow-hidden shadow-xs group',
         isDragging && 'opacity-50 z-10'
       )}
     >
-      <MediaThumb storageKey={storageKey} mimeType={mimeType} sizes="160px" />
+      <MediaThumb storageKey={storageKey} mimeType={mimeType} sizes="160px" className="object-cover" />
 
       {/* Drag handle */}
       <button
@@ -94,11 +103,14 @@ export function GalleryImageTile({
         <Trash2 className="w-3.5 h-3.5" />
       </button>
 
-      {isPrimary && (
-        <span className="absolute bottom-1 left-1 text-[9px] font-semibold bg-yellow-400 text-black px-1.5 py-0.5 rounded">
-          Principal
-        </span>
-      )}
+      <span
+        className={cn(
+          'absolute bottom-1 left-1 text-[9px] font-semibold px-1.5 py-0.5 rounded',
+          isPrimary ? 'bg-yellow-400 text-black' : 'bg-black/60 text-white'
+        )}
+      >
+        {isPrimary ? 'Principal' : position}
+      </span>
 
       {/* Alt text: lápiz + popover */}
       <Popover open={altOpen} onOpenChange={setAltOpen}>

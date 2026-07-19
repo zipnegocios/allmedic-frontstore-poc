@@ -27,6 +27,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Plus, Trash2, ImageIcon, AlertTriangle } from 'lucide-react';
+import { toast } from 'sonner';
 import { MediaThumb } from '@/components/admin/media/MediaThumb';
 import { cn } from '@/lib/utils';
 import type { ProductFormData, Color } from './schema';
@@ -118,18 +119,43 @@ export function VariantsMediaSection({
   // Estado para agregar un nuevo color
   const [selectedNewColorId, setSelectedNewColorId] = useState<string>('');
 
+  // ─── Valores "en vivo" de variantes/imágenes ───
+  // `variantFields`/`imageFields` (de `useFieldArray`) son un snapshot que RHF NO
+  // refresca cuando se llama `setValue` sobre un campo anidado (ej.
+  // `images.${idx}.sortOrder`, `.alt`, `variants.${idx}.status`) — solo se
+  // actualiza con operaciones estructurales (append/remove/move). Leer `sortOrder`,
+  // `alt`, `status`, etc. directamente de esos arrays deja la UI (orden de la
+  // galería, imagen principal, badge de estado) mostrando datos viejos aunque el
+  // valor ya se haya guardado en el form. Se combina el `.id` estable del snapshot
+  // con el valor actual de `watch()` para que ambos —key estable y valor vivo—
+  // estén correctos.
+  // Importante: el `id` estable va DESPUÉS del spread de `watch()` — el objeto de
+  // `watch()` también trae una clave `id` (parte de `ImageSchema`/`VariantSchema`,
+  // `undefined` en filas nuevas sin id de DB todavía), y si se spreadea después
+  // pisaría el `.id` de RHF con `undefined`, rompiendo el `key`/`useSortable` id.
+  const watchedImages = watch('images');
+  const imagesLive = imageFields.map((f, idx) => {
+    const live = watchedImages?.[idx];
+    return live ? { ...live, id: f.id } : f;
+  });
+  const watchedVariants = watch('variants');
+  const variantsLive = variantFields.map((f, idx) => {
+    const live = watchedVariants?.[idx];
+    return live ? { ...live, id: f.id } : f;
+  });
+
   // 1. Obtener los colores activos (que tienen variantes o imágenes asociadas)
   const activeColorsSet = new Set<string>();
-  variantFields.forEach((v) => {
+  variantsLive.forEach((v) => {
     if (v.colorId) activeColorsSet.add(v.colorId);
   });
-  imageFields.forEach((img) => {
+  imagesLive.forEach((img) => {
     if (img.colorId) activeColorsSet.add(img.colorId);
   });
   const activeColorIds = Array.from(activeColorsSet);
 
   // 2. Medios de galería sin color (legacy)
-  const colorlessImages = imageFields.filter((img) => !img.colorId);
+  const colorlessImages = imagesLive.filter((img) => !img.colorId);
   const hasColorlessImages = colorlessImages.length > 0;
 
   // Sección "Configuración por Color" como acordeón de una sola apertura: solo un
@@ -142,7 +168,7 @@ export function VariantsMediaSection({
   useEffect(() => {
     if (!variantsErrors || !Array.isArray(variantsErrors)) return;
     const firstErrorColorId = activeColorIds.find((colorId) =>
-      variantFields.some((v, idx) => v.colorId === colorId && variantsErrors[idx])
+      variantsLive.some((v, idx) => v.colorId === colorId && variantsErrors[idx])
     );
     if (firstErrorColorId) setExpandedColorId(firstErrorColorId);
     // Solo reacciona a cambios en los errores de validación (ej. tras un submit
@@ -152,8 +178,8 @@ export function VariantsMediaSection({
 
   // Manejar eliminación de una variante
   const handleDeleteVariantClick = (variantIdx: number, colorId: string) => {
-    const colorVariants = variantFields.filter((v) => v.colorId === colorId);
-    const colorImages = imageFields.filter((img) => img.colorId === colorId);
+    const colorVariants = variantsLive.filter((v) => v.colorId === colorId);
+    const colorImages = imagesLive.filter((img) => img.colorId === colorId);
 
     // Si es la última variante de este color y aún quedan imágenes asociadas
     if (colorVariants.length === 1 && colorImages.length > 0) {
@@ -180,7 +206,7 @@ export function VariantsMediaSection({
 
     // 2. Eliminar todas las imágenes del mismo color
     // Hacemos el reverso de índices para evitar corrupciones al borrar
-    const imagesToDelete = imageFields
+    const imagesToDelete = imagesLive
       .map((img, idx) => ({ img, idx }))
       .filter((item) => item.img.colorId === colorId);
 
@@ -204,7 +230,7 @@ export function VariantsMediaSection({
     }
 
     // 2. Reasignar imágenes al nuevo color
-    imageFields.forEach((img, idx) => {
+    imagesLive.forEach((img, idx) => {
       if (img.colorId === colorId) {
         setValue(`images.${idx}.colorId`, newColorId);
       }
@@ -472,16 +498,20 @@ export function VariantsMediaSection({
             const colorHex = colorObj?.hex || '#ccc';
 
             // Filtrar variantes e imágenes correspondientes a este color
-            const colorVariants = variantFields
+            const colorVariants = variantsLive
               .map((v, idx) => ({ v, idx }))
               .filter((item) => item.v.colorId === colorId);
 
             // Ordenado por `sortOrder` ascendente: la posición visual debe coincidir
             // con la que consume el catálogo público (`images[0]` = swatch del color).
-            const colorImages = imageFields
+            const colorImages = imagesLive
               .map((img, idx) => ({ img, idx }))
               .filter((item) => item.img.colorId === colorId)
               .sort((a, b) => (a.img.sortOrder ?? 0) - (b.img.sortOrder ?? 0));
+
+            // Tallas ya usadas en este color — evita duplicar una misma talla dos
+            // veces para el mismo color (ej. dos filas "S" para "Negro").
+            const usedSizesInColor = new Set(colorVariants.map((item) => item.v.size));
 
             const colorHasError =
               colorVariants.some((item) => variantsErrors?.[item.idx]) ||
@@ -562,15 +592,24 @@ export function VariantsMediaSection({
                         type="button"
                         size="sm"
                         variant="outline"
-                        onClick={() =>
+                        disabled={usedSizesInColor.size >= SIZES.length}
+                        onClick={() => {
+                          // No puede haber dos variantes con la misma talla para el
+                          // mismo color (ej. dos filas "S" para "Negro") — se ofrece
+                          // automáticamente la primera talla libre.
+                          const nextSize = SIZES.find((s) => !usedSizesInColor.has(s));
+                          if (!nextSize) {
+                            toast.error('Ya agregaste todas las tallas disponibles para este color');
+                            return;
+                          }
                           appendVariant({
                             colorId: colorId,
-                            size: 'M',
+                            size: nextSize,
                             sku: '',
                             status: 'AVAILABLE',
                             attributeValueIds: [],
-                          })
-                        }
+                          });
+                        }}
                         className="h-7 text-[10px] bg-white"
                       >
                         <Plus className="w-3 h-3 mr-1" />
@@ -585,7 +624,6 @@ export function VariantsMediaSection({
                           const absoluteIdx = item.idx;
                           const rowError = variantsErrors?.[absoluteIdx];
                           const hasRowError = Boolean(rowError?.colorId || rowError?.size);
-                          const statusMeta = STATUS_META[v.status] ?? STATUS_META.AVAILABLE;
 
                           return (
                             <div
@@ -608,19 +646,30 @@ export function VariantsMediaSection({
                                     </PopoverTrigger>
                                     <PopoverContent className="w-40 p-1" align="start">
                                       <div className="grid grid-cols-3 gap-1">
-                                        {SIZES.map((s) => (
-                                          <button
-                                            key={s}
-                                            type="button"
-                                            onClick={() => field.onChange(s)}
-                                            className={cn(
-                                              'text-xs rounded px-1.5 py-1 border',
-                                              field.value === s ? 'bg-[#111111] text-white border-[#111111]' : 'bg-white border-gray-200'
-                                            )}
-                                          >
-                                            {s}
-                                          </button>
-                                        ))}
+                                        {SIZES.map((s) => {
+                                          // Tomada por OTRA variante del mismo color — no se puede
+                                          // duplicar la talla dentro de un mismo color.
+                                          const takenByOther = usedSizesInColor.has(s) && field.value !== s;
+                                          return (
+                                            <button
+                                              key={s}
+                                              type="button"
+                                              disabled={takenByOther}
+                                              title={takenByOther ? 'Esta talla ya existe para este color' : undefined}
+                                              onClick={() => field.onChange(s)}
+                                              className={cn(
+                                                'text-xs rounded px-1.5 py-1 border',
+                                                field.value === s
+                                                  ? 'bg-[#111111] text-white border-[#111111]'
+                                                  : takenByOther
+                                                    ? 'bg-gray-100 border-gray-100 text-gray-300 cursor-not-allowed'
+                                                    : 'bg-white border-gray-200'
+                                              )}
+                                            >
+                                              {s}
+                                            </button>
+                                          );
+                                        })}
                                       </div>
                                     </PopoverContent>
                                   </Popover>
@@ -633,12 +682,14 @@ export function VariantsMediaSection({
                               <Controller
                                 name={`variants.${absoluteIdx}.status`}
                                 control={control}
-                                render={({ field }) => (
+                                render={({ field }) => {
+                                  const currentStatusMeta = STATUS_META[field.value] ?? STATUS_META.AVAILABLE;
+                                  return (
                                   <Popover>
                                     <PopoverTrigger asChild>
                                       <button type="button" className="flex items-center gap-1 hover:underline">
-                                        <span className={cn('w-2 h-2 rounded-full', statusMeta.dot)} />
-                                        {statusMeta.label}
+                                        <span className={cn('w-2 h-2 rounded-full', currentStatusMeta.dot)} />
+                                        {currentStatusMeta.label}
                                       </button>
                                     </PopoverTrigger>
                                     <PopoverContent className="w-44 p-1" align="start">
@@ -660,7 +711,8 @@ export function VariantsMediaSection({
                                       </div>
                                     </PopoverContent>
                                   </Popover>
-                                )}
+                                  );
+                                }}
                               />
 
                               {/* Acción */}
@@ -713,7 +765,7 @@ export function VariantsMediaSection({
                           strategy={rectSortingStrategy}
                         >
                           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                            {colorImages.map((item) => {
+                            {colorImages.map((item, position) => {
                               const img = item.img;
                               const absoluteIdx = item.idx;
 
@@ -725,7 +777,8 @@ export function VariantsMediaSection({
                                   storageKey={img.storageKey!}
                                   mimeType={img.mimeType ?? ''}
                                   alt={img.alt}
-                                  isPrimary={colorImages[0]?.idx === absoluteIdx}
+                                  isPrimary={position === 0}
+                                  position={position + 1}
                                   register={register}
                                   onRemove={() => removeImage(absoluteIdx)}
                                   onSetPrimary={() => handleSetPrimaryImage(colorImages, absoluteIdx)}
