@@ -29,6 +29,12 @@ interface MediaGalleryProps {
   onAssetClick?: (asset: MediaAssetSummary) => void;
   refreshKey?: number;
   mediaType?: 'image' | 'video' | 'all';
+  /** Picker enfocado: restringe (+ etiqueta) el listado a la carpeta física de
+   * una entidad puntual — ver `buildProductMediaKey`. Sin esto, comportamiento
+   * de biblioteca completa sin cambios. */
+  keyPrefix?: string;
+  linkedEntityType?: string;
+  linkedEntityId?: string;
 }
 
 export function MediaGallery({
@@ -40,6 +46,9 @@ export function MediaGallery({
   onAssetClick,
   refreshKey = 0,
   mediaType: fixedMediaType,
+  keyPrefix,
+  linkedEntityType,
+  linkedEntityId,
 }: MediaGalleryProps) {
   const [assets, setAssets] = useState<MediaAssetSummary[]>([]);
   const [total, setTotal] = useState(0);
@@ -61,6 +70,11 @@ export function MediaGallery({
       if (effectiveMediaType !== 'all') params.set('mediaType', effectiveMediaType);
       if (q) params.set('q', q);
       if (unused) params.set('unused', 'true');
+      if (keyPrefix) {
+        params.set('keyPrefix', keyPrefix);
+        if (linkedEntityType) params.set('linkedEntityType', linkedEntityType);
+        if (linkedEntityId) params.set('linkedEntityId', linkedEntityId);
+      }
       params.set('page', String(page));
       params.set('limit', String(limit));
 
@@ -74,7 +88,7 @@ export function MediaGallery({
     } finally {
       setLoading(false);
     }
-  }, [fixedFolder, folder, fixedMediaType, mediaType, q, unused, page]);
+  }, [fixedFolder, folder, fixedMediaType, mediaType, q, unused, page, keyPrefix, linkedEntityType, linkedEntityId]);
 
   useEffect(() => { fetchAssets(); }, [fetchAssets, refreshKey]);
 
@@ -158,6 +172,11 @@ export function MediaGallery({
                 {isSelected && (
                   <div className="absolute top-1 right-1 bg-[#111111] text-white rounded-full p-1">
                     <Check className="w-3 h-3" />
+                  </div>
+                )}
+                {asset.origin === 'reused' && (
+                  <div className="absolute top-1 left-1 bg-sky-600 text-white text-[9px] font-medium px-1.5 py-0.5 rounded">
+                    Reutilizado
                   </div>
                 )}
                 <div className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[10px] px-2 py-1 truncate opacity-0 group-hover:opacity-100 transition-opacity">

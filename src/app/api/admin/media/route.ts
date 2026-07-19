@@ -17,6 +17,9 @@ export async function GET(request: NextRequest) {
       mediaType: mediaTypeParam === 'video' || mediaTypeParam === 'image' ? mediaTypeParam : undefined,
       page: parseInt(searchParams.get('page') || '1'),
       limit: parseInt(searchParams.get('limit') || '30'),
+      keyPrefix: searchParams.get('keyPrefix') || undefined,
+      linkedEntityType: searchParams.get('linkedEntityType') || undefined,
+      linkedEntityId: searchParams.get('linkedEntityId') || undefined,
     });
 
     return NextResponse.json(result);

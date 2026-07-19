@@ -98,6 +98,7 @@ function transformProduct(dbProduct: {
   crossSellId: string | null;
   features: unknown;
   careInstructions: unknown;
+  coverSource: string;
   variants: Array<{
     id: string;
     colorId: string;
@@ -187,6 +188,18 @@ function transformProduct(dbProduct: {
     ? Object.fromEntries(Array.from(stylesMap.entries(), ([slug, values]) => [slug, Array.from(values)]))
     : undefined;
 
+  // Resolución central de portada dual: en modo 'FIRST_VARIANT' la portada NO se
+  // guarda como vínculo COVER — es una referencia viva a las 2 primeras imágenes
+  // (por sortOrder) del primer color del producto (mismo orden que `colors`, ver
+  // `colorMap` arriba). Único punto de verdad: ningún componente debe recalcular
+  // esto por su cuenta (antecedente de doble resolución de portada).
+  if (dbProduct.coverSource === 'FIRST_VARIANT') {
+    const firstColorId = Array.from(colorMap.keys())[0];
+    const firstColorImages = firstColorId ? (imagesByColor.get(firstColorId) || []) : [];
+    cover = firstColorImages[0];
+    secondaryCover = firstColorImages[1];
+  }
+
   // Transform variants
   const variants: ProductVariant[] = dbProduct.variants.map(v => {
     const payload = v.attributesPayload as AttributesPayload | null | undefined;
@@ -256,6 +269,7 @@ async function fetchProductsWithJoins(whereCondition?: SQL<unknown>) {
       crossSellId: productsTable.crossSellId,
       features: productsTable.features,
       careInstructions: productsTable.careInstructions,
+      coverSource: productsTable.coverSource,
     })
     .from(productsTable)
     .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
@@ -690,5 +704,13 @@ export function resolveCoverMedia(product: Product): MediaItem {
     width: null,
     height: null,
   };
+}
+
+/** Segunda imagen del par primaria/secundaria de portada (crossfade hover) —
+ * único punto de verdad, análogo a `resolveCoverMedia`. Sin fallback a variantes:
+ * si no hay secundaria, el consumidor debe desactivar el hover-swap en vez de
+ * repetir la primaria (evita un crossfade falso "hacia la misma imagen"). */
+export function resolveSecondaryCoverMedia(product: Product): MediaItem | undefined {
+  return product.secondaryCover;
 }
 

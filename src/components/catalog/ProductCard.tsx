@@ -9,6 +9,7 @@ import { CountdownBadge } from '@/components/ui/CountdownBadge';
 import { QuickViewModal } from './QuickViewModal';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 import { usePriceVisibility } from '@/context/PriceVisibilityContext';
+import { resolveCoverMedia, resolveSecondaryCoverMedia } from '@/lib/data-service';
 import { cn } from '@/lib/utils';
 
 interface ProductCardProps {
@@ -50,12 +51,13 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
   const selectedColor = product.colors.find(c => c.id === selectedColorId);
   const variantWithColor = product.variants.find(v => v.colorId === selectedColorId);
   const displayMedia = colorTouched
-    ? (variantWithColor?.images[0] || product.cover || product.variants[0]?.images[0])
-    : (product.cover || variantWithColor?.images[0] || product.variants[0]?.images[0]);
+    ? (variantWithColor?.images[0] || resolveCoverMedia(product))
+    : resolveCoverMedia(product);
   // Crossfade "hover image swap": mismo par primaria/secundaria que la Portada
-  // del producto, pero por color una vez que el usuario elige uno — heredando la
-  // misma convención por posición (`images[1]` = secundaria de ese color).
-  const secondaryDisplayMedia = colorTouched ? variantWithColor?.images[1] : product.secondaryCover;
+  // del producto (único punto de verdad: `resolveSecondaryCoverMedia`), pero por
+  // color una vez que el usuario elige uno — heredando la misma convención por
+  // posición (`images[1]` = secundaria de ese color).
+  const secondaryDisplayMedia = colorTouched ? variantWithColor?.images[1] : resolveSecondaryCoverMedia(product);
   const showHoverSwap = Boolean(secondaryDisplayMedia);
   
   const showPrices = usePriceVisibility({ brandId: product.brandId, productId: product.id });

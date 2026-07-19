@@ -6,6 +6,7 @@ import { Plus } from 'lucide-react';
 import type { Product, Size } from '@/lib/types';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 import { usePriceVisibility } from '@/context/PriceVisibilityContext';
+import { resolveCoverMedia } from '@/lib/data-service';
 import { cn } from '@/lib/utils';
 
 interface CrossSellCardProps {
@@ -26,7 +27,7 @@ export function CrossSellCard({
   const showPrices = usePriceVisibility({ brandId: product.brandId, productId: product.id });
 
   const variantWithColor = product.variants.find(v => v.colorId === selectedColorId);
-  const displayMedia = variantWithColor?.images[0] || product.cover || product.variants[0]?.images[0];
+  const displayMedia = variantWithColor?.images[0] || resolveCoverMedia(product);
 
   const handleAddClick = () => {
     if (!showSizeSelector) {

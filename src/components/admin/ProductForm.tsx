@@ -21,7 +21,7 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { ArrowLeft, Save, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Loader2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { MediaPicker } from '@/components/admin/media/MediaPicker';
-import { resolveMediaUrl } from '@/lib/media';
+import { resolveMediaUrl, sanitizeCodeSegment, PRODUCT_COVER_SEGMENT } from '@/lib/media';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import {
@@ -153,6 +153,7 @@ export default function ProductForm({
       gender: 'UNISEX',
       priceNormal: '',
       visibility: initialVisibility ?? 'INDIVIDUAL',
+      coverSource: 'CUSTOM',
       isNew: false,
       isBestSeller: false,
       isActive: true,
@@ -192,6 +193,10 @@ export default function ProductForm({
 
   const features = watch('features');
   const careInstructions = watch('careInstructions');
+  // Sin código de estilo válido no hay carpeta donde ubicar los medios del
+  // producto (`products/{codigo}/...`) — la sección de medios (portada +
+  // galerías) queda deshabilitada hasta que se declare uno.
+  const codeMissing = !watch('code')?.trim();
 
   // Fetch product details if editing embedded
   useEffect(() => {
@@ -226,6 +231,7 @@ export default function ProductForm({
               ? new Date(product.wholesaleDiscountEnd).toISOString().slice(0, 16)
               : '',
             visibility: (product.visibility as 'INDIVIDUAL' | 'GROUPS' | 'BOTH') || 'INDIVIDUAL',
+            coverSource: (product.coverSource as 'CUSTOM' | 'FIRST_VARIANT') || 'CUSTOM',
             isNew: product.isNew ?? false,
             isBestSeller: product.isBestSeller ?? false,
             isActive: product.isActive ?? true,
@@ -428,10 +434,19 @@ export default function ProductForm({
   // tocar el modelo de datos existente (`variant_attribute_values`).
   function withSyncedStyleAttributes(data: ProductFormData): ProductFormData {
     const attributeValueIds = Object.values(data.styleAttributes ?? {}).filter(Boolean);
-    return {
+    const synced: ProductFormData = {
       ...data,
       variants: data.variants.map((v) => ({ ...v, attributeValueIds })),
     };
+    // Modo 'FIRST_VARIANT': la portada se hereda en vivo del primer color — no se
+    // envían `cover`/`secondaryCover` (quedarían con `assetId: ''`, que el
+    // backend rechazaría si se enviaran como objetos "presentes pero vacíos").
+    if (synced.coverSource === 'FIRST_VARIANT') {
+      const empty = { assetId: '', url: '', storageKey: '', mimeType: '', alt: '' };
+      synced.cover = empty;
+      synced.secondaryCover = empty;
+    }
+    return synced;
   }
 
   async function onSubmit(rawData: ProductFormData) {
@@ -613,6 +628,23 @@ export default function ProductForm({
     return null;
   })();
 
+  // Picker enfocado (ver plan de carpetas por producto): restringe por defecto
+  // el listado a la carpeta física de ESTE producto (`products/{codigo}/...`) —
+  // portada o color según el target abierto — más lo ya vinculado a él aunque
+  // viva en otra ruta. Sin código todavía declarado, degrada a biblioteca
+  // completa (mismo comportamiento que antes de este plan).
+  const pickerCodeSegment = codeValue?.trim() ? sanitizeCodeSegment(codeValue.trim()) : '';
+  const pickerColorCode = pickerColorId ? colors.find((c) => c.id === pickerColorId)?.code : undefined;
+  const pickerSecondSegment = pickerTargetIndex === 'cover' || pickerTargetIndex === 'secondaryCover'
+    ? PRODUCT_COVER_SEGMENT
+    : (pickerColorCode ? sanitizeCodeSegment(pickerColorCode) : undefined);
+  const pickerKeyPrefix = pickerCodeSegment && pickerSecondSegment
+    ? `products/${pickerCodeSegment}/${pickerSecondSegment}/`
+    : undefined;
+  const pickerSegments = pickerCodeSegment && pickerSecondSegment
+    ? [pickerCodeSegment, pickerSecondSegment]
+    : (slugValue ? [slugValue] : []);
+
   const mediaPickerDialog = (
     <MediaPicker
       open={pickerTargetIndex !== null}
@@ -621,7 +653,10 @@ export default function ProductForm({
         setPickerColorId(null);
       }}
       folder="PRODUCTS"
-      segments={slugValue ? [slugValue] : []}
+      segments={pickerSegments}
+      keyPrefix={pickerKeyPrefix}
+      linkedEntityType="PRODUCT"
+      linkedEntityId={createdProductId ?? undefined}
       multiple={pickerTargetIndex === 'append'}
       onConfirm={(assets) => {
         if (pickerTargetIndex === 'append') {
@@ -789,6 +824,8 @@ export default function ProductForm({
                     setValue={setValue}
                     errors={errors}
                     embedded={embedded}
+                    colors={colors}
+                    codeMissing={codeMissing}
                     onPickTarget={(target) => setPickerTargetIndex(target)}
                   />
                   <ClassificationSection
@@ -864,6 +901,7 @@ export default function ProductForm({
                   watch={watch}
                   setValue={setValue}
                   colors={colors}
+                  codeMissing={codeMissing}
                   productTypeId={productTypeIdValue}
                   styleAttributes={styleAttributesValue}
                   variantFields={variantFields}
@@ -998,6 +1036,8 @@ export default function ProductForm({
                 setValue={setValue}
                 errors={errors}
                 embedded={embedded}
+                colors={colors}
+                codeMissing={codeMissing}
                 onPickTarget={(target) => setPickerTargetIndex(target)}
               />
 
@@ -1049,6 +1089,7 @@ export default function ProductForm({
                 watch={watch}
                 setValue={setValue}
                 colors={colors}
+                codeMissing={codeMissing}
                 productTypeId={productTypeIdValue}
                 styleAttributes={styleAttributesValue}
                 variantFields={variantFields}

@@ -161,6 +161,10 @@ export interface MediaAssetSummary {
   title: string | null;
   caption: string | null;
   createdAt: string | null;
+  /** Solo presente cuando el listado usó `keyPrefix` (picker enfocado): 'own' si
+   * el asset vive en la carpeta de la entidad, 'reused' si está vinculado a ella
+   * pero vive en otra ruta (reutilizado desde la biblioteca o legacy). */
+  origin?: 'own' | 'reused';
 }
 
 /** Item de medio ya resuelto (URL pública) para consumo en componentes públicos/admin. */

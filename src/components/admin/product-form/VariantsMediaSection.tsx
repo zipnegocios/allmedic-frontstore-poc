@@ -83,6 +83,9 @@ interface VariantsMediaSectionProps {
    * sin salir del formulario — el llamador (`ProductForm`) actualiza su lista de
    * colores disponibles. */
   onColorCreated?: (color: Color) => void;
+  /** Sin código de estilo válido no hay carpeta (`products/{codigo}/...`) donde
+   * ubicar los medios — se deshabilita agregar medios hasta que se declare uno. */
+  codeMissing: boolean;
 }
 
 export function VariantsMediaSection({
@@ -102,6 +105,7 @@ export function VariantsMediaSection({
   variantsErrors,
   formErrors,
   onColorCreated,
+  codeMissing,
 }: VariantsMediaSectionProps) {
   // Modal de detalle de errores — se abre al hacer clic en el badge "Con errores"
   // de cualquier color; muestra el mapeo completo (ficha general + variantes y
@@ -694,6 +698,8 @@ export function VariantsMediaSection({
                         type="button"
                         size="sm"
                         variant="outline"
+                        disabled={codeMissing}
+                        title={codeMissing ? 'Declara un Código de Estilo válido para habilitar los medios' : undefined}
                         onClick={() => onPickTarget('append', colorId)}
                         className="h-7 text-[10px] bg-white"
                       >
@@ -701,6 +707,11 @@ export function VariantsMediaSection({
                         Agregar Medios
                       </Button>
                     </div>
+                    {codeMissing && (
+                      <p className="text-[11px] text-amber-700 bg-amber-50 rounded px-2 py-1">
+                        Declara un Código de Estilo válido en la ficha General para poder subir medios.
+                      </p>
+                    )}
 
                     {colorImages.length === 0 ? (
                       <div className="border border-dashed rounded-lg p-4 text-center text-gray-400 text-[11px]">

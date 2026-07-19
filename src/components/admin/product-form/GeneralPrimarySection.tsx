@@ -9,10 +9,12 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ImageIcon, Trash2 } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ImageIcon, Trash2, Info } from 'lucide-react';
 import { MediaThumb } from '@/components/admin/media/MediaThumb';
-import type { ProductFormData } from './schema';
-import { VISIBILITY_OPTIONS } from './schema';
+import type { Color, ProductFormData } from './schema';
+import { COVER_SOURCE_OPTIONS, VISIBILITY_OPTIONS } from './schema';
+import { cn } from '@/lib/utils';
 
 interface GeneralPrimarySectionProps {
   control: Control<ProductFormData>;
@@ -21,6 +23,10 @@ interface GeneralPrimarySectionProps {
   setValue: UseFormSetValue<ProductFormData>;
   errors: FieldErrors<ProductFormData>;
   embedded: boolean;
+  colors: Color[];
+  /** Sin código de estilo válido no hay carpeta (`products/{codigo}/...`) donde
+   * ubicar los medios — se deshabilita la sección hasta que se declare uno. */
+  codeMissing: boolean;
   onPickTarget: (target: 'cover' | 'secondaryCover') => void;
 }
 
@@ -34,55 +40,140 @@ export function GeneralPrimarySection({
   setValue,
   errors,
   embedded,
+  colors,
+  codeMissing,
   onPickTarget,
 }: GeneralPrimarySectionProps) {
+  const coverSource = watch('coverSource') ?? 'CUSTOM';
+  const images = watch('images') ?? [];
+  const variants = watch('variants') ?? [];
+  const firstColorId = variants[0]?.colorId;
+  const firstColor = colors.find((c) => c.id === firstColorId);
+  const firstColorImages = firstColorId
+    ? images.filter((img) => img.colorId === firstColorId).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+    : [];
+
   return (
     <Card className="border-2 border-gray-200 dark:border-gray-800">
       <CardContent className="p-6 space-y-5">
-        {/* ─── Portada: primaria + secundaria ─── */}
+        {/* ─── Portada: origen + primaria/secundaria ─── */}
         <div>
-          <h3 className="text-base font-semibold text-[#111111] flex items-center gap-1.5">
-            Portada del Producto <span className="text-red-500">*</span>
-          </h3>
+          <div className="flex items-center gap-1.5">
+            <h3 className="text-base font-semibold text-[#111111] flex items-center gap-1.5">
+              Portada del Producto <span className="text-red-500">*</span>
+            </h3>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button type="button" className="text-gray-400 hover:text-gray-600" aria-label="Ayuda sobre origen de portada">
+                  <Info className="w-4 h-4" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="text-xs space-y-2 max-w-xs">
+                {COVER_SOURCE_OPTIONS.map((opt) => (
+                  <p key={opt.value}><span className="font-semibold">{opt.label}:</span> {opt.description}</p>
+                ))}
+              </PopoverContent>
+            </Popover>
+          </div>
           <p className="text-xs text-gray-500 mb-3">
             Se muestran en los listados del catálogo. La secundaria habilita un
             crossfade al pasar el mouse sobre la card (desaparece si el usuario
             elige un color específico).
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <CoverPicker
-              label="Imagen Primaria *"
-              required
-              storageKey={watch('cover.storageKey')}
-              mimeType={watch('cover.mimeType')}
-              url={watch('cover.url')}
-              altRegisterField={register('cover.alt')}
-              onPick={() => onPickTarget('cover')}
-              onRemove={() => {
-                setValue('cover.assetId', '');
-                setValue('cover.url', '');
-                setValue('cover.storageKey', '');
-                setValue('cover.mimeType', '');
-                setValue('cover.alt', '');
-              }}
-            />
-            <CoverPicker
-              label="Imagen Secundaria *"
-              required
-              storageKey={watch('secondaryCover.storageKey')}
-              mimeType={watch('secondaryCover.mimeType')}
-              url={watch('secondaryCover.url')}
-              altRegisterField={register('secondaryCover.alt')}
-              onPick={() => onPickTarget('secondaryCover')}
-              onRemove={() => {
-                setValue('secondaryCover.assetId', '');
-                setValue('secondaryCover.url', '');
-                setValue('secondaryCover.storageKey', '');
-                setValue('secondaryCover.mimeType', '');
-                setValue('secondaryCover.alt', '');
-              }}
-            />
-          </div>
+
+          {codeMissing && (
+            <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1.5 mb-3">
+              Declara un Código de Estilo válido arriba para habilitar la portada — define
+              la carpeta del producto en el bucket de medios.
+            </p>
+          )}
+
+          {/* Switcher de origen */}
+          <Controller
+            name="coverSource"
+            control={control}
+            render={({ field }) => (
+              <div className={cn('flex gap-2 mb-4 rounded-lg border p-1 bg-gray-50 w-fit', codeMissing && 'opacity-50 pointer-events-none')}>
+                {COVER_SOURCE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    disabled={codeMissing}
+                    onClick={() => field.onChange(opt.value)}
+                    className={cn(
+                      'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                      field.value === opt.value
+                        ? 'bg-white shadow-sm text-[#111111]'
+                        : 'text-gray-500 hover:text-gray-700'
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          />
+
+          {coverSource === 'CUSTOM' ? (
+            <div className={cn('grid grid-cols-1 sm:grid-cols-2 gap-4', codeMissing && 'opacity-50 pointer-events-none')}>
+              <CoverPicker
+                label="Imagen Primaria *"
+                required
+                storageKey={watch('cover.storageKey')}
+                mimeType={watch('cover.mimeType')}
+                url={watch('cover.url')}
+                altRegisterField={register('cover.alt')}
+                onPick={() => onPickTarget('cover')}
+                onRemove={() => {
+                  setValue('cover.assetId', '');
+                  setValue('cover.url', '');
+                  setValue('cover.storageKey', '');
+                  setValue('cover.mimeType', '');
+                  setValue('cover.alt', '');
+                }}
+              />
+              <CoverPicker
+                label="Imagen Secundaria *"
+                required
+                storageKey={watch('secondaryCover.storageKey')}
+                mimeType={watch('secondaryCover.mimeType')}
+                url={watch('secondaryCover.url')}
+                altRegisterField={register('secondaryCover.alt')}
+                onPick={() => onPickTarget('secondaryCover')}
+                onRemove={() => {
+                  setValue('secondaryCover.assetId', '');
+                  setValue('secondaryCover.url', '');
+                  setValue('secondaryCover.storageKey', '');
+                  setValue('secondaryCover.mimeType', '');
+                  setValue('secondaryCover.alt', '');
+                }}
+              />
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed p-4 bg-gray-50">
+              <p className="text-xs text-gray-500 mb-3">
+                Vista previa de lo que se hereda del primer color
+                {firstColor ? <> (<span className="font-medium">{firstColor.name}</span>)</> : ''}:
+              </p>
+              {firstColorImages.length >= 2 ? (
+                <div className="grid grid-cols-2 gap-3">
+                  {['Primaria', 'Secundaria'].map((label, idx) => (
+                    <div key={label} className="space-y-1">
+                      <div className="relative w-full aspect-square bg-white rounded-lg overflow-hidden border shadow-sm">
+                        <MediaThumb storageKey={firstColorImages[idx].storageKey ?? ''} mimeType={firstColorImages[idx].mimeType ?? ''} sizes="200px" />
+                      </div>
+                      <p className="text-[10px] text-gray-500 text-center">{label}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-amber-600 bg-amber-50 rounded px-2 py-1.5">
+                  El primer color todavía no tiene 2 imágenes en su galería (pestaña
+                  &quot;Variantes y Medios&quot;) — agrégalas para que la portada pública se resuelva.
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

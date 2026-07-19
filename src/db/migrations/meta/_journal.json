@@ -36,6 +36,13 @@
       "when": 1784427459041,
       "tag": "0004_supresion_stock_inventario",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784477824295,
+      "tag": "0005_natural_cassandra_nova",
+      "breakpoints": true
     }
   ]
 }

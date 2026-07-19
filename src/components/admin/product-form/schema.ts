@@ -37,9 +37,13 @@ export const ImageSchema = z.object({
   sortOrder: z.coerce.number().default(0),
 });
 
+// `assetId` queda opcional a nivel de schema base: en modo `coverSource:
+// 'FIRST_VARIANT'` la portada no se sube (se hereda del primer color), así que
+// el requisito real de "obligatoria" se aplica condicionalmente en el
+// `superRefine` de `ProductFormSchema`, no aquí.
 export const CoverSchema = z.object({
   id: z.string().optional(),
-  assetId: z.string().min(1, 'Portada requerida'),
+  assetId: z.string().optional(),
   url: z.string().optional(),
   storageKey: z.string().optional(),
   mimeType: z.string().optional(),
@@ -47,16 +51,29 @@ export const CoverSchema = z.object({
 });
 
 // Imagen secundaria de Portada — habilita el crossfade "hover image swap" en la
-// card del catálogo público. Obligatoria igual que `CoverSchema` (ver decisión
-// de negocio: la imagen principal Y la secundaria son requeridas).
+// card del catálogo público. Requerida junto a la primaria SOLO en modo
+// `coverSource: 'CUSTOM'` (ver `superRefine` de `ProductFormSchema`).
 export const SecondaryCoverSchema = z.object({
   id: z.string().optional(),
-  assetId: z.string().min(1, 'Portada secundaria requerida'),
+  assetId: z.string().optional(),
   url: z.string().optional(),
   storageKey: z.string().optional(),
   mimeType: z.string().optional(),
   alt: z.string().optional(),
 });
+
+export const COVER_SOURCE_OPTIONS = [
+  {
+    value: 'CUSTOM' as const,
+    label: 'Subir portadas especiales',
+    description: 'Sube una imagen primaria y una secundaria específicas para este producto.',
+  },
+  {
+    value: 'FIRST_VARIANT' as const,
+    label: 'Usar portadas del primer color',
+    description: 'La portada se hereda en vivo de las 2 primeras imágenes de la galería del primer color — si cambia el orden de colores o esas imágenes, la portada pública cambia con ellas.',
+  },
+];
 
 export const ProductFormSchema = z.object({
   slug: z.string().min(1, 'Slug requerido'),
@@ -89,6 +106,7 @@ export const ProductFormSchema = z.object({
   priceWholesaleSale: z.string().optional(),
   wholesaleDiscountEnd: z.string().optional(),
   visibility: z.enum(['INDIVIDUAL', 'GROUPS', 'BOTH']).default('INDIVIDUAL'),
+  coverSource: z.enum(['CUSTOM', 'FIRST_VARIANT']).default('CUSTOM'),
   isNew: z.boolean().default(false),
   isBestSeller: z.boolean().default(false),
   isActive: z.boolean().default(true),
@@ -100,6 +118,18 @@ export const ProductFormSchema = z.object({
   cover: CoverSchema,
   secondaryCover: SecondaryCoverSchema,
 }).superRefine((data, ctx) => {
+  // La portada primaria/secundaria solo es obligatoria en modo 'CUSTOM' — en
+  // 'FIRST_VARIANT' no se sube nada, se hereda del primer color (y esa condición
+  // ya la cubre la regla de "≥2 imágenes por color con tallas" de más abajo).
+  if (data.coverSource === 'CUSTOM') {
+    if (!data.cover.assetId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Portada requerida', path: ['cover', 'assetId'] });
+    }
+    if (!data.secondaryCover.assetId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Portada secundaria requerida', path: ['secondaryCover', 'assetId'] });
+    }
+  }
+
   // Cada color con tallas definidas debe tener imagen PRINCIPAL Y SECUNDARIA en
   // su galería (≥2) — el catálogo público usa `images[0]`/`images[1]` (por
   // `sortOrder`) de cada color para el swatch y el crossfade "hover image swap",

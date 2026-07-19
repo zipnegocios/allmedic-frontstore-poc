@@ -150,6 +150,11 @@ export const products = pgTable("products", {
   priceWholesaleSale: decimal("price_wholesale_sale", { precision: 10, scale: 2 }),
   wholesaleDiscountEnd: timestamp("wholesale_discount_end", { withTimezone: true }),
   visibility: text("visibility").notNull().default("INDIVIDUAL"),
+  // Origen de la portada dual (primaria+secundaria): 'CUSTOM' = subidas específicas
+  // para el producto (media_links con role COVER/COVER_SECONDARY); 'FIRST_VARIANT' =
+  // referencia viva a las 2 primeras imágenes (por sortOrder) del primer color del
+  // producto — no se guardan vínculos COVER en ese modo, se resuelve en lectura.
+  coverSource: text("cover_source").notNull().default("CUSTOM"),
   isNew: boolean("is_new").default(false),
   isBestSeller: boolean("is_best_seller").default(false),
   isActive: boolean("is_active").default(true),

@@ -8,6 +8,7 @@ import { useCart } from '@/context/CartContext';
 import { useNotificationContext } from '@/context/NotificationContext';
 import { Modal } from '@/components/ui/Modal';
 import { usePriceVisibility } from '@/context/PriceVisibilityContext';
+import { resolveCoverMedia } from '@/lib/data-service';
 import { cn } from '@/lib/utils';
 
 interface QuickViewModalProps {
@@ -74,7 +75,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
   const isBackorder = selectedVariant?.status === 'BACKORDER';
 
   // Get display media (decisión: QuickView es vista expandida — video completo con sonido, no loop-preview)
-  const displayMedia = selectedVariant?.images[0] || product.cover || product.variants[0]?.images[0];
+  const displayMedia = selectedVariant?.images[0] || resolveCoverMedia(product);
 
   const handleAddToCart = () => {
     if (!selectedColor) {

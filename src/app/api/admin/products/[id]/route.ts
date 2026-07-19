@@ -40,6 +40,7 @@ const UpdateProductSchema = z.object({
   priceWholesaleSale: z.string().optional().nullable(),
   wholesaleDiscountEnd: z.string().optional().nullable(),
   visibility: z.enum(['INDIVIDUAL', 'GROUPS', 'BOTH']).optional(),
+  coverSource: z.enum(['CUSTOM', 'FIRST_VARIANT']).optional(),
   isNew: z.boolean().optional(),
   isBestSeller: z.boolean().optional(),
   isActive: z.boolean().optional(),
@@ -48,8 +49,10 @@ const UpdateProductSchema = z.object({
   crossSellId: z.string().optional().nullable(),
   variants: z.array(VariantSchema).optional(),
   images: z.array(ImageSchema).optional(),
+  // `assetId` opcional: en modo `coverSource: 'FIRST_VARIANT'` no se sube portada
+  // (ver comentario equivalente en `products/route.ts`).
   cover: z.object({
-    assetId: z.string().min(1),
+    assetId: z.string().optional(),
     alt: z.string().optional(),
   }).optional(),
   secondaryCover: z.object({

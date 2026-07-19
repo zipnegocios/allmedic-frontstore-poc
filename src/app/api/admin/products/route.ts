@@ -44,6 +44,7 @@ const CreateProductSchema = z.object({
   priceWholesaleSale: z.string().optional(),
   wholesaleDiscountEnd: z.string().optional(),
   visibility: z.enum(['INDIVIDUAL', 'GROUPS', 'BOTH']).default('INDIVIDUAL'),
+  coverSource: z.enum(['CUSTOM', 'FIRST_VARIANT']).default('CUSTOM'),
   isNew: z.boolean().default(false),
   isBestSeller: z.boolean().default(false),
   isActive: z.boolean().default(true),
@@ -52,10 +53,14 @@ const CreateProductSchema = z.object({
   crossSellId: z.string().optional(),
   variants: z.array(VariantSchema).default([]),
   images: z.array(ImageSchema).default([]),
+  // `assetId` opcional aquí: en modo `coverSource: 'FIRST_VARIANT'` no se sube
+  // portada (se hereda del primer color) — el requisito de "obligatoria" en modo
+  // CUSTOM ya lo aplica el schema del formulario (`ProductFormSchema`), esta ruta
+  // solo persiste lo que llegue.
   cover: z.object({
-    assetId: z.string().min(1),
+    assetId: z.string().optional(),
     alt: z.string().optional(),
-  }),
+  }).optional(),
   secondaryCover: z.object({
     assetId: z.string().optional(),
     alt: z.string().optional(),

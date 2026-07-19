@@ -7,6 +7,7 @@ import { PRODUCTS as DEFAULT_PRODUCTS, BRANDS as DEFAULT_BRANDS, STORES as DEFAU
 import type { Product, Store as StoreType, BrandNavItem } from '@/lib/types';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 import { usePriceVisibility } from '@/context/PriceVisibilityContext';
+import { resolveCoverMedia } from '@/lib/data-service';
 import { cn } from '@/lib/utils';
 
 interface MegaMenuProps {
@@ -229,7 +230,7 @@ export function MegaMenu({ isOpen, onClose, products: productsProp, brands: bran
                         >
                           <div className="relative aspect-[3/4] bg-[#F5F5F7] rounded-lg overflow-hidden mb-2 sm:mb-3">
                             <MediaGridThumb
-                              item={product.cover || product.variants[0]?.images[0]}
+                              item={resolveCoverMedia(product)}
                               fallback="/images/placeholder-product.jpg"
                               alt={product.name}
                               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 16vw"

@@ -31,11 +31,33 @@ export async function listMediaAssets(opts: {
   mediaType?: 'image' | 'video' | 'all';
   page?: number;
   limit?: number;
+  /** Picker enfocado (ver plan de carpetas por producto): restringe el listado a
+   * `storageKey` bajo este prefijo — carpeta física de la entidad actual. */
+  keyPrefix?: string;
+  /** Junto con `keyPrefix`, además incluye assets vinculados a esta entidad
+   * aunque vivan fuera del prefijo (badge "Reutilizado"/legacy). Sin efecto si
+   * `keyPrefix` no viene. */
+  linkedEntityType?: string;
+  linkedEntityId?: string;
 }) {
-  const { folder, tags, q, unused, mediaType, page = 1, limit = 30 } = opts;
+  const { folder, tags, q, unused, mediaType, page = 1, limit = 30, keyPrefix, linkedEntityType, linkedEntityId } = opts;
   const conditions: SQL<unknown>[] = [];
 
   if (folder) conditions.push(eq(mediaAssetsTable.folder, folder));
+
+  if (keyPrefix) {
+    let scopeCondition: SQL<unknown> = ilike(mediaAssetsTable.storageKey, `${keyPrefix}%`);
+    if (linkedEntityType && linkedEntityId) {
+      const linkedRows = await db.selectDistinct({ assetId: mediaLinksTable.assetId })
+        .from(mediaLinksTable)
+        .where(and(eq(mediaLinksTable.entityType, linkedEntityType), eq(mediaLinksTable.entityId, linkedEntityId)));
+      const linkedIds = linkedRows.map((r) => r.assetId);
+      if (linkedIds.length > 0) {
+        scopeCondition = or(scopeCondition, inArray(mediaAssetsTable.id, linkedIds))!;
+      }
+    }
+    conditions.push(scopeCondition);
+  }
   if (mediaType === 'video') conditions.push(ilike(mediaAssetsTable.mimeType, 'video/%'));
   if (mediaType === 'image') conditions.push(ilike(mediaAssetsTable.mimeType, 'image/%'));
   if (q) {
@@ -76,7 +98,11 @@ export async function listMediaAssets(opts: {
       .offset((page - 1) * limit),
   ]);
 
-  return { assets: rows, total: Number(countResult[0]?.count ?? 0), page, limit };
+  const assets = keyPrefix
+    ? rows.map((r) => ({ ...r, origin: r.storageKey.startsWith(keyPrefix) ? ('own' as const) : ('reused' as const) }))
+    : rows;
+
+  return { assets, total: Number(countResult[0]?.count ?? 0), page, limit };
 }
 
 // ── Presign / Confirm ──

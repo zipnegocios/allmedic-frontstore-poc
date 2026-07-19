@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { LayoutGrid, Grid2X2, Grid3X3, LayoutTemplate, List, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
+import { resolveCoverMedia } from '@/lib/data-service';
 
 // View modes: grid-1 (1 col), grid-2 (2 cols), grid-3 (3 cols), grid-4 (4 cols), list
 export type ViewMode = 'grid-1' | 'grid-2' | 'grid-3' | 'grid-4' | 'list';
@@ -97,7 +98,7 @@ interface ProductListItemProps {
 }
 
 export function ProductListItem({ product, onQuickView }: ProductListItemProps) {
-  const displayMedia = product.cover || product.variants[0]?.images[0];
+  const displayMedia = resolveCoverMedia(product);
   const hasDiscount = product.priceSale && product.priceSale < product.priceNormal;
 
   return (

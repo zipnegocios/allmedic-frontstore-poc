@@ -196,24 +196,13 @@ export async function getAdminProducts(opts: {
       .offset((page - 1) * limit),
   ]);
 
-  // Portadas en batch — mismo patrón que `getAdminProductById` (join media_links/media_assets,
-  // role='COVER'), pero para todos los productos de la página en una sola query.
+  // Portadas en batch — reusa `getProductCoversMap` (COVER con fallback a GALLERY
+  // por sortOrder), único punto de verdad también para el listado admin: cubre
+  // tanto productos en modo CUSTOM (con vínculo COVER) como FIRST_VARIANT (sin
+  // vínculo COVER, cae al primer medio de galería).
   const productIds = rows.map(r => r.id);
-  const covers = productIds.length > 0
-    ? await db
-        .select({
-          productId: mediaLinksTable.entityId,
-          storageKey: mediaAssetsTable.storageKey,
-        })
-        .from(mediaLinksTable)
-        .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
-        .where(and(
-          eq(mediaLinksTable.entityType, 'PRODUCT'),
-          eq(mediaLinksTable.role, 'COVER'),
-          inArray(mediaLinksTable.entityId, productIds)
-        ))
-    : [];
-  const coverUrlByProductId = new Map(covers.map(c => [c.productId, resolveMediaUrl(c.storageKey)]));
+  const coversMap = await getProductCoversMap(productIds);
+  const coverUrlByProductId = new Map(Array.from(coversMap.entries()).map(([id, info]) => [id, info.url]));
 
   // Estilos EAV agregados por producto (union de `attributesPayload.styles` de todas
   // sus variantes) — mismo patrón de agregación que `availableStyles` en
@@ -447,6 +436,8 @@ interface ProductWithRelationsInput {
   priceWholesaleSale?: string | null;
   wholesaleDiscountEnd?: string | null;
   visibility?: 'INDIVIDUAL' | 'GROUPS' | 'BOTH';
+  // Origen de la portada dual — ver comentario en `products.coverSource` (schema).
+  coverSource?: 'CUSTOM' | 'FIRST_VARIANT';
   isNew?: boolean;
   isBestSeller?: boolean;
   isActive?: boolean;
@@ -455,7 +446,9 @@ interface ProductWithRelationsInput {
   crossSellId?: string | null;
   variants?: VariantInput[];
   images?: ImageInput[];
-  cover?: { assetId: string; alt?: string };
+  // `assetId` opcional: en modo `coverSource: 'FIRST_VARIANT'` llega vacío/ausente
+  // (la portada se hereda en vivo del primer color, ver `products.coverSource`).
+  cover?: { assetId?: string; alt?: string };
   secondaryCover?: { assetId?: string; alt?: string };
 }
 

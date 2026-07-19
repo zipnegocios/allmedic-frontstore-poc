@@ -12,7 +12,7 @@ import {
 import { eq, and, or, sql, asc, desc, inArray, ne } from 'drizzle-orm';
 import { PRODUCTS as DUMMY_PRODUCTS } from '@/lib/dummy-data';
 import { resolveMediaUrl } from '@/lib/media';
-import { CORTE_ATTRIBUTE_SLUG } from '@/lib/data-service';
+import { CORTE_ATTRIBUTE_SLUG, resolveCoverMedia } from '@/lib/data-service';
 import type { AttributesPayload } from '@/lib/attributes-payload/build-payload';
 
 /**
@@ -233,7 +233,12 @@ export async function GET(request: NextRequest) {
           colorCode: p.colors.find(c => c.id === v.colorId)?.code ?? '',
           colorHex: p.colors.find(c => c.id === v.colorId)?.hex ?? '',
         })),
-        images: p.variants[0]?.images?.[0] ? [{ productId: p.id, colorId: p.variants[0].colorId, url: p.variants[0].images[0].url, mimeType: p.variants[0].images[0].mimeType, alt: p.name }] : [],
+        images: (() => {
+          const cover = resolveCoverMedia(p);
+          return cover.url !== '/images/placeholder-product.jpg'
+            ? [{ productId: p.id, colorId: p.variants[0]?.colorId ?? null, url: cover.url, mimeType: cover.mimeType, alt: p.name }]
+            : [];
+        })(),
       })),
       pagination: {
         page,

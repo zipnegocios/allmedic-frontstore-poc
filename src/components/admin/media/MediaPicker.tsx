@@ -17,12 +17,29 @@ interface MediaPickerProps {
   multiple?: boolean;
   mediaType?: 'image' | 'video' | 'all';
   onConfirm: (assets: MediaAssetSummary[]) => void;
+  /** Picker enfocado: cuando viene, la pestaña "Elegir de la librería" arranca
+   * restringida a la carpeta de la entidad (+ lo ya vinculado a ella) — con un
+   * botón para salir a la biblioteca completa sin perder el contexto de subida. */
+  keyPrefix?: string;
+  linkedEntityType?: string;
+  linkedEntityId?: string;
 }
 
-export function MediaPicker({ open, onClose, folder, segments = [], multiple = false, mediaType, onConfirm }: MediaPickerProps) {
+export function MediaPicker({ open, onClose, folder, segments = [], multiple = false, mediaType, onConfirm, keyPrefix, linkedEntityType, linkedEntityId }: MediaPickerProps) {
   const [selected, setSelected] = useState<MediaAssetSummary[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [tab, setTab] = useState('library');
+  // Arranca enfocado si hay `keyPrefix`; el admin puede salir a biblioteca
+  // completa con "Insertar desde otra ubicación" sin cerrar el picker. Se
+  // resetea a "enfocado" cada vez que el picker se reabre — ajuste de estado en
+  // respuesta a un cambio de prop durante el render, sin useEffect (evita el
+  // set-state-in-effect que dispara un render en cascada extra).
+  const [browseAll, setBrowseAll] = useState(false);
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setBrowseAll(false);
+  }
 
   function toggleSelect(asset: MediaAssetSummary) {
     setSelected((prev) => {
@@ -68,6 +85,16 @@ export function MediaPicker({ open, onClose, folder, segments = [], multiple = f
           <TabsTrigger value="upload">Subir nueva</TabsTrigger>
         </TabsList>
         <TabsContent value="library">
+          {keyPrefix && (
+            <div className="flex items-center justify-between mb-3 text-xs">
+              <span className="text-gray-500">
+                {browseAll ? 'Mostrando toda la biblioteca.' : 'Mostrando la carpeta de este producto.'}
+              </span>
+              <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setBrowseAll((v) => !v)}>
+                {browseAll ? 'Volver a la carpeta del producto' : 'Insertar imagen desde otra ubicación'}
+              </Button>
+            </div>
+          )}
           <MediaGallery
             folder={folder}
             mediaType={mediaType}
@@ -76,6 +103,9 @@ export function MediaPicker({ open, onClose, folder, segments = [], multiple = f
             selectedIds={selected.map((a) => a.id)}
             onSelect={toggleSelect}
             refreshKey={refreshKey}
+            keyPrefix={browseAll ? undefined : keyPrefix}
+            linkedEntityType={browseAll ? undefined : linkedEntityType}
+            linkedEntityId={browseAll ? undefined : linkedEntityId}
           />
         </TabsContent>
         <TabsContent value="upload">
