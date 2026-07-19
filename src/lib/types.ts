@@ -77,6 +77,10 @@ export interface Product {
   availableStyles?: Record<string, string[]>;
   variants: ProductVariant[];
   cover?: MediaItem;
+  /** Segunda imagen de Portada (nivel producto, no por color) — habilita el
+   * crossfade "hover image swap" en la card del catálogo (`ProductCard.tsx`).
+   * `undefined` si el producto no tiene una configurada. */
+  secondaryCover?: MediaItem;
   isNew: boolean;
   isBestSeller: boolean;
   complementaryProduct?: string;

@@ -97,7 +97,10 @@ export const MAX_VIDEO_PREVIEW_DURATION_SECONDS = 30;
 export const MEDIA_FOLDERS = Object.keys(FOLDER_PREFIXES) as MediaFolder[];
 export const MEDIA_ENTITY_TYPES = ["PRODUCT", "SET", "BRAND", "BANNER"] as const;
 export type MediaEntityType = (typeof MEDIA_ENTITY_TYPES)[number];
-export const MEDIA_LINK_ROLES = ["GALLERY", "LOGO", "DESKTOP", "MOBILE", "COVER"] as const;
+// `COVER_SECONDARY`: segunda imagen de portada del producto (nivel producto, no
+// por color) — habilita el crossfade "hover image swap" en la card del catálogo
+// público. Opcional, a diferencia de `COVER`.
+export const MEDIA_LINK_ROLES = ["GALLERY", "LOGO", "DESKTOP", "MOBILE", "COVER", "COVER_SECONDARY"] as const;
 export type MediaLinkRole = (typeof MEDIA_LINK_ROLES)[number];
 /** Folders donde se permite subir video (Sets y Brands siguen solo-imagen). */
 export const VIDEO_ALLOWED_FOLDERS: MediaFolder[] = ["PRODUCTS", "BANNERS"];

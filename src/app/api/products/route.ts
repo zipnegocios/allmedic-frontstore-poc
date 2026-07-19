@@ -140,7 +140,7 @@ export async function GET(request: NextRequest) {
           .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
           .where(and(
             eq(mediaLinksTable.entityType, 'PRODUCT'),
-            inArray(mediaLinksTable.role, ['GALLERY', 'COVER']),
+            inArray(mediaLinksTable.role, ['GALLERY', 'COVER', 'COVER_SECONDARY']),
             inArray(mediaLinksTable.entityId, productIds)
           ))
           .orderBy(asc(mediaLinksTable.sortOrder))
@@ -158,10 +158,14 @@ export async function GET(request: NextRequest) {
     const enrichedProducts = products.map(product => {
       const productImages = images.filter(i => i.productId === product.id);
       const cover = productImages.find(i => i.role === 'COVER') || productImages[0];
+      const secondaryCover = productImages.find(i => i.role === 'COVER_SECONDARY');
       return {
         ...product,
         variants: variantsWithFit.filter(v => v.productId === product.id),
-        images: cover ? [cover, ...productImages.filter(i => i.role !== 'COVER')] : productImages,
+        secondaryCover: secondaryCover ?? null,
+        images: cover
+          ? [cover, ...productImages.filter(i => i.role !== 'COVER' && i.role !== 'COVER_SECONDARY')]
+          : productImages.filter(i => i.role !== 'COVER_SECONDARY'),
       };
     });
 

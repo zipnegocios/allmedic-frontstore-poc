@@ -132,10 +132,11 @@ function transformProduct(dbProduct: {
   // Build image lookup by colorId
   const imagesByColor = new Map<string, MediaItem[]>();
   let cover: MediaItem | undefined = undefined;
+  let secondaryCover: MediaItem | undefined = undefined;
 
   for (const img of dbProduct.images) {
-    if (img.role === 'COVER') {
-      cover = {
+    if (img.role === 'COVER' || img.role === 'COVER_SECONDARY') {
+      const item: MediaItem = {
         url: img.url,
         type: isVideoMime(img.mimeType) ? 'video' : 'image',
         mimeType: img.mimeType,
@@ -145,6 +146,8 @@ function transformProduct(dbProduct: {
         previewStartSeconds: img.previewStartSeconds,
         previewDurationSeconds: img.previewDurationSeconds,
       };
+      if (img.role === 'COVER') cover = item;
+      else secondaryCover = item;
       continue;
     }
     const key = img.colorId || '_default';
@@ -222,6 +225,7 @@ function transformProduct(dbProduct: {
     availableStyles,
     variants,
     cover,
+    secondaryCover,
     isNew: dbProduct.isNew,
     isBestSeller: dbProduct.isBestSeller,
     complementaryProduct: dbProduct.crossSellId ?? undefined,
@@ -301,7 +305,7 @@ async function fetchProductsWithJoins(whereCondition?: SQL<unknown>) {
         .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
         .where(and(
           eq(mediaLinksTable.entityType, 'PRODUCT'),
-          inArray(mediaLinksTable.role, ['GALLERY', 'COVER']),
+          inArray(mediaLinksTable.role, ['GALLERY', 'COVER', 'COVER_SECONDARY']),
           inArray(mediaLinksTable.entityId, productIds)
         ))
         .orderBy(asc(mediaLinksTable.sortOrder))

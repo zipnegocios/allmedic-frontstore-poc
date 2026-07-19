@@ -27,7 +27,7 @@ describe('PRODUCT_FORM_WIZARD_STEPS', () => {
 describe('getStepProgressLabel', () => {
   it('formatea "N/total · Etiqueta"', () => {
     expect(getStepProgressLabel(0)).toBe('1/4 · Identificación');
-    expect(getStepProgressLabel(1)).toBe('2/4 · Precios y visibilidad');
+    expect(getStepProgressLabel(1)).toBe('2/4 · Precios');
     expect(getStepProgressLabel(3)).toBe('4/4 · Variantes y Medios');
   });
 

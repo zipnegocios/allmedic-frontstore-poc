@@ -262,7 +262,7 @@ export async function getAdminProductById(id: string) {
   const [product] = await db.select().from(productsTable).where(eq(productsTable.id, id)).limit(1);
   if (!product) return null;
 
-  const [variants, images, cover, brand] = await Promise.all([
+  const [variants, images, cover, secondaryCover, brand] = await Promise.all([
     db.select({
       id: variantsTable.id,
       productId: variantsTable.productId,
@@ -309,11 +309,27 @@ export async function getAdminProductById(id: string) {
         eq(mediaLinksTable.role, 'COVER')
       ))
       .limit(1),
+    db.select({
+      id: mediaLinksTable.id,
+      assetId: mediaLinksTable.assetId,
+      alt: mediaLinksTable.altOverride,
+      storageKey: mediaAssetsTable.storageKey,
+      mimeType: mediaAssetsTable.mimeType,
+    })
+      .from(mediaLinksTable)
+      .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
+      .where(and(
+        eq(mediaLinksTable.entityType, 'PRODUCT'),
+        eq(mediaLinksTable.entityId, id),
+        eq(mediaLinksTable.role, 'COVER_SECONDARY')
+      ))
+      .limit(1),
     db.select().from(brandsTable).where(eq(brandsTable.id, product.brandId)).limit(1),
   ]);
 
   const imagesWithUrl = images.map((i) => ({ ...i, url: resolveMediaUrl(i.storageKey) }));
   const coverWithUrl = cover[0] ? { ...cover[0], url: resolveMediaUrl(cover[0].storageKey) } : null;
+  const secondaryCoverWithUrl = secondaryCover[0] ? { ...secondaryCover[0], url: resolveMediaUrl(secondaryCover[0].storageKey) } : null;
 
   // Atributos EAV asignados a cada variante (Fase 3.4) — para que el admin pueda
   // prefiltrar/editar la matriz de una variante existente en `ProductForm`.
@@ -338,7 +354,7 @@ export async function getAdminProductById(id: string) {
     attributeValueIds: attributeValueIdsByVariant.get(v.id) ?? [],
   }));
 
-  return { ...product, variants: variantsWithAttributes, images: imagesWithUrl, cover: coverWithUrl, brand: brand[0] ?? null };
+  return { ...product, variants: variantsWithAttributes, images: imagesWithUrl, cover: coverWithUrl, secondaryCover: secondaryCoverWithUrl, brand: brand[0] ?? null };
 
 }
 
@@ -439,11 +455,12 @@ interface ProductWithRelationsInput {
   variants?: VariantInput[];
   images?: ImageInput[];
   cover?: { assetId: string; alt?: string };
+  secondaryCover?: { assetId?: string; alt?: string };
 }
 
 export async function createProductWithRelations(input: ProductWithRelationsInput) {
   const product = await db.transaction(async (tx) => {
-    const { variants = [], images = [], cover, ...productData } = input;
+    const { variants = [], images = [], cover, secondaryCover, ...productData } = input;
 
     const [product] = await tx.insert(productsTable).values({
       ...productData,
@@ -503,6 +520,17 @@ export async function createProductWithRelations(input: ProductWithRelationsInpu
       });
     }
 
+    if (secondaryCover?.assetId) {
+      await tx.insert(mediaLinksTable).values({
+        assetId: secondaryCover.assetId,
+        entityType: 'PRODUCT',
+        entityId: product.id,
+        role: 'COVER_SECONDARY',
+        sortOrder: 0,
+        altOverride: secondaryCover.alt || null,
+      });
+    }
+
     return product;
   });
 
@@ -518,7 +546,7 @@ export async function updateProductWithRelations(
   input: Partial<ProductWithRelationsInput>
 ) {
   const product = await db.transaction(async (tx) => {
-    const { variants, images, cover, ...productData } = input;
+    const { variants, images, cover, secondaryCover, ...productData } = input;
 
     // Update product base
     if (Object.keys(productData).length > 0) {
@@ -611,6 +639,25 @@ export async function updateProductWithRelations(
           role: 'COVER',
           sortOrder: 0,
           altOverride: cover.alt || null,
+        });
+      }
+    }
+
+    // Replace secondary cover: delete existing link, insert new
+    if (secondaryCover !== undefined) {
+      await tx.delete(mediaLinksTable).where(and(
+        eq(mediaLinksTable.entityType, 'PRODUCT'),
+        eq(mediaLinksTable.entityId, id),
+        eq(mediaLinksTable.role, 'COVER_SECONDARY')
+      ));
+      if (secondaryCover?.assetId) {
+        await tx.insert(mediaLinksTable).values({
+          assetId: secondaryCover.assetId,
+          entityType: 'PRODUCT',
+          entityId: id,
+          role: 'COVER_SECONDARY',
+          sortOrder: 0,
+          altOverride: secondaryCover.alt || null,
         });
       }
     }

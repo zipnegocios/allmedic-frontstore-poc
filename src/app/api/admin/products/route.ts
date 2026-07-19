@@ -56,6 +56,10 @@ const CreateProductSchema = z.object({
     assetId: z.string().min(1),
     alt: z.string().optional(),
   }),
+  secondaryCover: z.object({
+    assetId: z.string().optional(),
+    alt: z.string().optional(),
+  }).optional(),
 });
 
 

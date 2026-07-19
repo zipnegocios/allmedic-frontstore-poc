@@ -1,21 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -40,8 +31,6 @@ import {
   type Color,
   type CollectionOption,
   type ProductTypeOption,
-  GENDERS,
-  VISIBILITY_OPTIONS,
 } from '@/components/admin/product-form/schema';
 import { buildValidationSummary } from '@/components/admin/product-form/validation-summary';
 import {
@@ -53,8 +42,11 @@ import {
 import { TagListEditor } from '@/components/admin/product-form/TagListEditor';
 import { VariantsMediaSection } from '@/components/admin/product-form/VariantsMediaSection';
 import { FloatingSaveButton, type FloatingSaveStatus } from '@/components/admin/FloatingSaveButton';
-import { AttributeStyleSection } from '@/components/admin/product-form/AttributeStyleSection';
 import { useProductTypeAttributes } from '@/components/admin/product-form/useProductTypeAttributes';
+import { GeneralPrimarySection } from '@/components/admin/product-form/GeneralPrimarySection';
+import { ClassificationSection } from '@/components/admin/product-form/ClassificationSection';
+import { PricingSection } from '@/components/admin/product-form/PricingSection';
+import { CollapsibleSection } from '@/components/admin/product-form/CollapsibleSection';
 
 
 // ─── Component ───
@@ -105,7 +97,7 @@ export default function ProductForm({
   const [createdProductId, setCreatedProductId] = useState<string | undefined>(productId);
   const [featureInput, setFeatureInput] = useState('');
   const [careInput, setCareInput] = useState('');
-  const [pickerTargetIndex, setPickerTargetIndex] = useState<number | 'append' | 'cover' | null>(null);
+  const [pickerTargetIndex, setPickerTargetIndex] = useState<number | 'append' | 'cover' | 'secondaryCover' | null>(null);
   const [pickerColorId, setPickerColorId] = useState<string | null>(null);
   // ─── Panel fijo de campos faltantes: se muestra tras un intento de guardado
   // inválido y se recalcula en cada render desde `errors` (RHF revalida en vivo los
@@ -163,6 +155,13 @@ export default function ProductForm({
       variants: [],
       images: [],
       cover: {
+        assetId: '',
+        url: '',
+        storageKey: '',
+        mimeType: '',
+        alt: '',
+      },
+      secondaryCover: {
         assetId: '',
         url: '',
         storageKey: '',
@@ -253,6 +252,16 @@ export default function ProductForm({
                   storageKey: product.cover.storageKey,
                   mimeType: product.cover.mimeType,
                   alt: product.cover.alt || '',
+                }
+              : { assetId: '', url: '', storageKey: '', mimeType: '', alt: '' },
+            secondaryCover: product.secondaryCover
+              ? {
+                  id: product.secondaryCover.id,
+                  assetId: product.secondaryCover.assetId,
+                  url: product.secondaryCover.url,
+                  storageKey: product.secondaryCover.storageKey,
+                  mimeType: product.secondaryCover.mimeType,
+                  alt: product.secondaryCover.alt || '',
                 }
               : { assetId: '', url: '', storageKey: '', mimeType: '', alt: '' },
           });
@@ -511,6 +520,12 @@ export default function ProductForm({
   // sola, sin necesitar otro submit.
   const validationSummary = buildValidationSummary(errors);
 
+  // Auto-expandir las secciones colapsables de General si, tras un intento de
+  // guardado fallido, tienen errores dentro — mismo criterio que ya usa
+  // `VariantsMediaSection` para expandir el color con errores.
+  const hasClassificationErrors = Boolean(errors.brandId || errors.productTypeId || errors.gender);
+  const hasPricingErrors = Boolean(errors.priceNormal);
+
 
   function addFeature() {
     if (featureInput.trim()) {
@@ -623,6 +638,14 @@ export default function ProductForm({
           if (!watch('cover.alt')) {
             setValue('cover.alt', assets[0].altText ?? '');
           }
+        } else if (pickerTargetIndex === 'secondaryCover' && assets[0]) {
+          setValue('secondaryCover.assetId', assets[0].id);
+          setValue('secondaryCover.url', resolveMediaUrl(assets[0].storageKey));
+          setValue('secondaryCover.storageKey', assets[0].storageKey);
+          setValue('secondaryCover.mimeType', assets[0].mimeType);
+          if (!watch('secondaryCover.alt')) {
+            setValue('secondaryCover.alt', assets[0].altText ?? '');
+          }
         } else if (typeof pickerTargetIndex === 'number' && assets[0]) {
           setValue(`images.${pickerTargetIndex}.assetId`, assets[0].id);
           setValue(`images.${pickerTargetIndex}.url`, resolveMediaUrl(assets[0].storageKey));
@@ -694,6 +717,24 @@ export default function ProductForm({
         )}
         {isMobile ? (
           <div className="space-y-4">
+            {/* ─── Código de Estilo: fijo arriba, visible en todos los pasos ───
+                Equivalente mobile de "junto al control de tabs" en desktop — no
+                hay tabs en el wizard, así que se fija en la parte superior.
+                Acento rojo permanente: obligatorio para el producto. */}
+            <div className="space-y-1">
+              <Label htmlFor="m-code" className="text-red-600 flex items-center gap-1">
+                Código de Estilo <span>*</span>
+              </Label>
+              <Input
+                id="m-code"
+                {...register('code')}
+                placeholder="Ej: 2624A"
+                className="border-red-200 focus-visible:ring-red-300 bg-red-50/40"
+              />
+              {errors.code && <p className="text-sm text-red-500">{errors.code.message}</p>}
+              {codeStatusIndicator}
+            </div>
+
             {/* ─── Indicador de progreso ─── */}
             <div className="space-y-2">
               <p className="text-sm font-medium text-gray-500">
@@ -726,244 +767,35 @@ export default function ProductForm({
             {/* ─── Contenido del paso actual ─── */}
             <div className="motion-reduce:transition-none transition-opacity">
               {currentStep.id === 'identification' && (
-                <Card>
-                  <CardContent className="p-6 space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="m-name">Nombre *</Label>
-                      <Input id="m-name" {...register('name')} />
-                      {errors.name && <p className="text-sm text-red-500">{errors.name.message}</p>}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="m-slug">Slug *</Label>
-                      <Input id="m-slug" {...register('slug')} />
-                      {errors.slug && <p className="text-sm text-red-500">{errors.slug.message}</p>}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="m-sku">SKU</Label>
-                      <Input id="m-sku" {...register('sku')} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="m-brandId">Marca *</Label>
-                      <Controller
-                        name="brandId"
-                        control={control}
-                        render={({ field }) => (
-                          <Select
-                            value={field.value}
-                            onValueChange={(val) => {
-                              field.onChange(val);
-                              setValue('collectionId', '');
-                              setValue('productTypeId', '');
-                            }}
-                          >
-                            <SelectTrigger id="m-brandId">
-                              <SelectValue placeholder="Seleccionar marca" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {brands.map(b => (
-                                <SelectItem key={b.id} value={b.id} disabled={!b.isActive}>
-                                  {b.name}{!b.isActive ? ' (Inactiva)' : ''}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                      {errors.brandId && <p className="text-sm text-red-500">{errors.brandId.message}</p>}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="m-collectionId">Colección</Label>
-                      <Controller
-                        name="collectionId"
-                        control={control}
-                        render={({ field }) => (
-                          <Select
-                            value={field.value || '__empty__'}
-                            onValueChange={(val) => field.onChange(val === '__empty__' ? '' : val)}
-                            disabled={!brandIdValue}
-                          >
-                            <SelectTrigger id="m-collectionId">
-                              <SelectValue placeholder="Sin colección" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__empty__">— Sin colección —</SelectItem>
-                              {collections.map(c => (
-                                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="m-productTypeId">Tipo de Producto *</Label>
-                      <Controller
-                        name="productTypeId"
-                        control={control}
-                        render={({ field }) => (
-                          <Select value={field.value} onValueChange={field.onChange} disabled={!brandIdValue}>
-                            <SelectTrigger id="m-productTypeId">
-                              <SelectValue placeholder={brandIdValue ? 'Seleccionar tipo de producto' : 'Elige una marca primero'} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {productTypeOptions.map(pt => (
-                                <SelectItem key={pt.id} value={pt.id} disabled={!pt.isActive}>
-                                  {pt.name}{!pt.isActive ? ' (Inactivo)' : ''}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                      {errors.productTypeId && <p className="text-sm text-red-500">{errors.productTypeId.message}</p>}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="m-code">Código de Estilo *</Label>
-                      <Input id="m-code" {...register('code')} placeholder="Ej: 2624A" />
-                      {errors.code && <p className="text-sm text-red-500">{errors.code.message}</p>}
-                      {codeStatusIndicator}
-                    </div>
-                    <AttributeStyleSection
-                      control={control}
-                      productTypeId={productTypeIdValue}
-                      links={attributeLinks}
-                      valuesByAttribute={valuesByAttribute}
-                      loading={loadingAttributes}
-                    />
-                    <div className="space-y-2">
-                      <Label htmlFor="m-gender">Género *</Label>
-                      <Controller
-                        name="gender"
-                        control={control}
-                        render={({ field }) => (
-                          <Select value={field.value} onValueChange={field.onChange}>
-                            <SelectTrigger id="m-gender">
-                              <SelectValue placeholder="Seleccionar género" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {GENDERS.map(g => (
-                                <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="m-description">Descripción</Label>
-                      <Textarea id="m-description" {...register('description')} rows={4} />
-                    </div>
-                  </CardContent>
-                </Card>
+                <div className="space-y-4">
+                  <GeneralPrimarySection
+                    control={control}
+                    register={register}
+                    watch={watch}
+                    setValue={setValue}
+                    errors={errors}
+                    embedded={embedded}
+                    onPickTarget={(target) => setPickerTargetIndex(target)}
+                  />
+                  <ClassificationSection
+                    control={control}
+                    errors={errors}
+                    setValue={setValue}
+                    brands={brands}
+                    collections={collections}
+                    productTypeOptions={productTypeOptions}
+                    brandIdValue={brandIdValue}
+                    productTypeId={productTypeIdValue}
+                    attributeLinks={attributeLinks}
+                    valuesByAttribute={valuesByAttribute}
+                    loadingAttributes={loadingAttributes}
+                    forceOpen={hasClassificationErrors}
+                  />
+                </div>
               )}
 
               {currentStep.id === 'pricing' && (
-                <div className="space-y-4">
-                  <Card>
-                    <CardContent className="p-6 space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="m-priceNormal">Precio Normal *</Label>
-                        <Input id="m-priceNormal" type="number" step="0.01" inputMode="decimal" {...register('priceNormal')} />
-                        {errors.priceNormal && <p className="text-sm text-red-500">{errors.priceNormal.message}</p>}
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="m-priceSale">Precio Oferta</Label>
-                        <Input id="m-priceSale" type="number" step="0.01" inputMode="decimal" {...register('priceSale')} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="m-discountPct">% Descuento</Label>
-                        <Input id="m-discountPct" type="number" min={0} max={100} inputMode="numeric" {...register('discountPct')} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="m-discountEnd">Fin de descuento</Label>
-                        <Input id="m-discountEnd" type="datetime-local" {...register('discountEnd')} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="m-visibility">Visibilidad *</Label>
-                        <Controller
-                          name="visibility"
-                          control={control}
-                          render={({ field }) => (
-                            <Select value={field.value} onValueChange={field.onChange}>
-                              <SelectTrigger id="m-visibility">
-                                <SelectValue placeholder="Seleccionar visibilidad" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {VISIBILITY_OPTIONS.map(v => (
-                                  <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-                        <p className="text-xs text-gray-500">
-                          {VISIBILITY_OPTIONS.find(v => v.value === watch('visibility'))?.description}
-                        </p>
-                        {embedded && watch('visibility') === 'INDIVIDUAL' && (
-                          <p className="text-xs text-amber-600 bg-amber-50 rounded px-2 py-1.5">
-                            Con visibilidad &quot;Solo Individual&quot; este producto no aparecerá como pieza elegible en
-                            ningún set corporativo — cámbiala a &quot;Solo Grupos&quot; o &quot;Ambos&quot; si vas a usarlo aquí.
-                          </p>
-                        )}
-                      </div>
-                      <div className="space-y-3 pt-2">
-                        <div className="flex items-center gap-2">
-                          <Controller
-                            name="isNew"
-                            control={control}
-                            render={({ field }) => (
-                              <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                            )}
-                          />
-                          <Label>Nuevo</Label>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Controller
-                            name="isBestSeller"
-                            control={control}
-                            render={({ field }) => (
-                              <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                            )}
-                          />
-                          <Label>Best Seller</Label>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Controller
-                            name="isActive"
-                            control={control}
-                            render={({ field }) => (
-                              <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                            )}
-                          />
-                          <Label>Activo</Label>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardContent className="p-6 space-y-4">
-                      <div>
-                        <h3 className="font-semibold">Precios al Mayor</h3>
-                        <p className="text-xs text-gray-500">
-                          Usados para calcular el precio referencial de sets corporativos. Opcionales si el producto es &quot;Solo Individual&quot;.
-                        </p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="m-priceWholesale">Precio al Mayor</Label>
-                        <Input id="m-priceWholesale" type="number" step="0.01" inputMode="decimal" {...register('priceWholesale')} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="m-priceWholesaleSale">Precio al Mayor Rebajado</Label>
-                        <Input id="m-priceWholesaleSale" type="number" step="0.01" inputMode="decimal" {...register('priceWholesaleSale')} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="m-wholesaleDiscountEnd">Fin de rebaja al mayor</Label>
-                        <Input id="m-wholesaleDiscountEnd" type="datetime-local" {...register('wholesaleDiscountEnd')} />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
+                <PricingSection register={register} errors={errors} forceOpen={hasPricingErrors} defaultOpen />
               )}
 
               {currentStep.id === 'content' && (
@@ -1007,11 +839,6 @@ export default function ProductForm({
                         </AccordionContent>
                       </AccordionItem>
                     </Accordion>
-                    <p className="px-4 pb-2 pt-3 text-xs text-gray-500">
-                      Los estilos del producto ahora se gestionan como atributos por
-                      variante en el paso &quot;Variantes y Medios&quot; (Colores/Tallas y los
-                      atributos del Tipo de Producto elegido).
-                    </p>
                   </CardContent>
                 </Card>
               )}
@@ -1043,10 +870,13 @@ export default function ProductForm({
 
             </div>
 
-            {/* ─── Barra sticky inferior: navegación del wizard + Guardar/Cancelar ─── */}
+            {/* ─── Barra sticky inferior: Atrás / Guardar y quedarse / Siguiente ───
+                Fija justo arriba del menú de navegación inferior de la app — el
+                botón "Guardar y quedarse" vive aquí (`inline`), centrado, en vez
+                de flotar suelto sobre el contenido. */}
             <div
               className={cn(
-                'sticky z-10 flex items-center justify-between gap-2 border-t bg-white/95 backdrop-blur px-4 py-3',
+                'sticky z-10 grid grid-cols-[auto_1fr_auto] items-center gap-2 border-t bg-white/95 backdrop-blur px-4 py-3',
                 !embedded && '-mx-4',
                 embedded
                   ? 'bottom-0 pb-[calc(0.75rem_+_env(safe-area-inset-bottom))]'
@@ -1070,6 +900,17 @@ export default function ProductForm({
                   Atrás
                 </Button>
               </div>
+
+              <div className="justify-self-center">
+                <FloatingSaveButton
+                  inline
+                  status={saveStayStatus}
+                  onClick={() => handleSubmit(onSaveAndStay, onInvalid)()}
+                  disabled={saving || savingStay}
+                  isDirty={isDirty}
+                />
+              </div>
+
               {isLastWizardStep ? (
                 <Button
                   type="button"
@@ -1090,312 +931,100 @@ export default function ProductForm({
           </div>
         ) : (
           <Tabs defaultValue="general" className="space-y-6">
-            <TabsList className="bg-white border">
-              <TabsTrigger value="general">General</TabsTrigger>
-              <TabsTrigger value="variants_media">
-                Variantes y Medios
-                {variantFields.length > 0 && (
-                  <Badge variant="secondary" className="ml-2">
-                    {variantFields.length} var · {imageFields.length} med
-                  </Badge>
-                )}
-              </TabsTrigger>
-            </TabsList>
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Botón dividido (split button): dos segmentos de un mismo control,
+                  no dos botones sueltos — mantiene la semántica/accesibilidad de
+                  Radix Tabs (roving tabindex, flechas), solo se restylea. */}
+              <TabsList className="inline-flex h-10 rounded-full border border-gray-200 bg-white p-1 gap-0">
+                <TabsTrigger
+                  value="general"
+                  className="rounded-full px-4 data-[state=active]:bg-[#111111] data-[state=active]:text-white data-[state=active]:shadow-none"
+                >
+                  General
+                </TabsTrigger>
+                <TabsTrigger
+                  value="variants_media"
+                  className="rounded-full px-4 data-[state=active]:bg-[#111111] data-[state=active]:text-white data-[state=active]:shadow-none"
+                >
+                  Variantes y Medios
+                  {variantFields.length > 0 && (
+                    <Badge variant="secondary" className="ml-2">
+                      {variantFields.length} var · {imageFields.length} med
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              </TabsList>
 
+              {/* Código de Estilo: visible sin importar el tab activo — acento rojo
+                  permanente porque es obligatorio para el producto (no solo cuando
+                  falla la validación). */}
+              <div className="flex items-center gap-2 min-w-64">
+                <div className="flex-1 space-y-1">
+                  <Label htmlFor="code" className="text-red-600 flex items-center gap-1">
+                    Código de Estilo <span>*</span>
+                  </Label>
+                  <Input
+                    id="code"
+                    {...register('code')}
+                    placeholder="Ej: 2624A"
+                    className="border-red-200 focus-visible:ring-red-300 bg-red-50/40"
+                  />
+                  {errors.code && <p className="text-sm text-red-500">{errors.code.message}</p>}
+                  {codeStatusIndicator}
+                </div>
+              </div>
+            </div>
 
             {/* ─── TAB GENERAL ─── */}
             <TabsContent value="general" className="space-y-6">
-              <Card>
-                <CardContent className="p-6 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="name">Nombre *</Label>
-                      <Input id="name" {...register('name')} />
-                      {errors.name && <p className="text-sm text-red-500">{errors.name.message}</p>}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="slug">Slug *</Label>
-                      <Input id="slug" {...register('slug')} />
-                      {errors.slug && <p className="text-sm text-red-500">{errors.slug.message}</p>}
-                    </div>
-                  </div>
+              <GeneralPrimarySection
+                control={control}
+                register={register}
+                watch={watch}
+                setValue={setValue}
+                errors={errors}
+                embedded={embedded}
+                onPickTarget={(target) => setPickerTargetIndex(target)}
+              />
 
-                  <div className="space-y-2">
-                    <Label htmlFor="description">Descripción</Label>
-                    <Textarea id="description" {...register('description')} rows={4} />
-                  </div>
+              <ClassificationSection
+                control={control}
+                errors={errors}
+                setValue={setValue}
+                brands={brands}
+                collections={collections}
+                productTypeOptions={productTypeOptions}
+                brandIdValue={brandIdValue}
+                productTypeId={productTypeIdValue}
+                attributeLinks={attributeLinks}
+                valuesByAttribute={valuesByAttribute}
+                loadingAttributes={loadingAttributes}
+                forceOpen={hasClassificationErrors}
+              />
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="sku">SKU</Label>
-                      <Input id="sku" {...register('sku')} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="brandId">Marca *</Label>
-                      <Controller
-                        name="brandId"
-                        control={control}
-                        render={({ field }) => (
-                          <Select
-                            value={field.value}
-                            onValueChange={(val) => {
-                              field.onChange(val);
-                              setValue('collectionId', '');
-                              setValue('productTypeId', '');
-                            }}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Seleccionar marca" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {brands.map(b => (
-                                <SelectItem key={b.id} value={b.id} disabled={!b.isActive}>
-                                  {b.name}{!b.isActive ? ' (Inactiva)' : ''}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                      {errors.brandId && <p className="text-sm text-red-500">{errors.brandId.message}</p>}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="collectionId">Colección</Label>
-                      <Controller
-                        name="collectionId"
-                        control={control}
-                        render={({ field }) => (
-                          <Select
-                            value={field.value || '__empty__'}
-                            onValueChange={(val) => field.onChange(val === '__empty__' ? '' : val)}
-                            disabled={!brandIdValue}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Sin colección" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__empty__">— Sin colección —</SelectItem>
-                              {collections.map(c => (
-                                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                    </div>
-                  </div>
+              <PricingSection register={register} errors={errors} forceOpen={hasPricingErrors} />
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="productTypeId">Tipo de Producto *</Label>
-                      <Controller
-                        name="productTypeId"
-                        control={control}
-                        render={({ field }) => (
-                          <Select value={field.value} onValueChange={field.onChange} disabled={!brandIdValue}>
-                            <SelectTrigger>
-                              <SelectValue placeholder={brandIdValue ? 'Seleccionar tipo de producto' : 'Elige una marca primero'} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {productTypeOptions.map(pt => (
-                                <SelectItem key={pt.id} value={pt.id} disabled={!pt.isActive}>
-                                  {pt.name}{!pt.isActive ? ' (Inactivo)' : ''}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                      {errors.productTypeId && <p className="text-sm text-red-500">{errors.productTypeId.message}</p>}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="code">Código de Estilo *</Label>
-                      <Input id="code" {...register('code')} placeholder="Ej: 2624A" />
-                      {errors.code && <p className="text-sm text-red-500">{errors.code.message}</p>}
-                      {codeStatusIndicator}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="gender">Género *</Label>
-                      <Controller
-                        name="gender"
-                        control={control}
-                        render={({ field }) => (
-                          <Select value={field.value} onValueChange={field.onChange}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Seleccionar género" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {GENDERS.map(g => (
-                                <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                    </div>
-                  </div>
+              <CollapsibleSection title="Características">
+                <TagListEditor
+                  placeholder="Agregar característica..."
+                  values={features}
+                  inputValue={featureInput}
+                  onInputChange={setFeatureInput}
+                  onAdd={addFeature}
+                  onRemove={removeFeature}
+                />
+              </CollapsibleSection>
 
-                  <AttributeStyleSection
-                    control={control}
-                    productTypeId={productTypeIdValue}
-                    links={attributeLinks}
-                    valuesByAttribute={valuesByAttribute}
-                    loading={loadingAttributes}
-                  />
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="priceNormal">Precio Normal *</Label>
-                      <Input id="priceNormal" type="number" step="0.01" inputMode="decimal" {...register('priceNormal')} />
-                      {errors.priceNormal && <p className="text-sm text-red-500">{errors.priceNormal.message}</p>}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="priceSale">Precio Oferta</Label>
-                      <Input id="priceSale" type="number" step="0.01" inputMode="decimal" {...register('priceSale')} />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="discountPct">% Descuento</Label>
-                      <Input id="discountPct" type="number" min={0} max={100} inputMode="numeric" {...register('discountPct')} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="discountEnd">Fin de descuento</Label>
-                      <Input id="discountEnd" type="datetime-local" {...register('discountEnd')} />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 pt-2">
-                    <Label htmlFor="visibility">Visibilidad *</Label>
-                    <Controller
-                      name="visibility"
-                      control={control}
-                      render={({ field }) => (
-                        <Select value={field.value} onValueChange={field.onChange}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar visibilidad" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {VISIBILITY_OPTIONS.map(v => (
-                              <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                    <p className="text-xs text-gray-500">
-                      {VISIBILITY_OPTIONS.find(v => v.value === watch('visibility'))?.description}
-                    </p>
-                    {embedded && watch('visibility') === 'INDIVIDUAL' && (
-                      <p className="text-xs text-amber-600 bg-amber-50 rounded px-2 py-1.5">
-                        Con visibilidad &quot;Solo Individual&quot; este producto no aparecerá como pieza elegible en
-                        ningún set corporativo — cámbiala a &quot;Solo Grupos&quot; o &quot;Ambos&quot; si vas a usarlo aquí.
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="flex gap-6 pt-2">
-                    <div className="flex items-center gap-2">
-                      <Controller
-                        name="isNew"
-                        control={control}
-                        render={({ field }) => (
-                          <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                        )}
-                      />
-                      <Label>Nuevo</Label>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Controller
-                        name="isBestSeller"
-                        control={control}
-                        render={({ field }) => (
-                          <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                        )}
-                      />
-                      <Label>Best Seller</Label>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Controller
-                        name="isActive"
-                        control={control}
-                        render={({ field }) => (
-                          <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                        )}
-                      />
-                      <Label>Activo</Label>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Precios al Mayor (Catálogo Corporativo) */}
-              <Card>
-                <CardContent className="p-6 space-y-4">
-                  <div>
-                    <h3 className="font-semibold">Precios al Mayor</h3>
-                    <p className="text-xs text-gray-500">
-                      Usados para calcular el precio referencial de sets corporativos. Opcionales si el producto es &quot;Solo Individual&quot;.
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="priceWholesale">Precio al Mayor</Label>
-                      <Input id="priceWholesale" type="number" step="0.01" inputMode="decimal" {...register('priceWholesale')} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="priceWholesaleSale">Precio al Mayor Rebajado</Label>
-                      <Input id="priceWholesaleSale" type="number" step="0.01" inputMode="decimal" {...register('priceWholesaleSale')} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="wholesaleDiscountEnd">Fin de rebaja al mayor</Label>
-                      <Input id="wholesaleDiscountEnd" type="datetime-local" {...register('wholesaleDiscountEnd')} />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Features */}
-              <Card>
-                <CardContent className="p-6 space-y-4">
-                  <TagListEditor
-                    title="Características"
-                    placeholder="Agregar característica..."
-                    values={features}
-                    inputValue={featureInput}
-                    onInputChange={setFeatureInput}
-                    onAdd={addFeature}
-                    onRemove={removeFeature}
-                  />
-                </CardContent>
-              </Card>
-
-              {/* Care Instructions */}
-              <Card>
-                <CardContent className="p-6 space-y-4">
-                  <TagListEditor
-                    title="Instrucciones de Cuidado"
-                    placeholder="Agregar instrucción..."
-                    values={careInstructions}
-                    inputValue={careInput}
-                    onInputChange={setCareInput}
-                    onAdd={addCare}
-                    onRemove={removeCare}
-                  />
-                </CardContent>
-              </Card>
-
-              {/* Estilos: gestionados ahora como atributos EAV por variante (Fase 3.4) */}
-              <Card>
-                <CardContent className="p-6">
-                  <p className="text-xs text-gray-500">
-                    Los estilos del producto ahora se gestionan como atributos por
-                    variante en la pestaña &quot;Variantes y Medios&quot; (Colores/Tallas y los
-                    atributos del Tipo de Producto elegido).
-                  </p>
-                </CardContent>
-              </Card>
+              <CollapsibleSection title="Instrucciones de Cuidado">
+                <TagListEditor
+                  placeholder="Agregar instrucción..."
+                  values={careInstructions}
+                  inputValue={careInput}
+                  onInputChange={setCareInput}
+                  onAdd={addCare}
+                  onRemove={removeCare}
+                />
+              </CollapsibleSection>
             </TabsContent>
 
             {/* ─── TAB VARIANTES Y MEDIOS ─── */}
@@ -1430,13 +1059,17 @@ export default function ProductForm({
 
       {mediaPickerDialog}
 
-      {/* ─── Botón flotante "Guardar y quedarse" ─── */}
-      <FloatingSaveButton
-        status={saveStayStatus}
-        onClick={() => handleSubmit(onSaveAndStay, onInvalid)()}
-        disabled={saving || savingStay}
-        isDirty={isDirty}
-      />
+      {/* ─── Botón flotante "Guardar y quedarse" (solo desktop) ───
+          En mobile vive dentro de la barra sticky inferior (Atrás/Siguiente),
+          no flota suelto — ver el `FloatingSaveButton inline` más arriba. */}
+      {!isMobile && (
+        <FloatingSaveButton
+          status={saveStayStatus}
+          onClick={() => handleSubmit(onSaveAndStay, onInvalid)()}
+          disabled={saving || savingStay}
+          isDirty={isDirty}
+        />
+      )}
     </div>
   );
 }

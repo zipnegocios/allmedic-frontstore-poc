@@ -420,10 +420,13 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
               )}
             </div>
 
-            {/* ─── Barra sticky inferior: navegación del wizard ─── */}
+            {/* ─── Barra sticky inferior: Atrás / Guardar y quedarse / Siguiente ───
+                Fija justo arriba del menú de navegación inferior de la app — el
+                botón "Guardar y quedarse" vive aquí (`inline`), centrado, en vez
+                de flotar suelto sobre el contenido. */}
             <div
               className={cn(
-                'sticky z-10 flex items-center justify-between gap-2 border-t bg-white/95 backdrop-blur px-4 py-3 -mx-4',
+                'sticky z-10 grid grid-cols-[auto_1fr_auto] items-center gap-2 border-t bg-white/95 backdrop-blur px-4 py-3 -mx-4',
                 'bottom-[calc(5rem_+_env(safe-area-inset-bottom))]'
               )}
             >
@@ -437,6 +440,16 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
                 <ChevronLeft className="w-4 h-4 mr-1" />
                 Atrás
               </Button>
+
+              <div className="justify-self-center">
+                <FloatingSaveButton
+                  inline
+                  status={saveStayStatus}
+                  onClick={() => handleSubmit(onSaveAndStay, onInvalid)()}
+                  disabled={saving || savingStay}
+                />
+              </div>
+
               {isLastWizardStep ? (
                 <Button
                   type="button"
@@ -501,12 +514,16 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
         )}
       </form>
 
-      {/* ─── Botón flotante "Guardar y quedarse" ─── */}
-      <FloatingSaveButton
-        status={saveStayStatus}
-        onClick={() => handleSubmit(onSaveAndStay, onInvalid)()}
-        disabled={saving || savingStay}
-      />
+      {/* ─── Botón flotante "Guardar y quedarse" (solo desktop) ───
+          En mobile vive dentro de la barra sticky inferior (Atrás/Siguiente),
+          no flota suelto — ver el `FloatingSaveButton inline` más arriba. */}
+      {!isMobile && (
+        <FloatingSaveButton
+          status={saveStayStatus}
+          onClick={() => handleSubmit(onSaveAndStay, onInvalid)()}
+          disabled={saving || savingStay}
+        />
+      )}
 
       <MediaPicker
         open={pickerOpen}

@@ -46,6 +46,18 @@ export const CoverSchema = z.object({
   alt: z.string().optional(),
 });
 
+// Imagen secundaria de Portada — habilita el crossfade "hover image swap" en la
+// card del catálogo público. A diferencia de `CoverSchema`, es opcional (un
+// producto puede no tener secundaria todavía).
+export const SecondaryCoverSchema = z.object({
+  id: z.string().optional(),
+  assetId: z.string().optional(),
+  url: z.string().optional(),
+  storageKey: z.string().optional(),
+  mimeType: z.string().optional(),
+  alt: z.string().optional(),
+});
+
 export const ProductFormSchema = z.object({
   slug: z.string().min(1, 'Slug requerido'),
   name: z.string().min(1, 'Nombre requerido'),
@@ -86,6 +98,7 @@ export const ProductFormSchema = z.object({
   variants: z.array(VariantSchema).default([]),
   images: z.array(ImageSchema).default([]),
   cover: CoverSchema,
+  secondaryCover: SecondaryCoverSchema,
 }).superRefine((data, ctx) => {
   // Cada color con tallas definidas debe tener al menos una imagen en su galería —
   // el catálogo público usa `images[0]` (por `sortOrder`) de cada color como swatch,

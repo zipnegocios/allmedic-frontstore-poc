@@ -3,13 +3,12 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Sparkles, Info, Plus, ChevronDown } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Sparkles, Info, Plus } from 'lucide-react';
 import type { ProductFormData, Color } from './schema';
 import { SIZES } from './schema';
 import { AddColorDialog } from './AddColorDialog';
+import { CollapsibleSection } from './CollapsibleSection';
 
 // ─── Decisión de diseño (revisión post-Fase 3.4) ───
 // Los "Atributos (Estilos)" del Tipo de Producto (ej. Modelo de Terminado, Modelo de
@@ -48,24 +47,6 @@ export function AttributeMatrixSection({
   const [selectedColorIds, setSelectedColorIds] = useState<string[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [addColorOpen, setAddColorOpen] = useState(false);
-  // Acordeón cerrado por defecto: deja visible solo el título, para no ocupar
-  // espacio vertical cuando el admin ya generó su matriz y solo está ajustando
-  // filas manualmente después.
-  const [isOpen, setIsOpen] = useState(false);
-
-  const header = (
-    <button
-      type="button"
-      onClick={() => setIsOpen((prev) => !prev)}
-      className="flex items-center justify-between w-full"
-    >
-      <div className="flex items-center gap-2">
-        <Sparkles className="w-4 h-4 text-gray-500" />
-        <h3 className="text-sm font-semibold text-[#111111]">Generador de Matriz de Variantes</h3>
-      </div>
-      <ChevronDown className={cn('w-4 h-4 text-gray-400 transition-transform', isOpen && 'rotate-180')} />
-    </button>
-  );
 
   function handleColorCreated(color: Color) {
     onColorCreated?.(color);
@@ -115,95 +96,81 @@ export function AttributeMatrixSection({
     }
   }
 
-  if (!productTypeId) {
-    return (
-      <Card className="border-dashed">
-        <CardContent className="p-6 space-y-4">
-          {header}
-          {isOpen && (
-            <div className="text-center text-gray-500 text-xs flex flex-col items-center gap-2">
-              <Info className="w-5 h-5 text-gray-400" />
-              Selecciona un Tipo de Producto en la pestaña General para poder generar la
-              matriz de variantes.
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
-    <Card className="border-2 border-gray-200">
-      <CardContent className={cn('p-6', isOpen && 'space-y-5')}>
-        {header}
-        {isOpen && (
+    <CollapsibleSection title="Generador de Matriz de Variantes" icon={<Sparkles className="w-4 h-4 text-gray-500" />}>
+      {!productTypeId ? (
+        <div className="text-center text-gray-500 text-xs flex flex-col items-center gap-2">
+          <Info className="w-5 h-5 text-gray-400" />
+          Selecciona un Tipo de Producto en la pestaña General para poder generar la
+          matriz de variantes.
+        </div>
+      ) : (
         <>
-        <p className="text-xs text-gray-500">
-          Elige colores y tallas: se generarán en bloque todas las combinaciones, con
-          los Atributos (Estilos) definidos en General. Puedes seguir editando cada
-          fila manualmente después.
-        </p>
+          <p className="text-xs text-gray-500">
+            Elige colores y tallas: se generarán en bloque todas las combinaciones, con
+            los Atributos (Estilos) definidos en General. Puedes seguir editando cada
+            fila manualmente después.
+          </p>
 
-        {/* Colores */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label className="text-xs font-semibold text-gray-700">Colores</Label>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setAddColorOpen(true)}
-              className="h-6 text-[10px] px-2 bg-white"
-            >
-              <Plus className="w-3 h-3 mr-1" />
-              Agregar color
-            </Button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {colors.map((c) => (
-              <button
-                key={c.id}
+          {/* Colores */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold text-gray-700">Colores</Label>
+              <Button
                 type="button"
-                onClick={() => setSelectedColorIds((prev) => toggle(prev, c.id))}
-                className={`flex items-center gap-1.5 text-xs border rounded-full px-2.5 py-1 ${
-                  selectedColorIds.includes(c.id) ? 'border-[#111111] bg-gray-100' : 'border-gray-200 bg-white'
-                }`}
+                variant="outline"
+                size="sm"
+                onClick={() => setAddColorOpen(true)}
+                className="h-6 text-[10px] px-2 bg-white"
               >
-                <span className="w-2.5 h-2.5 rounded-full border" style={{ backgroundColor: c.hex }} />
-                {c.name}
-              </button>
-            ))}
+                <Plus className="w-3 h-3 mr-1" />
+                Agregar color
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {colors.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setSelectedColorIds((prev) => toggle(prev, c.id))}
+                  className={`flex items-center gap-1.5 text-xs border rounded-full px-2.5 py-1 ${
+                    selectedColorIds.includes(c.id) ? 'border-[#111111] bg-gray-100' : 'border-gray-200 bg-white'
+                  }`}
+                >
+                  <span className="w-2.5 h-2.5 rounded-full border" style={{ backgroundColor: c.hex }} />
+                  {c.name}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* Tallas */}
-        <div className="space-y-2">
-          <Label className="text-xs font-semibold text-gray-700">Tallas</Label>
-          <div className="flex flex-wrap gap-2">
-            {SIZES.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setSelectedSizes((prev) => toggle(prev, s))}
-                className={`text-xs border rounded-full px-2.5 py-1 ${
-                  selectedSizes.includes(s) ? 'border-[#111111] bg-gray-100' : 'border-gray-200 bg-white'
-                }`}
-              >
-                {s}
-              </button>
-            ))}
+          {/* Tallas */}
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold text-gray-700">Tallas</Label>
+            <div className="flex flex-wrap gap-2">
+              {SIZES.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setSelectedSizes((prev) => toggle(prev, s))}
+                  className={`text-xs border rounded-full px-2.5 py-1 ${
+                    selectedSizes.includes(s) ? 'border-[#111111] bg-gray-100' : 'border-gray-200 bg-white'
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
 
-        <Button type="button" onClick={generateMatrix} className="bg-[#111111]">
-          <Sparkles className="w-4 h-4 mr-2" />
-          Generar Matriz de Variantes
-        </Button>
+          <Button type="button" onClick={generateMatrix} className="bg-[#111111]">
+            <Sparkles className="w-4 h-4 mr-2" />
+            Generar Matriz de Variantes
+          </Button>
         </>
-        )}
-      </CardContent>
+      )}
 
       <AddColorDialog open={addColorOpen} onOpenChange={setAddColorOpen} onCreated={handleColorCreated} />
-    </Card>
+    </CollapsibleSection>
   );
 }

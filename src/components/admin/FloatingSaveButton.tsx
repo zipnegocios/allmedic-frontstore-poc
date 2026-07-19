@@ -15,6 +15,11 @@ interface FloatingSaveButtonProps {
    * guardar. Se ignora en los demás estados (`saving`/`success`/`error`), que ya
    * tienen su propio color. */
   isDirty?: boolean;
+  /** Cuando es `true`, NO aplica `fixed`/`right-*`/`bottom-*` — se renderiza como
+   * un botón normal que el padre posiciona con flex/grid. Usado en la barra
+   * sticky inferior del wizard mobile (Atrás / Guardar y quedarse / Siguiente),
+   * donde el botón ya no flota suelto sino que vive dentro de esa barra. */
+  inline?: boolean;
 }
 
 /**
@@ -25,7 +30,7 @@ interface FloatingSaveButtonProps {
  * azul + check al confirmar guardado (10s) y rojo + X si falla (10s), controlado
  * por el `status` que gestiona el formulario padre.
  */
-export function FloatingSaveButton({ status, onClick, disabled, isDirty }: FloatingSaveButtonProps) {
+export function FloatingSaveButton({ status, onClick, disabled, isDirty, inline }: FloatingSaveButtonProps) {
   const isSaving = status === 'saving';
   const isSuccess = status === 'success';
   const isError = status === 'error';
@@ -40,8 +45,8 @@ export function FloatingSaveButton({ status, onClick, disabled, isDirty }: Float
       title="Guardar y quedarse"
       aria-label="Guardar y quedarse"
       className={cn(
-        'fixed z-40 right-4 md:right-8 h-11 w-11 rounded-full shadow-lg transition-colors',
-        'bottom-[calc(9rem_+_env(safe-area-inset-bottom))] md:bottom-6',
+        'h-11 w-11 rounded-full shadow-lg transition-colors',
+        !inline && 'fixed z-40 right-4 md:right-8 bottom-[calc(9rem_+_env(safe-area-inset-bottom))] md:bottom-6',
         isSuccess && 'bg-blue-600 hover:bg-blue-600 text-white',
         isError && 'bg-red-600 hover:bg-red-600 text-white',
         isIdle && isDirty && 'bg-amber-500/50 hover:bg-amber-500/70 text-white',

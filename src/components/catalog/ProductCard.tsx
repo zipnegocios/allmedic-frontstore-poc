@@ -23,26 +23,38 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
   );
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
   const [isImageLoading, setIsImageLoading] = useState(true);
-  
+  // Portada (primaria/secundaria) es la imagen por defecto de la card; en cuanto
+  // el usuario interactúa con el color (clic en un swatch, o un filtro de color
+  // activo del sitio) la card reacciona y muestra la imagen de ESE color en su
+  // lugar — `colorTouched` distingue el color "por defecto" del elegido a propósito.
+  const [colorTouched, setColorTouched] = useState(false);
+
   // Update selected color when filter changes
   useEffect(() => {
     if (selectedFilterColor && product.colors.some(c => c.id === selectedFilterColor)) {
       setSelectedColorId(selectedFilterColor);
+      setColorTouched(true);
       setIsImageLoading(true);
     }
   }, [selectedFilterColor, product.colors]);
-  
+
   // Reset loading state when color changes
   const handleColorChange = (colorId: string) => {
     if (colorId !== selectedColorId) {
       setSelectedColorId(colorId);
+      setColorTouched(true);
       setIsImageLoading(true);
     }
   };
-  
+
   const selectedColor = product.colors.find(c => c.id === selectedColorId);
   const variantWithColor = product.variants.find(v => v.colorId === selectedColorId);
-  const displayMedia = variantWithColor?.images[0] || product.cover || product.variants[0]?.images[0];
+  const displayMedia = colorTouched
+    ? (variantWithColor?.images[0] || product.cover || product.variants[0]?.images[0])
+    : (product.cover || variantWithColor?.images[0] || product.variants[0]?.images[0]);
+  // Crossfade "hover image swap": solo en el estado por defecto (sin color
+  // elegido) y si el producto tiene una imagen secundaria de Portada configurada.
+  const showHoverSwap = !colorTouched && Boolean(product.secondaryCover);
   
   const showPrices = usePriceVisibility({ brandId: product.brandId, productId: product.id });
   const hasDiscount = product.priceSale && product.priceSale < product.priceNormal;
@@ -82,8 +94,11 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
   return (
     <>
       <div className="group bg-white">
-        {/* Image Container */}
-        <div className="relative aspect-[4/5] bg-[#F5F5F7] overflow-hidden">
+        {/* Image Container — `group/media` es un grupo con nombre propio, distinto
+            del `group` genérico de la card (que ya controla el botón "Vista rápida"
+            y el scale/brightness del countdown), para que el crossfade hover-swap
+            no colisione con esos otros efectos. */}
+        <div className="relative aspect-[4/5] bg-[#F5F5F7] overflow-hidden group/media">
           <Link href={`/p/${product.slug}`} className="block w-full h-full">
             {/* Badges */}
             <div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
@@ -135,7 +150,22 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
               onLoad={() => setIsImageLoading(false)}
               onError={() => setIsImageLoading(false)}
             />
-            
+
+            {/* Hover image swap: segunda imagen (Portada secundaria) superpuesta,
+                oculta por defecto y con crossfade de 300ms al hover — solo cuando
+                se está mostrando la Portada por defecto (sin color elegido). */}
+            {showHoverSwap && (
+              <div className="absolute inset-0 z-[1] opacity-0 transition-opacity duration-300 group-hover/media:opacity-100">
+                <MediaGridThumb
+                  item={product.secondaryCover}
+                  fallback="/images/placeholder-product.jpg"
+                  alt={`${product.name} - vista alterna`}
+                  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                  className="object-cover"
+                />
+              </div>
+            )}
+
             {/* Urgency overlay gradient */}
             {hasActiveCountdown && (
               <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/30 to-transparent pointer-events-none" />

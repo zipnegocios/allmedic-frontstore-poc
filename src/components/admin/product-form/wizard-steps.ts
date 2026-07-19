@@ -26,11 +26,14 @@ export const PRODUCT_FORM_WIZARD_STEPS: WizardStepDef[] = [
   {
     id: 'identification',
     label: 'Identificación',
-    fields: ['name', 'slug', 'brandId', 'productTypeId', 'code', 'gender'],
+    // Incluye 'cover' y 'visibility': la Portada (primaria/secundaria) y
+    // Visibilidad+badges se movieron al grupo "General" siempre visible de este
+    // paso (ver `GeneralPrimarySection`), junto con Nombre/Slug/Descripción.
+    fields: ['name', 'slug', 'brandId', 'productTypeId', 'code', 'gender', 'cover', 'visibility'],
   },
   {
     id: 'pricing',
-    label: 'Precios y visibilidad',
+    label: 'Precios',
     fields: ['priceNormal'],
   },
   {
@@ -41,7 +44,7 @@ export const PRODUCT_FORM_WIZARD_STEPS: WizardStepDef[] = [
   {
     id: 'variants_and_media',
     label: 'Variantes y Medios',
-    fields: ['variants', 'images', 'cover'],
+    fields: ['variants', 'images'],
   },
 ];
 

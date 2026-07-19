@@ -15,7 +15,6 @@ import { SortableContext, rectSortingStrategy, arrayMove } from '@dnd-kit/sortab
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -26,7 +25,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Plus, Trash2, ImageIcon, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { MediaThumb } from '@/components/admin/media/MediaThumb';
 import { cn } from '@/lib/utils';
@@ -70,7 +69,7 @@ interface VariantsMediaSectionProps {
   removeVariant: (index: number) => void;
   imageFields: FieldArrayWithId<ProductFormData, 'images', 'id'>[];
   removeImage: (index: number) => void;
-  onPickTarget: (target: number | 'append' | 'cover', colorId?: string) => void;
+  onPickTarget: (target: number | 'append', colorId?: string) => void;
   /** Errores de validación por fila de variante (`errors.variants` de RHF) — sin esto,
    * una matriz con filas inválidas (ej. sin Color/Talla) no muestra ningún indicador
    * visual aquí, solo un toast genérico en el formulario padre. */
@@ -297,76 +296,6 @@ export function VariantsMediaSection({
 
   return (
     <div className="space-y-6">
-      {/* ─── CARD PORTADA OBLIGATORIA ─── */}
-      <Card className="border-2 border-gray-200 dark:border-gray-800">
-        <CardContent className="p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-semibold text-[#111111] flex items-center gap-1.5">
-                Portada del Producto <span className="text-red-500">*</span>
-              </h3>
-              <p className="text-xs text-gray-500">
-                Selecciona la imagen principal del producto. Es requerida para poder guardar el producto y se mostrará en los listados del catálogo.
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onPickTarget('cover')}
-              className="bg-white border-gray-200 hover:bg-gray-50 hover:text-gray-900"
-            >
-              <ImageIcon className="w-4 h-4 mr-2 text-gray-500" />
-              {watch('cover.url') ? 'Cambiar Portada' : 'Elegir Portada'}
-            </Button>
-          </div>
-
-          {watch('cover.storageKey') ? (
-            <div className="flex flex-col sm:flex-row items-start gap-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border">
-              <div className="relative w-32 h-32 bg-white rounded-lg overflow-hidden border flex-shrink-0 shadow-sm">
-                <MediaThumb
-                  storageKey={watch('cover.storageKey')!}
-                  mimeType={watch('cover.mimeType') ?? ''}
-                  sizes="128px"
-                />
-              </div>
-              <div className="flex-1 w-full space-y-3">
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-gray-700">Texto Alternativo (Alt) *</Label>
-                  <Input
-                    className="text-xs bg-white"
-                    {...register('cover.alt')}
-                    placeholder="Describe la foto (ej: Modelo vistiendo camisa celeste en talla M)"
-                  />
-                  <p className="text-[10px] text-gray-400">Requerido para accesibilidad y optimización SEO.</p>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setValue('cover.assetId', '');
-                    setValue('cover.url', '');
-                    setValue('cover.storageKey', '');
-                    setValue('cover.mimeType', '');
-                    setValue('cover.alt', '');
-                  }}
-                  className="text-red-500 hover:text-red-700 hover:bg-red-50 px-2 h-8"
-                >
-                  <Trash2 className="w-4 h-4 mr-1.5" />
-                  Quitar Portada
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="border border-dashed rounded-lg p-6 text-center text-gray-400 text-xs flex flex-col items-center justify-center gap-2">
-              <ImageIcon className="w-8 h-8 text-gray-300" strokeWidth={1.5} />
-              <span>No se ha seleccionado ninguna portada. Haz clic en &quot;Elegir Portada&quot; para asignar una.</span>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
       {/* ─── BARRA PENDIENTES DE ASIGNAR COLOR ─── */}
       {hasColorlessImages && (
         <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg space-y-3">
