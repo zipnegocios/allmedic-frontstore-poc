@@ -52,6 +52,7 @@ import {
 } from '@/components/admin/product-form/wizard-steps';
 import { TagListEditor } from '@/components/admin/product-form/TagListEditor';
 import { VariantsMediaSection } from '@/components/admin/product-form/VariantsMediaSection';
+import { FloatingSaveButton, type FloatingSaveStatus } from '@/components/admin/FloatingSaveButton';
 import { AttributeStyleSection } from '@/components/admin/product-form/AttributeStyleSection';
 import { useProductTypeAttributes } from '@/components/admin/product-form/useProductTypeAttributes';
 
@@ -89,6 +90,14 @@ export default function ProductForm({
   const [loadingProduct, setLoadingProduct] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savingStay, setSavingStay] = useState(false);
+  // Estado visual del botón flotante "Guardar y quedarse" — vuelve a 'idle' solo
+  // automáticamente 10s después de un resultado (ver efecto más abajo).
+  const [saveStayStatus, setSaveStayStatus] = useState<FloatingSaveStatus>('idle');
+  useEffect(() => {
+    if (saveStayStatus !== 'success' && saveStayStatus !== 'error') return;
+    const timer = setTimeout(() => setSaveStayStatus('idle'), 10000);
+    return () => clearTimeout(timer);
+  }, [saveStayStatus]);
   // Id real del producto en el servidor una vez creado — separado de la prop
   // `productId` (que sigue reflejando la URL/modo original) para que "Guardar y
   // quedarse" pueda pasar de POST a PATCH en clics subsiguientes sin navegar ni
@@ -449,6 +458,7 @@ export default function ProductForm({
   async function onSaveAndStay(rawData: ProductFormData) {
     const data = withSyncedStyleAttributes(rawData);
     setSavingStay(true);
+    setSaveStayStatus('saving');
     setShowValidationBanner(false);
     try {
       const url = createdProductId ? `/api/admin/products/${createdProductId}` : '/api/admin/products';
@@ -465,8 +475,10 @@ export default function ProductForm({
       const saved = await res.json();
       if (!createdProductId) setCreatedProductId(saved.id);
       toast.success('Cambios guardados');
+      setSaveStayStatus('success');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al guardar');
+      setSaveStayStatus('error');
     } finally {
       setSavingStay(false);
     }
@@ -1414,20 +1426,11 @@ export default function ProductForm({
       {mediaPickerDialog}
 
       {/* ─── Botón flotante "Guardar y quedarse" ─── */}
-      {!embedded && (
-        <Button
-          type="button"
-          onClick={() => handleSubmit(onSaveAndStay, onInvalid)()}
-          disabled={saving || savingStay}
-          className={cn(
-            'fixed z-40 right-4 md:right-8 bg-[#111111] shadow-lg',
-            'bottom-[calc(9rem_+_env(safe-area-inset-bottom))] md:bottom-6'
-          )}
-        >
-          <Save className="w-4 h-4 mr-2" />
-          {savingStay ? 'Guardando...' : 'Guardar y quedarse'}
-        </Button>
-      )}
+      <FloatingSaveButton
+        status={saveStayStatus}
+        onClick={() => handleSubmit(onSaveAndStay, onInvalid)()}
+        disabled={saving || savingStay}
+      />
     </div>
   );
 }

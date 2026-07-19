@@ -16,6 +16,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import ProductForm from '@/components/admin/ProductForm';
 import { RuleForm } from '@/components/admin/RuleForm';
+import { FloatingSaveButton, type FloatingSaveStatus } from '@/components/admin/FloatingSaveButton';
 import {
   SetFormSchema,
   type SetFormData,
@@ -51,6 +52,14 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingStay, setSavingStay] = useState(false);
+  // Estado visual del botón flotante "Guardar y quedarse" — vuelve a 'idle' solo
+  // automáticamente 10s después de un resultado (ver efecto más abajo).
+  const [saveStayStatus, setSaveStayStatus] = useState<FloatingSaveStatus>('idle');
+  useEffect(() => {
+    if (saveStayStatus !== 'success' && saveStayStatus !== 'error') return;
+    const timer = setTimeout(() => setSaveStayStatus('idle'), 10000);
+    return () => clearTimeout(timer);
+  }, [saveStayStatus]);
   // Id real del set en el servidor una vez creado — separado de la prop `setId`
   // (que sigue reflejando la URL/modo original) para que "Guardar y quedarse"
   // pueda pasar de POST a PATCH en clics subsiguientes sin navegar.
@@ -211,6 +220,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
   // guardando avances del set sin salir del formulario.
   async function onSaveAndStay(data: SetFormData) {
     setSavingStay(true);
+    setSaveStayStatus('saving');
     setShowValidationBanner(false);
     try {
       const payload = buildSetPayload(data);
@@ -228,8 +238,10 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
       const saved = await res.json();
       if (!createdSetId) setCreatedSetId(saved.id);
       toast.success('Cambios guardados');
+      setSaveStayStatus('success');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al guardar');
+      setSaveStayStatus('error');
     } finally {
       setSavingStay(false);
     }
@@ -490,18 +502,11 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
       </form>
 
       {/* ─── Botón flotante "Guardar y quedarse" ─── */}
-      <Button
-        type="button"
+      <FloatingSaveButton
+        status={saveStayStatus}
         onClick={() => handleSubmit(onSaveAndStay, onInvalid)()}
         disabled={saving || savingStay}
-        className={cn(
-          'fixed z-40 right-4 md:right-8 bg-[#111111] shadow-lg',
-          'bottom-[calc(9rem_+_env(safe-area-inset-bottom))] md:bottom-6'
-        )}
-      >
-        <Save className="w-4 h-4 mr-2" />
-        {savingStay ? 'Guardando...' : 'Guardar y quedarse'}
-      </Button>
+      />
 
       <MediaPicker
         open={pickerOpen}
