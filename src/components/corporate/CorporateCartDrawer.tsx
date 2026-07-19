@@ -35,7 +35,6 @@ export function CorporateCartDrawer({ isOpen, onClose }: CorporateCartDrawerProp
     rulesLoading,
     globalMinQuantity,
     globalCountUnit,
-    inventoryIssues,
     canSubmit,
   } = useCorporateCart();
 
@@ -187,24 +186,6 @@ export function CorporateCartDrawer({ isOpen, onClose }: CorporateCartDrawerProp
                         ))}
                     </div>
                   )}
-
-                  {/* Avisos y errores de inventario (INVENTORY_MODE) */}
-                  {inventoryIssues.length > 0 && (
-                    <div className="space-y-2">
-                      {inventoryIssues.map((issue, idx) => (
-                        <div
-                          key={idx}
-                          className={cn(
-                            'flex items-start gap-2 text-sm rounded-lg px-3 py-2',
-                            issue.severity === 'BLOCK' ? 'text-red-600 bg-red-50' : 'text-amber-700 bg-amber-50'
-                          )}
-                        >
-                          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                          <span>{issue.message}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
 
                 {/* Footer */}
@@ -270,11 +251,9 @@ export function CorporateCartDrawer({ isOpen, onClose }: CorporateCartDrawerProp
                         : 'bg-gray-300 cursor-not-allowed pointer-events-none'
                     )}
                   >
-                    {!validation.canSubmit
+                    {!canSubmit
                       ? `${validation.setsRemaining === 1 ? 'Falta' : 'Faltan'} ${validation.setsRemaining} ${unitLabel(validation.countUnit, validation.setsRemaining)} para el mínimo`
-                      : !canSubmit
-                        ? 'Resuelve el stock insuficiente para continuar'
-                        : 'Solicitar cotización'}
+                      : 'Solicitar cotización'}
                   </Link>
                 </div>
               </>

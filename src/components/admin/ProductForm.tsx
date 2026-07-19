@@ -219,8 +219,6 @@ export default function ProductForm({
               size: v.size,
               sku: v.sku || '',
               status: v.status,
-              stock: v.stock ?? 0,
-              minStock: v.minStock ?? 5,
               attributeValueIds: (v.attributeValueIds as string[]) || [],
             })),
             images: product.images.map((i: any) => ({

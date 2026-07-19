@@ -11,7 +11,6 @@ const CONFIG_KEYS: Record<RuleType, string[]> = {
   QUANTITY_RANGE: ["min", "max"],
   SIZE_MODE: ["mode"],
   PRICE_VISIBILITY: ["showPrices", "catalog"],
-  INVENTORY_MODE: ["mode"],
   VOLUME_SCALE: ["tiers"],
   PROMO: [
     "kind", "buy", "free", "pct", "amountPerUnit", "price", "n",
@@ -24,7 +23,7 @@ const CONFIG_KEYS: Record<RuleType, string[]> = {
 const ALL_RULE_TYPES = Object.keys(CONFIG_KEYS) as RuleType[];
 
 describe("RULE_DOCS", () => {
-  it("cubre los 10 tipos de regla, ni más ni menos", () => {
+  it("cubre los 9 tipos de regla, ni más ni menos", () => {
     expect(Object.keys(RULE_DOCS).sort()).toEqual(ALL_RULE_TYPES.sort());
   });
 
@@ -44,7 +43,7 @@ describe("RULE_DOCS", () => {
     expect(doc.defaultBehavior.length).toBeGreaterThan(0);
   });
 
-  it("ningún tipo documenta appliesTo o supportedScopes vacíos: los 10 tipos tienen efecto real", () => {
+  it("ningún tipo documenta appliesTo o supportedScopes vacíos: los 9 tipos tienen efecto real", () => {
     for (const ruleType of ALL_RULE_TYPES) {
       expect(RULE_DOCS[ruleType].appliesTo.length, `${ruleType}.appliesTo`).toBeGreaterThan(0);
       expect(RULE_DOCS[ruleType].supportedScopes.length, `${ruleType}.supportedScopes`).toBeGreaterThan(0);
@@ -56,16 +55,15 @@ describe("RULE_DOCS", () => {
     expect(RULE_DOCS.PROMO.examples.length).toBeGreaterThanOrEqual(8);
   });
 
-  it("los tipos de ámbito Producto activado (todos salvo INVENTORY_MODE y VOLUME_DISCOUNT_RETAIL) lo declaran en supportedScopes", () => {
-    const withoutProduct: RuleType[] = ["INVENTORY_MODE", "VOLUME_DISCOUNT_RETAIL"];
+  it("los tipos de ámbito Producto activado (todos salvo VOLUME_DISCOUNT_RETAIL) lo declaran en supportedScopes", () => {
+    const withoutProduct: RuleType[] = ["VOLUME_DISCOUNT_RETAIL"];
     for (const ruleType of ALL_RULE_TYPES) {
       if (withoutProduct.includes(ruleType)) continue;
       expect(RULE_DOCS[ruleType].supportedScopes, ruleType).toContain("PRODUCT");
     }
   });
 
-  it("INVENTORY_MODE y VOLUME_DISCOUNT_RETAIL documentan por qué el ámbito Producto no aplica", () => {
-    expect(RULE_DOCS.INVENTORY_MODE.supportedScopes).not.toContain("PRODUCT");
+  it("VOLUME_DISCOUNT_RETAIL documenta por qué el ámbito Producto no aplica", () => {
     expect(RULE_DOCS.VOLUME_DISCOUNT_RETAIL.supportedScopes).toEqual(["GLOBAL"]);
   });
 
@@ -78,8 +76,5 @@ describe("RULE_DOCS", () => {
 
     const catalogField = RULE_DOCS.PRICE_VISIBILITY.fields.find((f) => f.key === "catalog")!;
     expect(catalogField.options?.map((o) => o.value).sort()).toEqual(["BOTH", "CORPORATE", "INDIVIDUAL"]);
-
-    const inventoryModeField = RULE_DOCS.INVENTORY_MODE.fields.find((f) => f.key === "mode")!;
-    expect(inventoryModeField.options?.map((o) => o.value).sort()).toEqual(["BLOCK", "IGNORE", "INFORMATIVE"]);
   });
 });

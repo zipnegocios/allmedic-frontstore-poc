@@ -9,7 +9,6 @@ import type {
   QuantityRangeConfig,
   SizeModeConfig,
   PriceVisibilityConfig,
-  InventoryModeConfig,
   VolumeScaleConfig,
   PromoConfig,
   ResolvedPromo,
@@ -20,7 +19,6 @@ import {
   DEFAULT_MIN_QUANTITY,
   DEFAULT_SIZE_MODE,
   DEFAULT_PRICE_VISIBILITY,
-  DEFAULT_INVENTORY_MODE,
 } from "./defaults";
 
 // Orden de precedencia: lo más específico gana.
@@ -147,7 +145,6 @@ export function resolveRules(
   const rangeRule = pickBestRule(rules, "QUANTITY_RANGE", context, now);
   const sizeModeRule = pickBestRule(rules, "SIZE_MODE", context, now);
   const priceVisibilityRule = pickBestRule(rules, "PRICE_VISIBILITY", context, now);
-  const inventoryModeRule = pickBestRule(rules, "INVENTORY_MODE", context, now);
   const volumeScaleRule = pickBestRule(rules, "VOLUME_SCALE", context, now);
   const volumeDiscountRetailRule = pickBestRule(rules, "VOLUME_DISCOUNT_RETAIL", context, now);
 
@@ -161,7 +158,6 @@ export function resolveRules(
     sizeMode: (sizeModeRule?.config as unknown as SizeModeConfig) ?? DEFAULT_SIZE_MODE,
     priceVisibility:
       (priceVisibilityRule?.config as unknown as PriceVisibilityConfig) ?? DEFAULT_PRICE_VISIBILITY,
-    inventoryMode: (inventoryModeRule?.config as unknown as InventoryModeConfig) ?? DEFAULT_INVENTORY_MODE,
     volumeScale: (volumeScaleRule?.config as unknown as VolumeScaleConfig) ?? null,
     promos: promoRules.map((r): ResolvedPromo => ({ id: r.id, name: r.name, config: r.config as unknown as PromoConfig })),
     colorRestrictions: colorRestrictionRules.map((r) => r.config as unknown as ColorRestrictionConfig),

@@ -11,8 +11,6 @@ const VariantSchema = z.object({
   // Opcional (Fase 3.4, ver comentario equivalente en `products/route.ts`).
   sku: z.string().optional(),
   status: z.enum(['AVAILABLE', 'BACKORDER', 'OUT_OF_STOCK']).default('AVAILABLE'),
-  stock: z.number().default(0),
-  minStock: z.number().default(5),
   attributeValueIds: z.array(z.string()).default([]),
 });
 

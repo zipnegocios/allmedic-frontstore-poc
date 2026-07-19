@@ -7,7 +7,7 @@ import { Building2, ChevronLeft, Info, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCorporateCart } from '@/context/CorporateCartContext';
 import type { CorporateSetDetail, SetPiece } from '@/lib/corporate-types';
-import type { ColorRestrictionConfig, InventoryModeValue, InventoryStockSnapshot, SizeMode } from '@/lib/rules-engine';
+import type { ColorRestrictionConfig, SizeMode } from '@/lib/rules-engine';
 import type { ProductColor, Size } from '@/lib/types';
 import type { MediaItem } from '@/lib/media';
 import { ColorSwatchGroup } from '@/components/catalog/ColorSwatch';
@@ -20,8 +20,6 @@ interface SetDetailContentProps {
   sizeMode: SizeMode;
   minQuantity: number;
   showPrices: boolean;
-  inventoryMode: InventoryModeValue;
-  stockSnapshot: InventoryStockSnapshot;
   colorRestrictions: ColorRestrictionConfig[];
 }
 
@@ -34,30 +32,6 @@ interface CombinationRow {
   pieceSelections: Array<{ productId: string; size?: string; color?: string }>;
 }
 
-/** Misma clave que usa el motor puro (`inventory.ts`) para leer el snapshot de stock. */
-function stockKey(productId: string, size: string | undefined, color: string | undefined): string {
-  if (size && color) return `${productId}::${size}::${color}`;
-  if (size) return `${productId}::${size}`;
-  return productId;
-}
-
-/** Sets completos disponibles para UNA combinación (pieza más escasa limita el total). */
-function availableSetsFor(
-  pieces: SetPiece[],
-  selections: Array<{ productId: string; size?: string; color?: string }>,
-  stockSnapshot: InventoryStockSnapshot
-): number {
-  if (pieces.length === 0 || selections.length === 0) return 0;
-  return Math.min(
-    ...selections.map((sel) => {
-      const piece = pieces.find((p) => p.productId === sel.productId);
-      const qtyPerSet = piece?.quantityPerSet ?? 1;
-      const key = stockKey(sel.productId, sel.size, sel.color);
-      return Math.floor((stockSnapshot[key] ?? 0) / qtyPerSet);
-    })
-  );
-}
-
 function newRowId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -67,12 +41,9 @@ export function SetDetailContent({
   sizeMode,
   minQuantity,
   showPrices,
-  inventoryMode,
-  stockSnapshot,
   colorRestrictions,
 }: SetDetailContentProps) {
   const { addLine } = useCorporateCart();
-  const showAvailability = inventoryMode !== 'IGNORE';
   const showsSizes = sizeMode !== 'NO_SIZES';
 
   // ── Tallas comunes a todas las piezas — solo se usan para el atajo de MATRIX ──
@@ -215,8 +186,6 @@ export function SetDetailContent({
     setRows([]);
   }
 
-  const currentAvailable = availableSetsFor(set.pieces, currentSelectionsArray(), stockSnapshot);
-
   return (
     <main className="pt-14 sm:pt-16 min-h-screen">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -355,12 +324,6 @@ export function SetDetailContent({
                           onSizeSelect={(size) => setPieceSize(piece.productId, size)}
                         />
                       )}
-
-                      {showAvailability && selectedSize && (
-                        <p className="text-[11px] text-gray-400 mt-2">
-                          {availableSetsFor(set.pieces, [{ productId: piece.productId, size: selectedSize, color: selectedColorCode }], stockSnapshot)} disp. en esta talla/color
-                        </p>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -379,9 +342,6 @@ export function SetDetailContent({
                 className="w-24 border border-[#E5E5E5] rounded-lg px-3 py-2 text-center"
               />
             </div>
-            {showAvailability && (
-              <p className="text-xs text-gray-400 mb-3">Disponibilidad de esta combinación: {currentAvailable} sets</p>
-            )}
             <button
               onClick={handleAddCombination}
               className="w-full sm:w-auto px-6 py-2.5 bg-white border border-[#111111] text-[#111111] font-medium rounded-full hover:bg-[#F5F5F7] transition-colors"

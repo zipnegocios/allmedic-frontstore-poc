@@ -168,8 +168,6 @@ export function AttributeMatrixSection({
             size,
             sku: '',
             status: 'AVAILABLE',
-            stock: 0,
-            minStock: 5,
             attributeValueIds,
           });
           created += 1;

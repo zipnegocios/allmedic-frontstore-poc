@@ -11,7 +11,6 @@ import {
   type PricingResult,
   type SizeMode,
   type CountUnit,
-  type InventoryIssue,
   type SetPieceInfo,
 } from '@/lib/rules-engine';
 
@@ -57,10 +56,6 @@ interface CorporateCartContextType {
   pricing: PricingResult;
   globalMinQuantity: number;
   globalCountUnit: CountUnit;
-  inventoryIssues: InventoryIssue[];
-  inventoryChecking: boolean;
-  /** Combina `validation.canSubmit` con la ausencia de violaciones BLOCK de inventario —
-   * úsalo en vez de `validation.canSubmit` para habilitar/deshabilitar el envío. */
   canSubmit: boolean;
 }
 
@@ -332,39 +327,7 @@ export function CorporateCartProvider({ children }: { children: React.ReactNode 
   const globalMinQuantity = globalMinQuantityConfig.min;
   const globalCountUnit = globalMinQuantityConfig.countUnit;
 
-  // INVENTORY_MODE: requiere stock real de la BD, así que se verifica contra un endpoint
-  // (dry-run) en vez de calcularse en el motor puro del cliente. Debounced como el resto
-  // de verificaciones asíncronas del proyecto (ver check-conflicts en RuleForm).
-  const [inventoryIssues, setInventoryIssues] = useState<InventoryIssue[]>([]);
-  const [inventoryChecking, setInventoryChecking] = useState(false);
-
-  useEffect(() => {
-    if (cartForEngine.items.length === 0) {
-      setInventoryIssues([]);
-      return;
-    }
-    const timer = setTimeout(async () => {
-      setInventoryChecking(true);
-      try {
-        const res = await fetch('/api/corporate/cart/check-inventory', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ items: cartForEngine.items }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setInventoryIssues(data.issues ?? []);
-        }
-      } catch {
-        // Fallback silencioso: el servidor vuelve a validar de forma bloqueante al enviar.
-      } finally {
-        setInventoryChecking(false);
-      }
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [cartForEngine]);
-
-  const canSubmit = validation.canSubmit && !inventoryIssues.some((i) => i.severity === 'BLOCK');
+  const canSubmit = validation.canSubmit;
 
   return (
     <CorporateCartContext.Provider
@@ -381,8 +344,6 @@ export function CorporateCartProvider({ children }: { children: React.ReactNode 
         pricing,
         globalMinQuantity,
         globalCountUnit,
-        inventoryIssues,
-        inventoryChecking,
         canSubmit,
       }}
     >

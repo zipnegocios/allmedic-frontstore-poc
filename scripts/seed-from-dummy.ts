@@ -110,8 +110,6 @@ DUMMY_PRODUCTS.forEach((p) => {
       fit: v.fit || null,
       sku: v.sku,
       status: v.status,
-      stock: Math.floor(Math.random() * 50),
-      minStock: 5,
     });
   });
 });

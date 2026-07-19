@@ -24,7 +24,6 @@ describe("resolveRules", () => {
     const resolved = resolveRules([], {});
     expect(resolved.minQuantity).toEqual({ min: 12, countUnit: "SETS" });
     expect(resolved.sizeMode).toEqual({ mode: "MATRIX" });
-    expect(resolved.inventoryMode).toEqual({ mode: "IGNORE" });
     expect(resolved.priceVisibility).toEqual({ showPrices: true, catalog: "BOTH" });
   });
 

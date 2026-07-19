@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { getCorporateSetBySlug, getAllBusinessRules, getInventorySnapshotByProductIds } from '@/lib/corporate-data-service';
+import { getCorporateSetBySlug, getAllBusinessRules } from '@/lib/corporate-data-service';
 import { resolveRules } from '@/lib/rules-engine';
 import { SetDetailContent } from './SetDetailContent';
 
@@ -30,28 +30,12 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
     resolved.priceVisibility.showPrices &&
     (resolved.priceVisibility.catalog === 'CORPORATE' || resolved.priceVisibility.catalog === 'BOTH');
 
-  // INVENTORY_MODE se resuelve aparte, SIN productIds: su verificación real en servidor
-  // (checkInventory, POST /api/corporate/quotes) no considera ámbito Producto, así que aquí
-  // tampoco — evita que la ficha muestre disponibilidad basada en una regla que el servidor
-  // nunca aplicaría al bloquear el envío.
-  const inventoryMode = resolveRules(rules, {
-    setId: set.id,
-    setGroupId: set.setGroupId,
-    brandId: set.brandId,
-  }).inventoryMode.mode;
-  const stockSnapshot =
-    inventoryMode !== 'IGNORE'
-      ? await getInventorySnapshotByProductIds(set.pieces.map((p) => p.productId))
-      : {};
-
   return (
     <SetDetailContent
       set={set}
       sizeMode={resolved.sizeMode.mode}
       minQuantity={resolved.minQuantity.min}
       showPrices={showPrices}
-      inventoryMode={inventoryMode}
-      stockSnapshot={stockSnapshot}
       colorRestrictions={resolved.colorRestrictions}
     />
   );

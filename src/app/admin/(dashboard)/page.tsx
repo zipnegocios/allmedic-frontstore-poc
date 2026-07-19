@@ -1,24 +1,18 @@
 import { db } from '@/db';
-import { products, productVariants, leads } from '@/db/schema';
-import { sql, eq, and, gte } from 'drizzle-orm';
+import { products, leads } from '@/db/schema';
+import { sql, eq } from 'drizzle-orm';
 import { requireAdminPage } from '@/lib/admin-auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Package, ShoppingCart, AlertTriangle, TrendingUp } from 'lucide-react';
+import { Package, ShoppingCart, TrendingUp } from 'lucide-react';
 import { LEAD_STATUS_LABELS } from '@/lib/lead-status';
 
 export default async function AdminDashboardPage() {
   await requireAdminPage();
 
 
-  const [productCount, leadCount, lowStockCount] = await Promise.all([
+  const [productCount, leadCount] = await Promise.all([
     db.select({ count: sql<number>`count(*)` }).from(products).where(eq(products.isActive, true)),
     db.select({ count: sql<number>`count(*)` }).from(leads).where(eq(leads.status, 'SENT')),
-    db.select({ count: sql<number>`count(*)` })
-      .from(productVariants)
-      .where(and(
-        gte(productVariants.stock, 0),
-        sql`${productVariants.stock} < ${productVariants.minStock}`
-      )),
   ]);
 
   const recentLeads = await db.select().from(leads).orderBy(sql`${leads.createdAt} desc`).limit(5);
@@ -26,7 +20,6 @@ export default async function AdminDashboardPage() {
   const stats = [
     { label: 'Productos activos', value: productCount[0]?.count ?? 0, icon: Package, color: 'bg-blue-500' },
     { label: 'Pedidos pendientes', value: leadCount[0]?.count ?? 0, icon: ShoppingCart, color: 'bg-green-500' },
-    { label: 'Stock bajo', value: lowStockCount[0]?.count ?? 0, icon: AlertTriangle, color: 'bg-red-500' },
     { label: 'Ventas hoy', value: 0, icon: TrendingUp, color: 'bg-purple-500' },
   ];
 
@@ -34,7 +27,7 @@ export default async function AdminDashboardPage() {
     <div className="p-4 md:p-8">
       <h1 className="text-3xl font-bold text-[#111111] mb-8">Panel principal</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (

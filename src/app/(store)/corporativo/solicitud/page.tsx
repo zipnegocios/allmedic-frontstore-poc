@@ -13,7 +13,7 @@ const SECTORS = ['Hospital', 'Clínica', 'Consultorio', 'Universidad', 'Farmacia
 export default function SolicitudPage() {
   const router = useRouter();
   const { status: sessionStatus } = useSession();
-  const { items, validation, pricing, clearCart, inventoryIssues, canSubmit } = useCorporateCart();
+  const { items, validation, pricing, clearCart, canSubmit } = useCorporateCart();
   const [form, setForm] = useState({
     ruc: '', razonSocial: '', contactName: '', email: '', phone: '', city: '', sector: '',
   });
@@ -117,23 +117,6 @@ export default function SolicitudPage() {
                 <p key={idx}>{v.message}</p>
               ))}
             </div>
-          </div>
-        )}
-
-        {inventoryIssues.length > 0 && (
-          <div className="space-y-2 mb-6">
-            {inventoryIssues.map((issue, idx) => (
-              <div
-                key={idx}
-                className={cn(
-                  'flex items-start gap-2 text-sm rounded-lg px-4 py-3',
-                  issue.severity === 'BLOCK' ? 'text-red-600 bg-red-50' : 'text-amber-700 bg-amber-50'
-                )}
-              >
-                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <span>{issue.message}</span>
-              </div>
-            ))}
           </div>
         )}
 

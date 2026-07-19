@@ -93,28 +93,7 @@ async function migrate() {
       )
     `);
 
-    // ── 3. Ensure product_variants has stock columns ──
-    console.log('  Checking product_variants columns...');
-    const variantColumns = await client.query(`
-      SELECT column_name FROM information_schema.columns
-      WHERE table_name = 'product_variants'
-    `);
-    const existingVariantCols = new Set(variantColumns.rows.map(r => r.column_name));
-
-    if (!existingVariantCols.has('stock')) {
-      console.log('    Adding stock column...');
-      await client.query(`ALTER TABLE product_variants ADD COLUMN stock INTEGER DEFAULT 0`);
-    }
-    if (!existingVariantCols.has('location')) {
-      console.log('    Adding location column...');
-      await client.query(`ALTER TABLE product_variants ADD COLUMN location TEXT`);
-    }
-    if (!existingVariantCols.has('min_stock')) {
-      console.log('    Adding min_stock column...');
-      await client.query(`ALTER TABLE product_variants ADD COLUMN min_stock INTEGER DEFAULT 5`);
-    }
-
-    // ── 4. Ensure all core tables exist ──
+    // ── 3. Ensure all core tables exist ──
     console.log('  Checking core tables...');
 
     await client.query(`
@@ -184,9 +163,6 @@ async function migrate() {
         fit TEXT,
         sku TEXT NOT NULL UNIQUE,
         status TEXT NOT NULL DEFAULT 'AVAILABLE',
-        stock INTEGER DEFAULT 0,
-        location TEXT,
-        min_stock INTEGER DEFAULT 5,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
       )
@@ -329,7 +305,7 @@ async function migrate() {
       )
     `);
 
-    // ── 5. Create indexes ──
+    // ── 4. Create indexes ──
     console.log('  Creating indexes...');
     const indexes = [
       `CREATE INDEX IF NOT EXISTS idx_products_brand ON products(brand_id)`,
@@ -358,7 +334,7 @@ async function migrate() {
       }
     }
 
-    // ── 6. Create HNSW index for vector search (if pgvector is available) ──
+    // ── 5. Create HNSW index for vector search (if pgvector is available) ──
     try {
       await client.query(`
         CREATE INDEX IF NOT EXISTS idx_embeddings_vector
@@ -370,7 +346,7 @@ async function migrate() {
       console.log('  HNSW index skipped (pgvector may not be available):', err.message);
     }
 
-    // ── 7. Ensure admin user exists ──
+    // ── 6. Ensure admin user exists ──
     console.log('  Checking admin user...');
     const { hash } = await import('bcryptjs');
     const adminPassword = await hash('AMU.master26', 12);

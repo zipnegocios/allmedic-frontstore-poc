@@ -13,10 +13,13 @@ export const VariantSchema = z.object({
   // vía `attributeValueIds` (EAV), armado por `AttributeMatrixSection`.
   // Opcional (Fase 3.4): el estilo se identifica por `products.code`; el SKU de
   // variante puede completarse después, celda a celda, tras generar la matriz.
-  sku: z.string().optional(),
+  // `.nullable()` porque la columna en DB acepta NULL y ese valor puede llegar
+  // directo desde la API sin pasar por el fallback `|| ''` del formulario (ej. si
+  // se guarda con `handleSubmit` antes de que `reset()` corra) — sin esto,
+  // `z.string().optional()` rechaza `null` (solo acepta string | undefined) y
+  // bloqueaba el guardado con "falta SKU" pese a que el campo ya no es editable.
+  sku: z.string().nullable().optional(),
   status: z.enum(['AVAILABLE', 'BACKORDER', 'OUT_OF_STOCK']).default('AVAILABLE'),
-  stock: z.coerce.number().min(0).default(0),
-  minStock: z.coerce.number().min(0).default(5),
   // Valores de atributos EAV aplicables a esta variante (Fase 3.4) — combinación de
   // los que "varían por variante" + los propagados de "valor único para todo el
   // estilo", armados por el generador de matriz (`AttributeMatrixSection`).

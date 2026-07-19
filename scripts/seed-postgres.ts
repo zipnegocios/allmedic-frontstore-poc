@@ -235,8 +235,6 @@ function generateVariants(productId: string, colorIds: string[], sizes: string[]
         size,
         sku,
         status: statuses[statusIdx % statuses.length],
-        stock: Math.floor(Math.random() * 50),
-        minStock: 5,
       });
       statusIdx++;
     }

@@ -2,7 +2,6 @@ import type {
   MinQuantityConfig,
   SizeModeConfig,
   PriceVisibilityConfig,
-  InventoryModeConfig,
 } from "./types";
 
 // ─── Defaults del sistema (sección 1 del plan de negocio) ───
@@ -20,8 +19,4 @@ export const DEFAULT_SIZE_MODE: SizeModeConfig = {
 export const DEFAULT_PRICE_VISIBILITY: PriceVisibilityConfig = {
   showPrices: true,
   catalog: "BOTH",
-};
-
-export const DEFAULT_INVENTORY_MODE: InventoryModeConfig = {
-  mode: "IGNORE",
 };

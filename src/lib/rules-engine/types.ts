@@ -7,7 +7,6 @@ export type RuleType =
   | "QUANTITY_RANGE"
   | "SIZE_MODE"
   | "PRICE_VISIBILITY"
-  | "INVENTORY_MODE"
   | "VOLUME_SCALE"
   | "PROMO"
   | "COLOR_RESTRICTION"
@@ -16,7 +15,6 @@ export type RuleType =
 export type RuleScope = "GLOBAL" | "BRAND" | "SET_GROUP" | "SET" | "PRODUCT";
 
 export type SizeMode = "MATRIX" | "PER_PIECE" | "NO_SIZES";
-export type InventoryModeValue = "IGNORE" | "BLOCK" | "INFORMATIVE";
 export type CountUnit = "SETS" | "PIECES";
 export type PriceCatalog = "INDIVIDUAL" | "CORPORATE" | "BOTH";
 
@@ -42,10 +40,6 @@ export interface SizeModeConfig {
 export interface PriceVisibilityConfig {
   showPrices: boolean;
   catalog: PriceCatalog;
-}
-
-export interface InventoryModeConfig {
-  mode: InventoryModeValue;
 }
 
 export interface VolumeScaleTier {
@@ -194,7 +188,6 @@ export interface ResolvedRules {
   quantityRange: QuantityRangeConfig | null;
   sizeMode: SizeModeConfig;
   priceVisibility: PriceVisibilityConfig;
-  inventoryMode: InventoryModeConfig;
   volumeScale: VolumeScaleConfig | null;
   promos: ResolvedPromo[];
   colorRestrictions: ColorRestrictionConfig[];
@@ -222,8 +215,9 @@ export interface CorporateCart {
   items: CorporateCartItem[];
 }
 
-/** Una pieza (producto) dentro de la composición de un set — usada por INVENTORY_MODE
- * para saber qué producto(s) y en qué cantidad demanda cada unidad de set vendida. */
+/** Una pieza (producto) dentro de la composición de un set — usada para resolver reglas de
+ * ámbito PRODUCT (`pricing.ts`, `validate.ts`) y para calcular unidades por pieza/color en
+ * `COLOR_RESTRICTION` (`validate.ts`). */
 export interface SetPieceInfo {
   productId: string;
   productName?: string;
@@ -236,38 +230,11 @@ export interface SetMeta {
   /** Suma de `quantityPerSet` de todas las piezas del set — usado por MIN_QUANTITY
    * cuando `countUnit: "PIECES"` para convertir sets a piezas reales. */
   piecesPerSet?: number;
-  /** Composición del set (productos + cantidad por set) — usada por INVENTORY_MODE
-   * para calcular la demanda real de cada producto/talla. Opcional porque MIN_QUANTITY,
+  /** Composición del set (productos + cantidad por set) — usada para resolver reglas de ámbito
+   * PRODUCT y para `COLOR_RESTRICTION`. Opcional porque MIN_QUANTITY (con countUnit: "SETS"),
    * PROMO, etc. no la necesitan. */
   pieces?: SetPieceInfo[];
 }
-
-// ─── Resultado de validación de inventario (INVENTORY_MODE) ───
-export type InventoryIssueSeverity = "BLOCK" | "INFORMATIVE";
-
-export interface InventoryIssue {
-  severity: InventoryIssueSeverity;
-  code: "INVENTORY_INSUFFICIENT";
-  setId: string;
-  setName?: string;
-  productId: string;
-  productName?: string;
-  /** null cuando el set no maneja tallas (SIZE_MODE: NO_SIZES) — la demanda se agrupa solo por producto. */
-  size: string | null;
-  /** Cuánto demanda ESTE ítem del carrito (puede ser menor a `groupDemand` si otros ítems comparten el mismo producto/talla). */
-  demand: number;
-  /** Demanda total agregada entre todos los ítems del carrito que comparten este producto/talla y cuyo modo efectivo no es IGNORE. */
-  groupDemand: number;
-  /** Stock disponible para este producto/talla, según el snapshot recibido. */
-  available: number;
-  message: string;
-}
-
-/** Snapshot de stock inyectado desde la capa de datos — el motor puro nunca consulta la BD.
- * Claves: `${productId}::${size}::${color}` para una combinación exacta de talla y color,
- * `${productId}::${size}` para el total de esa talla agregado entre colores, y `${productId}`
- * para el total agregado del producto (usado cuando SIZE_MODE es NO_SIZES). */
-export type InventoryStockSnapshot = Record<string, number>;
 
 // ─── Resultado de validación ───
 export interface ValidationViolation {

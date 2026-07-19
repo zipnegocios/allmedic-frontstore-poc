@@ -241,51 +241,6 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
     ],
   },
 
-  INVENTORY_MODE: {
-    ruleType: "INVENTORY_MODE",
-    title: "Modo de inventario",
-    summary: "Define si el carrito corporativo debe bloquear, avisar o ignorar cuando la cantidad pedida excede el stock real de una talla/producto.",
-    detail:
-      "Se resuelve por set (mismo patrón que Promoción o Solo múltiplos). La demanda se agrega por " +
-      "producto, talla y color exactos: si dos combinaciones del carrito piden la misma talla y color " +
-      "del mismo producto, sus cantidades se suman antes de comparar contra el stock disponible de esa " +
-      "combinación exacta — solo participan en esa suma los sets cuyo modo efectivo no sea 'Ignorar'. " +
-      "El stock se calcula sumando las variantes activas (status disponible) del producto agrupadas por " +
-      "talla y color; cuando el set no maneja tallas (Modo de tallas: Sin tallas), se compara contra el " +
-      "stock total del producto sin distinguir talla ni color. Con 'Bloquear', el envío de la solicitud " +
-      "se rechaza (400) indicando qué producto/talla excede el stock y por cuánto. Con 'Solo " +
-      "informativo', la solicitud se envía igual, pero el aviso queda registrado en las notas internas " +
-      "de la cotización para el equipo de ventas y se muestra como advertencia en el carrito antes de " +
-      "enviar.",
-    appliesTo: ["CORPORATE"],
-    supportedScopes: ["GLOBAL", "BRAND", "SET_GROUP", "SET"],
-    defaultBehavior: "Sin ninguna regla activa, el modo es 'Ignorar stock' — coherente con el modelo de cotización referencial del negocio.",
-    fields: [
-      {
-        key: "mode",
-        label: "Modo",
-        description: "Comportamiento frente al stock disponible.",
-        options: [
-          { value: "IGNORE", label: "Ignorar stock", description: "El carrito corporativo no considera el inventario para este contexto — el cliente puede pedir cualquier cantidad." },
-          { value: "BLOCK", label: "Bloquear si no hay stock", description: "Impide enviar la solicitud si la demanda de algún producto/talla excede el stock disponible; muestra el motivo exacto." },
-          { value: "INFORMATIVE", label: "Solo informativo", description: "Permite enviar la solicitud igual, pero muestra una advertencia no bloqueante y la registra en notas internas para ventas." },
-        ],
-      },
-    ],
-    examples: [
-      { title: "Bloquear por marca", config: { mode: "BLOCK" }, explanation: "Útil en una Marca o Set con stock ajustado — impide sobrevender antes de que ventas confirme reposición." },
-      { title: "Solo avisar", config: { mode: "INFORMATIVE" }, explanation: "Deja que el cliente envíe la solicitud igual (el modelo de negocio es de cotización referencial), pero alerta al equipo de ventas para que ajuste la cotización final." },
-    ],
-    interactions: [
-      "Si Cantidad mínima (ámbito Global) exige más unidades de las que el stock real permite bajo 'Bloquear', ningún carrito puede enviarse — el detector de conflictos NO evalúa esto automáticamente porque no tiene acceso al stock en tiempo real (es un módulo puro, sin BD); revisa manualmente el stock disponible antes de combinar un mínimo alto con 'Bloquear'.",
-    ],
-    warnings: [
-      "La disponibilidad agregada por talla y color que se muestra en el armador es una foto del momento de la carga de la página — no se recalcula mientras el cliente edita el carrito, así que puede quedar desactualizada si hay compras simultáneas.",
-      "Cuando una pieza de la combinación no lleva color elegido, su demanda se suma contra el stock total de esa talla entre TODOS los colores — la comparación exacta por color solo aplica a piezas donde el cliente sí eligió color.",
-      "El ámbito Producto no está disponible para este tipo: la demanda de stock se calcula por set completo (todas sus piezas a la vez), no por una pieza aislada, así que un modo de inventario distinto para un solo producto dentro de un set no tiene una semántica clara — usa el ámbito Set si necesitas ese nivel de control.",
-    ],
-  },
-
   VOLUME_SCALE: {
     ruleType: "VOLUME_SCALE",
     title: "Escala por volumen (corporativo)",
@@ -406,7 +361,7 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
       "El cliente elige color por CADA PIEZA del set en el armador de combinaciones (el color de una " +
       "camisa y el de un pantalón dentro del mismo set pueden ser distintos). El selector de color de " +
       "cada pieza solo ofrece los colores con al menos una variante activa de esa pieza — si una pieza " +
-      "no tiene ningún color con stock activo, no se muestra selector para ella y la regla no tiene " +
+      "no tiene ningún color con variantes disponibles (status distinto de agotado), no se muestra selector para ella y la regla no tiene " +
       "forma de activarse sobre esa pieza. La restricción se evalúa por fila de combinación × pieza: " +
       "las unidades de una pieza en un color, dentro de una combinación, son " +
       "`cantidadDeSets × piezasPorSet` de esa pieza. Si ese total es menor al mínimo configurado para " +

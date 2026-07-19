@@ -188,9 +188,6 @@ async function migrate() {
         fit TEXT,
         sku TEXT NOT NULL UNIQUE,
         status TEXT NOT NULL DEFAULT 'AVAILABLE',
-        stock INTEGER DEFAULT 0,
-        location TEXT,
-        min_stock INTEGER DEFAULT 5,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
       )
@@ -333,28 +330,7 @@ async function migrate() {
       )
     `);
 
-    // ── 4. Add missing columns to existing tables ──
-    console.log('  Checking for missing columns...');
-    const variantColumns = await client.query(`
-      SELECT column_name FROM information_schema.columns
-      WHERE table_name = 'product_variants'
-    `);
-    const existingVariantCols = new Set(variantColumns.rows.map(r => r.column_name));
-
-    if (!existingVariantCols.has('stock')) {
-      console.log('    Adding stock column to product_variants...');
-      await client.query(`ALTER TABLE product_variants ADD COLUMN stock INTEGER DEFAULT 0`);
-    }
-    if (!existingVariantCols.has('location')) {
-      console.log('    Adding location column to product_variants...');
-      await client.query(`ALTER TABLE product_variants ADD COLUMN location TEXT`);
-    }
-    if (!existingVariantCols.has('min_stock')) {
-      console.log('    Adding min_stock column to product_variants...');
-      await client.query(`ALTER TABLE product_variants ADD COLUMN min_stock INTEGER DEFAULT 5`);
-    }
-
-    // ── 5. Create indexes ──
+    // ── 4. Create indexes ──
     console.log('  Ensuring indexes...');
     const indexes = [
       `CREATE INDEX IF NOT EXISTS idx_products_brand ON products(brand_id)`,
@@ -395,7 +371,7 @@ async function migrate() {
       console.log('  HNSW index skipped (pgvector may not be available)');
     }
 
-    // ── 6. Ensure admin user ──
+    // ── 5. Ensure admin user ──
     console.log('  Ensuring admin user...');
     const adminPassword = await bcryptjs.hash('AMU.master26', 12);
 

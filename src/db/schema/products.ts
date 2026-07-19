@@ -186,9 +186,6 @@ export const productVariants = pgTable("product_variants", {
   // default vacío, sin lógica de backfill real.
   attributesPayload: jsonb("attributes_payload").notNull().default({}),
   status: text("status").notNull().default("AVAILABLE"),
-  stock: integer("stock").default(0),
-  location: text("location"),
-  minStock: integer("min_stock").default(5),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 }, (table) => [

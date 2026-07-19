@@ -17,14 +17,12 @@ const TOP_LEVEL_LABELS: Partial<Record<keyof ProductFormData, string>> = {
 /** Etiquetas legibles por campo de `VariantSchema`/`ImageSchema` — usadas para
  * listar CUALQUIER sub-campo que falle en una fila (no solo Color/Talla), ya que
  * limitarse a esos dos dejaba el resumen vacío cuando el error real venía de otro
- * campo (ej. Stock con un valor no numérico). */
+ * campo. */
 const VARIANT_FIELD_LABELS: Record<string, string> = {
   colorId: 'Color',
   size: 'Talla',
   sku: 'SKU',
   status: 'Estado',
-  stock: 'Stock',
-  minStock: 'Stock mínimo',
   attributeValueIds: 'Atributos',
 };
 

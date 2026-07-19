@@ -26,12 +26,6 @@ const globalRulesData = [
     config: { mode: "MATRIX" },
   },
   {
-    name: "Inventario en flujo corporativo: ignorar stock",
-    ruleType: "INVENTORY_MODE",
-    scope: "GLOBAL",
-    config: { mode: "IGNORE" },
-  },
-  {
     name: "Visibilidad de precios: mostrar en ambos catálogos",
     ruleType: "PRICE_VISIBILITY",
     scope: "GLOBAL",

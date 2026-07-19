@@ -5,4 +5,3 @@ export * from "./conflicts";
 export { resolveRules, isRuleActive, resolveContextualRule, resolveBestRule } from "./resolve";
 export { validateCorporateCart } from "./validate";
 export { computeCartPricing } from "./pricing";
-export { checkInventory } from "./inventory";

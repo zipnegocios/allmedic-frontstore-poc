@@ -29,6 +29,13 @@
       "when": 1784203312521,
       "tag": "0003_hard_bishop",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784427459041,
+      "tag": "0004_supresion_stock_inventario",
+      "breakpoints": true
     }
   ]
 }

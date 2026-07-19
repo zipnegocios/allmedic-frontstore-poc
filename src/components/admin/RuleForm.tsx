@@ -58,9 +58,6 @@ interface RuleFormProps {
 // Ámbitos sin efecto real para tipos concretos — se deshabilitan en el selector en vez de
 // dejarlos seleccionables sin que hagan nada. Ver RuleDocPanel para el detalle por tipo.
 const SCOPE_UNAVAILABLE_BY_TYPE: Partial<Record<RuleTypeKey, Scope[]>> = {
-  // INVENTORY_MODE se resuelve con el contexto del set (Set/Grupo/Marca) — el ámbito Producto
-  // no participa en el cálculo real de demanda de stock.
-  INVENTORY_MODE: ['PRODUCT'],
   // Descuento por volumen (individual) es un único descuento sobre el carrito retail completo
   // por diseño — no tiene sentido un ámbito más específico.
   VOLUME_DISCOUNT_RETAIL: ['BRAND', 'SET_GROUP', 'SET', 'PRODUCT'],
@@ -72,7 +69,6 @@ const DEFAULT_CONFIG_BY_TYPE: Record<RuleTypeKey, Record<string, unknown>> = {
   QUANTITY_RANGE: { min: 12, max: null },
   SIZE_MODE: { mode: 'MATRIX' },
   PRICE_VISIBILITY: { showPrices: true, catalog: 'BOTH' },
-  INVENTORY_MODE: { mode: 'IGNORE' },
   VOLUME_SCALE: { tiers: [{ minQty: 12, discountPct: 0 }] },
   PROMO: { kind: 'N_PLUS_ONE', buy: 13, free: 1 },
   COLOR_RESTRICTION: { colorCode: '', min: 6 },
@@ -691,18 +687,6 @@ function RuleConfigFields({
             </Select>
           </div>
         </div>
-      );
-
-    case 'INVENTORY_MODE':
-      return (
-        <Select value={String(config.mode ?? 'IGNORE')} onValueChange={(v) => onChange({ mode: v })}>
-          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="IGNORE">Ignorar stock</SelectItem>
-            <SelectItem value="BLOCK">Bloquear si no hay stock</SelectItem>
-            <SelectItem value="INFORMATIVE">Solo informativo</SelectItem>
-          </SelectContent>
-        </Select>
       );
 
     case 'VOLUME_SCALE':

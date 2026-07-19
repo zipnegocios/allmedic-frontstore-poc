@@ -49,10 +49,9 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
       id: v.id,
       colorId: v.colorId,
       size: v.size,
-      sku: v.sku,
+      sku: v.sku || '',
       status: v.status,
-      stock: v.stock ?? 0,
-      minStock: v.minStock ?? 5,
+      attributeValueIds: (v.attributeValueIds as string[]) || [],
     })),
     images: product.images.map((i: any) => ({
       id: i.id,

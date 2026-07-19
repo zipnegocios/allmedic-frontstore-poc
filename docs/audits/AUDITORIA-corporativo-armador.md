@@ -22,7 +22,7 @@ export interface CorporateCartLine {
 }
 ```
 
-Consumidores: `SetDetailContent.tsx` (arma la línea en las 3 ramas de `SIZE_MODE`), `validate.ts:134` (`MISSING_PIECE_SELECTIONS`) y `:168-178` (`COLOR_RESTRICTION` contra `line.color`), `inventory.ts:73-78` (`computeItemDemand`, agrupa demanda por `productId::size`, sin color), `api/corporate/quotes/route.ts:19` (schema Zod), `api/corporate/cart/check-inventory/route.ts` (dry-run).
+Consumidores: `SetDetailContent.tsx` (arma la línea en las 3 ramas de `SIZE_MODE`), `validate.ts:134` (`MISSING_PIECE_SELECTIONS`) y `:168-178` (`COLOR_RESTRICTION` contra `line.color`), `api/corporate/quotes/route.ts:19` (schema Zod).
 
 `color` hoy es una única elección por línea, compartida por los 3 modos de talla (documentado explícitamente como decisión de alcance de la sesión anterior en `SetDetailContent.tsx:52-56`). Extender a color por pieza toca: `types.ts`, `CorporateCartContext.tsx`, el schema Zod de `quotes/route.ts`, `inventory.ts` y `validate.ts`.
 
@@ -30,15 +30,14 @@ Consumidores: `SetDetailContent.tsx` (arma la línea en las 3 ramas de `SIZE_MOD
 
 `getCorporateSetBySlug` (`corporate-data-service.ts:141-264`) sí trae `colors`/`availableSizes` por pieza (join a `colorsTable`, líneas 180-218), pero **fija `variants[].images: []` de forma hardcodeada** (línea 226) — no consulta `mediaLinksTable` por `colorId`. El catálogo individual sí lo hace (`data-service.ts`, `fetchProductsWithJoins`, líneas 232-264, filtrando `mediaLinksTable` por `entityType: 'PRODUCT'`, `role: 'GALLERY'`, agrupando por `colorId`). Replicar ese mismo patrón en `getCorporateSetBySlug` es trabajo real de Fase 1, no un dato ya disponible.
 
-Schema relevante (`src/db/schema/products.ts`): `colors {id, name, code, hex}`, `productVariants {id, productId, colorId, size, ..., stock}` (sin columna de imagen propia — las imágenes viven en `mediaLinks`/`mediaAssets`, relacionadas por `colorId`).
+Schema relevante (`src/db/schema/products.ts`): `colors {id, name, code, hex}`, `productVariants {id, productId, colorId, size, ..., status}` (sin columna de imagen propia — las imágenes viven en `mediaLinks`/`mediaAssets`, relacionadas por `colorId`).
 
-## 4. Resolución de SIZE_MODE, COLOR_RESTRICTION, INVENTORY_MODE
+## 4. Resolución de SIZE_MODE, COLOR_RESTRICTION
 
 Confirmado contra `AUDITORIA-motor-reglas.md` y `REPORTE-reglas-ambitos-2026-07-13.md` — sin discrepancias:
 
 - **SIZE_MODE**: resuelto en `resolve.ts` vía `pickBestRule`, propagado en `page.tsx` con `productIds`, consumido en las 3 ramas de `SetDetailContent.tsx`.
 - **COLOR_RESTRICTION**: resuelto en los 5 ámbitos (incluye PRODUCT); validado hoy contra `line.color` (por línea) en `validate.ts:168-178`. Pasará a validarse por fila×pieza.
-- **INVENTORY_MODE**: resuelto deliberadamente SIN `productIds` (excepción documentada — evita el riesgo de que un ámbito PRODUCT afecte la UI sin que el servidor lo replique). `checkInventory` (`inventory.ts:97`) agrupa demanda por `productId::size`; pasará a `productId::size::color` con fallback.
 
 ## 5. Componentes reutilizables del individual
 

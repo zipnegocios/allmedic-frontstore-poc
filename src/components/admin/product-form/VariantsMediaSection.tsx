@@ -209,8 +209,6 @@ export function VariantsMediaSection({
       size: 'M',
       sku: '',
       status: 'AVAILABLE',
-      stock: 0,
-      minStock: 5,
       attributeValueIds: [],
     });
     setExpandedColorId(selectedNewColorId);
@@ -516,8 +514,6 @@ export function VariantsMediaSection({
                             size: 'M',
                             sku: '',
                             status: 'AVAILABLE',
-                            stock: 0,
-                            minStock: 5,
                             attributeValueIds: [],
                           })
                         }
@@ -531,10 +527,8 @@ export function VariantsMediaSection({
                     {colorVariants.length > 0 && (
                       <div className="border rounded-lg overflow-hidden bg-white divide-y">
                         <div className="grid grid-cols-12 gap-2 bg-gray-50 p-2 text-[10px] font-bold text-gray-500 uppercase tracking-wider text-center items-center">
-                          <div className="col-span-4 text-left pl-1">Talla</div>
-                          <div className="col-span-3">Estado</div>
-                          <div className="col-span-2">Stock</div>
-                          <div className="col-span-2">Mín</div>
+                          <div className="col-span-6 text-left pl-1">Talla</div>
+                          <div className="col-span-5">Estado</div>
                           <div className="col-span-1">Acción</div>
                         </div>
 
@@ -554,7 +548,7 @@ export function VariantsMediaSection({
                             >
                             <div className="grid grid-cols-12 gap-2 items-center text-center">
                               {/* Talla */}
-                              <div className="col-span-4 text-left">
+                              <div className="col-span-6 text-left">
                                 <Controller
                                   name={`variants.${absoluteIdx}.size`}
                                   control={control}
@@ -574,7 +568,7 @@ export function VariantsMediaSection({
                               </div>
 
                               {/* Estado */}
-                              <div className="col-span-3">
+                              <div className="col-span-5">
                                 <Controller
                                   name={`variants.${absoluteIdx}.status`}
                                   control={control}
@@ -590,26 +584,6 @@ export function VariantsMediaSection({
                                       </SelectContent>
                                     </Select>
                                   )}
-                                />
-                              </div>
-
-                              {/* Stock */}
-                              <div className="col-span-2">
-                                <Input
-                                  className="h-8 text-xs bg-white text-center px-1"
-                                  type="number"
-                                  inputMode="numeric"
-                                  {...register(`variants.${absoluteIdx}.stock`)}
-                                />
-                              </div>
-
-                              {/* Stock Mínimo */}
-                              <div className="col-span-2">
-                                <Input
-                                  className="h-8 text-xs bg-white text-center px-1"
-                                  type="number"
-                                  inputMode="numeric"
-                                  {...register(`variants.${absoluteIdx}.minStock`)}
                                 />
                               </div>
 

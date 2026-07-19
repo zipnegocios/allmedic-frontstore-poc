@@ -99,7 +99,7 @@ export function PiecesSection({
                   warnings.push('Sin precio al mayor asignado — no aporta al precio automático del set.');
                 }
                 if (!product.hasActiveVariant) {
-                  warnings.push('Sin variantes activas — no tiene stock disponible en ningún color/talla.');
+                  warnings.push('Sin variantes activas — no está disponible en ningún color/talla.');
                 }
               }
               return (

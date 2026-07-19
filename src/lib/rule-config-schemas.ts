@@ -24,9 +24,6 @@ export const RULE_CONFIG_SCHEMAS = {
     showPrices: z.boolean(),
     catalog: z.enum(['INDIVIDUAL', 'CORPORATE', 'BOTH']),
   }),
-  INVENTORY_MODE: z.object({
-    mode: z.enum(['IGNORE', 'BLOCK', 'INFORMATIVE']),
-  }),
   VOLUME_SCALE: z.object({
     tiers: z.array(z.object({ minQty: z.number().int().positive(), discountPct: z.number().min(0).max(100) })).min(1),
   }),
@@ -88,7 +85,6 @@ export const RULE_TYPE_LABELS: Record<RuleTypeKey, string> = {
   QUANTITY_RANGE: 'Rango de cantidad',
   SIZE_MODE: 'Modo de tallas',
   PRICE_VISIBILITY: 'Visibilidad de precios',
-  INVENTORY_MODE: 'Modo de inventario',
   VOLUME_SCALE: 'Escala por volumen (corporativo)',
   PROMO: 'Promoción',
   COLOR_RESTRICTION: 'Restricción por color',

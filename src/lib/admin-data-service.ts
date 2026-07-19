@@ -270,8 +270,6 @@ export async function getAdminProductById(id: string) {
       size: variantsTable.size,
       sku: variantsTable.sku,
       status: variantsTable.status,
-      stock: variantsTable.stock,
-      minStock: variantsTable.minStock,
       colorName: colorsTable.name,
       colorCode: colorsTable.code,
       colorHex: colorsTable.hex,
@@ -387,8 +385,6 @@ interface VariantInput {
   // existir aún al dar de alta la matriz de variantes (Fase 3.4).
   sku?: string;
   status: string;
-  stock: number;
-  minStock: number;
   // Valores de atributos EAV aplicables a esta variante (Fase 3.4): combinación de
   // los atributos que "varían por variante" + los propagados de "valor único para
   // todo el estilo" que arma el generador de matriz del admin. Se persisten en
@@ -467,8 +463,6 @@ export async function createProductWithRelations(input: ProductWithRelationsInpu
           size: v.size,
           sku: v.sku || null,
           status: v.status,
-          stock: v.stock,
-          minStock: v.minStock,
           productId: product.id,
         }))
       ).returning({ id: variantsTable.id });
@@ -564,8 +558,6 @@ export async function updateProductWithRelations(
             size: v.size,
             sku: v.sku || null,
             status: v.status,
-            stock: v.stock,
-            minStock: v.minStock,
             productId: id,
           }))
         ).returning({ id: variantsTable.id });

@@ -15,8 +15,8 @@ import {
   mediaLinks as mediaLinksTable,
   mediaAssets as mediaAssetsTable,
 } from '@/db/schema';
-import { eq, and, inArray, asc, desc, sql, isNotNull, isNull } from 'drizzle-orm';
-import type { BusinessRule, InventoryStockSnapshot, SetPieceInfo } from './rules-engine';
+import { eq, and, inArray, asc, desc, isNotNull, isNull } from 'drizzle-orm';
+import type { BusinessRule, SetPieceInfo } from './rules-engine';
 import type { CorporateSetSummary, CorporateSetDetail, SetPiece, SetGroupSummary } from './corporate-types';
 import type { ProductColor, ProductVariant, Gender } from './types';
 import { resolveMediaUrl, isVideoMime, type MediaItem } from './media';
@@ -511,7 +511,8 @@ export async function getSetMetaByIds(
   );
 }
 
-// ── Composición de sets (productos + cantidad por set) — para INVENTORY_MODE ──
+// ── Composición de sets (productos + cantidad por set) — usada para resolver reglas de ámbito
+// PRODUCT y para COLOR_RESTRICTION (ver `SetMeta.pieces` en rules-engine/types.ts) ──
 export async function getSetPiecesByIds(setIds: string[]): Promise<Record<string, SetPieceInfo[]>> {
   const result: Record<string, SetPieceInfo[]> = {};
   for (const setId of setIds) result[setId] = [];
@@ -538,45 +539,33 @@ export async function getSetPiecesByIds(setIds: string[]): Promise<Record<string
   return result;
 }
 
-// ── Snapshot agregado de stock (variantes activas) — para INVENTORY_MODE ──
-// Una sola consulta con GROUP BY por producto+talla+color; se calculan también los totales
-// por producto+talla (todos los colores) y por producto (sin talla, para NO_SIZES). Claves
-// compatibles con `checkInventory` del motor de reglas: "productId::size::colorCode",
-// "productId::size" y "productId" (ver comentario de `InventoryStockSnapshot` en types.ts).
-export async function getInventorySnapshotByProductIds(productIds: string[]): Promise<InventoryStockSnapshot> {
-  if (productIds.length === 0) return {};
+/** Una fila de variante con su disponibilidad manual (`status`) — usada para resolver la
+ * disponibilidad efectiva de cada combinación producto/talla/color del carrito corporativo. */
+export interface VariantAvailabilityRow {
+  productId: string;
+  size: string;
+  colorCode: string | null;
+  status: string;
+}
 
-  const rows = await db
+// ── Disponibilidad manual (status) de todas las variantes de los productos pedidos ──
+// Una sola consulta para todos los productos del carrito (sin N+1 por línea) — la resolución de
+// qué status aplica a cada combinación pedida (talla/color exactos, o agregada cuando el cliente
+// no eligió color) vive en el llamador (`POST /api/corporate/quotes`), que conoce la forma exacta
+// de cada `pieceSelection`.
+export async function getVariantAvailabilityByProductIds(productIds: string[]): Promise<VariantAvailabilityRow[]> {
+  if (productIds.length === 0) return [];
+
+  return db
     .select({
       productId: variantsTable.productId,
       size: variantsTable.size,
       colorCode: colorsTable.code,
-      stock: sql<number>`coalesce(sum(${variantsTable.stock}), 0)`,
+      status: variantsTable.status,
     })
     .from(variantsTable)
     .leftJoin(colorsTable, eq(variantsTable.colorId, colorsTable.id))
-    .where(and(inArray(variantsTable.productId, productIds), eq(variantsTable.status, 'AVAILABLE')))
-    .groupBy(variantsTable.productId, variantsTable.size, colorsTable.code);
-
-  const snapshot: InventoryStockSnapshot = {};
-  const sizeTotals = new Map<string, number>();
-  const productTotals = new Map<string, number>();
-  for (const row of rows) {
-    const stock = Number(row.stock);
-    if (row.colorCode) {
-      snapshot[`${row.productId}::${row.size}::${row.colorCode}`] = stock;
-    }
-    const sizeKey = `${row.productId}::${row.size}`;
-    sizeTotals.set(sizeKey, (sizeTotals.get(sizeKey) ?? 0) + stock);
-    productTotals.set(row.productId, (productTotals.get(row.productId) ?? 0) + stock);
-  }
-  for (const [sizeKey, total] of sizeTotals) {
-    snapshot[sizeKey] = total;
-  }
-  for (const [productId, total] of productTotals) {
-    snapshot[productId] = total;
-  }
-  return snapshot;
+    .where(inArray(variantsTable.productId, productIds));
 }
 
 // ── Portal del cliente corporativo ──

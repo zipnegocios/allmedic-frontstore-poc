@@ -9,9 +9,21 @@ import {
   getSetMetaByIds,
   getSetPricesByIds,
   getSetPiecesByIds,
-  getInventorySnapshotByProductIds,
+  getVariantAvailabilityByProductIds,
 } from '@/lib/corporate-data-service';
-import { validateCorporateCart, computeCartPricing, checkInventory, type SetMeta } from '@/lib/rules-engine';
+import { validateCorporateCart, computeCartPricing, type SetMeta } from '@/lib/rules-engine';
+
+/** Prioridad de disponibilidad cuando varias variantes coinciden con una combinación pedida (ej.
+ * el cliente no eligió color): la más disponible gana, igual criterio que usa el armador
+ * (`SetDetailContent.tsx`) para agregar status entre colores de una misma talla. */
+const AVAILABILITY_PRIORITY: Record<string, number> = { AVAILABLE: 0, BACKORDER: 1, OUT_OF_STOCK: 2 };
+
+interface AvailabilityIssue {
+  severity: 'BLOCK' | 'INFORMATIVE';
+  setId: string;
+  setName?: string;
+  message: string;
+}
 
 const CartLineSchema = z.object({
   pieceSelections: z.array(z.object({
@@ -81,21 +93,71 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // INVENTORY_MODE: se resuelve por set y se compara contra un snapshot de stock real.
+    // Disponibilidad manual (status) de cada combinación pedida — re-validación en servidor con
+    // una única consulta agregada (sin N+1 por línea), espejo del bloqueo del armador (4.1).
     const productIds = Array.from(new Set(Object.values(setPieces).flat().map((p) => p.productId)));
-    const stockSnapshot = await getInventorySnapshotByProductIds(productIds);
-    const inventoryIssues = checkInventory(cart, rules, setMetaWithPieces, stockSnapshot);
-    const blockIssues = inventoryIssues.filter((i) => i.severity === 'BLOCK');
+    const availabilityRows = await getVariantAvailabilityByProductIds(productIds);
+    const productNameById = new Map(
+      Object.values(setPieces).flat().map((p) => [p.productId, p.productName])
+    );
+
+    function resolveAvailability(productId: string, size?: string, color?: string): string | null {
+      const candidates = availabilityRows.filter((r) => {
+        if (r.productId !== productId) return false;
+        if (size && r.size !== size) return false;
+        if (color && r.colorCode !== color) return false;
+        return true;
+      });
+      if (candidates.length === 0) return null;
+      return candidates.reduce((best, r) =>
+        AVAILABILITY_PRIORITY[r.status] < AVAILABILITY_PRIORITY[best.status] ? r : best
+      ).status;
+    }
+
+    const availabilityIssues: AvailabilityIssue[] = [];
+    for (const item of cart.items) {
+      for (const cartLine of item.lines) {
+        for (const sel of cartLine.pieceSelections) {
+          const status = resolveAvailability(sel.productId, sel.size, sel.color);
+          const productName = productNameById.get(sel.productId) ?? sel.productId;
+          const pieceLabel = [productName, sel.size, sel.color].filter(Boolean).join(' - ');
+          if (status === null) {
+            availabilityIssues.push({
+              severity: 'BLOCK',
+              setId: item.setId,
+              setName: item.setName,
+              message: `${item.setName ?? 'Set'}: la combinación "${pieceLabel}" no está disponible.`,
+            });
+          } else if (status === 'OUT_OF_STOCK') {
+            availabilityIssues.push({
+              severity: 'BLOCK',
+              setId: item.setId,
+              setName: item.setName,
+              message: `${item.setName ?? 'Set'}: "${pieceLabel}" está agotado.`,
+            });
+          } else if (status === 'BACKORDER') {
+            availabilityIssues.push({
+              severity: 'INFORMATIVE',
+              setId: item.setId,
+              setName: item.setName,
+              message: `${item.setName ?? 'Set'}: "${pieceLabel}" está bajo pedido.`,
+            });
+          }
+        }
+      }
+    }
+
+    const blockIssues = availabilityIssues.filter((i) => i.severity === 'BLOCK');
     if (blockIssues.length > 0) {
       return NextResponse.json(
         {
-          error: 'La solicitud excede el stock disponible',
-          violations: blockIssues.map((i) => ({ code: i.code, message: i.message, setId: i.setId })),
+          error: 'La solicitud incluye piezas agotadas o no disponibles',
+          violations: blockIssues.map((i) => ({ code: 'VARIANT_UNAVAILABLE', message: i.message, setId: i.setId })),
         },
         { status: 400 }
       );
     }
-    const informativeIssues = inventoryIssues.filter((i) => i.severity === 'INFORMATIVE');
+    const informativeIssues = availabilityIssues.filter((i) => i.severity === 'INFORMATIVE');
 
     // Precios recalculados en servidor — nunca se usa el precio enviado por el cliente.
     const pricing = computeCartPricing(cart, setPrices, rules, setMetaWithPieces);
@@ -113,7 +175,7 @@ export async function POST(request: NextRequest) {
 
     const noteBlocks: string[] = [];
     if (informativeIssues.length > 0) {
-      noteBlocks.push(`Avisos de inventario al momento de la solicitud:\n${informativeIssues.map((i) => `- ${i.message}`).join('\n')}`);
+      noteBlocks.push(`Piezas bajo pedido al momento de la solicitud:\n${informativeIssues.map((i) => `- ${i.message}`).join('\n')}`);
     }
     if (pricing.promoNotes.length > 0) {
       // GIFT no tiene efecto monetario — la nota queda en notes para que ventas la honre
