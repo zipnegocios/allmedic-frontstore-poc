@@ -21,7 +21,6 @@ import { MediaThumb } from '@/components/admin/media/MediaThumb';
 import { cn } from '@/lib/utils';
 import type { ProductFormData, Color } from './schema';
 import { SIZES, STATUSES } from './schema';
-import { useProductTypeAttributes } from './useProductTypeAttributes';
 import { AttributeMatrixSection } from './AttributeMatrixSection';
 import {
   AlertDialog,
@@ -48,8 +47,12 @@ interface VariantsMediaSectionProps {
   setValue: UseFormSetValue<ProductFormData>;
   colors: Color[];
   /** Tipo de producto elegido en la pestaña General — impulsa qué atributos EAV
-   * están disponibles para el generador de matriz y el editor fila a fila. */
+   * están disponibles para el generador de matriz. */
   productTypeId: string | undefined;
+  /** Valores de "Atributos (Estilos)" elegidos en General (`AttributeStyleSection`,
+   * mapa attributeId -> valueId) — se propagan tal cual a `attributeValueIds` de
+   * cada variante que genera la matriz color×talla (`AttributeMatrixSection`). */
+  styleAttributes: Record<string, string>;
   variantFields: FieldArrayWithId<ProductFormData, 'variants', 'id'>[];
   appendVariant: (value: Omit<ProductFormData['variants'][number], 'id'> & { id?: string }) => void;
   removeVariant: (index: number) => void;
@@ -78,6 +81,7 @@ export function VariantsMediaSection({
   setValue,
   colors,
   productTypeId,
+  styleAttributes,
   variantFields,
   appendVariant,
   removeVariant,
@@ -88,8 +92,6 @@ export function VariantsMediaSection({
   formErrors,
   onColorCreated,
 }: VariantsMediaSectionProps) {
-  const { links: attributeLinks, valuesByAttribute, loading: loadingAttributes } = useProductTypeAttributes(productTypeId);
-
   // Modal de detalle de errores — se abre al hacer clic en el badge "Con errores"
   // de cualquier color; muestra el mapeo completo (ficha general + variantes y
   // medios), no solo lo que falla en ese color puntual.
@@ -356,9 +358,7 @@ export function VariantsMediaSection({
       {/* ─── GENERADOR DE MATRIZ DE VARIANTES (Fase 3.4) ─── */}
       <AttributeMatrixSection
         productTypeId={productTypeId}
-        links={attributeLinks}
-        valuesByAttribute={valuesByAttribute}
-        loading={loadingAttributes}
+        styleAttributes={styleAttributes}
         colors={colors}
         variantFields={variantFields}
         appendVariant={appendVariant}
@@ -605,52 +605,6 @@ export function VariantsMediaSection({
                               <p className="text-[10px] text-red-500 pl-1">
                                 Falta: {rowMissing.join(' y ')}
                               </p>
-                            )}
-
-                            {/* Atributos EAV de la variante (Fase 3.4) — editor fila a fila, uno
-                                por cada atributo declarado para el tipo de producto elegido. Se
-                                autocompletan al generar la matriz; editables aquí para ajustes
-                                puntuales. */}
-                            {attributeLinks.length > 0 && (
-                              <div className="flex flex-wrap gap-2 pl-1">
-                                {attributeLinks.map((link) => {
-                                  const options = valuesByAttribute[link.attributeId] ?? [];
-                                  if (options.length === 0) return null;
-                                  return (
-                                    <Controller
-                                      key={link.attributeId}
-                                      name={`variants.${absoluteIdx}.attributeValueIds`}
-                                      control={control}
-                                      render={({ field }) => {
-                                        const currentIds = field.value || [];
-                                        const currentValueId =
-                                          currentIds.find((id) => options.some((o) => o.id === id)) || '__empty__';
-                                        return (
-                                          <Select
-                                            value={currentValueId}
-                                            onValueChange={(val) => {
-                                              const withoutAttr = currentIds.filter(
-                                                (id) => !options.some((o) => o.id === id)
-                                              );
-                                              field.onChange(val === '__empty__' ? withoutAttr : [...withoutAttr, val]);
-                                            }}
-                                          >
-                                            <SelectTrigger className="h-7 text-[10px] bg-white w-auto min-w-28">
-                                              <SelectValue placeholder={link.attributeName} />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                              <SelectItem value="__empty__">— {link.attributeName} —</SelectItem>
-                                              {options.map((o) => (
-                                                <SelectItem key={o.id} value={o.id}>{o.value}</SelectItem>
-                                              ))}
-                                            </SelectContent>
-                                          </Select>
-                                        );
-                                      }}
-                                    />
-                                  );
-                                })}
-                              </div>
                             )}
                             </div>
                           );

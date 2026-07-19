@@ -52,6 +52,8 @@ import {
 } from '@/components/admin/product-form/wizard-steps';
 import { TagListEditor } from '@/components/admin/product-form/TagListEditor';
 import { VariantsMediaSection } from '@/components/admin/product-form/VariantsMediaSection';
+import { AttributeStyleSection } from '@/components/admin/product-form/AttributeStyleSection';
+import { useProductTypeAttributes } from '@/components/admin/product-form/useProductTypeAttributes';
 
 
 // ─── Component ───
@@ -125,6 +127,7 @@ export default function ProductForm({
     handleSubmit,
     watch,
     setValue,
+    getValues,
     trigger,
     reset,
     formState: { errors },
@@ -139,6 +142,7 @@ export default function ProductForm({
       collectionId: '',
       code: '',
       productTypeId: '',
+      styleAttributes: {},
       gender: 'UNISEX',
       priceNormal: '',
       visibility: initialVisibility ?? 'INDIVIDUAL',
@@ -194,6 +198,7 @@ export default function ProductForm({
             collectionId: product.collectionId || '',
             code: product.code || '',
             productTypeId: product.productTypeId || '',
+            styleAttributes: {},
             gender: product.gender,
             priceNormal: product.priceNormal,
             priceSale: product.priceSale || '',
@@ -327,6 +332,34 @@ export default function ProductForm({
   // `category`/`productType`/`styles` fueron eliminados del esquema (Fase 5).
   const productTypeIdValue = watch('productTypeId');
 
+  // Atributos "Estilo" (Atributos (Estilos), `/admin/atributos`) del Tipo de
+  // Producto elegido — fuente única compartida entre la ficha General
+  // (`AttributeStyleSection`) y el generador de matriz color×talla
+  // (`VariantsMediaSection`/`AttributeMatrixSection`), para no duplicar el fetch.
+  const { links: attributeLinks, valuesByAttribute, loading: loadingAttributes } =
+    useProductTypeAttributes(productTypeIdValue);
+  const styleAttributesValue = watch('styleAttributes');
+
+  // Al cargar un producto existente, deriva `styleAttributes` (attributeId ->
+  // valueId) a partir de los `attributeValueIds` ya guardados en sus variantes —
+  // compatibilidad con productos guardados antes de este cambio, donde el valor
+  // vivía por variante. Solo corre si `styleAttributes` sigue vacío (no pisa
+  // ediciones del usuario en la misma sesión).
+  useEffect(() => {
+    if (attributeLinks.length === 0) return;
+    if (Object.keys(getValues('styleAttributes') || {}).length > 0) return;
+    const variants = getValues('variants');
+    const sourceVariant = variants.find((v) => (v.attributeValueIds || []).length > 0);
+    if (!sourceVariant) return;
+    const derived: Record<string, string> = {};
+    for (const link of attributeLinks) {
+      const options = valuesByAttribute[link.attributeId] ?? [];
+      const match = sourceVariant.attributeValueIds?.find((id) => options.some((o) => o.id === id));
+      if (match) derived[link.attributeId] = match;
+    }
+    if (Object.keys(derived).length > 0) setValue('styleAttributes', derived);
+  }, [attributeLinks, valuesByAttribute, getValues, setValue]);
+
   // ─── Código de Estilo: verificación de unicidad en vivo (Fase 3.4, brief C.1) ───
   const codeValue = watch('code');
   useEffect(() => {
@@ -365,7 +398,20 @@ export default function ProductForm({
     return () => clearTimeout(handle);
   }, [codeValue, createdProductId]);
 
-  async function onSubmit(data: ProductFormData) {
+  // Los "Atributos (Estilos)" se eligen una sola vez en General (`styleAttributes`)
+  // pero el backend sigue esperando `attributeValueIds` por variante — se copia el
+  // mismo conjunto de valores a todas las variantes justo antes de guardar, sin
+  // tocar el modelo de datos existente (`variant_attribute_values`).
+  function withSyncedStyleAttributes(data: ProductFormData): ProductFormData {
+    const attributeValueIds = Object.values(data.styleAttributes ?? {}).filter(Boolean);
+    return {
+      ...data,
+      variants: data.variants.map((v) => ({ ...v, attributeValueIds })),
+    };
+  }
+
+  async function onSubmit(rawData: ProductFormData) {
+    const data = withSyncedStyleAttributes(rawData);
     setSaving(true);
     setShowValidationBanner(false);
     try {
@@ -400,7 +446,8 @@ export default function ProductForm({
   // navegar — el admin sigue editando en la misma pantalla. Útil para ir
   // guardando avances en formularios largos (variantes, medios) sin el viaje de
   // ida y vuelta a la lista.
-  async function onSaveAndStay(data: ProductFormData) {
+  async function onSaveAndStay(rawData: ProductFormData) {
+    const data = withSyncedStyleAttributes(rawData);
     setSavingStay(true);
     setShowValidationBanner(false);
     try {
@@ -759,6 +806,13 @@ export default function ProductForm({
                       {errors.code && <p className="text-sm text-red-500">{errors.code.message}</p>}
                       {codeStatusIndicator}
                     </div>
+                    <AttributeStyleSection
+                      control={control}
+                      productTypeId={productTypeIdValue}
+                      links={attributeLinks}
+                      valuesByAttribute={valuesByAttribute}
+                      loading={loadingAttributes}
+                    />
                     <div className="space-y-2">
                       <Label htmlFor="m-gender">Género *</Label>
                       <Controller
@@ -953,6 +1007,7 @@ export default function ProductForm({
                   setValue={setValue}
                   colors={colors}
                   productTypeId={productTypeIdValue}
+                  styleAttributes={styleAttributesValue}
                   variantFields={variantFields}
                   appendVariant={appendVariant}
                   removeVariant={removeVariant}
@@ -1163,6 +1218,14 @@ export default function ProductForm({
                     </div>
                   </div>
 
+                  <AttributeStyleSection
+                    control={control}
+                    productTypeId={productTypeIdValue}
+                    links={attributeLinks}
+                    valuesByAttribute={valuesByAttribute}
+                    loading={loadingAttributes}
+                  />
+
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="priceNormal">Precio Normal *</Label>
@@ -1327,6 +1390,7 @@ export default function ProductForm({
                 setValue={setValue}
                 colors={colors}
                 productTypeId={productTypeIdValue}
+                styleAttributes={styleAttributesValue}
                 variantFields={variantFields}
                 appendVariant={appendVariant}
                 removeVariant={removeVariant}

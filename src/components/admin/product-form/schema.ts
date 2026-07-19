@@ -20,9 +20,9 @@ export const VariantSchema = z.object({
   // bloqueaba el guardado con "falta SKU" pese a que el campo ya no es editable.
   sku: z.string().nullable().optional(),
   status: z.enum(['AVAILABLE', 'BACKORDER', 'OUT_OF_STOCK']).default('AVAILABLE'),
-  // Valores de atributos EAV aplicables a esta variante (Fase 3.4) — combinación de
-  // los que "varían por variante" + los propagados de "valor único para todo el
-  // estilo", armados por el generador de matriz (`AttributeMatrixSection`).
+  // Valores de atributos EAV aplicables a esta variante. Ya no se editan por
+  // variante: se sincronizan desde `styleAttributes` (global al producto, ficha
+  // General) al generar la matriz y al guardar (ver `ProductForm.tsx`).
   attributeValueIds: z.array(z.string()).default([]),
 });
 
@@ -63,6 +63,11 @@ export const ProductFormSchema = z.object({
   // sin un tipo de producto elegido no hay atributos EAV que ofrecer ni un valor
   // razonable que derivar para `category`/`productType` (ver `ProductForm.tsx`).
   productTypeId: z.string().min(1, 'Tipo de producto requerido'),
+  // Atributos "Estilo" del Tipo de Producto (ej. Modelo de Terminado, Modelo de
+  // Corte) — un solo valor por atributo, global al producto (mismo estilo para
+  // todas sus variantes). Mapa `attributeId -> attributeValueId`. Se sincroniza a
+  // `variants[].attributeValueIds` al guardar (ver `ProductForm.tsx`).
+  styleAttributes: z.record(z.string(), z.string()).default({}),
   gender: z.string().min(1, 'Género requerido'),
   priceNormal: z.string().min(1, 'Precio requerido'),
   priceSale: z.string().optional(),
