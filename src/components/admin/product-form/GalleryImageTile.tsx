@@ -70,7 +70,7 @@ export function GalleryImageTile({
         isDragging && 'opacity-50 z-10'
       )}
     >
-      <MediaThumb storageKey={storageKey} mimeType={mimeType} sizes="160px" className="object-cover" />
+      <MediaThumb storageKey={storageKey} mimeType={mimeType} sizes="160px" fit="contain" />
 
       {/* Drag handle */}
       <button

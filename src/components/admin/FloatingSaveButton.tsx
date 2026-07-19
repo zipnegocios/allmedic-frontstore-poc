@@ -10,19 +10,26 @@ interface FloatingSaveButtonProps {
   status: FloatingSaveStatus;
   onClick: () => void;
   disabled?: boolean;
+  /** `formState.isDirty` del formulario padre — mientras esté en reposo (`idle`),
+   * tiñe el fondo de ámbar semitransparente para avisar que hay cambios sin
+   * guardar. Se ignora en los demás estados (`saving`/`success`/`error`), que ya
+   * tienen su propio color. */
+  isDirty?: boolean;
 }
 
 /**
  * Botón flotante compacto "Guardar y quedarse" — mismo componente para
  * `ProductForm` (incluido embebido en el drawer de sets) y `SetForm`, para que
  * el comportamiento sea idéntico en los tres contextos. Solo ícono: fondo
- * semitransparente en reposo, azul + check al confirmar guardado (10s) y rojo +
- * X si falla (10s), controlado por el `status` que gestiona el formulario padre.
+ * semitransparente en reposo (ámbar si hay cambios sin guardar, gris si no),
+ * azul + check al confirmar guardado (10s) y rojo + X si falla (10s), controlado
+ * por el `status` que gestiona el formulario padre.
  */
-export function FloatingSaveButton({ status, onClick, disabled }: FloatingSaveButtonProps) {
+export function FloatingSaveButton({ status, onClick, disabled, isDirty }: FloatingSaveButtonProps) {
   const isSaving = status === 'saving';
   const isSuccess = status === 'success';
   const isError = status === 'error';
+  const isIdle = !isSaving && !isSuccess && !isError;
 
   return (
     <Button
@@ -37,7 +44,8 @@ export function FloatingSaveButton({ status, onClick, disabled }: FloatingSaveBu
         'bottom-[calc(9rem_+_env(safe-area-inset-bottom))] md:bottom-6',
         isSuccess && 'bg-blue-600 hover:bg-blue-600 text-white',
         isError && 'bg-red-600 hover:bg-red-600 text-white',
-        !isSuccess && !isError && 'bg-[#111111]/50 hover:bg-[#111111]/70 text-white'
+        isIdle && isDirty && 'bg-amber-500/50 hover:bg-amber-500/70 text-white',
+        isIdle && !isDirty && 'bg-[#111111]/50 hover:bg-[#111111]/70 text-white'
       )}
     >
       {isSaving ? (

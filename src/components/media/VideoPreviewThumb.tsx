@@ -9,6 +9,7 @@ interface VideoPreviewThumbProps {
   start?: number;
   duration?: number;
   className?: string;
+  fit?: 'cover' | 'contain';
 }
 
 /**
@@ -16,7 +17,7 @@ interface VideoPreviewThumbProps {
  * [start, start+duration] del archivo original (no recorta el archivo, solo la reproducción).
  * Solo reproduce mientras está visible en el viewport (useInViewAutoplay).
  */
-export function VideoPreviewThumb({ url, start = 0, duration = 3, className }: VideoPreviewThumbProps) {
+export function VideoPreviewThumb({ url, start = 0, duration = 3, className, fit = 'cover' }: VideoPreviewThumbProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   useInViewAutoplay(videoRef);
 
@@ -28,7 +29,7 @@ export function VideoPreviewThumb({ url, start = 0, duration = 3, className }: V
       loop={false}
       playsInline
       preload="metadata"
-      className={cn('absolute inset-0 w-full h-full object-cover', className)}
+      className={cn('absolute inset-0 w-full h-full', fit === 'contain' ? 'object-contain' : 'object-cover', className)}
       onLoadedMetadata={(e) => {
         e.currentTarget.currentTime = start;
       }}

@@ -5,7 +5,8 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Sparkles, Info, Plus } from 'lucide-react';
+import { Sparkles, Info, Plus, ChevronDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import type { ProductFormData, Color } from './schema';
 import { SIZES } from './schema';
 import { AddColorDialog } from './AddColorDialog';
@@ -47,6 +48,24 @@ export function AttributeMatrixSection({
   const [selectedColorIds, setSelectedColorIds] = useState<string[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [addColorOpen, setAddColorOpen] = useState(false);
+  // Acordeón cerrado por defecto: deja visible solo el título, para no ocupar
+  // espacio vertical cuando el admin ya generó su matriz y solo está ajustando
+  // filas manualmente después.
+  const [isOpen, setIsOpen] = useState(false);
+
+  const header = (
+    <button
+      type="button"
+      onClick={() => setIsOpen((prev) => !prev)}
+      className="flex items-center justify-between w-full"
+    >
+      <div className="flex items-center gap-2">
+        <Sparkles className="w-4 h-4 text-gray-500" />
+        <h3 className="text-sm font-semibold text-[#111111]">Generador de Matriz de Variantes</h3>
+      </div>
+      <ChevronDown className={cn('w-4 h-4 text-gray-400 transition-transform', isOpen && 'rotate-180')} />
+    </button>
+  );
 
   function handleColorCreated(color: Color) {
     onColorCreated?.(color);
@@ -99,10 +118,15 @@ export function AttributeMatrixSection({
   if (!productTypeId) {
     return (
       <Card className="border-dashed">
-        <CardContent className="p-6 text-center text-gray-500 text-xs flex flex-col items-center gap-2">
-          <Info className="w-5 h-5 text-gray-400" />
-          Selecciona un Tipo de Producto en la pestaña General para poder generar la
-          matriz de variantes.
+        <CardContent className="p-6 space-y-4">
+          {header}
+          {isOpen && (
+            <div className="text-center text-gray-500 text-xs flex flex-col items-center gap-2">
+              <Info className="w-5 h-5 text-gray-400" />
+              Selecciona un Tipo de Producto en la pestaña General para poder generar la
+              matriz de variantes.
+            </div>
+          )}
         </CardContent>
       </Card>
     );
@@ -110,12 +134,11 @@ export function AttributeMatrixSection({
 
   return (
     <Card className="border-2 border-gray-200">
-      <CardContent className="p-6 space-y-5">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-gray-500" />
-          <h3 className="text-sm font-semibold text-[#111111]">Generador de Matriz de Variantes</h3>
-        </div>
-        <p className="text-xs text-gray-500 -mt-3">
+      <CardContent className={cn('p-6', isOpen && 'space-y-5')}>
+        {header}
+        {isOpen && (
+        <>
+        <p className="text-xs text-gray-500">
           Elige colores y tallas: se generarán en bloque todas las combinaciones, con
           los Atributos (Estilos) definidos en General. Puedes seguir editando cada
           fila manualmente después.
@@ -176,6 +199,8 @@ export function AttributeMatrixSection({
           <Sparkles className="w-4 h-4 mr-2" />
           Generar Matriz de Variantes
         </Button>
+        </>
+        )}
       </CardContent>
 
       <AddColorDialog open={addColorOpen} onOpenChange={setAddColorOpen} onCreated={handleColorCreated} />

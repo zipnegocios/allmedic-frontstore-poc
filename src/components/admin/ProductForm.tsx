@@ -139,7 +139,7 @@ export default function ProductForm({
     getValues,
     trigger,
     reset,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<ProductFormData>({
     resolver: zodResolver(ProductFormSchema) as any,
     defaultValues: initialData || {
@@ -476,6 +476,11 @@ export default function ProductForm({
       if (!createdProductId) setCreatedProductId(saved.id);
       toast.success('Cambios guardados');
       setSaveStayStatus('success');
+      // Fija los valores recién guardados como nuevo "punto limpio" del form —
+      // sin esto, `formState.isDirty` seguiría en `true` (compara contra los
+      // valores originales de carga) y el botón flotante quedaría ámbar aunque
+      // ya no haya cambios sin guardar.
+      reset(data, { keepDirty: false });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al guardar');
       setSaveStayStatus('error');
@@ -1430,6 +1435,7 @@ export default function ProductForm({
         status={saveStayStatus}
         onClick={() => handleSubmit(onSaveAndStay, onInvalid)()}
         disabled={saving || savingStay}
+        isDirty={isDirty}
       />
     </div>
   );
