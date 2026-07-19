@@ -23,6 +23,7 @@ import {
 } from '@/db/schema';
 import { eq, and, or, ne, asc, desc, sql, like, inArray, isNull, isNotNull, type SQL } from 'drizzle-orm';
 import { resolveMediaUrl } from './media';
+import { reorganizeProductMedia } from './media-reorganize-service';
 import type { BusinessRule, RuleConflict } from '@/lib/rules-engine';
 import {
   syncVariantAttributesPayload,
@@ -538,6 +539,12 @@ export async function createProductWithRelations(input: ProductWithRelationsInpu
   // transacción: la escritura de variantes ya está confirmada en la BD).
   await recalculateVariantPayloadsForProduct(product.id);
 
+  try {
+    await reorganizeProductMedia(product.id);
+  } catch (err) {
+    console.error(`[reorganizeProductMedia] Falló para producto ${product.id}:`, err);
+  }
+
   return product;
 }
 
@@ -670,6 +677,16 @@ export async function updateProductWithRelations(
   // el reemplazo de variantes como cambios a nivel de producto (code, brand,
   // collection, productType, gender) que se reflejan en el payload de cada variante.
   await recalculateVariantPayloadsForProduct(id);
+
+  // Migración gradual (ver plan de carpetas por producto): cada guardado exitoso
+  // reorganiza la carpeta física del producto en R2 hacia `products/{code}/...`.
+  // No bloquea el guardado si falla — el producto ya quedó persistido correctamente
+  // y la reorganización es idempotente, se reintentará en el próximo guardado.
+  try {
+    await reorganizeProductMedia(id);
+  } catch (err) {
+    console.error(`[reorganizeProductMedia] Falló para producto ${id}:`, err);
+  }
 
   return product;
 }

@@ -63,6 +63,46 @@ export function buildStorageKey(folder: MediaFolder, segments: string[], fileNam
   return [prefix, ...cleanSegments, cleanFileName].join("/");
 }
 
+/** Sanea un segmento de carpeta que representa un CÓDIGO de negocio (código de
+ * estilo de producto, código de color) preservando mayúsculas — a diferencia de
+ * `slugifySegment` (que fuerza minúsculas para nombres de archivo/slugs), estos
+ * códigos ya son identificadores cortos y estables (`CK3900`, `BLK`) que el admin
+ * reconoce visualmente en el bucket; forzarlos a minúsculas los volvería
+ * irreconocibles sin ganar nada en seguridad de URL. */
+export function sanitizeCodeSegment(input: string): string {
+  return input
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/** Segmento fijo de la subcarpeta de portada dentro de la carpeta de un producto. */
+export const PRODUCT_COVER_SEGMENT = "portada";
+
+/** Construye la clave física de un medio de producto bajo la carpeta por
+ * código de estilo: `products/{CODIGO}/portada/archivo.ext` o
+ * `products/{CODIGO}/{CODIGO-COLOR}/archivo.ext`. El código de estilo y el de
+ * color preservan mayúsculas (`sanitizeCodeSegment`); el nombre de archivo se
+ * sanea con `slugifySegment` como el resto del sistema. */
+export function buildProductMediaKey(codigoEstilo: string, colorCodeOrPortada: string | typeof PRODUCT_COVER_SEGMENT, fileName: string): string {
+  const prefix = FOLDER_PREFIXES.PRODUCTS;
+  const codeSegment = sanitizeCodeSegment(codigoEstilo);
+  const secondSegment = colorCodeOrPortada === PRODUCT_COVER_SEGMENT
+    ? PRODUCT_COVER_SEGMENT
+    : sanitizeCodeSegment(colorCodeOrPortada);
+  const cleanFileName = slugifySegment(fileName.replace(/\.[^.]+$/, "")) + (fileName.match(/\.[^.]+$/)?.[0]?.toLowerCase() ?? "");
+  return [prefix, codeSegment, secondSegment, cleanFileName].join("/");
+}
+
+/** Extrae el nombre de archivo (última porción) de un storage_key existente —
+ * usado por el servicio de reorganización para preservar el nombre al mover un
+ * asset a su carpeta esperada. */
+export function fileNameFromStorageKey(storageKey: string): string {
+  const lastSlash = storageKey.lastIndexOf("/");
+  return lastSlash >= 0 ? storageKey.slice(lastSlash + 1) : storageKey;
+}
+
 /** Mantiene el directorio del storage_key actual y reemplaza solo el nombre de archivo (para renombrar). */
 export function renameStorageKey(oldKey: string, newFileName: string): string {
   const lastSlash = oldKey.lastIndexOf("/");
