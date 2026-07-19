@@ -3,6 +3,15 @@
 import { useState, useEffect } from 'react';
 import type { Control, UseFormRegister, UseFormWatch, UseFormSetValue, FieldArrayWithId, FieldErrors } from 'react-hook-form';
 import { Controller } from 'react-hook-form';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import { SortableContext, rectSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -14,14 +23,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Plus, Trash2, ImageIcon, AlertTriangle } from 'lucide-react';
 import { MediaThumb } from '@/components/admin/media/MediaThumb';
 import { cn } from '@/lib/utils';
 import type { ProductFormData, Color } from './schema';
-import { SIZES, STATUSES } from './schema';
+import { SIZES, STATUSES, STATUS_META } from './schema';
 import { AttributeMatrixSection } from './AttributeMatrixSection';
+import { GalleryImageTile } from './GalleryImageTile';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -219,6 +230,44 @@ export function VariantsMediaSection({
 
   // Colores disponibles para agregar (que no estén activos)
   const availableColorsToAdd = colors.filter((c) => !activeColorIds.includes(c.id));
+
+  // ─── Galería: drag & drop y "imagen principal" (Smart Chips / Drag-Zone) ───
+  // `distance: 4` evita que un clic simple en los botones (estrella/lápiz/trash)
+  // de la miniatura dispare accidentalmente un drag.
+  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  /** Reordena las imágenes de un color al soltar un drag — recalcula `sortOrder`
+   * (0..n-1) según la nueva posición dentro de ESE color; no toca imágenes de
+   * otros colores. `orderedColorImages` ya viene ordenado por `sortOrder` actual. */
+  function handleGalleryDragEnd(
+    orderedColorImages: { img: ProductFormData['images'][number]; idx: number }[],
+    event: DragEndEvent
+  ) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = orderedColorImages.findIndex((item) => (item.img.id || String(item.idx)) === active.id);
+    const newIndex = orderedColorImages.findIndex((item) => (item.img.id || String(item.idx)) === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(orderedColorImages, oldIndex, newIndex);
+    reordered.forEach((item, position) => {
+      setValue(`images.${item.idx}.sortOrder`, position, { shouldDirty: true });
+    });
+  }
+
+  /** Marca una imagen como principal del color: pasa a `sortOrder = 0` y el resto
+   * del grupo se reindexa `1..n-1` preservando su orden relativo. El catálogo
+   * público usa `images[0]` (por `sortOrder`) de cada color como swatch, así que
+   * esto es puramente un reordenamiento, sin flag ni cambios de esquema. */
+  function handleSetPrimaryImage(
+    orderedColorImages: { img: ProductFormData['images'][number]; idx: number }[],
+    absoluteIdx: number
+  ) {
+    const others = orderedColorImages.filter((item) => item.idx !== absoluteIdx);
+    setValue(`images.${absoluteIdx}.sortOrder`, 0, { shouldDirty: true });
+    others.forEach((item, i) => {
+      setValue(`images.${item.idx}.sortOrder`, i + 1, { shouldDirty: true });
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -427,11 +476,16 @@ export function VariantsMediaSection({
               .map((v, idx) => ({ v, idx }))
               .filter((item) => item.v.colorId === colorId);
 
+            // Ordenado por `sortOrder` ascendente: la posición visual debe coincidir
+            // con la que consume el catálogo público (`images[0]` = swatch del color).
             const colorImages = imageFields
               .map((img, idx) => ({ img, idx }))
-              .filter((item) => item.img.colorId === colorId);
+              .filter((item) => item.img.colorId === colorId)
+              .sort((a, b) => (a.img.sortOrder ?? 0) - (b.img.sortOrder ?? 0));
 
-            const colorHasError = colorVariants.some((item) => variantsErrors?.[item.idx]);
+            const colorHasError =
+              colorVariants.some((item) => variantsErrors?.[item.idx]) ||
+              (colorVariants.length > 0 && colorImages.length === 0);
 
             return (
               <AccordionItem
@@ -525,87 +579,99 @@ export function VariantsMediaSection({
                     </div>
 
                     {colorVariants.length > 0 && (
-                      <div className="border rounded-lg overflow-hidden bg-white divide-y">
-                        <div className="grid grid-cols-12 gap-2 bg-gray-50 p-2 text-[10px] font-bold text-gray-500 uppercase tracking-wider text-center items-center">
-                          <div className="col-span-6 text-left pl-1">Talla</div>
-                          <div className="col-span-5">Estado</div>
-                          <div className="col-span-1">Acción</div>
-                        </div>
-
+                      <div className="flex flex-wrap gap-2">
                         {colorVariants.map((item, localIdx) => {
                           const v = item.v;
                           const absoluteIdx = item.idx;
                           const rowError = variantsErrors?.[absoluteIdx];
-                          const rowMissing = [
-                            rowError?.colorId && 'Color',
-                            rowError?.size && 'Talla',
-                          ].filter(Boolean) as string[];
+                          const hasRowError = Boolean(rowError?.colorId || rowError?.size);
+                          const statusMeta = STATUS_META[v.status] ?? STATUS_META.AVAILABLE;
 
                           return (
                             <div
                               key={v.id || localIdx}
-                              className={cn('p-2 space-y-2', rowMissing.length > 0 && 'bg-red-50 border-l-2 border-red-400')}
+                              className={cn(
+                                'inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-full border bg-white text-xs',
+                                hasRowError ? 'ring-2 ring-red-400 border-red-300' : 'border-gray-200'
+                              )}
                             >
-                            <div className="grid grid-cols-12 gap-2 items-center text-center">
                               {/* Talla */}
-                              <div className="col-span-6 text-left">
-                                <Controller
-                                  name={`variants.${absoluteIdx}.size`}
-                                  control={control}
-                                  render={({ field }) => (
-                                    <Select value={field.value} onValueChange={field.onChange}>
-                                      <SelectTrigger className="h-8 text-xs bg-white">
-                                        <SelectValue placeholder="Talla" />
-                                      </SelectTrigger>
-                                      <SelectContent>
+                              <Controller
+                                name={`variants.${absoluteIdx}.size`}
+                                control={control}
+                                render={({ field }) => (
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <button type="button" className="font-semibold hover:underline">
+                                        {field.value || 'Talla'}
+                                      </button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-40 p-1" align="start">
+                                      <div className="grid grid-cols-3 gap-1">
                                         {SIZES.map((s) => (
-                                          <SelectItem key={s} value={s}>{s}</SelectItem>
+                                          <button
+                                            key={s}
+                                            type="button"
+                                            onClick={() => field.onChange(s)}
+                                            className={cn(
+                                              'text-xs rounded px-1.5 py-1 border',
+                                              field.value === s ? 'bg-[#111111] text-white border-[#111111]' : 'bg-white border-gray-200'
+                                            )}
+                                          >
+                                            {s}
+                                          </button>
                                         ))}
-                                      </SelectContent>
-                                    </Select>
-                                  )}
-                                />
-                              </div>
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
+                                )}
+                              />
+
+                              <span className="text-gray-300">·</span>
 
                               {/* Estado */}
-                              <div className="col-span-5">
-                                <Controller
-                                  name={`variants.${absoluteIdx}.status`}
-                                  control={control}
-                                  render={({ field }) => (
-                                    <Select value={field.value} onValueChange={field.onChange}>
-                                      <SelectTrigger className="h-8 text-xs bg-white">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
+                              <Controller
+                                name={`variants.${absoluteIdx}.status`}
+                                control={control}
+                                render={({ field }) => (
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <button type="button" className="flex items-center gap-1 hover:underline">
+                                        <span className={cn('w-2 h-2 rounded-full', statusMeta.dot)} />
+                                        {statusMeta.label}
+                                      </button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-44 p-1" align="start">
+                                      <div className="flex flex-col gap-0.5">
                                         {STATUSES.map((s) => (
-                                          <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                                          <button
+                                            key={s.value}
+                                            type="button"
+                                            onClick={() => field.onChange(s.value)}
+                                            className={cn(
+                                              'flex items-center gap-1.5 text-xs rounded px-2 py-1.5 text-left',
+                                              field.value === s.value ? 'bg-gray-100 font-semibold' : 'hover:bg-gray-50'
+                                            )}
+                                          >
+                                            <span className={cn('w-2 h-2 rounded-full', STATUS_META[s.value]?.dot)} />
+                                            {s.label}
+                                          </button>
                                         ))}
-                                      </SelectContent>
-                                    </Select>
-                                  )}
-                                />
-                              </div>
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
+                                )}
+                              />
 
                               {/* Acción */}
-                              <div className="col-span-1">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteVariantClick(absoluteIdx, colorId)}
-                                  className="text-red-500 hover:text-red-700 hover:bg-red-50 px-1"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
-                            </div>
-
-                            {rowMissing.length > 0 && (
-                              <p className="text-[10px] text-red-500 pl-1">
-                                Falta: {rowMissing.join(' y ')}
-                              </p>
-                            )}
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteVariantClick(absoluteIdx, colorId)}
+                                className="text-red-400 hover:text-red-600 ml-0.5 p-0.5"
+                                title="Eliminar talla"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
                             </div>
                           );
                         })}
@@ -637,55 +703,38 @@ export function VariantsMediaSection({
                         No hay medios asociados a este color.
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {colorImages.map((item) => {
-                          const img = item.img;
-                          const absoluteIdx = item.idx;
+                      <DndContext
+                        sensors={dndSensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={(event) => handleGalleryDragEnd(colorImages, event)}
+                      >
+                        <SortableContext
+                          items={colorImages.map((item) => item.img.id || String(item.idx))}
+                          strategy={rectSortingStrategy}
+                        >
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                            {colorImages.map((item) => {
+                              const img = item.img;
+                              const absoluteIdx = item.idx;
 
-                          return (
-                            <div key={img.id || absoluteIdx} className="flex gap-2.5 p-2 bg-gray-50 border rounded-lg shadow-xs items-start">
-                              <div className="relative w-16 h-16 bg-white rounded border overflow-hidden flex-shrink-0">
-                                <MediaThumb
+                              return (
+                                <GalleryImageTile
+                                  key={img.id || absoluteIdx}
+                                  fieldId={img.id || String(absoluteIdx)}
+                                  absoluteIdx={absoluteIdx}
                                   storageKey={img.storageKey!}
                                   mimeType={img.mimeType ?? ''}
-                                  sizes="64px"
+                                  alt={img.alt}
+                                  isPrimary={colorImages[0]?.idx === absoluteIdx}
+                                  register={register}
+                                  onRemove={() => removeImage(absoluteIdx)}
+                                  onSetPrimary={() => handleSetPrimaryImage(colorImages, absoluteIdx)}
                                 />
-                              </div>
-                              <div className="flex-1 min-w-0 space-y-1.5">
-                                <div className="flex items-center gap-1.5">
-                                  <div className="flex-1">
-                                    <Label className="text-[9px] font-semibold text-gray-400">Orden</Label>
-                                    <Input
-                                      className="h-7 text-xs w-12 text-center bg-white px-1"
-                                      type="number"
-                                      inputMode="numeric"
-                                      {...register(`images.${absoluteIdx}.sortOrder`)}
-                                    />
-                                  </div>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => removeImage(absoluteIdx)}
-                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 mt-4 px-1.5"
-                                    title="Eliminar de la galería"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </Button>
-                                </div>
-                                <div>
-                                  <Label className="text-[9px] font-semibold text-gray-400">Texto Alt</Label>
-                                  <Input
-                                    className="h-7 text-xs bg-white py-0.5"
-                                    {...register(`images.${absoluteIdx}.alt`)}
-                                    placeholder="Texto alternativo"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                              );
+                            })}
+                          </div>
+                        </SortableContext>
+                      </DndContext>
                     )}
                   </div>
                 </AccordionContent>

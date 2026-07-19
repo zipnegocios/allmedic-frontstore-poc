@@ -86,6 +86,23 @@ export const ProductFormSchema = z.object({
   variants: z.array(VariantSchema).default([]),
   images: z.array(ImageSchema).default([]),
   cover: CoverSchema,
+}).superRefine((data, ctx) => {
+  // Cada color con tallas definidas debe tener al menos una imagen en su galería —
+  // el catálogo público usa `images[0]` (por `sortOrder`) de cada color como swatch,
+  // así que un color sin imágenes queda roto en el storefront. Un solo issue
+  // agregado (no uno por color): el schema no tiene acceso a los nombres de color
+  // (viven en la prop `colors` del componente), solo a los `colorId`.
+  const colorIdsWithVariants = new Set(data.variants.map((v) => v.colorId).filter(Boolean));
+  const missing = Array.from(colorIdsWithVariants).some(
+    (colorId) => !data.images.some((img) => img.colorId === colorId)
+  );
+  if (missing) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Todos los colores con tallas deben tener al menos una imagen en la galería',
+      path: ['images'],
+    });
+  }
 });
 
 
@@ -165,3 +182,11 @@ export const STATUSES = [
   { value: 'BACKORDER', label: 'Pedido especial' },
   { value: 'OUT_OF_STOCK', label: 'Agotado' },
 ];
+
+/** Punto de color semántico por estado — usado por el "Smart Chip" de talla en
+ * `VariantsMediaSection`. */
+export const STATUS_META: Record<string, { dot: string; label: string }> = {
+  AVAILABLE: { dot: 'bg-emerald-500', label: 'Disponible' },
+  BACKORDER: { dot: 'bg-amber-500', label: 'Pedido especial' },
+  OUT_OF_STOCK: { dot: 'bg-red-500', label: 'Agotado' },
+};

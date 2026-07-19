@@ -88,6 +88,11 @@ export function buildValidationSummaryGrouped(errors: FieldErrors<ProductFormDat
         variantsMedia.push(`Medio ${idx + 1}: falta ${missing.join(' y ')}`);
       }
     });
+  } else if (imageErrors && typeof imageErrors === 'object' && 'message' in imageErrors) {
+    // Error a nivel de todo el array `images` (ej. el `superRefine` de "cada color
+    // debe tener al menos una imagen"), sin índice de fila asociado.
+    const message = (imageErrors as { message?: string }).message;
+    if (message) variantsMedia.push(message);
   }
 
   return { general, variantsMedia };
