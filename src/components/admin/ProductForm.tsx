@@ -74,6 +74,11 @@ export default function ProductForm({
 }: ProductFormProps) {
   const router = useRouter();
   const isMobile = useIsMobile();
+  // El editor embebido en el drawer de `admin/sets` recicla el wizard mobile
+  // (multi-paso) en vez del layout de tabs de escritorio — no es una vista
+  // nueva, es la misma condición que ya elige el wizard en pantallas chicas,
+  // extendida para que también aplique siempre que el formulario esté embebido.
+  const useWizardLayout = isMobile || embedded;
   const [brands, setBrands] = useState<Brand[]>([]);
   const [colors, setColors] = useState<Color[]>([]);
   const [collections, setCollections] = useState<CollectionOption[]>([]);
@@ -117,8 +122,9 @@ export default function ProductForm({
 
 
   // ─── Wizard mobile: paso actual y pasos ya visitados ───
-  // Solo tiene efecto cuando `isMobile` es true; en desktop se ignora por
-  // completo (se renderiza siempre el `Tabs` de siempre).
+  // Solo tiene efecto cuando `useWizardLayout` es true (pantallas chicas o
+  // formulario embebido en el drawer de sets); en desktop standalone se ignora
+  // por completo (se renderiza el `Tabs` de siempre).
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [maxVisitedStepIndex, setMaxVisitedStepIndex] = useState(0);
 
@@ -715,7 +721,7 @@ export default function ProductForm({
             </AlertDescription>
           </Alert>
         )}
-        {isMobile ? (
+        {useWizardLayout ? (
           <div className="space-y-4">
             {/* ─── Código de Estilo: fijo arriba, visible en todos los pasos ───
                 Equivalente mobile de "junto al control de tabs" en desktop — no
@@ -1059,10 +1065,11 @@ export default function ProductForm({
 
       {mediaPickerDialog}
 
-      {/* ─── Botón flotante "Guardar y quedarse" (solo desktop) ───
-          En mobile vive dentro de la barra sticky inferior (Atrás/Siguiente),
-          no flota suelto — ver el `FloatingSaveButton inline` más arriba. */}
-      {!isMobile && (
+      {/* ─── Botón flotante "Guardar y quedarse" (solo layout de tabs) ───
+          En el wizard (mobile o embebido en sets) vive dentro de la barra
+          sticky inferior (Atrás/Siguiente), no flota suelto — ver el
+          `FloatingSaveButton inline` más arriba. */}
+      {!useWizardLayout && (
         <FloatingSaveButton
           status={saveStayStatus}
           onClick={() => handleSubmit(onSaveAndStay, onInvalid)()}
