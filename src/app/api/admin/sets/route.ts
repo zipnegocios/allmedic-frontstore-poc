@@ -14,6 +14,7 @@ const CreateSetSchema = z.object({
   slug: z.string().min(1),
   description: z.string().optional(),
   coverAssetId: z.string().min(1, 'La imagen de portada es obligatoria'),
+  coverAlt: z.string().optional(),
   setGroupId: z.string().optional().nullable(),
   brandId: z.string().optional().nullable(),
   isActive: z.boolean().default(true),

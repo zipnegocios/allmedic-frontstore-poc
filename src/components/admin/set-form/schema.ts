@@ -16,6 +16,7 @@ export const SetFormSchema = z.object({
   slug: z.string().min(1, 'Slug requerido'),
   description: z.string().optional(),
   coverAssetId: z.string().min(1, 'La imagen de portada es obligatoria'),
+  coverAlt: z.string().optional(),
   imageUrl: z.string().optional(), // solo para previsualización, no se persiste
   setGroupId: z.string().optional(),
   brandId: z.string().optional(),

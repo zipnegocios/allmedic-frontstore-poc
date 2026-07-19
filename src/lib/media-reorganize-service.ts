@@ -6,10 +6,11 @@ import {
   products as productsTable,
   productVariants as variantsTable,
   colors as colorsTable,
+  corporateSets as corporateSetsTable,
 } from '@/db/schema';
 import { eq, and, ne, inArray } from 'drizzle-orm';
 import { deleteObject, copyObject } from '@/lib/r2';
-import { buildProductMediaKey, fileNameFromStorageKey, PRODUCT_COVER_SEGMENT } from '@/lib/media';
+import { buildProductMediaKey, buildSetMediaKey, fileNameFromStorageKey, COVER_SEGMENT } from '@/lib/media';
 
 async function writeAudit(assetId: string, action: string, payload: Record<string, unknown>, userId?: string) {
   await db.insert(mediaAuditTable).values({ assetId, action, payload, userId });
@@ -93,7 +94,7 @@ export async function reorganizeProductMedia(productId: string, userId?: string)
     const colorCode = link.colorId ? colorCodeById.get(link.colorId) : undefined;
     if (!isCover && !colorCode) continue; // vínculo de galería sin color resoluble (dato inconsistente) — no se mueve
 
-    const segment = isCover ? PRODUCT_COVER_SEGMENT : colorCode!;
+    const segment = isCover ? COVER_SEGMENT : colorCode!;
     const fileName = fileNameFromStorageKey(link.storageKey);
     let targetKey = buildProductMediaKey(product.code, segment, fileName);
     if (targetKey === link.storageKey) continue; // ya está en su lugar
@@ -105,6 +106,60 @@ export async function reorganizeProductMedia(productId: string, userId?: string)
     await db.update(mediaAssetsTable).set({ storageKey: targetKey, updatedAt: new Date() }).where(eq(mediaAssetsTable.id, link.assetId));
     await deleteObject(link.storageKey);
     await writeAudit(link.assetId, 'RENAME', { oldKey: link.storageKey, newKey: targetKey, reason: 'reorganize-product-media' }, userId);
+
+    moved.push({ assetId: link.assetId, oldKey: link.storageKey, newKey: targetKey });
+  }
+
+  return { moved, skippedReused };
+}
+
+/**
+ * Reorganiza físicamente en R2 la portada de un set hacia `sets/{slug}/portada/`
+ * — misma lógica que `reorganizeProductMedia` (idempotente, nunca mueve assets
+ * reutilizados por otra entidad), pero para el único rol `COVER` que usan los sets.
+ */
+export async function reorganizeSetMedia(setId: string, userId?: string): Promise<ReorganizeResult> {
+  const [set] = await db.select({ slug: corporateSetsTable.slug }).from(corporateSetsTable).where(eq(corporateSetsTable.id, setId));
+  if (!set) throw new Error('Set no encontrado');
+
+  const links = await db
+    .select({
+      assetId: mediaLinksTable.assetId,
+      storageKey: mediaAssetsTable.storageKey,
+    })
+    .from(mediaLinksTable)
+    .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
+    .where(and(eq(mediaLinksTable.entityType, 'SET'), eq(mediaLinksTable.entityId, setId), eq(mediaLinksTable.role, 'COVER')));
+
+  if (links.length === 0) return { moved: [], skippedReused: 0 };
+
+  const assetIds = links.map((l) => l.assetId);
+  const externalLinkRows = await db
+    .select({ assetId: mediaLinksTable.assetId })
+    .from(mediaLinksTable)
+    .where(and(inArray(mediaLinksTable.assetId, assetIds), ne(mediaLinksTable.entityId, setId)));
+  const reusedElsewhere = new Set(externalLinkRows.map((r) => r.assetId));
+
+  const moved: ReorganizeResult['moved'] = [];
+  let skippedReused = 0;
+
+  for (const link of links) {
+    if (reusedElsewhere.has(link.assetId)) {
+      skippedReused += 1;
+      continue;
+    }
+
+    const fileName = fileNameFromStorageKey(link.storageKey);
+    let targetKey = buildSetMediaKey(set.slug, fileName);
+    if (targetKey === link.storageKey) continue;
+
+    targetKey = await ensureUniqueKey(targetKey, link.assetId);
+    if (targetKey === link.storageKey) continue;
+
+    await copyObject(link.storageKey, targetKey);
+    await db.update(mediaAssetsTable).set({ storageKey: targetKey, updatedAt: new Date() }).where(eq(mediaAssetsTable.id, link.assetId));
+    await deleteObject(link.storageKey);
+    await writeAudit(link.assetId, 'RENAME', { oldKey: link.storageKey, newKey: targetKey, reason: 'reorganize-set-media' }, userId);
 
     moved.push({ assetId: link.assetId, oldKey: link.storageKey, newKey: targetKey });
   }

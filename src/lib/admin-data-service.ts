@@ -23,7 +23,7 @@ import {
 } from '@/db/schema';
 import { eq, and, or, ne, asc, desc, sql, like, inArray, isNull, isNotNull, type SQL } from 'drizzle-orm';
 import { resolveMediaUrl } from './media';
-import { reorganizeProductMedia } from './media-reorganize-service';
+import { reorganizeProductMedia, reorganizeSetMedia } from './media-reorganize-service';
 import type { BusinessRule, RuleConflict } from '@/lib/rules-engine';
 import {
   syncVariantAttributesPayload,
@@ -39,7 +39,8 @@ async function replaceSingleLink(
   entityType: 'BRAND' | 'BANNER' | 'SET',
   entityId: string,
   role: string,
-  assetId: string | null | undefined
+  assetId: string | null | undefined,
+  alt?: string | null
 ) {
   await db.delete(mediaLinksTable).where(and(
     eq(mediaLinksTable.entityType, entityType),
@@ -47,7 +48,7 @@ async function replaceSingleLink(
     eq(mediaLinksTable.role, role)
   ));
   if (assetId) {
-    await db.insert(mediaLinksTable).values({ assetId, entityType, entityId, role });
+    await db.insert(mediaLinksTable).values({ assetId, entityType, entityId, role, altOverride: alt || null });
   }
 }
 
@@ -1092,6 +1093,7 @@ interface CorporateSetInput {
   slug: string;
   description?: string;
   coverAssetId?: string;
+  coverAlt?: string;
   setGroupId?: string | null;
   brandId?: string | null;
   isActive?: boolean;
@@ -1106,7 +1108,7 @@ interface CorporateSetInput {
 }
 
 export async function createSetWithItems(input: CorporateSetInput) {
-  const { items = [], coverAssetId, manualDiscountEnd, ...setData } = input;
+  const { items = [], coverAssetId, coverAlt, manualDiscountEnd, ...setData } = input;
 
   const set = await db.transaction(async (tx) => {
     const [set] = await tx.insert(corporateSetsTable).values({
@@ -1128,12 +1130,17 @@ export async function createSetWithItems(input: CorporateSetInput) {
     return set;
   });
 
-  if (coverAssetId) await replaceSingleLink('SET', set.id, 'COVER', coverAssetId);
+  if (coverAssetId) await replaceSingleLink('SET', set.id, 'COVER', coverAssetId, coverAlt);
+  try {
+    await reorganizeSetMedia(set.id);
+  } catch (err) {
+    console.error(`[reorganizeSetMedia] Falló para set ${set.id}:`, err);
+  }
   return set;
 }
 
 export async function updateSetWithItems(id: string, input: Partial<CorporateSetInput>) {
-  const { items, coverAssetId, manualDiscountEnd, ...setData } = input;
+  const { items, coverAssetId, coverAlt, manualDiscountEnd, ...setData } = input;
 
   const set = await db.transaction(async (tx) => {
     if (Object.keys(setData).length > 0 || manualDiscountEnd !== undefined) {
@@ -1163,7 +1170,12 @@ export async function updateSetWithItems(id: string, input: Partial<CorporateSet
     return set;
   });
 
-  if (coverAssetId !== undefined) await replaceSingleLink('SET', id, 'COVER', coverAssetId);
+  if (coverAssetId !== undefined) await replaceSingleLink('SET', id, 'COVER', coverAssetId, coverAlt);
+  try {
+    await reorganizeSetMedia(id);
+  } catch (err) {
+    console.error(`[reorganizeSetMedia] Falló para set ${id}:`, err);
+  }
   return set;
 }
 

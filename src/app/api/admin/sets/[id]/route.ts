@@ -14,6 +14,7 @@ const UpdateSetSchema = z.object({
   slug: z.string().min(1).optional(),
   description: z.string().optional(),
   coverAssetId: z.string().optional(),
+  coverAlt: z.string().optional(),
   setGroupId: z.string().optional().nullable(),
   brandId: z.string().optional().nullable(),
   isActive: z.boolean().optional(),

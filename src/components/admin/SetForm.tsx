@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { ArrowLeft, Save, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { MediaPicker } from '@/components/admin/media/MediaPicker';
-import { resolveMediaUrl } from '@/lib/media';
+import { resolveMediaUrl, sanitizeCodeSegment, COVER_SEGMENT } from '@/lib/media';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import ProductForm from '@/components/admin/ProductForm';
@@ -529,7 +529,10 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
         folder="SETS"
-        segments={slugValue ? [slugValue] : []}
+        segments={slugValue?.trim() ? [sanitizeCodeSegment(slugValue.trim()), COVER_SEGMENT] : []}
+        keyPrefix={slugValue?.trim() ? `sets/${sanitizeCodeSegment(slugValue.trim())}/${COVER_SEGMENT}/` : undefined}
+        linkedEntityType="SET"
+        linkedEntityId={createdSetId}
         onConfirm={(assets) => {
           if (assets[0]) {
             setValue('coverAssetId', assets[0].id);

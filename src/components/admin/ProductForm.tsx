@@ -21,7 +21,7 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { ArrowLeft, Save, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Loader2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { MediaPicker } from '@/components/admin/media/MediaPicker';
-import { resolveMediaUrl, sanitizeCodeSegment, PRODUCT_COVER_SEGMENT } from '@/lib/media';
+import { resolveMediaUrl, sanitizeCodeSegment, COVER_SEGMENT } from '@/lib/media';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import {
@@ -636,7 +636,7 @@ export default function ProductForm({
   const pickerCodeSegment = codeValue?.trim() ? sanitizeCodeSegment(codeValue.trim()) : '';
   const pickerColorCode = pickerColorId ? colors.find((c) => c.id === pickerColorId)?.code : undefined;
   const pickerSecondSegment = pickerTargetIndex === 'cover' || pickerTargetIndex === 'secondaryCover'
-    ? PRODUCT_COVER_SEGMENT
+    ? COVER_SEGMENT
     : (pickerColorCode ? sanitizeCodeSegment(pickerColorCode) : undefined);
   const pickerKeyPrefix = pickerCodeSegment && pickerSecondSegment
     ? `products/${pickerCodeSegment}/${pickerSecondSegment}/`

@@ -20,6 +20,7 @@ export default async function EditSetPage({ params }: EditSetPageProps) {
     description: set.description || '',
     imageUrl: set.imageUrl || '',
     coverAssetId: set.cover?.assetId || '',
+    coverAlt: set.cover?.alt || '',
     setGroupId: set.setGroupId || '',
     brandId: set.brandId || '',
     isActive: set.isActive ?? true,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildProductMediaKey, sanitizeCodeSegment, fileNameFromStorageKey, PRODUCT_COVER_SEGMENT } from '../media';
+import { buildProductMediaKey, sanitizeCodeSegment, fileNameFromStorageKey, COVER_SEGMENT } from '../media';
 
 describe('sanitizeCodeSegment', () => {
   it('preserva mayúsculas de códigos de negocio', () => {
@@ -19,7 +19,7 @@ describe('sanitizeCodeSegment', () => {
 
 describe('buildProductMediaKey', () => {
   it('construye la clave de portada preservando el código de estilo', () => {
-    expect(buildProductMediaKey('CK3900', PRODUCT_COVER_SEGMENT, 'Foto Principal.JPG')).toBe(
+    expect(buildProductMediaKey('CK3900', COVER_SEGMENT, 'Foto Principal.JPG')).toBe(
       'products/CK3900/portada/foto-principal.jpg'
     );
   });

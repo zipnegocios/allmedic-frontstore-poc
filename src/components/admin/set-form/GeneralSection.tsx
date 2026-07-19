@@ -74,6 +74,9 @@ export function GeneralSection({ register, control, errors, watch, groups, brand
               </Button>
             </div>
             {errors.coverAssetId && <p className="text-sm text-red-500">{errors.coverAssetId.message}</p>}
+            {watch('imageUrl') && (
+              <Input placeholder="Texto alternativo" {...register('coverAlt')} className="h-8 text-xs" />
+            )}
           </div>
           <div className="space-y-2">
             <Label>Grupo de Sets</Label>

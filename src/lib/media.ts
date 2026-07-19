@@ -77,22 +77,30 @@ export function sanitizeCodeSegment(input: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-/** Segmento fijo de la subcarpeta de portada dentro de la carpeta de un producto. */
-export const PRODUCT_COVER_SEGMENT = "portada";
+/** Segmento fijo de la subcarpeta de portada dentro de la carpeta de una entidad
+ * (producto o set) — compartido entre ambas, no exclusivo de productos. */
+export const COVER_SEGMENT = "portada";
+
+function buildFolderMediaKey(folder: MediaFolder, mainSegment: string, subSegment: string, fileName: string): string {
+  const prefix = FOLDER_PREFIXES[folder];
+  const mainSeg = sanitizeCodeSegment(mainSegment);
+  const subSeg = subSegment === COVER_SEGMENT ? COVER_SEGMENT : sanitizeCodeSegment(subSegment);
+  const cleanFileName = slugifySegment(fileName.replace(/\.[^.]+$/, "")) + (fileName.match(/\.[^.]+$/)?.[0]?.toLowerCase() ?? "");
+  return [prefix, mainSeg, subSeg, cleanFileName].join("/");
+}
 
 /** Construye la clave física de un medio de producto bajo la carpeta por
  * código de estilo: `products/{CODIGO}/portada/archivo.ext` o
  * `products/{CODIGO}/{CODIGO-COLOR}/archivo.ext`. El código de estilo y el de
  * color preservan mayúsculas (`sanitizeCodeSegment`); el nombre de archivo se
  * sanea con `slugifySegment` como el resto del sistema. */
-export function buildProductMediaKey(codigoEstilo: string, colorCodeOrPortada: string | typeof PRODUCT_COVER_SEGMENT, fileName: string): string {
-  const prefix = FOLDER_PREFIXES.PRODUCTS;
-  const codeSegment = sanitizeCodeSegment(codigoEstilo);
-  const secondSegment = colorCodeOrPortada === PRODUCT_COVER_SEGMENT
-    ? PRODUCT_COVER_SEGMENT
-    : sanitizeCodeSegment(colorCodeOrPortada);
-  const cleanFileName = slugifySegment(fileName.replace(/\.[^.]+$/, "")) + (fileName.match(/\.[^.]+$/)?.[0]?.toLowerCase() ?? "");
-  return [prefix, codeSegment, secondSegment, cleanFileName].join("/");
+export function buildProductMediaKey(codigoEstilo: string, colorCodeOrPortada: string | typeof COVER_SEGMENT, fileName: string): string {
+  return buildFolderMediaKey('PRODUCTS', codigoEstilo, colorCodeOrPortada, fileName);
+}
+
+/** Construye la clave física de la portada de un set: `sets/{slug}/portada/archivo.ext`. */
+export function buildSetMediaKey(slug: string, fileName: string): string {
+  return buildFolderMediaKey('SETS', slug, COVER_SEGMENT, fileName);
 }
 
 /** Extrae el nombre de archivo (última porción) de un storage_key existente —
