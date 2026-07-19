@@ -9,7 +9,7 @@ import { CountdownBadge } from '@/components/ui/CountdownBadge';
 import { QuickViewModal } from './QuickViewModal';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 import { usePriceVisibility } from '@/context/PriceVisibilityContext';
-import { resolveCoverMedia, resolveSecondaryCoverMedia } from '@/lib/data-service';
+import { resolveCoverMedia, resolveSecondaryCoverMedia } from '@/lib/product-cover';
 import { cn } from '@/lib/utils';
 
 interface ProductCardProps {

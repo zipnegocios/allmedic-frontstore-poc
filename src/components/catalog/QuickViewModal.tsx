@@ -8,7 +8,7 @@ import { useCart } from '@/context/CartContext';
 import { useNotificationContext } from '@/context/NotificationContext';
 import { Modal } from '@/components/ui/Modal';
 import { usePriceVisibility } from '@/context/PriceVisibilityContext';
-import { resolveCoverMedia } from '@/lib/data-service';
+import { resolveCoverMedia } from '@/lib/product-cover';
 import { cn } from '@/lib/utils';
 
 interface QuickViewModalProps {

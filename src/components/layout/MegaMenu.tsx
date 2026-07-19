@@ -7,7 +7,7 @@ import { PRODUCTS as DEFAULT_PRODUCTS, BRANDS as DEFAULT_BRANDS, STORES as DEFAU
 import type { Product, Store as StoreType, BrandNavItem } from '@/lib/types';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 import { usePriceVisibility } from '@/context/PriceVisibilityContext';
-import { resolveCoverMedia } from '@/lib/data-service';
+import { resolveCoverMedia } from '@/lib/product-cover';
 import { cn } from '@/lib/utils';
 
 interface MegaMenuProps {

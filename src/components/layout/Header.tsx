@@ -12,7 +12,7 @@ import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 import { usePriceVisibility } from '@/context/PriceVisibilityContext';
 import type { Product, Store, BrandNavItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { resolveCoverMedia } from '@/lib/data-service';
+import { resolveCoverMedia } from '@/lib/product-cover';
 
 interface HeaderProps {
   onCartClick: () => void;

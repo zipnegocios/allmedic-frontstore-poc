@@ -6,7 +6,7 @@ import { Plus } from 'lucide-react';
 import type { Product, Size } from '@/lib/types';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 import { usePriceVisibility } from '@/context/PriceVisibilityContext';
-import { resolveCoverMedia } from '@/lib/data-service';
+import { resolveCoverMedia } from '@/lib/product-cover';
 import { cn } from '@/lib/utils';
 
 interface CrossSellCardProps {

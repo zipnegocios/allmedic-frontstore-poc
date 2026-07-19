@@ -688,29 +688,10 @@ export async function filterProducts(filters: {
   return products;
 }
 
-export function resolveCoverMedia(product: Product): MediaItem {
-  if (product.cover) return product.cover;
-  // Fallback to first GALLERY image of any variant
-  for (const variant of product.variants) {
-    if (variant.images && variant.images.length > 0) {
-      return variant.images[0];
-    }
-  }
-  // Fallback to placeholder
-  return {
-    url: '/images/placeholder-product.jpg',
-    type: 'image',
-    mimeType: 'image/jpeg',
-    width: null,
-    height: null,
-  };
-}
-
-/** Segunda imagen del par primaria/secundaria de portada (crossfade hover) —
- * único punto de verdad, análogo a `resolveCoverMedia`. Sin fallback a variantes:
- * si no hay secundaria, el consumidor debe desactivar el hover-swap en vez de
- * repetir la primaria (evita un crossfade falso "hacia la misma imagen"). */
-export function resolveSecondaryCoverMedia(product: Product): MediaItem | undefined {
-  return product.secondaryCover;
-}
+// Re-exportadas desde `product-cover.ts` (módulo puro, sin `db`/`pg`) — ver el
+// comentario ahí para por qué no viven directamente en este archivo: este
+// módulo importa `db` a nivel de archivo, y los Client Components que
+// necesitan resolver la portada (ProductCard, Header, MegaMenu, etc.) no
+// pueden arrastrar esa dependencia a su bundle de navegador.
+export { resolveCoverMedia, resolveSecondaryCoverMedia } from './product-cover';
 
