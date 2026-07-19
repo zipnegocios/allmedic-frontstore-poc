@@ -24,12 +24,20 @@ describe('buildValidationSummary', () => {
     expect(summary).toHaveLength(2);
   });
 
-  it('incluye la Portada del Producto cuando cover.assetId falla', () => {
+  it('incluye la Portada del Producto (primaria) cuando cover.assetId falla', () => {
     const errors = {
       cover: { assetId: err('Portada requerida') },
     } as FieldErrors<ProductFormData>;
 
-    expect(buildValidationSummary(errors)).toEqual(['Portada del Producto']);
+    expect(buildValidationSummary(errors)).toEqual(['Portada del Producto — Imagen Primaria']);
+  });
+
+  it('incluye la Portada del Producto (secundaria) cuando secondaryCover.assetId falla', () => {
+    const errors = {
+      secondaryCover: { assetId: err('Portada secundaria requerida') },
+    } as FieldErrors<ProductFormData>;
+
+    expect(buildValidationSummary(errors)).toEqual(['Portada del Producto — Imagen Secundaria']);
   });
 
   it('reporta cada fila de variante inválida por separado, con los campos exactos que faltan', () => {

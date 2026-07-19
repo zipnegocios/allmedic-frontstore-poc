@@ -52,9 +52,11 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
   const displayMedia = colorTouched
     ? (variantWithColor?.images[0] || product.cover || product.variants[0]?.images[0])
     : (product.cover || variantWithColor?.images[0] || product.variants[0]?.images[0]);
-  // Crossfade "hover image swap": solo en el estado por defecto (sin color
-  // elegido) y si el producto tiene una imagen secundaria de Portada configurada.
-  const showHoverSwap = !colorTouched && Boolean(product.secondaryCover);
+  // Crossfade "hover image swap": mismo par primaria/secundaria que la Portada
+  // del producto, pero por color una vez que el usuario elige uno — heredando la
+  // misma convención por posición (`images[1]` = secundaria de ese color).
+  const secondaryDisplayMedia = colorTouched ? variantWithColor?.images[1] : product.secondaryCover;
+  const showHoverSwap = Boolean(secondaryDisplayMedia);
   
   const showPrices = usePriceVisibility({ brandId: product.brandId, productId: product.id });
   const hasDiscount = product.priceSale && product.priceSale < product.priceNormal;
@@ -151,13 +153,12 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
               onError={() => setIsImageLoading(false)}
             />
 
-            {/* Hover image swap: segunda imagen (Portada secundaria) superpuesta,
-                oculta por defecto y con crossfade de 300ms al hover — solo cuando
-                se está mostrando la Portada por defecto (sin color elegido). */}
+            {/* Hover image swap: segunda imagen (Portada o color activo) superpuesta,
+                oculta por defecto y con crossfade de 300ms al hover. */}
             {showHoverSwap && (
               <div className="absolute inset-0 z-[1] opacity-0 transition-opacity duration-300 group-hover/media:opacity-100">
                 <MediaGridThumb
-                  item={product.secondaryCover}
+                  item={secondaryDisplayMedia}
                   fallback="/images/placeholder-product.jpg"
                   alt={`${product.name} - vista alterna`}
                   sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"

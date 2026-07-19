@@ -47,11 +47,11 @@ export const CoverSchema = z.object({
 });
 
 // Imagen secundaria de Portada — habilita el crossfade "hover image swap" en la
-// card del catálogo público. A diferencia de `CoverSchema`, es opcional (un
-// producto puede no tener secundaria todavía).
+// card del catálogo público. Obligatoria igual que `CoverSchema` (ver decisión
+// de negocio: la imagen principal Y la secundaria son requeridas).
 export const SecondaryCoverSchema = z.object({
   id: z.string().optional(),
-  assetId: z.string().optional(),
+  assetId: z.string().min(1, 'Portada secundaria requerida'),
   url: z.string().optional(),
   storageKey: z.string().optional(),
   mimeType: z.string().optional(),
@@ -100,19 +100,21 @@ export const ProductFormSchema = z.object({
   cover: CoverSchema,
   secondaryCover: SecondaryCoverSchema,
 }).superRefine((data, ctx) => {
-  // Cada color con tallas definidas debe tener al menos una imagen en su galería —
-  // el catálogo público usa `images[0]` (por `sortOrder`) de cada color como swatch,
-  // así que un color sin imágenes queda roto en el storefront. Un solo issue
-  // agregado (no uno por color): el schema no tiene acceso a los nombres de color
-  // (viven en la prop `colors` del componente), solo a los `colorId`.
+  // Cada color con tallas definidas debe tener imagen PRINCIPAL Y SECUNDARIA en
+  // su galería (≥2) — el catálogo público usa `images[0]`/`images[1]` (por
+  // `sortOrder`) de cada color para el swatch y el crossfade "hover image swap",
+  // así que un color con menos de 2 imágenes queda roto en el storefront. Un
+  // solo issue agregado (no uno por color): el schema no tiene acceso a los
+  // nombres de color (viven en la prop `colors` del componente), solo a los
+  // `colorId`.
   const colorIdsWithVariants = new Set(data.variants.map((v) => v.colorId).filter(Boolean));
   const missing = Array.from(colorIdsWithVariants).some(
-    (colorId) => !data.images.some((img) => img.colorId === colorId)
+    (colorId) => data.images.filter((img) => img.colorId === colorId).length < 2
   );
   if (missing) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: 'Todos los colores con tallas deben tener al menos una imagen en la galería',
+      message: 'Todos los colores con tallas deben tener una imagen principal y una secundaria en su galería',
       path: ['images'],
     });
   }

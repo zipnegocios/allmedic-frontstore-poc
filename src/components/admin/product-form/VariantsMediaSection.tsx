@@ -294,6 +294,27 @@ export function VariantsMediaSection({
     });
   }
 
+  /** Marca una imagen como secundaria del color (para el crossfade "hover image
+   * swap" en catálogo): pasa a `sortOrder = 1`, preserva la Principal (`0`) tal
+   * cual, y reindexa el resto `2..n-1`. Mismo criterio por posición que
+   * `handleSetPrimaryImage` — sin flag ni cambios de esquema. No hace nada si la
+   * imagen elegida ya es la Principal (esa combinación no tiene sentido). */
+  function handleSetSecondaryImage(
+    orderedColorImages: { img: ProductFormData['images'][number]; idx: number }[],
+    absoluteIdx: number
+  ) {
+    const primary = orderedColorImages[0];
+    if (primary?.idx === absoluteIdx) return;
+    const others = orderedColorImages.filter(
+      (item) => item.idx !== absoluteIdx && item.idx !== primary?.idx
+    );
+    if (primary) setValue(`images.${primary.idx}.sortOrder`, 0, { shouldDirty: true });
+    setValue(`images.${absoluteIdx}.sortOrder`, 1, { shouldDirty: true });
+    others.forEach((item, i) => {
+      setValue(`images.${item.idx}.sortOrder`, i + 2, { shouldDirty: true });
+    });
+  }
+
   return (
     <div className="space-y-6">
       {/* ─── BARRA PENDIENTES DE ASIGNAR COLOR ─── */}
@@ -442,9 +463,11 @@ export function VariantsMediaSection({
             // veces para el mismo color (ej. dos filas "S" para "Negro").
             const usedSizesInColor = new Set(colorVariants.map((item) => item.v.size));
 
+            // Umbral 2 (no 0): la imagen principal Y la secundaria son obligatorias
+            // para cada color activo (crossfade "hover image swap" en catálogo).
             const colorHasError =
               colorVariants.some((item) => variantsErrors?.[item.idx]) ||
-              (colorVariants.length > 0 && colorImages.length === 0);
+              (colorVariants.length > 0 && colorImages.length < 2);
 
             return (
               <AccordionItem
@@ -684,39 +707,48 @@ export function VariantsMediaSection({
                         No hay medios asociados a este color.
                       </div>
                     ) : (
-                      <DndContext
-                        sensors={dndSensors}
-                        collisionDetection={closestCenter}
-                        onDragEnd={(event) => handleGalleryDragEnd(colorImages, event)}
-                      >
-                        <SortableContext
-                          items={colorImages.map((item) => item.img.id || String(item.idx))}
-                          strategy={rectSortingStrategy}
+                      <>
+                        {colorImages.length === 1 && (
+                          <p className="text-xs text-amber-600 bg-amber-50 rounded px-2 py-1.5 border border-amber-200 flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3" /> Falta la imagen secundaria de este color.
+                          </p>
+                        )}
+                        <DndContext
+                          sensors={dndSensors}
+                          collisionDetection={closestCenter}
+                          onDragEnd={(event) => handleGalleryDragEnd(colorImages, event)}
                         >
-                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                            {colorImages.map((item, position) => {
-                              const img = item.img;
-                              const absoluteIdx = item.idx;
+                          <SortableContext
+                            items={colorImages.map((item) => item.img.id || String(item.idx))}
+                            strategy={rectSortingStrategy}
+                          >
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                              {colorImages.map((item, position) => {
+                                const img = item.img;
+                                const absoluteIdx = item.idx;
 
-                              return (
-                                <GalleryImageTile
-                                  key={img.id || absoluteIdx}
-                                  fieldId={img.id || String(absoluteIdx)}
-                                  absoluteIdx={absoluteIdx}
-                                  storageKey={img.storageKey!}
-                                  mimeType={img.mimeType ?? ''}
-                                  alt={img.alt}
-                                  isPrimary={position === 0}
-                                  position={position + 1}
-                                  register={register}
-                                  onRemove={() => removeImage(absoluteIdx)}
-                                  onSetPrimary={() => handleSetPrimaryImage(colorImages, absoluteIdx)}
-                                />
-                              );
-                            })}
-                          </div>
-                        </SortableContext>
-                      </DndContext>
+                                return (
+                                  <GalleryImageTile
+                                    key={img.id || absoluteIdx}
+                                    fieldId={img.id || String(absoluteIdx)}
+                                    absoluteIdx={absoluteIdx}
+                                    storageKey={img.storageKey!}
+                                    mimeType={img.mimeType ?? ''}
+                                    alt={img.alt}
+                                    isPrimary={position === 0}
+                                    isSecondary={position === 1}
+                                    position={position + 1}
+                                    register={register}
+                                    onRemove={() => removeImage(absoluteIdx)}
+                                    onSetPrimary={() => handleSetPrimaryImage(colorImages, absoluteIdx)}
+                                    onSetSecondary={() => handleSetSecondaryImage(colorImages, absoluteIdx)}
+                                  />
+                                );
+                              })}
+                            </div>
+                          </SortableContext>
+                        </DndContext>
+                      </>
                     )}
                   </div>
                 </AccordionContent>

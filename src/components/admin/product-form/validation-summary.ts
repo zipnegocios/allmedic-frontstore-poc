@@ -65,7 +65,10 @@ export function buildValidationSummaryGrouped(errors: FieldErrors<ProductFormDat
   }
 
   if (errors.cover?.assetId) {
-    general.push('Portada del Producto');
+    general.push('Portada del Producto — Imagen Primaria');
+  }
+  if (errors.secondaryCover?.assetId) {
+    general.push('Portada del Producto — Imagen Secundaria');
   }
 
   const variantsMedia: string[] = [];

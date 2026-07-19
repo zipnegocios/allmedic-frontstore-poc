@@ -67,7 +67,8 @@ export function GeneralPrimarySection({
               }}
             />
             <CoverPicker
-              label="Imagen Secundaria (hover)"
+              label="Imagen Secundaria *"
+              required
               storageKey={watch('secondaryCover.storageKey')}
               mimeType={watch('secondaryCover.mimeType')}
               url={watch('secondaryCover.url')}
