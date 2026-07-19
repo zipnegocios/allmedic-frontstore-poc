@@ -444,25 +444,45 @@ export function VariantsMediaSection({
                 <AccordionTrigger
                   className="px-4 py-3 bg-gray-50 dark:bg-gray-900 hover:no-underline hover:bg-gray-100 [&[data-state=open]]:border-b rounded-none"
                   actions={
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        // Eliminar todo el grupo de color
-                        const variantsToDelete = colorVariants.map(item => item.idx);
-                        const imagesToDelete = colorImages.map(item => item.idx);
+                    <>
+                      {colorHasError && (
+                        <button
+                          type="button"
+                          className="inline-flex appearance-none bg-transparent border-0 p-0"
+                          onClick={(e) => {
+                            // Evita que el clic también dispare el toggle del acordeón.
+                            e.stopPropagation();
+                            setErrorModalOpen(true);
+                          }}
+                        >
+                          <Badge
+                            variant="destructive"
+                            className="text-[10px] cursor-pointer hover:bg-destructive/80 mr-1"
+                          >
+                            <AlertTriangle className="w-3 h-3 mr-1" /> Con errores
+                          </Badge>
+                        </button>
+                      )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          // Eliminar todo el grupo de color
+                          const variantsToDelete = colorVariants.map(item => item.idx);
+                          const imagesToDelete = colorImages.map(item => item.idx);
 
-                        // Eliminar variantes
-                        variantsToDelete.reverse().forEach(idx => removeVariant(idx));
-                        // Eliminar imágenes
-                        imagesToDelete.reverse().forEach(idx => removeImage(idx));
-                      }}
-                      className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 px-2 mr-2"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 mr-1" />
-                      Eliminar color
-                    </Button>
+                          // Eliminar variantes
+                          variantsToDelete.reverse().forEach(idx => removeVariant(idx));
+                          // Eliminar imágenes
+                          imagesToDelete.reverse().forEach(idx => removeImage(idx));
+                        }}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 px-2 mr-2"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 mr-1" />
+                        Eliminar color
+                      </Button>
+                    </>
                   }
                 >
                   <div className="flex items-center gap-2.5 flex-wrap">
@@ -471,28 +491,6 @@ export function VariantsMediaSection({
                     <Badge variant="secondary" className="text-[10px]">
                       {colorVariants.length} tallas · {colorImages.length} fotos/videos
                     </Badge>
-                    {colorHasError && (
-                      <Badge
-                        variant="destructive"
-                        role="button"
-                        tabIndex={0}
-                        className="text-[10px] cursor-pointer hover:bg-destructive/80"
-                        onClick={(e) => {
-                          // Evita que el clic también dispare el toggle del acordeón.
-                          e.stopPropagation();
-                          setErrorModalOpen(true);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            setErrorModalOpen(true);
-                          }
-                        }}
-                      >
-                        <AlertTriangle className="w-3 h-3 mr-1" /> Con errores
-                      </Badge>
-                    )}
                   </div>
                 </AccordionTrigger>
 

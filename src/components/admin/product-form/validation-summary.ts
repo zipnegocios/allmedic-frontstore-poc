@@ -14,6 +14,37 @@ const TOP_LEVEL_LABELS: Partial<Record<keyof ProductFormData, string>> = {
   priceNormal: 'Precio Normal',
 };
 
+/** Etiquetas legibles por campo de `VariantSchema`/`ImageSchema` — usadas para
+ * listar CUALQUIER sub-campo que falle en una fila (no solo Color/Talla), ya que
+ * limitarse a esos dos dejaba el resumen vacío cuando el error real venía de otro
+ * campo (ej. Stock con un valor no numérico). */
+const VARIANT_FIELD_LABELS: Record<string, string> = {
+  colorId: 'Color',
+  size: 'Talla',
+  sku: 'SKU',
+  status: 'Estado',
+  stock: 'Stock',
+  minStock: 'Stock mínimo',
+  attributeValueIds: 'Atributos',
+};
+
+const IMAGE_FIELD_LABELS: Record<string, string> = {
+  assetId: 'imagen',
+  colorId: 'color asociado',
+  alt: 'texto alternativo',
+  sortOrder: 'orden',
+};
+
+/** Extrae los nombres de los sub-campos que efectivamente tienen error dentro de
+ * un objeto de error de fila (`errors.variants[i]`/`errors.images[i]`), mapeados
+ * a una etiqueta legible — genérico en vez de chequear campos puntuales a mano. */
+function rowErrorLabels(rowError: unknown, labels: Record<string, string>): string[] {
+  if (!rowError || typeof rowError !== 'object') return [];
+  return Object.keys(rowError)
+    .filter((key) => Boolean((rowError as Record<string, unknown>)[key]))
+    .map((key) => labels[key] ?? key);
+}
+
 export interface GroupedValidationSummary {
   /** Errores de la pestaña "General" (nombre, marca, precio, portada, etc.). */
   general: string[];
@@ -44,10 +75,7 @@ export function buildValidationSummaryGrouped(errors: FieldErrors<ProductFormDat
   const variantErrors = errors.variants;
   if (Array.isArray(variantErrors)) {
     variantErrors.forEach((variantError, idx) => {
-      if (!variantError) return;
-      const missing: string[] = [];
-      if (variantError.colorId) missing.push('Color');
-      if (variantError.size) missing.push('Talla');
+      const missing = rowErrorLabels(variantError, VARIANT_FIELD_LABELS);
       if (missing.length > 0) {
         variantsMedia.push(`Variante ${idx + 1}: falta ${missing.join(' y ')}`);
       }
@@ -57,10 +85,7 @@ export function buildValidationSummaryGrouped(errors: FieldErrors<ProductFormDat
   const imageErrors = errors.images;
   if (Array.isArray(imageErrors)) {
     imageErrors.forEach((imageError, idx) => {
-      if (!imageError) return;
-      const missing: string[] = [];
-      if (imageError.assetId) missing.push('imagen');
-      if (imageError.colorId) missing.push('color asociado');
+      const missing = rowErrorLabels(imageError, IMAGE_FIELD_LABELS);
       if (missing.length > 0) {
         variantsMedia.push(`Medio ${idx + 1}: falta ${missing.join(' y ')}`);
       }
