@@ -11,6 +11,9 @@ import {
   brands as brandsTable,
   banners as bannersTable,
   users as usersTable,
+  collections as collectionsTable,
+  colors as colorsTable,
+  productVariants as variantsTable,
 } from '@/db/schema';
 import { eq, and, or, asc, desc, sql, ilike, inArray, notInArray, isNull, type SQL } from 'drizzle-orm';
 import type { PgTable, AnyPgColumn } from 'drizzle-orm/pg-core';
@@ -39,9 +42,17 @@ export async function listMediaAssets(opts: {
    * `keyPrefix` no viene. */
   linkedEntityType?: string;
   linkedEntityId?: string;
+  /** Filtro explícito de ids — usado por el árbol de biblioteca (Fase 5) para
+   * restringir el listado a lo vinculado a un nodo Marca/Colección/Producto/Color. */
+  assetIds?: string[];
 }) {
-  const { folder, tags, q, unused, mediaType, page = 1, limit = 30, keyPrefix, linkedEntityType, linkedEntityId } = opts;
+  const { folder, tags, q, unused, mediaType, page = 1, limit = 30, keyPrefix, linkedEntityType, linkedEntityId, assetIds } = opts;
   const conditions: SQL<unknown>[] = [];
+
+  if (assetIds) {
+    if (assetIds.length === 0) return { assets: [], total: 0, page, limit };
+    conditions.push(inArray(mediaAssetsTable.id, assetIds));
+  }
 
   if (folder) conditions.push(eq(mediaAssetsTable.folder, folder));
 
@@ -365,4 +376,126 @@ export async function listMediaTags() {
 export async function createMediaTag(name: string, slug: string) {
   const [tag] = await db.insert(mediaTagsTable).values({ name, slug }).returning();
   return tag;
+}
+
+// ── Árbol de biblioteca (Marca → Colección → Producto → Color) ──
+// Organización lógica/virtual derivada de la BD (no de rutas físicas en R2) —
+// seleccionar un nodo filtra la galería vía `media_links`, así que un medio
+// reutilizado aparece bajo cada producto que lo usa.
+
+export interface LibraryTreeColor {
+  id: string;
+  name: string;
+}
+
+export interface LibraryTreeProduct {
+  id: string;
+  name: string;
+  colors: LibraryTreeColor[];
+}
+
+export interface LibraryTreeCollection {
+  id: string;
+  name: string;
+  products: LibraryTreeProduct[];
+}
+
+export interface LibraryTreeBrand {
+  id: string;
+  name: string;
+  collections: LibraryTreeCollection[];
+  /** Productos de la marca sin colección asignada. */
+  products: LibraryTreeProduct[];
+}
+
+export async function getMediaLibraryTree(): Promise<LibraryTreeBrand[]> {
+  const [brandRows, collectionRows, productRows, colorRows] = await Promise.all([
+    db.select({ id: brandsTable.id, name: brandsTable.name }).from(brandsTable).orderBy(asc(brandsTable.sortOrder), asc(brandsTable.name)),
+    db.select({ id: collectionsTable.id, name: collectionsTable.name, brandId: collectionsTable.brandId })
+      .from(collectionsTable).orderBy(asc(collectionsTable.sortOrder), asc(collectionsTable.name)),
+    db.select({ id: productsTable.id, name: productsTable.name, brandId: productsTable.brandId, collectionId: productsTable.collectionId })
+      .from(productsTable).orderBy(asc(productsTable.name)),
+    db.selectDistinct({ productId: variantsTable.productId, colorId: variantsTable.colorId, colorName: colorsTable.name })
+      .from(variantsTable)
+      .innerJoin(colorsTable, eq(variantsTable.colorId, colorsTable.id))
+      .orderBy(asc(colorsTable.name)),
+  ]);
+
+  const colorsByProduct = new Map<string, LibraryTreeColor[]>();
+  for (const row of colorRows) {
+    const list = colorsByProduct.get(row.productId) ?? [];
+    list.push({ id: row.colorId, name: row.colorName });
+    colorsByProduct.set(row.productId, list);
+  }
+
+  function toTreeProduct(p: { id: string; name: string }): LibraryTreeProduct {
+    return { id: p.id, name: p.name, colors: colorsByProduct.get(p.id) ?? [] };
+  }
+
+  const productsByCollection = new Map<string, LibraryTreeProduct[]>();
+  const productsByBrandNoCollection = new Map<string, LibraryTreeProduct[]>();
+  for (const p of productRows) {
+    if (p.collectionId) {
+      const list = productsByCollection.get(p.collectionId) ?? [];
+      list.push(toTreeProduct(p));
+      productsByCollection.set(p.collectionId, list);
+    } else {
+      const list = productsByBrandNoCollection.get(p.brandId) ?? [];
+      list.push(toTreeProduct(p));
+      productsByBrandNoCollection.set(p.brandId, list);
+    }
+  }
+
+  const collectionsByBrand = new Map<string, LibraryTreeCollection[]>();
+  for (const c of collectionRows) {
+    const list = collectionsByBrand.get(c.brandId) ?? [];
+    list.push({ id: c.id, name: c.name, products: productsByCollection.get(c.id) ?? [] });
+    collectionsByBrand.set(c.brandId, list);
+  }
+
+  return brandRows.map((b) => ({
+    id: b.id,
+    name: b.name,
+    collections: collectionsByBrand.get(b.id) ?? [],
+    products: productsByBrandNoCollection.get(b.id) ?? [],
+  }));
+}
+
+async function assetIdsLinkedToProducts(productIds: string[], colorId?: string): Promise<string[]> {
+  if (productIds.length === 0) return [];
+  const conditions: SQL<unknown>[] = [eq(mediaLinksTable.entityType, 'PRODUCT'), inArray(mediaLinksTable.entityId, productIds)];
+  if (colorId) conditions.push(eq(mediaLinksTable.colorId, colorId));
+  const rows = await db.selectDistinct({ assetId: mediaLinksTable.assetId }).from(mediaLinksTable).where(and(...conditions));
+  return rows.map((r) => r.assetId);
+}
+
+async function assetIdsLinkedToEntity(entityType: string, entityId: string): Promise<string[]> {
+  const rows = await db.selectDistinct({ assetId: mediaLinksTable.assetId }).from(mediaLinksTable)
+    .where(and(eq(mediaLinksTable.entityType, entityType), eq(mediaLinksTable.entityId, entityId)));
+  return rows.map((r) => r.assetId);
+}
+
+export type LibraryTreeNodeType = 'brand' | 'collection' | 'product' | 'color';
+
+/** Resuelve los `assetId` vinculados (directa o indirectamente) a un nodo del
+ * árbol de biblioteca — usado para filtrar `listMediaAssets` por selección de
+ * marca/colección/producto/color en vez de por carpeta física. */
+export async function resolveLibraryTreeNodeAssetIds(node: { type: LibraryTreeNodeType; id: string; colorId?: string }): Promise<string[]> {
+  if (node.type === 'product') {
+    return assetIdsLinkedToProducts([node.id]);
+  }
+  if (node.type === 'color') {
+    return assetIdsLinkedToProducts([node.id], node.colorId);
+  }
+  if (node.type === 'brand') {
+    const products = await db.select({ id: productsTable.id }).from(productsTable).where(eq(productsTable.brandId, node.id));
+    const [productAssetIds, brandAssetIds] = await Promise.all([
+      assetIdsLinkedToProducts(products.map((p) => p.id)),
+      assetIdsLinkedToEntity('BRAND', node.id),
+    ]);
+    return [...new Set([...productAssetIds, ...brandAssetIds])];
+  }
+  // 'collection'
+  const products = await db.select({ id: productsTable.id }).from(productsTable).where(eq(productsTable.collectionId, node.id));
+  return assetIdsLinkedToProducts(products.map((p) => p.id));
 }

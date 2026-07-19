@@ -11,10 +11,25 @@ import { Badge } from '@/components/ui/badge';
 import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Trash2, Save, AlertTriangle } from 'lucide-react';
-import { resolveMediaUrl, isVideoMime } from '@/lib/media';
+import { Trash2, Save, AlertTriangle, Link2, Link2Off, Plus } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { resolveMediaUrl, isVideoMime, MEDIA_ENTITY_TYPES } from '@/lib/media';
 import { VideoPreviewRangeEditor } from './VideoPreviewRangeEditor';
 import { toast } from 'sonner';
+
+const ROLE_OPTIONS_BY_ENTITY: Record<string, { value: string; label: string }[]> = {
+  PRODUCT: [
+    { value: 'GALLERY', label: 'Galería (por color)' },
+    { value: 'COVER', label: 'Portada primaria' },
+    { value: 'COVER_SECONDARY', label: 'Portada secundaria' },
+  ],
+  SET: [{ value: 'COVER', label: 'Portada' }],
+  BRAND: [{ value: 'LOGO', label: 'Logo' }],
+  BANNER: [
+    { value: 'DESKTOP', label: 'Imagen desktop' },
+    { value: 'MOBILE', label: 'Imagen mobile' },
+  ],
+};
 
 interface MediaLinkUsage {
   id: string;
@@ -69,6 +84,100 @@ export function MediaDetailDialog({ assetId, onClose, onChanged }: MediaDetailDi
   const [saving, setSaving] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // ─── Gestión de vínculos: desvincular + asignar/reciclar a otra entidad ───
+  const [unlinkTarget, setUnlinkTarget] = useState<MediaLinkUsage | null>(null);
+  const [unlinking, setUnlinking] = useState(false);
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignEntityType, setAssignEntityType] = useState<string>('PRODUCT');
+  const [assignEntityId, setAssignEntityId] = useState('');
+  const [assignRole, setAssignRole] = useState('GALLERY');
+  const [assignColorId, setAssignColorId] = useState('');
+  const [assignSaving, setAssignSaving] = useState(false);
+  const [productOptions, setProductOptions] = useState<{ id: string; name: string; brandName: string }[]>([]);
+  const [setOptions, setSetOptions] = useState<{ id: string; name: string }[]>([]);
+  const [brandOptions, setBrandOptions] = useState<{ id: string; name: string }[]>([]);
+  const [bannerOptions, setBannerOptions] = useState<{ id: string; title: string }[]>([]);
+  const [productColors, setProductColors] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    if (!assignOpen) return;
+    // Listas livianas para el selector — se cargan una sola vez al abrir el panel.
+    if (productOptions.length === 0) {
+      fetch('/api/admin/products/lite').then((r) => r.json()).then((d) => setProductOptions(d.products ?? [])).catch(() => {});
+    }
+    if (setOptions.length === 0) {
+      fetch('/api/admin/sets').then((r) => r.json()).then((d) => setSetOptions(d.sets ?? [])).catch(() => {});
+    }
+    if (brandOptions.length === 0) {
+      fetch('/api/admin/brands?limit=200').then((r) => r.json()).then((d) => setBrandOptions(d.brands ?? [])).catch(() => {});
+    }
+    if (bannerOptions.length === 0) {
+      fetch('/api/admin/banners?limit=200').then((r) => r.json()).then((d) => setBannerOptions(d.banners ?? [])).catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignOpen]);
+
+  useEffect(() => {
+    setAssignColorId('');
+    setProductColors([]);
+    if (assignEntityType !== 'PRODUCT' || !assignEntityId || assignRole !== 'GALLERY') return;
+    fetch(`/api/admin/products/${assignEntityId}`)
+      .then((r) => r.json())
+      .then((product) => {
+        const seen = new Map<string, string>();
+        for (const v of product.variants ?? []) {
+          if (v.colorId && !seen.has(v.colorId)) seen.set(v.colorId, v.colorName ?? v.colorId);
+        }
+        setProductColors(Array.from(seen, ([id, name]) => ({ id, name })));
+      })
+      .catch(() => setProductColors([]));
+  }, [assignEntityType, assignEntityId, assignRole]);
+
+  async function handleUnlink() {
+    if (!unlinkTarget) return;
+    setUnlinking(true);
+    try {
+      const res = await fetch(`/api/admin/media/links/${unlinkTarget.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error((await res.json()).error || 'No se pudo desvincular');
+      toast.success('Vínculo eliminado');
+      setUnlinkTarget(null);
+      await fetchDetail();
+      onChanged?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al desvincular');
+    } finally {
+      setUnlinking(false);
+    }
+  }
+
+  async function handleAssign() {
+    if (!assetId || !assignEntityId) return;
+    setAssignSaving(true);
+    try {
+      const res = await fetch('/api/admin/media/links', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetId,
+          entityType: assignEntityType,
+          entityId: assignEntityId,
+          role: assignRole,
+          colorId: assignEntityType === 'PRODUCT' && assignRole === 'GALLERY' && assignColorId ? assignColorId : undefined,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'No se pudo asignar');
+      toast.success('Medio asignado');
+      setAssignOpen(false);
+      setAssignEntityId('');
+      await fetchDetail();
+      onChanged?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al asignar');
+    } finally {
+      setAssignSaving(false);
+    }
+  }
 
   const fetchDetail = useCallback(async () => {
     if (!assetId) return;
@@ -170,18 +279,121 @@ export function MediaDetailDialog({ assetId, onClose, onChanged }: MediaDetailDi
       </div>
 
       <div className="mt-4">
-        <h4 className="text-sm font-semibold mb-2">Usos relacionados</h4>
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-sm font-semibold">Usos relacionados</h4>
+          <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => setAssignOpen((v) => !v)}>
+            <Plus className="w-3 h-3 mr-1" /> Asignar
+          </Button>
+        </div>
         {detail.links.length === 0 ? (
           <p className="text-sm text-gray-400">Sin usos — puede eliminarse libremente</p>
         ) : (
-          <ul className="space-y-1">
+          <ul className="space-y-1.5">
             {detail.links.map((link) => (
-              <li key={link.id} className="text-sm">
-                <Badge variant="outline" className="mr-2">{ENTITY_LABELS[link.entityType] ?? link.entityType}</Badge>
-                {link.entityName ?? link.entityId} <span className="text-gray-400">({link.role})</span>
+              <li key={link.id} className="flex items-center justify-between gap-2 text-sm bg-gray-50 rounded px-2 py-1.5">
+                <div className="min-w-0 flex-1">
+                  <Badge variant="outline" className="mr-2">{ENTITY_LABELS[link.entityType] ?? link.entityType}</Badge>
+                  <span className="truncate">{link.entityName ?? link.entityId}</span> <span className="text-gray-400">({link.role})</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setUnlinkTarget(link)}
+                  className="text-gray-400 hover:text-red-600 flex-shrink-0"
+                  title="Desvincular"
+                >
+                  <Link2Off className="w-3.5 h-3.5" />
+                </button>
               </li>
             ))}
           </ul>
+        )}
+
+        {unlinkTarget && (
+          <div className="mt-2 border border-red-200 bg-red-50 rounded-lg p-3">
+            <p className="text-sm text-red-700 flex items-center gap-2 mb-2">
+              <AlertTriangle className="w-4 h-4" />
+              ¿Desvincular de {ENTITY_LABELS[unlinkTarget.entityType] ?? unlinkTarget.entityType} &quot;{unlinkTarget.entityName ?? unlinkTarget.entityId}&quot;?
+              El medio dejará de mostrarse ahí en el storefront/admin — el asset en sí no se elimina.
+            </p>
+            <div className="flex gap-2">
+              <Button size="sm" variant="destructive" onClick={handleUnlink} disabled={unlinking}>
+                {unlinking ? 'Desvinculando...' : 'Desvincular'}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setUnlinkTarget(null)}>Cancelar</Button>
+            </div>
+          </div>
+        )}
+
+        {assignOpen && (
+          <div className="mt-3 border rounded-lg p-3 space-y-2 bg-white">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs font-medium mb-1">Tipo de entidad</label>
+                <Select value={assignEntityType} onValueChange={(v) => { setAssignEntityType(v); setAssignEntityId(''); setAssignRole(ROLE_OPTIONS_BY_ENTITY[v]?.[0]?.value ?? 'GALLERY'); }}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {MEDIA_ENTITY_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>{ENTITY_LABELS[t] ?? t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Rol</label>
+                <Select value={assignRole} onValueChange={setAssignRole}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(ROLE_OPTIONS_BY_ENTITY[assignEntityType] ?? []).map((r) => (
+                      <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium mb-1">{ENTITY_LABELS[assignEntityType] ?? 'Entidad'}</label>
+              <Select value={assignEntityId} onValueChange={setAssignEntityId}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Elegir..." /></SelectTrigger>
+                <SelectContent>
+                  {assignEntityType === 'PRODUCT' && productOptions.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name} {p.brandName ? `— ${p.brandName}` : ''}</SelectItem>
+                  ))}
+                  {assignEntityType === 'SET' && setOptions.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                  {assignEntityType === 'BRAND' && brandOptions.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                  ))}
+                  {assignEntityType === 'BANNER' && bannerOptions.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>{b.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {assignEntityType === 'PRODUCT' && assignRole === 'GALLERY' && productColors.length > 0 && (
+              <div>
+                <label className="block text-xs font-medium mb-1">Color (opcional)</label>
+                <Select value={assignColorId || '__none__'} onValueChange={(v) => setAssignColorId(v === '__none__' ? '' : v)}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Sin color específico</SelectItem>
+                    {productColors.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <Button type="button" size="sm" className="bg-[#111111]" disabled={!assignEntityId || assignSaving} onClick={handleAssign}>
+                <Link2 className="w-3.5 h-3.5 mr-1.5" /> {assignSaving ? 'Asignando...' : 'Asignar'}
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => setAssignOpen(false)}>Cancelar</Button>
+            </div>
+          </div>
         )}
       </div>
     </div>

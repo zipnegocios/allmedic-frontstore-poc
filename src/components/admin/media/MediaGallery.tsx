@@ -35,6 +35,9 @@ interface MediaGalleryProps {
   keyPrefix?: string;
   linkedEntityType?: string;
   linkedEntityId?: string;
+  /** Nodo seleccionado del árbol de biblioteca (Fase 5) — filtra por lo
+   * vinculado a esa marca/colección/producto/color en vez de por carpeta. */
+  treeNode?: { type: 'brand' | 'collection' | 'product' | 'color'; id: string; productId?: string } | null;
 }
 
 export function MediaGallery({
@@ -49,6 +52,7 @@ export function MediaGallery({
   keyPrefix,
   linkedEntityType,
   linkedEntityId,
+  treeNode,
 }: MediaGalleryProps) {
   const [assets, setAssets] = useState<MediaAssetSummary[]>([]);
   const [total, setTotal] = useState(0);
@@ -75,6 +79,14 @@ export function MediaGallery({
         if (linkedEntityType) params.set('linkedEntityType', linkedEntityType);
         if (linkedEntityId) params.set('linkedEntityId', linkedEntityId);
       }
+      if (treeNode) {
+        params.set('treeNodeType', treeNode.type);
+        // Para nodos de color, `media_links` se filtra por producto+colorId — el
+        // id del nodo de color es el color en sí, así que el id "de entidad" a
+        // resolver es el producto al que pertenece.
+        params.set('treeNodeId', treeNode.type === 'color' ? (treeNode.productId ?? treeNode.id) : treeNode.id);
+        if (treeNode.type === 'color') params.set('treeNodeColorId', treeNode.id);
+      }
       params.set('page', String(page));
       params.set('limit', String(limit));
 
@@ -88,9 +100,12 @@ export function MediaGallery({
     } finally {
       setLoading(false);
     }
-  }, [fixedFolder, folder, fixedMediaType, mediaType, q, unused, page, keyPrefix, linkedEntityType, linkedEntityId]);
+  }, [fixedFolder, folder, fixedMediaType, mediaType, q, unused, page, keyPrefix, linkedEntityType, linkedEntityId, treeNode]);
 
   useEffect(() => { fetchAssets(); }, [fetchAssets, refreshKey]);
+  // Volver a la página 1 al cambiar de nodo del árbol — evita quedar en una
+  // página fuera de rango del nuevo resultado filtrado.
+  useEffect(() => { setPage(1); }, [treeNode?.type, treeNode?.id]);
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
 

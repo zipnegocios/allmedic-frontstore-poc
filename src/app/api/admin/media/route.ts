@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
-import { listMediaAssets } from '@/lib/media-data-service';
+import { listMediaAssets, resolveLibraryTreeNodeAssetIds, type LibraryTreeNodeType } from '@/lib/media-data-service';
+
+const TREE_NODE_TYPES: LibraryTreeNodeType[] = ['brand', 'collection', 'product', 'color'];
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,6 +11,18 @@ export async function GET(request: NextRequest) {
     const tags = searchParams.get('tags');
 
     const mediaTypeParam = searchParams.get('mediaType');
+
+    let assetIds: string[] | undefined;
+    const treeNodeType = searchParams.get('treeNodeType');
+    const treeNodeId = searchParams.get('treeNodeId');
+    if (treeNodeType && treeNodeId && (TREE_NODE_TYPES as string[]).includes(treeNodeType)) {
+      assetIds = await resolveLibraryTreeNodeAssetIds({
+        type: treeNodeType as LibraryTreeNodeType,
+        id: treeNodeId,
+        colorId: searchParams.get('treeNodeColorId') || undefined,
+      });
+    }
+
     const result = await listMediaAssets({
       folder: searchParams.get('folder') || undefined,
       tags: tags ? tags.split(',').filter(Boolean) : undefined,
@@ -20,6 +34,7 @@ export async function GET(request: NextRequest) {
       keyPrefix: searchParams.get('keyPrefix') || undefined,
       linkedEntityType: searchParams.get('linkedEntityType') || undefined,
       linkedEntityId: searchParams.get('linkedEntityId') || undefined,
+      assetIds,
     });
 
     return NextResponse.json(result);
