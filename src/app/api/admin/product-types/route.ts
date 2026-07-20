@@ -6,7 +6,6 @@ import { z } from 'zod';
 const CreateProductTypeSchema = z.object({
   name: z.string().min(1),
   slug: z.string().min(1),
-  brandId: z.string().min(1),
   sortOrder: z.number().default(0),
   isActive: z.boolean().default(true),
 });

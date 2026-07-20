@@ -24,6 +24,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ListTree,
+  Shirt,
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 
@@ -34,6 +35,7 @@ const navItems = [
   { href: '/admin/prospectos', label: 'Pedidos', icon: ShoppingCart },
   { href: '/admin/banners', label: 'Banners', icon: ImageIcon },
   { href: '/admin/marcas', label: 'Marcas', icon: Tag },
+  { href: '/admin/tipos-producto', label: 'Tipos de Producto', icon: Shirt },
   { href: '/admin/atributos', label: 'Atributos', icon: ListTree },
   { href: '/admin/colores', label: 'Colores', icon: Palette },
   { href: '/admin/sucursales', label: 'Sucursales', icon: Store },

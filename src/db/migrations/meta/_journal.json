@@ -57,6 +57,13 @@
       "when": 1784519596326,
       "tag": "0007_messy_juggernaut",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784523258595,
+      "tag": "0008_good_black_crow",
+      "breakpoints": true
     }
   ]
 }

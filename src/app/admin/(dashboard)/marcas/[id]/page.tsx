@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { getAdminBrandById, getAdminCollections, getAdminProductTypes } from '@/lib/admin-data-service';
+import { getAdminBrandById, getAdminCollections, getBrandProductTypeActivations } from '@/lib/admin-data-service';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { BrandCollectionsSection } from '@/components/admin/brands/BrandCollectionsSection';
@@ -13,7 +13,7 @@ export default async function BrandDetailPage({ params }: { params: Promise<{ id
 
   const [collections, productTypes] = await Promise.all([
     getAdminCollections(id),
-    getAdminProductTypes(id),
+    getBrandProductTypeActivations(id),
   ]);
 
   return (

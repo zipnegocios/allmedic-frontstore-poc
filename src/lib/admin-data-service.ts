@@ -18,6 +18,7 @@ import {
   mediaAssets as mediaAssetsTable,
   collections as collectionsTable,
   productTypes as productTypesTable,
+  brandProductTypes as brandProductTypesTable,
   attributes as attributesTable,
   attributeValues as attributeValuesTable,
   productTypeAttributes as productTypeAttributesTable,
@@ -1654,11 +1655,32 @@ export async function deleteCollection(id: string) {
   await db.delete(collectionsTable).where(eq(collectionsTable.id, id));
 }
 
-// ── Product Types (Fase 3.2 — CRUD asociado a marca) ──
+// ── Product Types (catálogo global reutilizable + activación por marca) ──
 
+/**
+ * Lista tipos de producto. Sin `brandId`: catálogo GLOBAL completo (para la
+ * sección `/admin/tipos-producto`). Con `brandId`: solo los tipos ACTIVADOS
+ * para esa marca (`brand_product_types`), usados por el selector de `ProductForm`
+ * — la marca no es dueña de la taxonomía, solo la consume on-demand.
+ */
 export async function getAdminProductTypes(brandId?: string) {
-  const where = brandId ? eq(productTypesTable.brandId, brandId) : undefined;
-  return db.select().from(productTypesTable).where(where).orderBy(asc(productTypesTable.sortOrder));
+  if (!brandId) {
+    return db.select().from(productTypesTable).orderBy(asc(productTypesTable.sortOrder));
+  }
+  return db
+    .select({
+      id: productTypesTable.id,
+      name: productTypesTable.name,
+      slug: productTypesTable.slug,
+      sortOrder: productTypesTable.sortOrder,
+      isActive: productTypesTable.isActive,
+      createdAt: productTypesTable.createdAt,
+      updatedAt: productTypesTable.updatedAt,
+    })
+    .from(brandProductTypesTable)
+    .innerJoin(productTypesTable, eq(brandProductTypesTable.productTypeId, productTypesTable.id))
+    .where(eq(brandProductTypesTable.brandId, brandId))
+    .orderBy(asc(productTypesTable.sortOrder));
 }
 
 export async function getAdminProductTypeById(id: string) {
@@ -1686,6 +1708,48 @@ export async function updateProductType(id: string, data: Partial<typeof product
 
 export async function deleteProductType(id: string) {
   await db.delete(productTypesTable).where(eq(productTypesTable.id, id));
+}
+
+// ── Brand ↔ Product Type (activación on-demand del catálogo global) ──
+
+/** Checklist de activación: todos los tipos globales + si están activados para
+ * `brandId` + cuántos productos de esa marca usan ese tipo (para advertir antes
+ * de desactivar, sin borrar nada). */
+export async function getBrandProductTypeActivations(brandId: string) {
+  const types = await db.select().from(productTypesTable).orderBy(asc(productTypesTable.sortOrder));
+  const activations = await db
+    .select({ productTypeId: brandProductTypesTable.productTypeId })
+    .from(brandProductTypesTable)
+    .where(eq(brandProductTypesTable.brandId, brandId));
+  const activatedIds = new Set(activations.map((a) => a.productTypeId));
+
+  const counts = await db
+    .select({ productTypeId: productsTable.productTypeId, count: sql<number>`count(*)::int` })
+    .from(productsTable)
+    .where(and(eq(productsTable.brandId, brandId), isNotNull(productsTable.productTypeId)))
+    .groupBy(productsTable.productTypeId);
+  const countByType = new Map(counts.map((c) => [c.productTypeId, c.count]));
+
+  return types.map((t) => ({
+    ...t,
+    isActivated: activatedIds.has(t.id),
+    productCount: countByType.get(t.id) ?? 0,
+  }));
+}
+
+export async function activateBrandProductType(brandId: string, productTypeId: string) {
+  await db
+    .insert(brandProductTypesTable)
+    .values({ brandId, productTypeId })
+    .onConflictDoNothing({ target: [brandProductTypesTable.brandId, brandProductTypesTable.productTypeId] });
+}
+
+/** Desactivar no borra nada — solo impide usar el tipo en productos nuevos de
+ * esa marca. Productos existentes con el tipo quedan intactos. */
+export async function deactivateBrandProductType(brandId: string, productTypeId: string) {
+  await db
+    .delete(brandProductTypesTable)
+    .where(and(eq(brandProductTypesTable.brandId, brandId), eq(brandProductTypesTable.productTypeId, productTypeId)));
 }
 
 // ── Product Type ↔ Attribute (Fase 3.2 — "estilos asociados") ──

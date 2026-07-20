@@ -5,6 +5,7 @@ import { Controller } from 'react-hook-form';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tag } from 'lucide-react';
+import Link from 'next/link';
 import type {
   ProductFormData,
   Brand,
@@ -130,6 +131,14 @@ export function ClassificationSection({
             )}
           />
           {errors.productTypeId && <p className="text-sm text-red-500">{errors.productTypeId.message}</p>}
+          {brandIdValue && productTypeOptions.length === 0 && (
+            <p className="text-sm text-amber-600">
+              Esta marca no tiene tipos de producto activados.{' '}
+              <Link href={`/admin/marcas/${brandIdValue}`} className="underline font-medium" target="_blank">
+                Actívalos desde la ficha de la marca
+              </Link>.
+            </p>
+          )}
         </div>
         <div className="space-y-2">
           <Label htmlFor="gender">Género *</Label>

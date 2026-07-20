@@ -184,7 +184,6 @@ export interface CollectionOption {
 export interface ProductTypeOption {
   id: string;
   name: string;
-  brandId: string;
   isActive: boolean | null;
 }
 

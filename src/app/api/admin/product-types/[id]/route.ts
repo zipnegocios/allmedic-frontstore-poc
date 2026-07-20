@@ -6,7 +6,6 @@ import { z } from 'zod';
 const UpdateProductTypeSchema = z.object({
   name: z.string().min(1).optional(),
   slug: z.string().min(1).optional(),
-  brandId: z.string().min(1).optional(),
   sortOrder: z.number().optional(),
   isActive: z.boolean().optional(),
 });

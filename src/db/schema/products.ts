@@ -15,6 +15,7 @@ export const brands = pgTable("brands", {
 export const brandsRelations = relations(brands, ({ many }) => ({
   products: many(products),
   collections: many(collections),
+  productTypeActivations: many(brandProductTypes),
 }));
 
 // ─── Collections ───
@@ -41,24 +42,40 @@ export const collectionsRelations = relations(collections, ({ one, many }) => ({
   products: many(products),
 }));
 
-// ─── Product Types (por marca) ───
+// ─── Product Types (catálogo GLOBAL, reutilizable entre marcas) ───
+// La marca no es dueña de la taxonomía; la consume vía `brandProductTypes`
+// (activación on-demand). Ver PROMPT-tipos-atributos-globales.md.
 export const productTypes = pgTable("product_types", {
   id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
-  brandId: pgUuid("brand_id").notNull().references(() => brands.id),
   name: text("name").notNull(),
-  slug: text("slug").notNull(),
+  slug: text("slug").notNull().unique(),
   sortOrder: integer("sort_order").default(0),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-}, (table) => [
-  unique("uq_product_types_brand_slug").on(table.brandId, table.slug),
-]);
+});
 
-export const productTypesRelations = relations(productTypes, ({ one, many }) => ({
-  brand: one(brands, { fields: [productTypes.brandId], references: [brands.id] }),
+export const productTypesRelations = relations(productTypes, ({ many }) => ({
   products: many(products),
   typeAttributes: many(productTypeAttributes),
+  brandActivations: many(brandProductTypes),
+}));
+
+// ─── Brand ↔ Product Type (activación: qué tipos globales ofrece cada marca) ───
+export const brandProductTypes = pgTable("brand_product_types", {
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
+  brandId: pgUuid("brand_id").notNull().references(() => brands.id, { onDelete: "cascade" }),
+  productTypeId: pgUuid("product_type_id").notNull().references(() => productTypes.id, { onDelete: "cascade" }),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => [
+  unique("uq_brand_product_types").on(table.brandId, table.productTypeId),
+]);
+
+export const brandProductTypesRelations = relations(brandProductTypes, ({ one }) => ({
+  brand: one(brands, { fields: [brandProductTypes.brandId], references: [brands.id] }),
+  productType: one(productTypes, { fields: [brandProductTypes.productTypeId], references: [productTypes.id] }),
 }));
 
 // ─── Attributes (estilos/especificaciones EAV) ───
