@@ -11,7 +11,7 @@ const CandidateSchema = z.object({
   id: z.string().optional().default(''),
   name: z.string().optional().default(''),
   ruleType: z.enum(RULE_TYPES),
-  scope: z.enum(['GLOBAL', 'BRAND', 'SET_GROUP', 'SET', 'PRODUCT']),
+  scope: z.enum(['GLOBAL', 'BRAND', 'SET', 'PRODUCT']),
   scopeId: z.string().nullable(),
   config: z.unknown(),
   priority: z.number().int().optional().default(0),

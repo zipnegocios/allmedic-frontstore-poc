@@ -93,33 +93,7 @@ async function seedWholesalePrices() {
 
 // ── Sets corporativos de ejemplo ──
 async function seedCorporateSets() {
-  console.log("  Insertando grupos y sets corporativos de ejemplo...");
-
-  // Grupos de sets
-  const groupsData = [
-    { slug: "uniformes-completos", name: "Uniformes Completos", description: "Sets de camisa + pantalón para uniformes institucionales", sortOrder: 1 },
-    { slug: "packs-institucionales", name: "Packs Institucionales", description: "Packs de camisas para instituciones y hospitales", sortOrder: 2 },
-  ];
-
-  const groupIds: Record<string, string> = {};
-  for (const g of groupsData) {
-    const [existing] = await db
-      .select({ id: schema.setGroups.id })
-      .from(schema.setGroups)
-      .where(eq(schema.setGroups.slug, g.slug))
-      .limit(1);
-
-    if (existing) {
-      groupIds[g.slug] = existing.id;
-      console.log(`    - Grupo "${g.name}" ya existe, se omite.`);
-      continue;
-    }
-
-    const id = uuid();
-    await db.insert(schema.setGroups).values({ id, ...g });
-    groupIds[g.slug] = id;
-    console.log(`    - Grupo "${g.name}" creado.`);
-  }
+  console.log("  Insertando sets corporativos de ejemplo...");
 
   // Buscar productos existentes por slug para armar los sets
   const productSlugs = [
@@ -144,7 +118,6 @@ async function seedCorporateSets() {
       slug: "uniforme-figs-premium",
       name: "Uniforme FIGS Premium",
       description: "Camisa Casma + Pantalón Yola de FIGS. Set completo premium para profesionales de la salud.",
-      setGroupId: groupIds["uniformes-completos"],
       brandId: figsProduct?.brandId ?? null,
       colorMode: "PAIRED" as const,
       isFeatured: true,
@@ -157,7 +130,6 @@ async function seedCorporateSets() {
       slug: "uniforme-mixto-greys-koi",
       name: "Uniforme Mixto Grey's Anatomy + Koi",
       description: "Camisa Lexie de Grey's Anatomy + Pantalón Lindsey de Koi. Combinación versátil.",
-      setGroupId: groupIds["uniformes-completos"],
       brandId: null,
       colorMode: "PAIRED" as const,
       isFeatured: false,
@@ -170,7 +142,6 @@ async function seedCorporateSets() {
       slug: "pack-camisas-institucional",
       name: "Pack Camisas Institucional",
       description: "Pack de camisas Cherokee Workwear y Dickies EDS para instituciones y hospitales.",
-      setGroupId: groupIds["packs-institucionales"],
       brandId: null,
       colorMode: "PAIRED" as const,
       isFeatured: true,

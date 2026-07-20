@@ -21,7 +21,6 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
   const productIds = set.pieces.map((p) => p.productId);
   const resolved = resolveRules(rules, {
     setId: set.id,
-    setGroupId: set.setGroupId,
     brandId: set.brandId,
     productIds,
   });

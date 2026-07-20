@@ -157,8 +157,8 @@ export type MediaEntityType = (typeof MEDIA_ENTITY_TYPES)[number];
 // público. Opcional, a diferencia de `COVER`.
 export const MEDIA_LINK_ROLES = ["GALLERY", "LOGO", "DESKTOP", "MOBILE", "COVER", "COVER_SECONDARY"] as const;
 export type MediaLinkRole = (typeof MEDIA_LINK_ROLES)[number];
-/** Folders donde se permite subir video (Sets y Brands siguen solo-imagen). */
-export const VIDEO_ALLOWED_FOLDERS: MediaFolder[] = ["PRODUCTS", "BANNERS"];
+/** Folders donde se permite subir video (Brands/Collections siguen solo-imagen). */
+export const VIDEO_ALLOWED_FOLDERS: MediaFolder[] = ["PRODUCTS", "BANNERS", "SETS"];
 
 export interface MediaAssetSummary {
   id: string;

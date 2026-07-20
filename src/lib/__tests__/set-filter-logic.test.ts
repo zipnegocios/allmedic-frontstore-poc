@@ -15,10 +15,8 @@ function makeSet(overrides: Partial<CorporateSetSummary> = {}): CorporateSetSumm
     slug: 'set-1',
     name: 'Set Enfermería Básico',
     description: null,
-    imageUrl: null,
-    groupName: 'Enfermería',
-    groupSlug: 'enfermeria',
-    setGroupId: 'g1',
+    cover: null,
+    secondaryCover: null,
     brandName: 'AllMedic',
     brandId: 'b1',
     productIds: ['p1', 'p2'],
@@ -58,18 +56,6 @@ describe('matchesSetFilters', () => {
   it('applies OR within a group: Navy OR Black matches a set that only has Black', () => {
     const set = makeSet({ colors: [{ id: 'c-black', name: 'Black', code: 'BLK', hex: '#000000' }] });
     const result = matchesSetFilters(set, filters({ colors: ['c-navy', 'c-black'] }));
-    expect(result).toBe(true);
-  });
-
-  it('applies AND across groups: Grupo matches but Color does not -> overall false', () => {
-    const set = makeSet({ groupSlug: 'enfermeria', colors: [{ id: 'c-black', name: 'Black', code: 'BLK', hex: '#000000' }] });
-    const result = matchesSetFilters(set, filters({ groups: ['enfermeria'], colors: ['c-navy'] }));
-    expect(result).toBe(false);
-  });
-
-  it('matches both groups when Grupo and Color both satisfy the set', () => {
-    const set = makeSet({ groupSlug: 'enfermeria', colors: [{ id: 'c-navy', name: 'Navy', code: 'NVY', hex: '#1B2A4A' }] });
-    const result = matchesSetFilters(set, filters({ groups: ['enfermeria'], colors: ['c-navy'] }));
     expect(result).toBe(true);
   });
 
@@ -129,11 +115,11 @@ describe('countActiveSetFilters', () => {
     expect(countActiveSetFilters(EMPTY_SET_FILTERS)).toBe(0);
   });
 
-  it('counts each active group once, arrays by length', () => {
+  it('counts each active filter once, arrays by length', () => {
     const count = countActiveSetFilters(
-      filters({ groups: ['g1', 'g2'], gender: 'Mujer', colors: ['c1'] })
+      filters({ gender: 'Mujer', colors: ['c1'] })
     );
-    expect(count).toBe(4); // 2 groups + 1 gender + 1 color
+    expect(count).toBe(2); // 1 gender + 1 color
   });
 });
 

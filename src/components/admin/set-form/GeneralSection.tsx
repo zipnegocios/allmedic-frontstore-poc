@@ -6,37 +6,82 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ImageIcon } from 'lucide-react';
-import type { SetFormData, SetGroup, Brand } from './schema';
-import { SELECT_EMPTY_VALUE } from './schema';
+import type { SetFormData } from './schema';
 
 interface GeneralSectionProps {
   register: UseFormRegister<SetFormData>;
   control: Control<SetFormData>;
   errors: FieldErrors<SetFormData>;
   watch: UseFormWatch<SetFormData>;
-  groups: SetGroup[];
-  brands: Brand[];
-  onOpenPicker: () => void;
+  hasPieces: boolean;
+  /** `mode` distingue las dos formas de elegir portada (paridad con productos):
+   * `special` sube/elige un archivo propio del set; `content` explora las
+   * galerías de las piezas ya agregadas al set (referencia viva). Cada slot
+   * (primaria/secundaria) puede usar un modo distinto. */
+  onOpenPicker: (target: 'cover' | 'secondaryCover', mode: 'special' | 'content') => void;
+}
+
+function CoverSlot({
+  label,
+  imageUrl,
+  altRegisterName,
+  error,
+  hasPieces,
+  onOpenSpecial,
+  onOpenContent,
+  register,
+}: {
+  label: string;
+  imageUrl: string | undefined;
+  altRegisterName: 'coverAlt' | 'secondaryCoverAlt';
+  error: string | undefined;
+  hasPieces: boolean;
+  onOpenSpecial: () => void;
+  onOpenContent: () => void;
+  register: UseFormRegister<SetFormData>;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label>{label} *</Label>
+      <div className="flex items-center gap-3">
+        <div className="w-16 h-12 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0">
+          {imageUrl ? (
+            <img src={imageUrl} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <ImageIcon className="w-4 h-4 text-gray-300" />
+          )}
+        </div>
+        <div className="flex flex-col gap-1">
+          <Button type="button" size="sm" variant="outline" onClick={onOpenSpecial}>
+            {imageUrl ? 'Cambiar (subir)' : 'Subir nueva'}
+          </Button>
+          <Button type="button" size="sm" variant="ghost" className="text-xs h-auto py-1" onClick={onOpenContent} disabled={!hasPieces}>
+            Elegir de las piezas
+          </Button>
+        </div>
+      </div>
+      {!hasPieces && (
+        <p className="text-xs text-amber-600">Agrega piezas al set para poder elegir portada desde sus galerías.</p>
+      )}
+      {error && <p className="text-sm text-red-500">{error}</p>}
+      {imageUrl && (
+        <Input placeholder="Texto alternativo" {...register(altRegisterName)} className="h-8 text-xs" />
+      )}
+    </div>
+  );
 }
 
 /**
- * Contenido de "Datos generales" (nombre, slug, descripción, portada, grupo,
+ * Contenido de "Datos generales" (nombre, slug, descripción, portada,
  * marca, flags Activo/Destacado). Extraído para reutilizarse sin cambios
  * tanto en la vista desktop (Card secuencial) como en el paso 1 del wizard
  * mobile — el paso 1 del wizard coincide 1:1 con este Card, así que no hay
  * duplicación de JSX entre presentaciones.
  */
-export function GeneralSection({ register, control, errors, watch, groups, brands, onOpenPicker }: GeneralSectionProps) {
+export function GeneralSection({ register, control, errors, watch, hasPieces, onOpenPicker }: GeneralSectionProps) {
   return (
     <Card>
       <CardContent className="p-6 space-y-4">
@@ -58,67 +103,33 @@ export function GeneralSection({ register, control, errors, watch, groups, brand
           <Textarea id="description" {...register('description')} rows={3} />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <Label>Imagen de portada *</Label>
-            <div className="flex items-center gap-3">
-              <div className="w-16 h-12 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0">
-                {watch('imageUrl') ? (
-                  <img src={watch('imageUrl')} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <ImageIcon className="w-4 h-4 text-gray-300" />
-                )}
-              </div>
-              <Button type="button" size="sm" variant="outline" onClick={onOpenPicker}>
-                {watch('imageUrl') ? 'Cambiar' : 'Elegir imagen'}
-              </Button>
-            </div>
-            {errors.coverAssetId && <p className="text-sm text-red-500">{errors.coverAssetId.message}</p>}
-            {watch('imageUrl') && (
-              <Input placeholder="Texto alternativo" {...register('coverAlt')} className="h-8 text-xs" />
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label>Grupo de Sets</Label>
-            <Controller
-              name="setGroupId"
-              control={control}
-              render={({ field }) => (
-                <Select value={field.value || SELECT_EMPTY_VALUE} onValueChange={(v) => field.onChange(v === SELECT_EMPTY_VALUE ? '' : v)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sin grupo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={SELECT_EMPTY_VALUE}>Sin grupo</SelectItem>
-                    {groups.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Marca (opcional)</Label>
-            <Controller
-              name="brandId"
-              control={control}
-              render={({ field }) => (
-                <Select value={field.value || SELECT_EMPTY_VALUE} onValueChange={(v) => field.onChange(v === SELECT_EMPTY_VALUE ? '' : v)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Multi-marca" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={SELECT_EMPTY_VALUE}>Multi-marca</SelectItem>
-                    {brands.map(b => (
-                      <SelectItem key={b.id} value={b.id} disabled={!b.isActive}>
-                        {b.name}{!b.isActive ? ' (Inactiva)' : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <CoverSlot
+            label="Portada primaria"
+            imageUrl={watch('imageUrl')}
+            altRegisterName="coverAlt"
+            error={errors.coverAssetId?.message}
+            hasPieces={hasPieces}
+            onOpenSpecial={() => onOpenPicker('cover', 'special')}
+            onOpenContent={() => onOpenPicker('cover', 'content')}
+            register={register}
+          />
+          <CoverSlot
+            label="Portada secundaria"
+            imageUrl={watch('secondaryImageUrl')}
+            altRegisterName="secondaryCoverAlt"
+            error={errors.secondaryCoverAssetId?.message}
+            hasPieces={hasPieces}
+            onOpenSpecial={() => onOpenPicker('secondaryCover', 'special')}
+            onOpenContent={() => onOpenPicker('secondaryCover', 'content')}
+            register={register}
+          />
         </div>
+
+        <p className="text-xs text-gray-500">
+          La marca del set se calcula sola a partir de las piezas: si todas son de la misma marca, se
+          muestra esa; si son de varias marcas, el set aparece como "Multi-marca".
+        </p>
 
         <div className="flex gap-6 pt-2">
           <div className="flex items-center gap-2">

@@ -139,32 +139,40 @@ export function PiecesSection({
                                 <CommandList>
                                   <CommandEmpty>Sin resultados.</CommandEmpty>
                                   <CommandGroup>
-                                    {products.map((p) => (
-                                      <CommandItem
-                                        key={p.id}
-                                        value={`${p.name} ${p.code ?? ''} ${p.sku ?? ''} ${p.brandName ?? ''} ${p.collectionName ?? ''}`}
-                                        onSelect={() => {
-                                          selectField.onChange(p.id);
-                                          setPieceComboOpen(null);
-                                        }}
-                                      >
-                                        <div className="w-8 h-8 bg-gray-100 rounded overflow-hidden flex-shrink-0">
-                                          {p.imageUrl ? (
-                                            <img src={p.imageUrl} alt="" className="w-full h-full object-cover" />
-                                          ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-gray-300">
-                                              <ImageIcon className="w-3 h-3" />
-                                            </div>
-                                          )}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                          <p className="text-sm truncate">{p.name}{p.code ? ` (${p.code})` : ''}</p>
-                                          <p className="text-xs text-gray-400 truncate">
-                                            {p.brandName ?? 'Sin marca'}{p.collectionName ? ` · ${p.collectionName}` : ''} · {productPrice(p) !== null ? `$${productPrice(p)!.toFixed(2)}` : 'Sin precio'}
-                                          </p>
-                                        </div>
-                                      </CommandItem>
-                                    ))}
+                                    {products.map((p) => {
+                                      const alreadyInSet = p.id !== productId && items.some((it) => it.productId === p.id);
+                                      return (
+                                        <CommandItem
+                                          key={p.id}
+                                          disabled={alreadyInSet}
+                                          value={`${p.name} ${p.code ?? ''} ${p.sku ?? ''} ${p.brandName ?? ''} ${p.collectionName ?? ''}`}
+                                          onSelect={() => {
+                                            if (alreadyInSet) return;
+                                            selectField.onChange(p.id);
+                                            setPieceComboOpen(null);
+                                          }}
+                                          className={alreadyInSet ? 'opacity-50 cursor-not-allowed' : undefined}
+                                        >
+                                          <div className="w-8 h-8 bg-gray-100 rounded overflow-hidden flex-shrink-0">
+                                            {p.imageUrl ? (
+                                              <img src={p.imageUrl} alt="" className="w-full h-full object-cover" />
+                                            ) : (
+                                              <div className="w-full h-full flex items-center justify-center text-gray-300">
+                                                <ImageIcon className="w-3 h-3" />
+                                              </div>
+                                            )}
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                            <p className="text-sm truncate">{p.name}{p.code ? ` (${p.code})` : ''}</p>
+                                            <p className="text-xs text-gray-400 truncate">
+                                              {alreadyInSet
+                                                ? 'Ya está en el set'
+                                                : `${p.brandName ?? 'Sin marca'}${p.collectionName ? ` · ${p.collectionName}` : ''} · ${productPrice(p) !== null ? `$${productPrice(p)!.toFixed(2)}` : 'Sin precio'}`}
+                                            </p>
+                                          </div>
+                                        </CommandItem>
+                                      );
+                                    })}
                                   </CommandGroup>
                                 </CommandList>
                               </Command>

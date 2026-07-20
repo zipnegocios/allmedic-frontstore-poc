@@ -95,7 +95,6 @@ interface AdminSet {
   id: string;
   name: string;
   slug: string;
-  groupName: string | null;
   brandName: string | null;
   isActive: boolean;
   isFeatured: boolean;
@@ -282,11 +281,6 @@ export default function AdminSetsPage() {
                       </Badge>
                     </div>
                     <div className="flex flex-col gap-0.5">
-                      {set.groupName && (
-                        <span className="text-[9px] text-gray-500 truncate" title={set.groupName}>
-                          Grupo: {set.groupName}
-                        </span>
-                      )}
                       {set.brandName && (
                         <span className="text-[9px] text-gray-400 truncate" title={set.brandName}>
                           Marca: {set.brandName}

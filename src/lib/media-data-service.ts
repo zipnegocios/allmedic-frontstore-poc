@@ -467,6 +467,14 @@ export async function getMediaLibraryTree(): Promise<LibraryTreeBrand[]> {
   }));
 }
 
+/** Assets vinculados a cualquiera de los productos dados (cualquier variante de
+ * color) — usado por el picker de portadas de set en modo "Portadas del
+ * contenido" (galerías de los productos asociados al set, sin depender de que
+ * el set ya esté guardado en la base: se le pasan los `productId` en memoria). */
+export async function getAssetIdsForProducts(productIds: string[]): Promise<string[]> {
+  return assetIdsLinkedToProducts(productIds);
+}
+
 async function assetIdsLinkedToProducts(productIds: string[], colorId?: string): Promise<string[]> {
   if (productIds.length === 0) return [];
   const conditions: SQL<unknown>[] = [eq(mediaLinksTable.entityType, 'PRODUCT'), inArray(mediaLinksTable.entityId, productIds)];

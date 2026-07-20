@@ -15,7 +15,7 @@ interface SetFilterSidebarProps {
   onClose: () => void;
 }
 
-type ArrayFilterKey = 'groups' | 'productTypes' | 'brands' | 'colors' | 'sizes';
+type ArrayFilterKey = 'productTypes' | 'brands' | 'colors' | 'sizes';
 
 export function SetFilterSidebar({ filters, filterOptions, onFilterChange, isOpen, onClose }: SetFilterSidebarProps) {
   const toggleArrayFilter = (key: ArrayFilterKey, value: string) => {
@@ -32,7 +32,6 @@ export function SetFilterSidebar({ filters, filterOptions, onFilterChange, isOpe
 
   const clearFilters = () => {
     onFilterChange({
-      groups: [],
       gender: null,
       productTypes: [],
       brands: [],
@@ -43,7 +42,6 @@ export function SetFilterSidebar({ filters, filterOptions, onFilterChange, isOpe
   };
 
   const hasActiveFilters =
-    filters.groups.length > 0 ||
     filters.gender !== null ||
     filters.productTypes.length > 0 ||
     filters.brands.length > 0 ||
@@ -65,25 +63,6 @@ export function SetFilterSidebar({ filters, filterOptions, onFilterChange, isOpe
           <button onClick={clearFilters} className="text-sm text-gray-500 hover:text-[#111111] underline transition-colors">
             Limpiar todos los filtros
           </button>
-        )}
-
-        {filterOptions.groups.length > 0 && (
-          <div>
-            <h3 className="text-xs uppercase tracking-widest text-gray-400 mb-3">Grupo</h3>
-            <div className="space-y-2">
-              {filterOptions.groups.map((g) => (
-                <label key={g.id} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={filters.groups.includes(g.slug)}
-                    onChange={() => toggleArrayFilter('groups', g.slug)}
-                    className="w-4 h-4 accent-[#111111] rounded"
-                  />
-                  <span className="text-sm text-[#333333]">{g.name}</span>
-                </label>
-              ))}
-            </div>
-          </div>
         )}
 
         <div>

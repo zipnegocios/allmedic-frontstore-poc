@@ -3,7 +3,6 @@ import type { Gender } from './types';
 
 export interface SetFilterState {
   search: string;
-  groups: string[];
   gender: Gender | null;
   /** Nombres de `productTypes` (EAV) seleccionados — fuente de verdad para el filtro "Tipo de Producto". */
   productTypes: string[];
@@ -16,7 +15,6 @@ export interface SetFilterState {
 
 export const EMPTY_SET_FILTERS: SetFilterState = {
   search: '',
-  groups: [],
   gender: null,
   productTypes: [],
   brands: [],
@@ -28,9 +26,6 @@ export const EMPTY_SET_FILTERS: SetFilterState = {
 export type SetSortOption = 'relevance' | 'price-asc' | 'price-desc' | 'newest';
 
 export function matchesSetFilters(set: CorporateSetSummary, filters: SetFilterState): boolean {
-  if (filters.groups.length > 0 && (!set.groupSlug || !filters.groups.includes(set.groupSlug))) {
-    return false;
-  }
   if (filters.gender && !set.genders.includes(filters.gender)) {
     return false;
   }
@@ -54,7 +49,7 @@ export function matchesSetFilters(set: CorporateSetSummary, filters: SetFilterSt
 
   const query = filters.search.trim().toLowerCase();
   if (query) {
-    const haystack = [set.name, set.groupName ?? '', set.brandName ?? '', ...set.pieceNames]
+    const haystack = [set.name, set.brandName ?? '', ...set.pieceNames]
       .join(' ')
       .toLowerCase();
     if (!haystack.includes(query)) return false;
@@ -83,7 +78,6 @@ export function sortSets(sets: CorporateSetSummary[], sortBy: SetSortOption): Co
 
 export function countActiveSetFilters(filters: SetFilterState): number {
   return (
-    filters.groups.length +
     (filters.gender ? 1 : 0) +
     filters.productTypes.length +
     filters.brands.length +

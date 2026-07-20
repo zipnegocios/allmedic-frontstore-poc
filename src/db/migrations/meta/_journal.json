@@ -85,6 +85,20 @@
       "when": 1784534170993,
       "tag": "0011_many_nomad",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1784548951911,
+      "tag": "0012_pretty_greymalkin",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1784553232410,
+      "tag": "0013_even_hawkeye",
+      "breakpoints": true
     }
   ]
 }

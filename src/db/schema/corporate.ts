@@ -5,29 +5,12 @@ import { products, brands, productVariants } from "./products";
 import { users } from "./auth";
 import { leads } from "./commerce";
 
-// ─── Set Groups (Grupos de Sets - categorías para sets corporativos) ───
-export const setGroups = pgTable("set_groups", {
-  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
-  name: text("name").notNull(),
-  slug: text("slug").notNull().unique(),
-  description: text("description"),
-  sortOrder: integer("sort_order").default(0),
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-});
-
-export const setGroupsRelations = relations(setGroups, ({ many }) => ({
-  sets: many(corporateSets),
-}));
-
 // ─── Corporate Sets (Conjuntos corporativos — grupos de piezas con precio referencial) ───
 export const corporateSets = pgTable("corporate_sets", {
   id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   description: text("description"),
-  setGroupId: pgUuid("set_group_id").references(() => setGroups.id),
   brandId: pgUuid("brand_id").references(() => brands.id),
   // Precio manual del set (override) — null significa "automático": suma de precios al
   // mayor de las piezas × cantidad, tal como se calculaba antes de este campo.
@@ -48,12 +31,10 @@ export const corporateSets = pgTable("corporate_sets", {
 }, (table) => [
   index("idx_corporate_sets_active").on(table.isActive),
   index("idx_corporate_sets_featured").on(table.isFeatured),
-  index("idx_corporate_sets_group").on(table.setGroupId),
   index("idx_corporate_sets_deleted").on(table.deletedAt),
 ]);
 
 export const corporateSetsRelations = relations(corporateSets, ({ one, many }) => ({
-  group: one(setGroups, { fields: [corporateSets.setGroupId], references: [setGroups.id] }),
   brand: one(brands, { fields: [corporateSets.brandId], references: [brands.id] }),
   items: many(setItems),
   colorCombos: many(setColorCombos),
@@ -69,6 +50,9 @@ export const setItems = pgTable("set_items", {
 }, (table) => [
   index("idx_set_items_set").on(table.setId),
   index("idx_set_items_product").on(table.productId),
+  // Impide agregar el mismo producto dos veces al mismo set (PLAN-ajustes-admin-sets.md
+  // Fase 3.2) — protección de última línea; la API y la UI ya rechazan el duplicado antes.
+  unique("uq_set_items_set_product").on(table.setId, table.productId),
 ]);
 
 export const setItemsRelations = relations(setItems, ({ one }) => ({
@@ -115,12 +99,15 @@ export const setColorComboItemsRelations = relations(setColorComboItems, ({ one 
 
 // ─── Business Rules (Motor de reglas — validación, precios, restricciones) ───
 // NOTA: scopeId es text() porque referencia distintas tablas según el `scope`
-// (BRAND, SET_GROUP, SET, PRODUCT) — no puede ser una FK tipada única.
+// (BRAND, SET, PRODUCT) — no puede ser una FK tipada única. El motor de reglas
+// (src/lib/rules-engine/) sigue reconociendo SET_GROUP como scope válido a nivel
+// de tipos por decisión explícita de no tocar su núcleo — ya no hay forma de crear
+// reglas nuevas con ese scope desde el admin (grupos de sets eliminados).
 export const businessRules = pgTable("business_rules", {
   id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
   name: text("name").notNull(),
   ruleType: text("rule_type").notNull(),
-  // Scope: GLOBAL, BRAND, SET_GROUP, SET, PRODUCT
+  // Scope: GLOBAL, BRAND, SET, PRODUCT
   scope: text("scope").notNull(),
   scopeId: text("scope_id"), // null si GLOBAL; guarda el uuid como texto
   // JSON config depende del ruleType

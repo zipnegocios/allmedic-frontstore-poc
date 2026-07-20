@@ -8,7 +8,7 @@ import {
   colors as colorsTable,
   corporateSets as corporateSetsTable,
 } from '@/db/schema';
-import { eq, and, ne, inArray } from 'drizzle-orm';
+import { eq, and, or, ne, inArray } from 'drizzle-orm';
 import { deleteObject, copyObject } from '@/lib/r2';
 import { buildProductMediaKey, buildSetMediaKey, fileNameFromStorageKey, COVER_SEGMENT, NO_COLOR_SEGMENT } from '@/lib/media';
 
@@ -141,9 +141,13 @@ export async function reorganizeProductMedia(productId: string, userId?: string)
 }
 
 /**
- * Reorganiza físicamente en R2 la portada de un set hacia `sets/{slug}/portada/`
- * — misma lógica que `reorganizeProductMedia` (idempotente, nunca mueve assets
- * reutilizados por otra entidad), pero para el único rol `COVER` que usan los sets.
+ * Reorganiza físicamente en R2 las portadas (primaria y secundaria) de un set
+ * hacia `sets/{slug}/portada/` — misma lógica que `reorganizeProductMedia`
+ * (idempotente, nunca mueve assets reutilizados por otra entidad). Cubre
+ * ambos roles (`COVER`/`COVER_SECONDARY`); las portadas elegidas en modo
+ * "Portadas del contenido" (galería de un producto del set) ya están
+ * vinculadas a ese producto, así que el chequeo de "reusado en otra entidad"
+ * las deja intactas — solo se mueven las subidas exclusivas del set.
  */
 export async function reorganizeSetMedia(setId: string, userId?: string): Promise<ReorganizeResult> {
   const [set] = await db.select({ slug: corporateSetsTable.slug }).from(corporateSetsTable).where(eq(corporateSetsTable.id, setId));
@@ -156,7 +160,11 @@ export async function reorganizeSetMedia(setId: string, userId?: string): Promis
     })
     .from(mediaLinksTable)
     .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
-    .where(and(eq(mediaLinksTable.entityType, 'SET'), eq(mediaLinksTable.entityId, setId), eq(mediaLinksTable.role, 'COVER')));
+    .where(and(
+      eq(mediaLinksTable.entityType, 'SET'),
+      eq(mediaLinksTable.entityId, setId),
+      or(eq(mediaLinksTable.role, 'COVER'), eq(mediaLinksTable.role, 'COVER_SECONDARY'))
+    ));
 
   if (links.length === 0) return { moved: [], skippedReused: 0, failed: [] };
 

@@ -1,4 +1,4 @@
-import { getActiveCorporateSets, getActiveSetGroups, getAllBusinessRules } from '@/lib/corporate-data-service';
+import { getActiveCorporateSets, getAllBusinessRules } from '@/lib/corporate-data-service';
 import { resolveRules } from '@/lib/rules-engine';
 import { CorporativoContent } from './CorporativoContent';
 
@@ -12,23 +12,21 @@ export const metadata = {
 };
 
 export default async function CorporativoPage() {
-  const [sets, groups, rules] = await Promise.all([
+  const [sets, rules] = await Promise.all([
     getActiveCorporateSets(),
-    getActiveSetGroups(),
     getAllBusinessRules(),
   ]);
 
   const resolved = resolveRules(rules, {});
 
   // Visibilidad de precios resuelta POR SET en el cliente (loop en memoria, no N consultas) — así
-  // una regla PRICE_VISIBILITY de ámbito Marca/Grupo/Set/Producto oculta el precio en la tarjeta
+  // una regla PRICE_VISIBILITY de ámbito Marca/Set/Producto oculta el precio en la tarjeta
   // del grid, no solo en la ficha de detalle. Se envían solo las reglas de este tipo al cliente.
   const priceVisibilityRules = rules.filter((r) => r.ruleType === 'PRICE_VISIBILITY');
 
   return (
     <CorporativoContent
       sets={sets}
-      groups={groups}
       priceVisibilityRules={priceVisibilityRules}
       minQuantity={resolved.minQuantity.min}
     />

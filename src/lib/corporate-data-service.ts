@@ -1,7 +1,6 @@
 import { db } from '@/db';
 import {
   corporateSets as corporateSetsTable,
-  setGroups as setGroupsTable,
   setItems as setItemsTable,
   setColorCombos as setColorCombosTable,
   setColorComboItems as setColorComboItemsTable,
@@ -19,25 +18,60 @@ import {
 } from '@/db/schema';
 import { eq, and, inArray, asc, desc, isNotNull, isNull } from 'drizzle-orm';
 import type { BusinessRule, SetPieceInfo } from './rules-engine';
-import type { CorporateSetSummary, CorporateSetDetail, SetPiece, SetGroupSummary } from './corporate-types';
+import type { CorporateSetSummary, CorporateSetDetail, SetPiece } from './corporate-types';
 import type { ProductColor, ProductVariant, Gender } from './types';
 import { resolveMediaUrl, isVideoMime, type MediaItem } from './media';
 import { effectiveManualPrice } from './set-pricing';
 import { genderFromDb, CORTE_ATTRIBUTE_SLUG } from './data-service';
 import type { AttributesPayload } from './attributes-payload/build-payload';
 
-async function getCoverImageMap(setIds: string[]): Promise<Map<string, string>> {
+/** Portadas primaria+secundaria de sets (paridad con productos) — mismo patrón
+ * de `mapDbProductToProduct` en `data-service.ts`: `MediaItem` con `type`
+ * derivado de `mimeType` para que el hover-swap público soporte video. */
+async function getCoverMediaMap(setIds: string[]): Promise<Map<string, { cover: MediaItem; secondaryCover?: MediaItem }>> {
   if (setIds.length === 0) return new Map();
   const links = await db
-    .select({ setId: mediaLinksTable.entityId, storageKey: mediaAssetsTable.storageKey })
+    .select({
+      setId: mediaLinksTable.entityId,
+      role: mediaLinksTable.role,
+      storageKey: mediaAssetsTable.storageKey,
+      mimeType: mediaAssetsTable.mimeType,
+      width: mediaAssetsTable.width,
+      height: mediaAssetsTable.height,
+      durationSeconds: mediaAssetsTable.durationSeconds,
+      previewStartSeconds: mediaAssetsTable.previewStartSeconds,
+      previewDurationSeconds: mediaAssetsTable.previewDurationSeconds,
+    })
     .from(mediaLinksTable)
     .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
     .where(and(
       eq(mediaLinksTable.entityType, 'SET'),
-      eq(mediaLinksTable.role, 'COVER'),
+      inArray(mediaLinksTable.role, ['COVER', 'COVER_SECONDARY']),
       inArray(mediaLinksTable.entityId, setIds)
     ));
-  return new Map(links.map((l) => [l.setId, resolveMediaUrl(l.storageKey)]));
+
+  const coverBySet = new Map<string, MediaItem>();
+  const secondaryBySet = new Map<string, MediaItem>();
+  for (const l of links) {
+    const item: MediaItem = {
+      url: resolveMediaUrl(l.storageKey),
+      type: isVideoMime(l.mimeType) ? 'video' : 'image',
+      mimeType: l.mimeType,
+      width: l.width,
+      height: l.height,
+      durationSeconds: l.durationSeconds,
+      previewStartSeconds: l.previewStartSeconds,
+      previewDurationSeconds: l.previewDurationSeconds,
+    };
+    if (l.role === 'COVER') coverBySet.set(l.setId, item);
+    else secondaryBySet.set(l.setId, item);
+  }
+
+  const map = new Map<string, { cover: MediaItem; secondaryCover?: MediaItem }>();
+  for (const [setId, cover] of coverBySet) {
+    map.set(setId, { cover, secondaryCover: secondaryBySet.get(setId) });
+  }
+  return map;
 }
 
 function wholesalePriceOf(priceWholesale: string | null, priceWholesaleSale: string | null): number | null {
@@ -63,15 +97,6 @@ export async function getAllBusinessRules(): Promise<BusinessRule[]> {
   }));
 }
 
-export async function getActiveSetGroups(): Promise<SetGroupSummary[]> {
-  const rows = await db
-    .select({ id: setGroupsTable.id, name: setGroupsTable.name, slug: setGroupsTable.slug })
-    .from(setGroupsTable)
-    .where(eq(setGroupsTable.isActive, true))
-    .orderBy(asc(setGroupsTable.sortOrder));
-  return rows;
-}
-
 // ── Grid público de sets activos ──
 export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
   const rows = await db
@@ -80,9 +105,6 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
       slug: corporateSetsTable.slug,
       name: corporateSetsTable.name,
       description: corporateSetsTable.description,
-      groupName: setGroupsTable.name,
-      groupSlug: setGroupsTable.slug,
-      setGroupId: corporateSetsTable.setGroupId,
       brandName: brandsTable.name,
       brandId: corporateSetsTable.brandId,
       isFeatured: corporateSetsTable.isFeatured,
@@ -93,7 +115,6 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
       createdAt: corporateSetsTable.createdAt,
     })
     .from(corporateSetsTable)
-    .leftJoin(setGroupsTable, eq(corporateSetsTable.setGroupId, setGroupsTable.id))
     .leftJoin(brandsTable, eq(corporateSetsTable.brandId, brandsTable.id))
     .where(and(eq(corporateSetsTable.isActive, true), isNull(corporateSetsTable.deletedAt)))
     .orderBy(asc(corporateSetsTable.sortOrder));
@@ -137,7 +158,7 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
         .where(and(inArray(variantsTable.productId, productIds), eq(variantsTable.status, 'AVAILABLE')))
     : [];
 
-  const coverImages = await getCoverImageMap(setIds);
+  const coverMedia = await getCoverMediaMap(setIds);
 
   return rows.map((set) => {
     const setItems = items.filter((i) => i.setId === set.id);
@@ -188,10 +209,8 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
       slug: set.slug,
       name: set.name,
       description: set.description,
-      imageUrl: coverImages.get(set.id) ?? null,
-      groupName: set.groupName,
-      groupSlug: set.groupSlug,
-      setGroupId: set.setGroupId,
+      cover: coverMedia.get(set.id)?.cover ?? null,
+      secondaryCover: coverMedia.get(set.id)?.secondaryCover ?? null,
       brandName: set.brandName,
       brandId: set.brandId,
       productIds: setProductIds,
@@ -218,10 +237,7 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
       slug: corporateSetsTable.slug,
       name: corporateSetsTable.name,
       description: corporateSetsTable.description,
-      setGroupId: corporateSetsTable.setGroupId,
       brandId: corporateSetsTable.brandId,
-      groupName: setGroupsTable.name,
-      groupSlug: setGroupsTable.slug,
       brandName: brandsTable.name,
       isFeatured: corporateSetsTable.isFeatured,
       priceManual: corporateSetsTable.priceManual,
@@ -231,7 +247,6 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
       createdAt: corporateSetsTable.createdAt,
     })
     .from(corporateSetsTable)
-    .leftJoin(setGroupsTable, eq(corporateSetsTable.setGroupId, setGroupsTable.id))
     .leftJoin(brandsTable, eq(corporateSetsTable.brandId, brandsTable.id))
     .where(and(
       eq(corporateSetsTable.slug, slug),
@@ -400,7 +415,7 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
     };
   });
 
-  const coverImages = await getCoverImageMap([set.id]);
+  const coverMedia = await getCoverMediaMap([set.id]);
 
   // Combinaciones de color curadas (modo MIXED) — solo se consultan/usan cuando aplica; en
   // modo PAIRED el armador calcula la intersección de color directamente de `pieces[].colors`.
@@ -432,11 +447,9 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
     slug: set.slug,
     name: set.name,
     description: set.description,
-    imageUrl: coverImages.get(set.id) ?? null,
-    setGroupId: set.setGroupId,
+    cover: coverMedia.get(set.id)?.cover ?? null,
+    secondaryCover: coverMedia.get(set.id)?.secondaryCover ?? null,
     brandId: set.brandId,
-    groupName: set.groupName,
-    groupSlug: set.groupSlug,
     brandName: set.brandName,
     productIds: pieces.map((p) => p.productId),
     isFeatured: set.isFeatured ?? false,
@@ -511,15 +524,15 @@ export async function getSetPricesByIds(setIds: string[]): Promise<Record<string
   return result;
 }
 
-// ── Metadata de sets (setGroupId, brandId, piezas por set) para el motor de reglas ──
+// ── Metadata de sets (brandId, piezas por set) para el motor de reglas ──
 export async function getSetMetaByIds(
   setIds: string[]
-): Promise<Record<string, { setGroupId: string | null; brandId: string | null; piecesPerSet: number }>> {
+): Promise<Record<string, { brandId: string | null; piecesPerSet: number }>> {
   if (setIds.length === 0) return {};
 
   const [setRows, itemRows] = await Promise.all([
     db
-      .select({ id: corporateSetsTable.id, setGroupId: corporateSetsTable.setGroupId, brandId: corporateSetsTable.brandId })
+      .select({ id: corporateSetsTable.id, brandId: corporateSetsTable.brandId })
       .from(corporateSetsTable)
       .where(inArray(corporateSetsTable.id, setIds)),
     db
@@ -534,7 +547,7 @@ export async function getSetMetaByIds(
   }
 
   return Object.fromEntries(
-    setRows.map((r) => [r.id, { setGroupId: r.setGroupId, brandId: r.brandId, piecesPerSet: piecesBySet.get(r.id) ?? 1 }])
+    setRows.map((r) => [r.id, { brandId: r.brandId, piecesPerSet: piecesBySet.get(r.id) ?? 1 }])
   );
 }
 

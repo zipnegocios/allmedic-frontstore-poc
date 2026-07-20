@@ -24,7 +24,7 @@ export async function getTrashedItems(): Promise<TrashedItem[]> {
     name: set.name,
     entityType: 'SET' as const,
     deletedAt: set.deletedAt!,
-    details: `${set.groupName || 'Sin grupo'} · ${set.brandName || 'Multi-marca'} · ${set.itemCount} ${set.itemCount === 1 ? 'pieza' : 'piezas'}`,
+    details: `${set.brandName || 'Multi-marca'} · ${set.itemCount} ${set.itemCount === 1 ? 'pieza' : 'piezas'}`,
   }));
 
   const quoteMapped = trashedQuotes.map((q) => ({

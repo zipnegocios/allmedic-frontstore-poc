@@ -7,7 +7,6 @@ import {
   banners as bannersTable,
   productVariants as variantsTable,
   leads as leadsTable,
-  setGroups as setGroupsTable,
   corporateSets as corporateSetsTable,
   setItems as setItemsTable,
   setColorCombos as setColorCombosTable,
@@ -1002,26 +1001,6 @@ export async function deleteBanner(id: string) {
   await db.delete(bannersTable).where(eq(bannersTable.id, id));
 }
 
-// ── Set Groups (Grupos de Sets Corporativos) ──
-
-export async function getAdminSetGroups() {
-  return db.select().from(setGroupsTable).orderBy(asc(setGroupsTable.sortOrder));
-}
-
-export async function createSetGroup(data: typeof setGroupsTable.$inferInsert) {
-  const [group] = await db.insert(setGroupsTable).values(data).returning();
-  return group;
-}
-
-export async function updateSetGroup(id: string, data: Partial<typeof setGroupsTable.$inferInsert>) {
-  const [group] = await db.update(setGroupsTable).set(data).where(eq(setGroupsTable.id, id)).returning();
-  return group;
-}
-
-export async function deleteSetGroup(id: string) {
-  await db.delete(setGroupsTable).where(eq(setGroupsTable.id, id));
-}
-
 /** Listado liviano de productos activos (id/nombre/marca) — usado por el selector de ámbito
  * "Producto específico" del panel de reglas, que necesita elegir cualquier producto activo sin
  * cargar variantes/imágenes (a diferencia de `getAdminProducts`, pensado para el listado completo). */
@@ -1089,8 +1068,6 @@ export async function getAdminSets() {
       id: corporateSetsTable.id,
       name: corporateSetsTable.name,
       slug: corporateSetsTable.slug,
-      setGroupId: corporateSetsTable.setGroupId,
-      groupName: setGroupsTable.name,
       brandId: corporateSetsTable.brandId,
       brandName: brandsTable.name,
       isActive: corporateSetsTable.isActive,
@@ -1098,7 +1075,6 @@ export async function getAdminSets() {
       sortOrder: corporateSetsTable.sortOrder,
     })
     .from(corporateSetsTable)
-    .leftJoin(setGroupsTable, eq(corporateSetsTable.setGroupId, setGroupsTable.id))
     .leftJoin(brandsTable, eq(corporateSetsTable.brandId, brandsTable.id))
     .where(isNull(corporateSetsTable.deletedAt))
     .orderBy(asc(corporateSetsTable.sortOrder));
@@ -1174,7 +1150,27 @@ export async function getAdminSetById(id: string) {
   const [set] = await db.select().from(corporateSetsTable).where(eq(corporateSetsTable.id, id)).limit(1);
   if (!set) return null;
 
-  const [items, coverResult] = await Promise.all([
+  function coverQuery(role: 'COVER' | 'COVER_SECONDARY') {
+    return db
+      .select({
+        id: mediaLinksTable.id,
+        assetId: mediaLinksTable.assetId,
+        url: sql<string>`concat(${sql.raw("'" + process.env.R2_PUBLIC_URL + "/'")}, ${mediaAssetsTable.storageKey})`,
+        storageKey: mediaAssetsTable.storageKey,
+        mimeType: mediaAssetsTable.mimeType,
+        alt: mediaLinksTable.altOverride,
+      })
+      .from(mediaLinksTable)
+      .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
+      .where(and(
+        eq(mediaLinksTable.entityType, 'SET'),
+        eq(mediaLinksTable.entityId, id),
+        eq(mediaLinksTable.role, role)
+      ))
+      .limit(1);
+  }
+
+  const [items, coverResult, secondaryCoverResult] = await Promise.all([
     db
       .select({
         id: setItemsTable.id,
@@ -1191,29 +1187,16 @@ export async function getAdminSetById(id: string) {
       .leftJoin(productsTable, eq(setItemsTable.productId, productsTable.id))
       .where(eq(setItemsTable.setId, id))
       .orderBy(asc(setItemsTable.sortOrder)),
-    db
-      .select({
-        id: mediaLinksTable.id,
-        assetId: mediaLinksTable.assetId,
-        url: sql<string>`concat(${sql.raw("'" + process.env.R2_PUBLIC_URL + "/'")}, ${mediaAssetsTable.storageKey})`,
-        storageKey: mediaAssetsTable.storageKey,
-        mimeType: mediaAssetsTable.mimeType,
-        alt: mediaLinksTable.altOverride,
-      })
-      .from(mediaLinksTable)
-      .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
-      .where(and(
-        eq(mediaLinksTable.entityType, 'SET'),
-        eq(mediaLinksTable.entityId, id),
-        eq(mediaLinksTable.role, 'COVER')
-      ))
-      .limit(1),
+    coverQuery('COVER'),
+    coverQuery('COVER_SECONDARY'),
   ]);
 
   const cover = coverResult[0] || null;
-  const imageUrl = await getSingleLinkUrl('SET', id, 'COVER');
+  const secondaryCover = secondaryCoverResult[0] || null;
+  const imageUrl = cover?.url ?? null;
+  const secondaryImageUrl = secondaryCover?.url ?? null;
 
-  return { ...set, cover, imageUrl, items };
+  return { ...set, cover, secondaryCover, imageUrl, secondaryImageUrl, items };
 }
 
 
@@ -1230,11 +1213,11 @@ interface CorporateSetInput {
   description?: string;
   coverAssetId?: string;
   coverAlt?: string;
+  secondaryCoverAssetId?: string;
+  secondaryCoverAlt?: string;
   /** Modo de color del set — obligatorio, dispara la creación/desactivación automática de la
    * regla COLOR_PAIRING (ver `syncColorPairingRule`). Sin default: debe elegirse explícitamente. */
   colorMode: 'PAIRED' | 'MIXED';
-  setGroupId?: string | null;
-  brandId?: string | null;
   isActive?: boolean;
   isFeatured?: boolean;
   sortOrder?: number;
@@ -1246,12 +1229,31 @@ interface CorporateSetInput {
   items?: SetItemInput[];
 }
 
+/**
+ * Marca del set derivada de sus piezas (PLAN-ajustes-admin-sets.md Fase 3.1 —
+ * ya no hay selector de Marca en el formulario): si todas las piezas son de la
+ * misma marca, esa; si hay más de una marca (o el set no tiene piezas), `null`
+ * ("Multi-marca").
+ */
+async function deriveSetBrandId(productIds: string[]): Promise<string | null> {
+  if (productIds.length === 0) return null;
+  const rows = await db
+    .selectDistinct({ brandId: productsTable.brandId })
+    .from(productsTable)
+    .where(inArray(productsTable.id, productIds));
+  const distinctBrandIds = rows.map((r) => r.brandId).filter((id): id is string => !!id);
+  const unique = Array.from(new Set(distinctBrandIds));
+  return unique.length === 1 ? unique[0] : null;
+}
+
 export async function createSetWithItems(input: CorporateSetInput) {
-  const { items = [], coverAssetId, coverAlt, manualDiscountEnd, ...setData } = input;
+  const { items = [], coverAssetId, coverAlt, secondaryCoverAssetId, secondaryCoverAlt, manualDiscountEnd, ...setData } = input;
+  const derivedBrandId = await deriveSetBrandId(items.map((i) => i.productId));
 
   const set = await db.transaction(async (tx) => {
     const [set] = await tx.insert(corporateSetsTable).values({
       ...setData,
+      brandId: derivedBrandId,
       manualDiscountEnd: manualDiscountEnd ? new Date(manualDiscountEnd) : undefined,
     }).returning();
 
@@ -1272,6 +1274,7 @@ export async function createSetWithItems(input: CorporateSetInput) {
   });
 
   if (coverAssetId) await replaceSingleLink('SET', set.id, 'COVER', coverAssetId, coverAlt);
+  if (secondaryCoverAssetId) await replaceSingleLink('SET', set.id, 'COVER_SECONDARY', secondaryCoverAssetId, secondaryCoverAlt);
   try {
     const result = await reorganizeSetMedia(set.id);
     if (result.failed.length > 0) {
@@ -1284,12 +1287,14 @@ export async function createSetWithItems(input: CorporateSetInput) {
 }
 
 export async function updateSetWithItems(id: string, input: Partial<CorporateSetInput>) {
-  const { items, coverAssetId, coverAlt, manualDiscountEnd, ...setData } = input;
+  const { items, coverAssetId, coverAlt, secondaryCoverAssetId, secondaryCoverAlt, manualDiscountEnd, ...setData } = input;
+  const derivedBrandId = items !== undefined ? await deriveSetBrandId(items.map((i) => i.productId)) : undefined;
 
   const set = await db.transaction(async (tx) => {
-    if (Object.keys(setData).length > 0 || manualDiscountEnd !== undefined) {
+    if (Object.keys(setData).length > 0 || manualDiscountEnd !== undefined || derivedBrandId !== undefined) {
       await tx.update(corporateSetsTable).set({
         ...setData,
+        ...(derivedBrandId !== undefined ? { brandId: derivedBrandId } : {}),
         ...(manualDiscountEnd !== undefined
           ? { manualDiscountEnd: manualDiscountEnd ? new Date(manualDiscountEnd) : null }
           : {}),
@@ -1319,6 +1324,7 @@ export async function updateSetWithItems(id: string, input: Partial<CorporateSet
   });
 
   if (coverAssetId !== undefined) await replaceSingleLink('SET', id, 'COVER', coverAssetId, coverAlt);
+  if (secondaryCoverAssetId !== undefined) await replaceSingleLink('SET', id, 'COVER_SECONDARY', secondaryCoverAssetId, secondaryCoverAlt);
   try {
     const result = await reorganizeSetMedia(id);
     if (result.failed.length > 0) {
@@ -1372,8 +1378,6 @@ export async function getTrashedSets() {
       id: corporateSetsTable.id,
       name: corporateSetsTable.name,
       slug: corporateSetsTable.slug,
-      setGroupId: corporateSetsTable.setGroupId,
-      groupName: setGroupsTable.name,
       brandId: corporateSetsTable.brandId,
       brandName: brandsTable.name,
       isActive: corporateSetsTable.isActive,
@@ -1382,7 +1386,6 @@ export async function getTrashedSets() {
       deletedAt: corporateSetsTable.deletedAt,
     })
     .from(corporateSetsTable)
-    .leftJoin(setGroupsTable, eq(corporateSetsTable.setGroupId, setGroupsTable.id))
     .leftJoin(brandsTable, eq(corporateSetsTable.brandId, brandsTable.id))
     .where(isNotNull(corporateSetsTable.deletedAt))
     .orderBy(desc(corporateSetsTable.deletedAt));
@@ -1471,7 +1474,20 @@ async function getProductCoversMap(productIds: string[]): Promise<Map<string, Pr
  * variantes (colores/tallas) y la portada — usado por el selector con búsqueda del ensamblador
  * de sets para mostrar advertencias inline sin consultas adicionales por pieza.
  */
-export async function getGroupEligibleProducts() {
+/**
+ * Productos elegibles para agregarse como pieza de un set corporativo. Criterio
+ * de elegibilidad (único, explícito): `isActive = true` y no está en la
+ * papelera (`deletedAt IS NULL`) — sin filtro por `visibility`. Antes exigía
+ * `visibility IN ('GROUPS', 'BOTH')`, un remanente de cuando esta función se
+ * llamaba `getGroupEligibleProducts` para el extinto sistema de Grupos de Sets;
+ * eso excluía en silencio cualquier producto "Solo Individual" (ej. CKWW615)
+ * del selector de piezas sin ninguna explicación — un producto puede venderse
+ * individualmente Y además integrarse a un set. Si una pieza está incompleta
+ * (sin precio al mayor, sin variantes activas), igual aparece seleccionable
+ * con la advertencia correspondiente en el formulario — la advertencia
+ * informa, no oculta (ver PLAN-ajustes-admin-sets.md Fase 0/3).
+ */
+export async function getSetEligibleProducts() {
   const products = await db
     .select({
       id: productsTable.id,
@@ -1485,16 +1501,12 @@ export async function getGroupEligibleProducts() {
       priceNormal: productsTable.priceNormal,
       visibility: productsTable.visibility,
       brandName: brandsTable.name,
+      brandId: productsTable.brandId,
     })
     .from(productsTable)
     .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
     .leftJoin(collectionsTable, eq(productsTable.collectionId, collectionsTable.id))
-    .where(
-      and(
-        eq(productsTable.isActive, true),
-        or(eq(productsTable.visibility, 'GROUPS'), eq(productsTable.visibility, 'BOTH'))
-      )
-    )
+    .where(and(eq(productsTable.isActive, true), isNull(productsTable.deletedAt)))
     .orderBy(asc(productsTable.name));
 
   const productIds = products.map((p) => p.id);

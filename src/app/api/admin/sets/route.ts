@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
 import { getAdminSets, createSetWithItems } from '@/lib/admin-data-service';
+import { findDuplicateSetItemIndexes } from '@/lib/set-validation';
 import { z } from 'zod';
 
 const SetItemSchema = z.object({
@@ -13,10 +14,10 @@ const CreateSetSchema = z.object({
   name: z.string().min(1),
   slug: z.string().min(1),
   description: z.string().optional(),
-  coverAssetId: z.string().min(1, 'La imagen de portada es obligatoria'),
+  coverAssetId: z.string().min(1, 'La portada primaria es obligatoria'),
   coverAlt: z.string().optional(),
-  setGroupId: z.string().optional().nullable(),
-  brandId: z.string().optional().nullable(),
+  secondaryCoverAssetId: z.string().min(1, 'La portada secundaria es obligatoria'),
+  secondaryCoverAlt: z.string().optional(),
   colorMode: z.enum(['PAIRED', 'MIXED'], { message: 'Elige un modo de color para el set' }),
   isActive: z.boolean().default(true),
   isFeatured: z.boolean().default(false),
@@ -31,7 +32,11 @@ const CreateSetSchema = z.object({
 ).refine(
   (data) => !data.manualDiscountEnd || !!data.priceManualSale,
   { message: 'La fecha de fin de rebaja requiere un precio manual rebajado', path: ['manualDiscountEnd'] }
-);
+).superRefine((data, ctx) => {
+  for (const idx of findDuplicateSetItemIndexes(data.items)) {
+    ctx.addIssue({ code: 'custom', message: 'Este producto ya está en el set', path: ['items', idx, 'productId'] });
+  }
+});
 
 export async function GET() {
   try {

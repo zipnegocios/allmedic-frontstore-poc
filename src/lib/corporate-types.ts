@@ -1,11 +1,6 @@
 import type { ProductColor, ProductVariant } from './types';
 import type { Gender } from './types';
-
-export interface SetGroupSummary {
-  id: string;
-  name: string;
-  slug: string;
-}
+import type { MediaItem } from './media';
 
 export interface SetPiece {
   setItemId: string;
@@ -25,11 +20,10 @@ export interface CorporateSetSummary {
   slug: string;
   name: string;
   description: string | null;
-  imageUrl: string | null;
-  groupName: string | null;
-  groupSlug: string | null;
-  /** Id del grupo de sets (para resolver reglas por ítem en el grid — `groupSlug` es solo para filtros de UI). */
-  setGroupId: string | null;
+  /** Portada primaria/secundaria — paridad con productos (`resolveCoverMedia`/
+   * `resolveSecondaryCoverMedia`). `secondaryCover` ausente si no hay hover-swap. */
+  cover: MediaItem | null;
+  secondaryCover: MediaItem | null;
   brandName: string | null;
   /** Id de la marca (para resolver reglas por ítem en el grid — `brandName` es solo para mostrar/filtrar). */
   brandId: string | null;
@@ -58,7 +52,6 @@ export interface SetColorCombo {
 }
 
 export interface CorporateSetDetail extends CorporateSetSummary {
-  setGroupId: string | null;
   brandId: string | null;
   pieces: SetPiece[];
   /** PAIRED = todas las piezas se piden en un único color compartido; MIXED = el comprador solo

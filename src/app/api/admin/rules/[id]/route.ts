@@ -8,7 +8,7 @@ import { detectConflicts, type BusinessRule } from '@/lib/rules-engine';
 
 const PatchRuleSchema = z.object({
   name: z.string().min(1).optional(),
-  scope: z.enum(['GLOBAL', 'BRAND', 'SET_GROUP', 'SET', 'PRODUCT']).optional(),
+  scope: z.enum(['GLOBAL', 'BRAND', 'SET', 'PRODUCT']).optional(),
   scopeId: z.string().nullable().optional(),
   config: z.unknown().optional(),
   isActive: z.boolean().optional(),

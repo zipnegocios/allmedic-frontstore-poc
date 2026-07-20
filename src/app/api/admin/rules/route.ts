@@ -10,7 +10,7 @@ const RULE_TYPES = Object.keys(RULE_CONFIG_SCHEMAS) as [string, ...string[]];
 const CreateRuleSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
   ruleType: z.enum(RULE_TYPES),
-  scope: z.enum(['GLOBAL', 'BRAND', 'SET_GROUP', 'SET', 'PRODUCT']),
+  scope: z.enum(['GLOBAL', 'BRAND', 'SET', 'PRODUCT']),
   scopeId: z.string().nullable(),
   config: z.unknown(),
   priority: z.number().int().optional(),

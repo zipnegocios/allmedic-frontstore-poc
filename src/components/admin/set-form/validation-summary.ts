@@ -6,7 +6,8 @@ import type { SetFormData } from './schema';
 const TOP_LEVEL_LABELS: Partial<Record<keyof SetFormData, string>> = {
   name: 'Nombre',
   slug: 'Slug',
-  coverAssetId: 'Portada del Set',
+  coverAssetId: 'Portada primaria del Set',
+  secondaryCoverAssetId: 'Portada secundaria del Set',
 };
 
 /**

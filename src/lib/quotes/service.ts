@@ -349,7 +349,6 @@ export async function recalculateSuggested(id: string) {
         quantity: item.quantity,
         basePrice,
         setId: item.setId,
-        setGroupId: meta?.setGroupId,
         brandId: meta?.brandId,
       };
     } else if (item.productId) {

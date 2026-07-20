@@ -24,7 +24,6 @@ export interface QuoteLineContext {
   /** Precio base ya resuelto por el caller: precio de set (corporativo) o precio retail/mayorista (individual). */
   basePrice: number;
   setId?: string | null;
-  setGroupId?: string | null;
   brandId?: string | null;
   productId?: string | null;
   /** Piezas del set, para reglas de ámbito PRODUCT — ver `RuleContext.productIds`. */
@@ -80,7 +79,6 @@ export function resolveSuggestedPrice(
 ): SuggestedPriceResult {
   const context: RuleContext = {
     setId: line.setId ?? undefined,
-    setGroupId: line.setGroupId ?? undefined,
     brandId: line.brandId ?? undefined,
     productId: line.productId ?? undefined,
     productIds: line.productIds,

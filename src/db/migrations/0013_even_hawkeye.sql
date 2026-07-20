@@ -1,0 +1,1 @@
+ALTER TABLE "set_items" ADD CONSTRAINT "uq_set_items_set_product" UNIQUE("set_id","product_id");

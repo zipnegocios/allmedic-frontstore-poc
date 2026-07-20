@@ -2,12 +2,6 @@ import Link from 'next/link';
 import { Building2, AlertTriangle } from 'lucide-react';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 import type { CorporateSetSummary } from '@/lib/corporate-types';
-import type { MediaItem } from '@/lib/media';
-
-export function coverImageItem(imageUrl: string | null): MediaItem | undefined {
-  if (!imageUrl) return undefined;
-  return { url: imageUrl, type: 'image', mimeType: 'image/jpeg', width: null, height: null };
-}
 
 interface SetListItemProps {
   set: CorporateSetSummary;
@@ -21,14 +15,25 @@ export function SetListItem({ set, showPrices }: SetListItemProps) {
       className="group flex gap-4 p-4 bg-white border border-[#E5E5E5] rounded-xl hover:border-[#111111] hover:shadow-md transition-all duration-300"
     >
       <div className="relative flex-shrink-0 w-24 h-24 sm:w-32 sm:h-32 bg-[#F5F5F7] rounded-lg overflow-hidden">
-        {set.imageUrl ? (
-          <MediaGridThumb
-            item={coverImageItem(set.imageUrl)}
-            fallback="/images/placeholder-product.jpg"
-            alt={set.name}
-            sizes="128px"
-            className="object-cover group-hover:scale-105 transition-transform duration-500"
-          />
+        {set.cover ? (
+          <>
+            <MediaGridThumb
+              item={set.cover}
+              fallback="/images/placeholder-product.jpg"
+              alt={set.name}
+              sizes="128px"
+              className={`object-cover transition-opacity duration-300 ${set.secondaryCover ? 'group-hover:opacity-0' : 'group-hover:scale-105 transition-transform duration-500'}`}
+            />
+            {set.secondaryCover && (
+              <MediaGridThumb
+                item={set.secondaryCover}
+                fallback="/images/placeholder-product.jpg"
+                alt={set.name}
+                sizes="128px"
+                className="absolute inset-0 object-cover opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+              />
+            )}
+          </>
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-300">
             <Building2 className="w-8 h-8" strokeWidth={1} />
@@ -44,7 +49,6 @@ export function SetListItem({ set, showPrices }: SetListItemProps) {
           </h3>
           <p className="text-sm text-gray-500">
             {set.pieceCount} {set.pieceCount === 1 ? 'pieza' : 'piezas'}
-            {set.groupName && ` · ${set.groupName}`}
           </p>
         </div>
 

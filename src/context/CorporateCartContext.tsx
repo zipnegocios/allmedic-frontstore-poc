@@ -27,7 +27,6 @@ export interface CorporateCartItem {
   setName: string;
   imageUrl: string | null;
   sizeMode: SizeMode;
-  setGroupId: string | null;
   brandId: string | null;
   unitPrice: number;
   hasMissingPrices: boolean;
@@ -285,7 +284,7 @@ export function CorporateCartProvider({ children }: { children: React.ReactNode 
   const setMeta = useMemo(
     () =>
       Object.fromEntries(
-        items.map((i) => [i.setId, { setGroupId: i.setGroupId, brandId: i.brandId, piecesPerSet: i.piecesPerSet, pieces: i.pieces }])
+        items.map((i) => [i.setId, { brandId: i.brandId, piecesPerSet: i.piecesPerSet, pieces: i.pieces }])
       ),
     [items]
   );

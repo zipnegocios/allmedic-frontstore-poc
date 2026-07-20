@@ -33,7 +33,7 @@ describe('SET_FORM_WIZARD_STEPS', () => {
     const price = SET_FORM_WIZARD_STEPS.find((s) => s.id === 'price')!;
     const rules = SET_FORM_WIZARD_STEPS.find((s) => s.id === 'rules')!;
 
-    expect(general.fields).toEqual(['name', 'slug', 'coverAssetId']);
+    expect(general.fields).toEqual(['name', 'slug', 'coverAssetId', 'secondaryCoverAssetId']);
     expect(pieces.fields).toEqual(['items']);
     expect(price.fields).toEqual([]);
     expect(rules.fields).toEqual([]);

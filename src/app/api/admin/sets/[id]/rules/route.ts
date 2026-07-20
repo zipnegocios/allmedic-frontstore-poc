@@ -19,7 +19,7 @@ const ALL_RULE_TYPES: RuleType[] = [
 /**
  * GET /api/admin/sets/[id]/rules
  * Reglas que afectan a este set: ámbito SET (scopeId = set), más las heredadas de GLOBAL,
- * BRAND, SET_GROUP y PRODUCT (piezas del set). Anota, por tipo de regla, cuál gana la
+ * BRAND y PRODUCT (piezas del set). Anota, por tipo de regla, cuál gana la
  * resolución — reutiliza `resolveBestRule` (la misma función de producción), no la reimplementa.
  */
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -30,7 +30,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     if (!set) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     const productIds = set.items.map((i) => i.productId).filter((pid): pid is string => !!pid);
-    const context = { setId: set.id, setGroupId: set.setGroupId, brandId: set.brandId, productIds };
+    const context = { setId: set.id, brandId: set.brandId, productIds };
 
     const allRulesRaw = await getAdminRules();
     const allRules: BusinessRule[] = allRulesRaw.map((r) => ({
@@ -46,13 +46,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       validTo: r.validTo,
     }));
 
-    // Reglas relevantes: SET de este set, GLOBAL, BRAND/SET_GROUP de este set, o PRODUCT de
+    // Reglas relevantes: SET de este set, GLOBAL, BRAND de este set, o PRODUCT de
     // alguna de sus piezas — el resto del catálogo no aparece (no son "heredadas" de este set).
     const relevant = allRules.filter((r) => {
       if (r.scope === 'GLOBAL') return true;
       if (r.scope === 'SET') return r.scopeId === set.id;
       if (r.scope === 'BRAND') return !!set.brandId && r.scopeId === set.brandId;
-      if (r.scope === 'SET_GROUP') return !!set.setGroupId && r.scopeId === set.setGroupId;
       if (r.scope === 'PRODUCT') return !!r.scopeId && productIds.includes(r.scopeId);
       return false;
     });

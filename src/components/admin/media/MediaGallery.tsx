@@ -38,6 +38,10 @@ interface MediaGalleryProps {
   /** Nodo seleccionado del árbol de biblioteca (Fase 5) — filtra por lo
    * vinculado a esa marca/colección/producto/color en vez de por carpeta. */
   treeNode?: { type: 'brand' | 'collection' | 'product' | 'color'; id: string; productId?: string } | null;
+  /** Portadas de set en modo "Portadas del contenido": filtra por lo vinculado
+   * a cualquiera de estos productos (galerías de las piezas del set, en
+   * memoria — no depende de que el set ya esté guardado). */
+  productIds?: string[];
 }
 
 export function MediaGallery({
@@ -53,6 +57,7 @@ export function MediaGallery({
   linkedEntityType,
   linkedEntityId,
   treeNode,
+  productIds,
 }: MediaGalleryProps) {
   const [assets, setAssets] = useState<MediaAssetSummary[]>([]);
   const [total, setTotal] = useState(0);
@@ -87,6 +92,7 @@ export function MediaGallery({
         params.set('treeNodeId', treeNode.type === 'color' ? (treeNode.productId ?? treeNode.id) : treeNode.id);
         if (treeNode.type === 'color') params.set('treeNodeColorId', treeNode.id);
       }
+      if (productIds && productIds.length > 0) params.set('productIds', productIds.join(','));
       params.set('page', String(page));
       params.set('limit', String(limit));
 
@@ -100,7 +106,7 @@ export function MediaGallery({
     } finally {
       setLoading(false);
     }
-  }, [fixedFolder, folder, fixedMediaType, mediaType, q, unused, page, keyPrefix, linkedEntityType, linkedEntityId, treeNode]);
+  }, [fixedFolder, folder, fixedMediaType, mediaType, q, unused, page, keyPrefix, linkedEntityType, linkedEntityId, treeNode, productIds]);
 
   useEffect(() => { fetchAssets(); }, [fetchAssets, refreshKey]);
   // Volver a la página 1 al cambiar de nodo del árbol — evita quedar en una

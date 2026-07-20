@@ -23,9 +23,14 @@ interface MediaPickerProps {
   keyPrefix?: string;
   linkedEntityType?: string;
   linkedEntityId?: string;
+  /** Portadas de set en modo "Portadas del contenido": restringe la pestaña de
+   * librería a lo vinculado a cualquiera de estos productos (galerías de las
+   * piezas del set). Cuando viene, oculta el toggle "insertar desde otra
+   * ubicación" — es un scope fijo, no un punto de partida enfocado. */
+  productIds?: string[];
 }
 
-export function MediaPicker({ open, onClose, folder, segments = [], multiple = false, mediaType, onConfirm, keyPrefix, linkedEntityType, linkedEntityId }: MediaPickerProps) {
+export function MediaPicker({ open, onClose, folder, segments = [], multiple = false, mediaType, onConfirm, keyPrefix, linkedEntityType, linkedEntityId, productIds }: MediaPickerProps) {
   const [selected, setSelected] = useState<MediaAssetSummary[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [tab, setTab] = useState('library');
@@ -85,7 +90,7 @@ export function MediaPicker({ open, onClose, folder, segments = [], multiple = f
           <TabsTrigger value="upload">Subir nueva</TabsTrigger>
         </TabsList>
         <TabsContent value="library">
-          {keyPrefix && (
+          {keyPrefix && !productIds && (
             <div className="flex items-center justify-between mb-3 text-xs">
               <span className="text-gray-500">
                 {browseAll ? 'Mostrando toda la biblioteca.' : 'Mostrando la carpeta de este producto.'}
@@ -96,16 +101,17 @@ export function MediaPicker({ open, onClose, folder, segments = [], multiple = f
             </div>
           )}
           <MediaGallery
-            folder={folder}
+            folder={productIds ? undefined : folder}
             mediaType={mediaType}
             selectable
             multiple={multiple}
             selectedIds={selected.map((a) => a.id)}
             onSelect={toggleSelect}
             refreshKey={refreshKey}
-            keyPrefix={browseAll ? undefined : keyPrefix}
-            linkedEntityType={browseAll ? undefined : linkedEntityType}
-            linkedEntityId={browseAll ? undefined : linkedEntityId}
+            keyPrefix={browseAll || productIds ? undefined : keyPrefix}
+            linkedEntityType={browseAll || productIds ? undefined : linkedEntityType}
+            linkedEntityId={browseAll || productIds ? undefined : linkedEntityId}
+            productIds={productIds}
           />
         </TabsContent>
         <TabsContent value="upload">

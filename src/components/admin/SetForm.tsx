@@ -20,8 +20,6 @@ import { FloatingSaveButton, type FloatingSaveStatus } from '@/components/admin/
 import {
   SetFormSchema,
   type SetFormData,
-  type SetGroup,
-  type Brand,
   type EligibleProduct,
   type SetRuleRow,
   productPrice,
@@ -49,8 +47,6 @@ interface SetFormProps {
 export default function SetForm({ setId, initialData }: SetFormProps) {
   const router = useRouter();
   const isMobile = useIsMobile();
-  const [groups, setGroups] = useState<SetGroup[]>([]);
-  const [brands, setBrands] = useState<Brand[]>([]);
   const [products, setProducts] = useState<EligibleProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -68,7 +64,16 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
   // pueda pasar de POST a PATCH en clics subsiguientes sin navegar.
   const [createdSetId, setCreatedSetId] = useState<string | undefined>(setId);
   const [showValidationBanner, setShowValidationBanner] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerRequest, setPickerRequest] = useState<{ target: 'cover' | 'secondaryCover'; mode: 'special' | 'content' } | null>(null);
+  // Snapshot de productIds vigentes al momento de elegir una portada en modo
+  // "Portadas del contenido" — si luego se quita del set alguno de esos
+  // productos, avisamos que la portada podría ya no ser válida (Fase 2.4,
+  // PLAN-ajustes-admin-sets.md). No identifica el producto exacto del asset
+  // elegido (eso requeriría una consulta extra a media_links por selección),
+  // así que el aviso es conservador: se dispara si el producto quitado
+  // formaba parte del alcance de la galería consultada, no solo si es
+  // certeramente el dueño de la imagen.
+  const [coverContentScope, setCoverContentScope] = useState<{ cover?: string[]; secondaryCover?: string[] }>({});
   const [pieceComboOpen, setPieceComboOpen] = useState<number | null>(null);
 
   // Drawer de producto (crear pieza nueva / editar pieza existente sin salir del set)
@@ -100,6 +105,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
       slug: '',
       description: '',
       imageUrl: '',
+      secondaryImageUrl: '',
       isActive: true,
       isFeatured: false,
       items: [],
@@ -109,6 +115,22 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
   const items = watch('items');
   const colorMode = watch('colorMode');
+
+  /** Quita una pieza y avisa si podría haber sido la fuente de alguna portada
+   * elegida en modo "Portadas del contenido" (Fase 2.4). */
+  function handleRemovePiece(index: number) {
+    const removedProductId = items[index]?.productId;
+    remove(index);
+    if (!removedProductId) return;
+    const affected = (['cover', 'secondaryCover'] as const).filter((slot) =>
+      coverContentScope[slot]?.includes(removedProductId)
+    );
+    if (affected.length > 0) {
+      toast.warning(
+        'Quitaste una pieza cuya galería pudo haber aportado la portada actual — revisa que la portada primaria y secundaria sigan siendo válidas antes de guardar.'
+      );
+    }
+  }
 
   // Cambiar de modalidad ya elegida cambia cómo el comprador elige color en el catálogo público
   // (duplas vs. combos curados) — se confirma con el usuario antes de aplicar el cambio. Las
@@ -132,12 +154,6 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
     async function fetchData() {
       setLoading(true);
       try {
-        const [groupsRes, brandsRes] = await Promise.all([
-          fetch('/api/admin/set-groups'),
-          fetch('/api/admin/brands?limit=1000'),
-        ]);
-        if (groupsRes.ok) setGroups((await groupsRes.json()).groups || []);
-        if (brandsRes.ok) setBrands((await brandsRes.json()).brands || []);
         await fetchProducts();
       } catch {
         toast.error('Error al cargar datos de referencia');
@@ -194,8 +210,6 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
   function buildSetPayload(data: SetFormData) {
     return {
       ...data,
-      setGroupId: data.setGroupId || null,
-      brandId: data.brandId || null,
       priceManual: manualPriceEnabled ? (data.priceManual || null) : null,
       priceManualSale: manualPriceEnabled ? (data.priceManualSale || null) : null,
       manualDiscountEnd: manualPriceEnabled ? (data.manualDiscountEnd || null) : null,
@@ -392,9 +406,8 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
                   control={control}
                   errors={errors}
                   watch={watch}
-                  groups={groups}
-                  brands={brands}
-                  onOpenPicker={() => setPickerOpen(true)}
+                  hasPieces={items.some((i) => i.productId)}
+                  onOpenPicker={(target, mode) => setPickerRequest({ target, mode })}
                 />
               )}
 
@@ -412,7 +425,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
                     items={items}
                     products={products}
                     append={append}
-                    remove={remove}
+                    remove={handleRemovePiece}
                     pieceComboOpen={pieceComboOpen}
                     setPieceComboOpen={setPieceComboOpen}
                     onOpenProductDrawer={setProductDrawer}
@@ -499,9 +512,8 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
               control={control}
               errors={errors}
               watch={watch}
-              groups={groups}
-              brands={brands}
-              onOpenPicker={() => setPickerOpen(true)}
+              hasPieces={items.some((i) => i.productId)}
+              onOpenPicker={(target, mode) => setPickerRequest({ target, mode })}
             />
 
             <ColorModeGate value={colorMode} onChange={handleColorModeChange} nameFilled={Boolean(nameValue?.trim())} />
@@ -516,7 +528,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
                   items={items}
                   products={products}
                   append={append}
-                  remove={remove}
+                  remove={handleRemovePiece}
                   pieceComboOpen={pieceComboOpen}
                   setPieceComboOpen={setPieceComboOpen}
                   onOpenProductDrawer={setProductDrawer}
@@ -558,19 +570,28 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
       )}
 
       <MediaPicker
-        open={pickerOpen}
-        onClose={() => setPickerOpen(false)}
+        open={pickerRequest !== null}
+        onClose={() => setPickerRequest(null)}
         folder="SETS"
         segments={slugValue?.trim() ? [sanitizeCodeSegment(slugValue.trim()), COVER_SEGMENT] : []}
-        keyPrefix={slugValue?.trim() ? `sets/${sanitizeCodeSegment(slugValue.trim())}/${COVER_SEGMENT}/` : undefined}
-        linkedEntityType="SET"
-        linkedEntityId={createdSetId}
+        keyPrefix={pickerRequest?.mode === 'special' && slugValue?.trim() ? `sets/${sanitizeCodeSegment(slugValue.trim())}/${COVER_SEGMENT}/` : undefined}
+        linkedEntityType={pickerRequest?.mode === 'special' ? 'SET' : undefined}
+        linkedEntityId={pickerRequest?.mode === 'special' ? createdSetId : undefined}
+        productIds={pickerRequest?.mode === 'content' ? items.map((i) => i.productId).filter(Boolean) : undefined}
         onConfirm={(assets) => {
-          if (assets[0]) {
-            setValue('coverAssetId', assets[0].id);
-            setValue('imageUrl', resolveMediaUrl(assets[0].storageKey));
+          if (assets[0] && pickerRequest) {
+            const assetIdField = pickerRequest.target === 'cover' ? 'coverAssetId' : 'secondaryCoverAssetId';
+            const urlField = pickerRequest.target === 'cover' ? 'imageUrl' : 'secondaryImageUrl';
+            setValue(assetIdField, assets[0].id);
+            setValue(urlField, resolveMediaUrl(assets[0].storageKey));
+            setCoverContentScope((prev) => ({
+              ...prev,
+              [pickerRequest.target]: pickerRequest.mode === 'content'
+                ? items.map((i) => i.productId).filter(Boolean)
+                : undefined,
+            }));
           }
-          setPickerOpen(false);
+          setPickerRequest(null);
         }}
       />
 

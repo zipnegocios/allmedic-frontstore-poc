@@ -15,11 +15,15 @@ export const SetFormSchema = z.object({
   name: z.string().min(1, 'Nombre requerido'),
   slug: z.string().min(1, 'Slug requerido'),
   description: z.string().optional(),
-  coverAssetId: z.string().min(1, 'La imagen de portada es obligatoria'),
+  // Portadas primaria + secundaria — paridad exacta con productos: ambas
+  // obligatorias para guardar/publicar, sin importar el modo usado para
+  // elegirlas (subida especial o galería de las piezas del set).
+  coverAssetId: z.string().min(1, 'La portada primaria es obligatoria'),
   coverAlt: z.string().optional(),
   imageUrl: z.string().optional(), // solo para previsualización, no se persiste
-  setGroupId: z.string().optional(),
-  brandId: z.string().optional(),
+  secondaryCoverAssetId: z.string().min(1, 'La portada secundaria es obligatoria'),
+  secondaryCoverAlt: z.string().optional(),
+  secondaryImageUrl: z.string().optional(), // solo para previsualización, no se persiste
   // Modo de color del set — obligatorio y mutuamente excluyente. Sin elegirlo no se puede avanzar
   // del paso "Modo de color" (mobile) ni ver el paso "Piezas" (desktop). Ver ColorModeGate.
   colorMode: z.enum(['PAIRED', 'MIXED'], { message: 'Elige un modo de color para el set' }),
@@ -34,17 +38,6 @@ export const SetFormSchema = z.object({
 export type SetFormData = z.infer<typeof SetFormSchema>;
 
 // ─── Types ───
-
-export interface SetGroup {
-  id: string;
-  name: string;
-}
-
-export interface Brand {
-  id: string;
-  name: string;
-  isActive: boolean;
-}
 
 export interface EligibleProduct {
   id: string;

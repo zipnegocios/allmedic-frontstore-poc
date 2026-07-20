@@ -35,7 +35,7 @@ export function RulesSection({ setId, rulesLoading, rulesByType, onNewRule, onEd
           <div>
             <h3 className="font-semibold">Reglas de este set</h3>
             <p className="text-xs text-gray-500">
-              Reglas de ámbito Set de este set, más las heredadas (Global, Marca, Grupo de Sets y Producto de sus piezas).
+              Reglas de ámbito Set de este set, más las heredadas (Global, Marca y Producto de sus piezas).
             </p>
           </div>
           {setId && (

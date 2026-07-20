@@ -12,7 +12,6 @@ const CartItemSchema = z.object({
   setName: z.string(),
   imageUrl: z.string().nullable(),
   sizeMode: z.enum(['MATRIX', 'PER_PIECE', 'NO_SIZES']),
-  setGroupId: z.string().nullable(),
   brandId: z.string().nullable(),
   unitPrice: z.number(),
   hasMissingPrices: z.boolean(),

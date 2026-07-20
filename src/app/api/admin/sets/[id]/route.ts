@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
 import { getAdminSetById, updateSetWithItems, softDeleteSet } from '@/lib/admin-data-service';
+import { findDuplicateSetItemIndexes } from '@/lib/set-validation';
 import { z } from 'zod';
 
 const SetItemSchema = z.object({
@@ -15,8 +16,8 @@ const UpdateSetSchema = z.object({
   description: z.string().optional(),
   coverAssetId: z.string().optional(),
   coverAlt: z.string().optional(),
-  setGroupId: z.string().optional().nullable(),
-  brandId: z.string().optional().nullable(),
+  secondaryCoverAssetId: z.string().optional(),
+  secondaryCoverAlt: z.string().optional(),
   colorMode: z.enum(['PAIRED', 'MIXED']).optional(),
   isActive: z.boolean().optional(),
   isFeatured: z.boolean().optional(),
@@ -31,7 +32,12 @@ const UpdateSetSchema = z.object({
 ).refine(
   (data) => !data.manualDiscountEnd || !!data.priceManualSale,
   { message: 'La fecha de fin de rebaja requiere un precio manual rebajado', path: ['manualDiscountEnd'] }
-);
+).superRefine((data, ctx) => {
+  if (!data.items) return;
+  for (const idx of findDuplicateSetItemIndexes(data.items)) {
+    ctx.addIssue({ code: 'custom', message: 'Este producto ya está en el set', path: ['items', idx, 'productId'] });
+  }
+});
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
