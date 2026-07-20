@@ -191,6 +191,11 @@ export const productVariants = pgTable("product_variants", {
   // default vacío, sin lógica de backfill real.
   attributesPayload: jsonb("attributes_payload").notNull().default({}),
   status: text("status").notNull().default("AVAILABLE"),
+  // Orden de despliegue del color al que pertenece esta variante en el acordeón
+  // "Variantes y Medios" del admin — denormalizado (se repite en cada variante del
+  // mismo color) porque el color hoy es un concepto implícito derivado de las
+  // variantes, no una entidad propia por producto.
+  colorSortOrder: integer("color_sort_order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 }, (table) => [

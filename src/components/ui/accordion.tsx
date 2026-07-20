@@ -11,11 +11,13 @@ function Accordion({
 }
 
 function AccordionItem({
+  ref,
   className,
   ...props
-}: React.ComponentProps<typeof AccordionPrimitive.Item>) {
+}: React.ComponentPropsWithRef<typeof AccordionPrimitive.Item>) {
   return (
     <AccordionPrimitive.Item
+      ref={ref}
       data-slot="accordion-item"
       className={cn("border-b last:border-b-0", className)}
       {...props}
@@ -27,15 +29,27 @@ function AccordionTrigger({
   className,
   children,
   actions,
+  dragHandle,
   ...props
 }: React.ComponentProps<typeof AccordionPrimitive.Trigger> & {
   /** Controles adicionales (ej. un botón "Eliminar") renderizados como hermanos
    * del trigger dentro de la misma cabecera, en vez de anidados dentro de su
    * `<button>` — evita un botón-dentro-de-botón inválido en HTML. */
   actions?: React.ReactNode
+  /** Handle de arrastre (ej. `GripVertical` con listeners de dnd-kit) renderizado
+   * como hermano ANTES del trigger, dentro de la misma cabecera — mismo motivo
+   * que `actions`: no puede ir anidado dentro del `<button>` del trigger, y su
+   * `stopPropagation` evita que iniciar un drag también dispare el toggle de
+   * abrir/cerrar el acordeón. */
+  dragHandle?: React.ReactNode
 }) {
   return (
     <AccordionPrimitive.Header className="flex items-center">
+      {dragHandle && (
+        <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+          {dragHandle}
+        </div>
+      )}
       <AccordionPrimitive.Trigger
         data-slot="accordion-trigger"
         className={cn(

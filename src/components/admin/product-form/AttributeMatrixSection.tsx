@@ -77,11 +77,16 @@ export function AttributeMatrixSection({
         const key = `${colorId}|${size}`;
         if (existingKeys.has(key)) continue;
         existingKeys.add(key);
+        // Si el color ya tiene variantes (ej. se agrega una talla nueva a un color
+        // existente), hereda su `colorSortOrder` actual — evita que la nueva fila
+        // "salte" al inicio del acordeón por quedar en 0 por defecto.
+        const existingColorSortOrder = variantFields.find((v) => v.colorId === colorId)?.colorSortOrder ?? 0;
         appendVariant({
           colorId,
           size,
           sku: '',
           status: 'AVAILABLE',
+          colorSortOrder: existingColorSortOrder,
           attributeValueIds,
         });
         created += 1;

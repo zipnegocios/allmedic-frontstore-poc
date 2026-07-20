@@ -12,6 +12,7 @@ const VariantSchema = z.object({
   // existir aún al generar la matriz desde el admin.
   sku: z.string().optional(),
   status: z.enum(['AVAILABLE', 'BACKORDER', 'OUT_OF_STOCK']).default('AVAILABLE'),
+  colorSortOrder: z.coerce.number().default(0),
   attributeValueIds: z.array(z.string()).default([]),
 });
 

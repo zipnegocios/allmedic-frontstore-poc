@@ -1,0 +1,1 @@
+ALTER TABLE "product_variants" ADD COLUMN "color_sort_order" integer DEFAULT 0 NOT NULL;

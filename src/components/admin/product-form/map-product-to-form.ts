@@ -36,6 +36,7 @@ export interface AdminProductDetail {
     size: string;
     sku: string | null;
     status: string;
+    colorSortOrder?: number | null;
     attributeValueIds?: string[];
   }>;
   images: Array<{
@@ -113,6 +114,7 @@ export function mapProductDetailToFormData(product: AdminProductDetail): Partial
       size: v.size,
       sku: v.sku || '',
       status: v.status as 'AVAILABLE' | 'BACKORDER' | 'OUT_OF_STOCK',
+      colorSortOrder: v.colorSortOrder ?? 0,
       attributeValueIds: v.attributeValueIds || [],
     })),
     images: product.images.map((i) => ({

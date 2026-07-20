@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import type { Control, UseFormRegister, UseFormWatch, UseFormSetValue, FieldArrayWithId, FieldErrors } from 'react-hook-form';
 import { Controller } from 'react-hook-form';
 import {
@@ -11,7 +12,8 @@ import {
   useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core';
-import { SortableContext, rectSortingStrategy, arrayMove } from '@dnd-kit/sortable';
+import { SortableContext, rectSortingStrategy, verticalListSortingStrategy, arrayMove, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -25,7 +27,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Plus, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, AlertTriangle, GripVertical } from 'lucide-react';
 import { toast } from 'sonner';
 import { MediaThumb } from '@/components/admin/media/MediaThumb';
 import { cn } from '@/lib/utils';
@@ -88,6 +90,44 @@ interface VariantsMediaSectionProps {
   codeMissing: boolean;
 }
 
+/** Envuelve cada item de color del acordeón con `useSortable` — extraído a un
+ * componente propio (render-prop) porque las Reglas de los Hooks no permiten
+ * llamar `useSortable` directo dentro del `.map()` de `activeColorIds` en el
+ * componente padre. Mismo patrón de drag-handle que `GalleryImageTile.tsx`,
+ * pero aplicado al `AccordionItem` completo (no solo a una miniatura). */
+function SortableColorItem({
+  colorId,
+  children,
+}: {
+  colorId: string;
+  children: (args: {
+    setNodeRef: (el: HTMLElement | null) => void;
+    style: CSSProperties;
+    isDragging: boolean;
+    dragHandle: ReactNode;
+  }) => ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: colorId,
+  });
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+  const dragHandle = (
+    <button
+      type="button"
+      {...attributes}
+      {...listeners}
+      className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing touch-none shrink-0"
+      title="Arrastrar para reordenar color"
+    >
+      <GripVertical className="w-4 h-4" />
+    </button>
+  );
+  return <>{children({ setNodeRef, style, isDragging, dragHandle })}</>;
+}
+
 export function VariantsMediaSection({
   control,
   register,
@@ -147,7 +187,11 @@ export function VariantsMediaSection({
     return live ? { ...live, id: f.id } : f;
   });
 
-  // 1. Obtener los colores activos (que tienen variantes o imágenes asociadas)
+  // 1. Obtener los colores activos (que tienen variantes o imágenes asociadas),
+  // ordenados por `colorSortOrder` (drag-to-reorder, denormalizado por variante).
+  // Un color recién agregado sin variantes con el campo aún seteado (`undefined`)
+  // cae al final, en el orden de aparición — no rompe el orden ya guardado de los
+  // demás colores.
   const activeColorsSet = new Set<string>();
   variantsLive.forEach((v) => {
     if (v.colorId) activeColorsSet.add(v.colorId);
@@ -155,7 +199,18 @@ export function VariantsMediaSection({
   imagesLive.forEach((img) => {
     if (img.colorId) activeColorsSet.add(img.colorId);
   });
-  const activeColorIds = Array.from(activeColorsSet);
+  const colorSortOrderById = new Map<string, number>();
+  variantsLive.forEach((v) => {
+    if (!v.colorId) return;
+    const current = colorSortOrderById.get(v.colorId);
+    const candidate = v.colorSortOrder ?? Number.MAX_SAFE_INTEGER;
+    if (current === undefined || candidate < current) colorSortOrderById.set(v.colorId, candidate);
+  });
+  const activeColorIds = Array.from(activeColorsSet).sort((a, b) => {
+    const orderA = colorSortOrderById.get(a) ?? Number.MAX_SAFE_INTEGER;
+    const orderB = colorSortOrderById.get(b) ?? Number.MAX_SAFE_INTEGER;
+    return orderA - orderB;
+  });
 
   // 2. Medios de galería sin color (legacy)
   const colorlessImages = imagesLive.filter((img) => !img.colorId);
@@ -245,12 +300,15 @@ export function VariantsMediaSection({
   // Agregar un nuevo color al formulario
   const handleAddColor = () => {
     if (!selectedNewColorId) return;
-    // Creamos la primera variante vacía para este color para que aparezca su tarjeta
+    // Creamos la primera variante vacía para este color para que aparezca su tarjeta,
+    // al final del orden actual (no en 0, para no saltar antes que los ya existentes).
+    const nextColorSortOrder = activeColorIds.length;
     appendVariant({
       colorId: selectedNewColorId,
       size: 'M',
       sku: '',
       status: 'AVAILABLE',
+      colorSortOrder: nextColorSortOrder,
       attributeValueIds: [],
     });
     setExpandedColorId(selectedNewColorId);
@@ -264,6 +322,27 @@ export function VariantsMediaSection({
   // `distance: 4` evita que un clic simple en los botones (estrella/lápiz/trash)
   // de la miniatura dispare accidentalmente un drag.
   const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  /** Reordena los COLORES (no imágenes) del acordeón al soltar un drag —
+   * recalcula `colorSortOrder` (0..n-1) para TODAS las variantes de cada color
+   * (el campo está denormalizado por variante, no existe como entidad de color
+   * propia). Se aplica sobre `activeColorIds`, que ya viene ordenado por el
+   * `colorSortOrder` actual. */
+  function handleColorDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = activeColorIds.indexOf(String(active.id));
+    const newIndex = activeColorIds.indexOf(String(over.id));
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(activeColorIds, oldIndex, newIndex);
+    reordered.forEach((colorId, position) => {
+      variantsLive.forEach((v, idx) => {
+        if (v.colorId === colorId) {
+          setValue(`variants.${idx}.colorSortOrder`, position, { shouldDirty: true });
+        }
+      });
+    });
+  }
 
   /** Reordena las imágenes de un color al soltar un drag — recalcula `sortOrder`
    * (0..n-1) según la nueva posición dentro de ESE color; no toca imágenes de
@@ -439,14 +518,16 @@ export function VariantsMediaSection({
             </CardContent>
           </Card>
         ) : (
-          <Accordion
-            type="single"
-            collapsible
-            value={expandedColorId}
-            onValueChange={(value) => setExpandedColorId(value || undefined)}
-            className="space-y-3"
-          >
-            {activeColorIds.map((colorId) => {
+          <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleColorDragEnd}>
+            <SortableContext items={activeColorIds} strategy={verticalListSortingStrategy}>
+              <Accordion
+                type="single"
+                collapsible
+                value={expandedColorId}
+                onValueChange={(value) => setExpandedColorId(value || undefined)}
+                className="space-y-3"
+              >
+                {activeColorIds.map((colorId) => {
               const colorObj = colors.find((c) => c.id === colorId);
               const colorName = colorObj?.name || 'Color desconocido';
               const colorHex = colorObj?.hex || '#ccc';
@@ -474,13 +555,20 @@ export function VariantsMediaSection({
                 (colorVariants.length > 0 && colorImages.length < 2);
 
               return (
+                <SortableColorItem key={colorId} colorId={colorId}>
+                  {({ setNodeRef, style, isDragging, dragHandle }) => (
                 <AccordionItem
-                  key={colorId}
+                  ref={setNodeRef}
+                  style={style}
                   value={colorId}
-                  className="border border-gray-200 shadow-sm overflow-hidden rounded-lg bg-white"
+                  className={cn(
+                    'border border-gray-200 shadow-sm overflow-hidden rounded-lg bg-white',
+                    isDragging && 'opacity-50 z-10'
+                  )}
                 >
                   <AccordionTrigger
                     className="px-4 py-3 bg-gray-50 dark:bg-gray-900 hover:no-underline hover:bg-gray-100 [&[data-state=open]]:border-b rounded-none"
+                    dragHandle={dragHandle}
                     actions={
                       <>
                         {colorHasError && (
@@ -563,6 +651,7 @@ export function VariantsMediaSection({
                               size: nextSize,
                               sku: '',
                               status: 'AVAILABLE',
+                              colorSortOrder: colorSortOrderById.get(colorId) ?? 0,
                               attributeValueIds: [],
                             });
                           }}
@@ -764,9 +853,13 @@ export function VariantsMediaSection({
                     </div>
                   </AccordionContent>
                 </AccordionItem>
+                  )}
+                </SortableColorItem>
               );
-            })}
-          </Accordion>
+                })}
+              </Accordion>
+            </SortableContext>
+          </DndContext>
         )}
       </div>
 

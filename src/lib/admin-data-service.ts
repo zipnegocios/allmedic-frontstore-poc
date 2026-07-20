@@ -263,13 +263,15 @@ export async function getAdminProductById(id: string) {
       size: variantsTable.size,
       sku: variantsTable.sku,
       status: variantsTable.status,
+      colorSortOrder: variantsTable.colorSortOrder,
       colorName: colorsTable.name,
       colorCode: colorsTable.code,
       colorHex: colorsTable.hex,
     })
       .from(variantsTable)
       .leftJoin(colorsTable, eq(variantsTable.colorId, colorsTable.id))
-      .where(eq(variantsTable.productId, id)),
+      .where(eq(variantsTable.productId, id))
+      .orderBy(asc(variantsTable.colorSortOrder)),
     db.select({
       id: mediaLinksTable.id,
       assetId: mediaLinksTable.assetId,
@@ -394,6 +396,9 @@ interface VariantInput {
   // existir aún al dar de alta la matriz de variantes (Fase 3.4).
   sku?: string;
   status: string;
+  // Orden de despliegue del color al que pertenece esta variante en el acordeón
+  // "Variantes y Medios" del admin (ver comentario en `productVariants.colorSortOrder`).
+  colorSortOrder?: number;
   // Valores de atributos EAV aplicables a esta variante (Fase 3.4): combinación de
   // los atributos que "varían por variante" + los propagados de "valor único para
   // todo el estilo" que arma el generador de matriz del admin. Se persisten en
@@ -477,6 +482,7 @@ export async function createProductWithRelations(input: ProductWithRelationsInpu
           size: v.size,
           sku: v.sku || null,
           status: v.status,
+          colorSortOrder: v.colorSortOrder ?? 0,
           productId: product.id,
         }))
       ).returning({ id: variantsTable.id });
@@ -592,6 +598,7 @@ export async function updateProductWithRelations(
             size: v.size,
             sku: v.sku || null,
             status: v.status,
+            colorSortOrder: v.colorSortOrder ?? 0,
             productId: id,
           }))
         ).returning({ id: variantsTable.id });

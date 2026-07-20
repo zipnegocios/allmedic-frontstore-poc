@@ -20,6 +20,10 @@ export const VariantSchema = z.object({
   // bloqueaba el guardado con "falta SKU" pese a que el campo ya no es editable.
   sku: z.string().nullable().optional(),
   status: z.enum(['AVAILABLE', 'BACKORDER', 'OUT_OF_STOCK']).default('AVAILABLE'),
+  // Orden de despliegue del color de esta variante en el acordeón "Variantes y
+  // Medios" (drag-to-reorder) — denormalizado, ver columna `colorSortOrder` en
+  // `product_variants`.
+  colorSortOrder: z.coerce.number().default(0),
   // Valores de atributos EAV aplicables a esta variante. Ya no se editan por
   // variante: se sincronizan desde `styleAttributes` (global al producto, ficha
   // General) al generar la matriz y al guardar (ver `ProductForm.tsx`).
