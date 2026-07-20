@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, MapPin, Tag, Package, Store, X } from 'lucide-react';
-import { PRODUCTS as DEFAULT_PRODUCTS, BRANDS as DEFAULT_BRANDS, STORES as DEFAULT_STORES } from '@/lib/dummy-data';
+// Removed dummy imports
 import type { Product, Store as StoreType, BrandNavItem } from '@/lib/types';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 import { usePriceVisibility } from '@/context/PriceVisibilityContext';
@@ -18,13 +18,12 @@ interface MegaMenuProps {
   stores?: StoreType[];
 }
 
-const DEFAULT_BRAND_NAV_ITEMS: BrandNavItem[] = DEFAULT_BRANDS.map((name) => ({ name, logoUrl: null }));
 
 export function MegaMenu({ isOpen, onClose, products: productsProp, brands: brandsProp, stores: storesProp }: MegaMenuProps) {
   const showPrices = usePriceVisibility();
-  const PRODUCTS = productsProp || DEFAULT_PRODUCTS;
-  const BRANDS = brandsProp || DEFAULT_BRAND_NAV_ITEMS;
-  const STORES = storesProp || DEFAULT_STORES;
+  const PRODUCTS = productsProp || [];
+  const BRANDS = brandsProp || [];
+  const STORES = storesProp || [];
 
   // Get featured products (best sellers)
   const getFeaturedProducts = () => PRODUCTS.filter(p => p.isBestSeller).slice(0, 6);

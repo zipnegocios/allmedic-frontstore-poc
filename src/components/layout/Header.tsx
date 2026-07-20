@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { Search, ShoppingBag, X, ChevronRight, Menu, MapPin, Tag, Home, Grid3X3, Building2 } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
-import { searchProducts as defaultSearchProducts } from '@/lib/dummy-data';
+// Removed dummy search import
 import { MegaMenu } from './MegaMenu';
 import { CorporateNavCTA } from './CorporateNavCTA';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
@@ -79,7 +79,7 @@ export function Header({ onCartClick, products, brands, stores }: HeaderProps) {
             p.colors.some(c => c.name.toLowerCase().includes(q))
           );
         } else {
-          results = defaultSearchProducts(searchQuery);
+          results = [];
         }
         setSearchResults(results.slice(0, 6));
       }, 200);
@@ -103,7 +103,7 @@ export function Header({ onCartClick, products, brands, stores }: HeaderProps) {
     }
   };
 
-  const popularSearches = ['FIGS', 'Cherokee', 'Navy', 'Black', 'Scrub'];
+  const popularSearches = ['Navy', 'Black', 'Scrub', 'Uniforme'];
 
   const isActive = (path: string) => {
     if (path === '/') return pathname === '/';

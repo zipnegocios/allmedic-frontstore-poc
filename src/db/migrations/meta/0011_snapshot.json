@@ -1,6 +1,6 @@
 {
-  "id": "ccd4ff4f-b3d2-4a2d-94c0-b260c315e341",
-  "prevId": "f8de0055-4005-43ad-80a4-a5aa4f74d29c",
+  "id": "b1400e52-c7af-4ebc-bc00-cf457cd6478f",
+  "prevId": "ccd4ff4f-b3d2-4a2d-94c0-b260c315e341",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1334,6 +1334,67 @@
           "nullsNotDistinct": false,
           "columns": [
             "code"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.sizes": {
+      "name": "sizes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "sizes_value_unique": {
+          "name": "sizes_value_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "value"
           ]
         }
       },

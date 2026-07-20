@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { PRODUCTS as DEFAULT_PRODUCTS } from '@/lib/dummy-data';
+// Removed dummy products import
 import type { CatalogFilters, Product } from '@/lib/types';
 
 export interface FilterOptions {
@@ -15,7 +15,7 @@ export interface FilterOptions {
 export interface FilterState extends CatalogFilters {}
 
 export function useProductFilter(itemsPerPage: number = 12, products?: Product[]) {
-  const PRODUCTS = products || DEFAULT_PRODUCTS;
+  const PRODUCTS = useMemo(() => products || [], [products]);
   const [filters, setFilters] = useState<CatalogFilters>({
     gender: null,
     categories: [],

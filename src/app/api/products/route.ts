@@ -10,9 +10,9 @@ import {
   colors as colorsTable,
 } from '@/db/schema';
 import { eq, and, or, sql, asc, desc, inArray, ne } from 'drizzle-orm';
-import { PRODUCTS as DUMMY_PRODUCTS } from '@/lib/dummy-data';
+// Removed dummy imports
 import { resolveMediaUrl } from '@/lib/media';
-import { CORTE_ATTRIBUTE_SLUG, resolveCoverMedia } from '@/lib/data-service';
+import { CORTE_ATTRIBUTE_SLUG } from '@/lib/data-service';
 import type { AttributesPayload } from '@/lib/attributes-payload/build-payload';
 
 /**
@@ -181,70 +181,17 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('[GET /api/products]', error);
-    // Fallback to dummy data
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '12');
-    const search = searchParams.get('search');
-    const productTypeId = searchParams.get('productTypeId');
-    const brand = searchParams.get('brand');
-
-    let filtered = [...DUMMY_PRODUCTS];
-    if (search) {
-      const q = search.toLowerCase();
-      filtered = filtered.filter(p => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q));
-    }
-    if (productTypeId) {
-      filtered = filtered.filter(p => p.productType?.id === productTypeId);
-    }
-    if (brand) {
-      filtered = filtered.filter(p => p.brand.toLowerCase().replace(/\s+/g, '-') === brand.toLowerCase());
-    }
-
-    const total = filtered.length;
-    const start = (page - 1) * limit;
-    const paginated = filtered.slice(start, start + limit);
 
     return NextResponse.json({
-      products: paginated.map(p => ({
-        id: p.id,
-        slug: p.slug,
-        name: p.name,
-        description: p.description,
-        productTypeId: p.productType?.id ?? null,
-        productTypeName: p.productType?.name ?? null,
-        gender: p.gender,
-        priceNormal: String(p.priceNormal),
-        priceSale: p.priceSale ? String(p.priceSale) : null,
-        discountPct: p.discountPct ?? null,
-        discountEnd: p.discountEnd ? new Date(p.discountEnd) : null,
-        isNew: p.isNew,
-        isBestSeller: p.isBestSeller,
-        brandName: p.brand,
-        variants: p.variants.map(v => ({
-          id: v.id,
-          productId: p.id,
-          colorId: v.colorId,
-          size: v.size,
-          fit: v.styles?.[CORTE_ATTRIBUTE_SLUG] ?? null,
-          sku: v.sku,
-          status: v.status,
-          colorName: p.colors.find(c => c.id === v.colorId)?.name ?? '',
-          colorCode: p.colors.find(c => c.id === v.colorId)?.code ?? '',
-          colorHex: p.colors.find(c => c.id === v.colorId)?.hex ?? '',
-        })),
-        images: (() => {
-          const cover = resolveCoverMedia(p);
-          return cover.url !== '/images/placeholder-product.jpg'
-            ? [{ productId: p.id, colorId: p.variants[0]?.colorId ?? null, url: cover.url, mimeType: cover.mimeType, alt: p.name }]
-            : [];
-        })(),
-      })),
+      products: [],
       pagination: {
         page,
         limit,
-        total,
-        pages: Math.ceil(total / limit),
+        total: 0,
+        pages: 0,
       },
     });
   }

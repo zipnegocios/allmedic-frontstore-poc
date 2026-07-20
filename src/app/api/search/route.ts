@@ -9,7 +9,7 @@ import {
 } from '@/db/schema';
 import { searchLogs as searchLogsTable } from '@/db/schema';
 import { eq, and, or, sql, asc, inArray, ne } from 'drizzle-orm';
-import { searchProducts } from '@/lib/dummy-data';
+// Removed dummy search import
 import { resolveMediaUrl } from '@/lib/media';
 
 /**
@@ -114,34 +114,29 @@ export async function GET(request: NextRequest) {
           results: enrichedProducts,
           count: enrichedProducts.length,
         });
+      } else {
+        // Log search query (best effort)
+        try {
+          await db.insert(searchLogsTable).values({
+            query: trimmedQuery,
+            results: 0,
+          });
+        } catch { /* ignore log errors */ }
+
+        return NextResponse.json({
+          query: trimmedQuery,
+          results: [],
+          count: 0,
+        });
       }
-    } catch {
-      // DB failed, fall through to dummy data
+    } catch (err) {
+      console.error('[GET /api/search] DB error:', err);
+      return NextResponse.json({
+        query: trimmedQuery,
+        results: [],
+        count: 0,
+      });
     }
-
-    // Fallback to dummy data
-    const dummyResults = searchProducts(trimmedQuery).map(p => ({
-      id: p.id,
-      slug: p.slug,
-      name: p.name,
-      description: p.description,
-      productTypeName: p.productType?.name ?? null,
-      gender: p.gender,
-      priceNormal: String(p.priceNormal),
-      priceSale: p.priceSale ? String(p.priceSale) : null,
-      discountPct: p.discountPct ?? null,
-      discountEnd: p.discountEnd ? new Date(p.discountEnd) : null,
-      isNew: p.isNew,
-      isBestSeller: p.isBestSeller,
-      brandName: p.brand,
-      images: p.variants[0]?.images?.[0] ? [{ productId: p.id, url: p.variants[0].images[0] }] : [],
-    }));
-
-    return NextResponse.json({
-      query: trimmedQuery,
-      results: dummyResults,
-      count: dummyResults.length,
-    });
   } catch (error) {
     console.error('[GET /api/search]', error);
     return NextResponse.json(

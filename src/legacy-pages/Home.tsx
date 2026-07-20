@@ -244,12 +244,12 @@ function FeaturedProductsSection({ products }: { products: Product[] }) {
 export function Home({ heroSlides, featuredProducts, allProducts, brands }: { heroSlides: HeroSlide[]; featuredProducts: Product[]; allProducts?: Product[]; brands?: BrandNavItem[] }) {
   return (
     <main className="pt-14 sm:pt-16">
-      <HeroCarousel slides={heroSlides} />
+      {heroSlides && heroSlides.length > 0 && <HeroCarousel slides={heroSlides} />}
       <CorporateCTA />
       <QuickAccessCards />
-      <FilterableProductSection products={allProducts} />
-      <BrandCarousel brands={brands} />
-      <FeaturedProductsSection products={featuredProducts} />
+      {allProducts && allProducts.length > 0 && <FilterableProductSection products={allProducts} />}
+      {brands && brands.length > 0 && <BrandCarousel brands={brands} />}
+      {featuredProducts && featuredProducts.length > 0 && <FeaturedProductsSection products={featuredProducts} />}
     </main>
   );
 }

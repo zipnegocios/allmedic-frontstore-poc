@@ -8,7 +8,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Trash2, Settings2, ListTree, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, Settings2, ListTree, X, Ruler } from 'lucide-react';
 import { toast } from 'sonner';
 import { ResponsiveDialog } from '@/components/admin/ResponsiveDialog';
 import { Label } from '@/components/ui/label';
@@ -42,6 +42,18 @@ interface AttributeValue {
 const emptyForm = { name: '', slug: '', displayType: 'select' as string, sortOrder: 0, isActive: true };
 const emptyValueForm = { value: '', code: '', sortOrder: 0, isActive: true };
 
+// ─── Tallas: catálogo simple sin relación con el sistema EAV de Atributos de
+// arriba (solo agregar/quitar, activar/desactivar) — alimenta el selector de
+// tallas del formulario de producto. ───
+interface SizeItem {
+  id: string;
+  value: string;
+  sortOrder: number | null;
+  isActive: boolean | null;
+}
+
+const emptySizeForm = { value: '', sortOrder: 0, isActive: true };
+
 export default function AdminAttributesPage() {
   const [attributes, setAttributes] = useState<Attribute[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,6 +68,13 @@ export default function AdminAttributesPage() {
   const [editingValue, setEditingValue] = useState<AttributeValue | null>(null);
   const [valueForm, setValueForm] = useState(emptyValueForm);
   const [savingValue, setSavingValue] = useState(false);
+
+  const [sizes, setSizes] = useState<SizeItem[]>([]);
+  const [loadingSizes, setLoadingSizes] = useState(true);
+  const [sizeDialogOpen, setSizeDialogOpen] = useState(false);
+  const [editingSize, setEditingSize] = useState<SizeItem | null>(null);
+  const [sizeForm, setSizeForm] = useState(emptySizeForm);
+  const [savingSize, setSavingSize] = useState(false);
 
   const fetchAttributes = useCallback(async () => {
     setLoading(true);
@@ -74,6 +93,69 @@ export default function AdminAttributesPage() {
   useEffect(() => {
     fetchAttributes();
   }, [fetchAttributes]);
+
+  const fetchSizes = useCallback(async () => {
+    setLoadingSizes(true);
+    try {
+      const res = await fetch('/api/admin/sizes');
+      if (!res.ok) throw new Error('Failed to fetch');
+      const data = await res.json();
+      setSizes(data.sizes);
+    } catch {
+      toast.error('Error al cargar tallas');
+    } finally {
+      setLoadingSizes(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSizes();
+  }, [fetchSizes]);
+
+  function openNewSize() {
+    setEditingSize(null);
+    setSizeForm(emptySizeForm);
+    setSizeDialogOpen(true);
+  }
+
+  function openEditSize(size: SizeItem) {
+    setEditingSize(size);
+    setSizeForm({ value: size.value, sortOrder: size.sortOrder ?? 0, isActive: size.isActive ?? true });
+    setSizeDialogOpen(true);
+  }
+
+  async function handleSaveSize() {
+    setSavingSize(true);
+    try {
+      const url = editingSize ? `/api/admin/sizes/${editingSize.id}` : '/api/admin/sizes';
+      const method = editingSize ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sizeForm),
+      });
+      if (!res.ok) throw new Error('Failed to save');
+      toast.success(editingSize ? 'Talla actualizada' : 'Talla creada');
+      setSizeDialogOpen(false);
+      fetchSizes();
+    } catch {
+      toast.error('Error al guardar la talla');
+    } finally {
+      setSavingSize(false);
+    }
+  }
+
+  async function handleDeleteSize(id: string) {
+    if (!confirm('¿Estás seguro de eliminar esta talla?')) return;
+    try {
+      const res = await fetch(`/api/admin/sizes/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete');
+      toast.success('Talla eliminada');
+      fetchSizes();
+    } catch {
+      toast.error('Error al eliminar la talla');
+    }
+  }
 
   function openNew() {
     setEditing(null);
@@ -378,6 +460,122 @@ export default function AdminAttributesPage() {
                 <Button size="sm" variant="outline" onClick={openNewValue}>Cancelar edición</Button>
               )}
             </div>
+          </div>
+        </div>
+      </ResponsiveDialog>
+
+      {/* ─── Tallas: catálogo simple, sin relación con Atributos (Estilos) de
+      arriba — solo agregar/quitar, activar/desactivar. ─── */}
+      <div className="flex items-center justify-between mb-8 mt-12">
+        <h2 className="text-2xl font-bold text-[#111111]">Tallas</h2>
+        <Button className="bg-[#111111]" onClick={openNewSize}>
+          <Plus className="w-4 h-4 mr-2" />
+          Nueva Talla
+        </Button>
+      </div>
+
+      <Card className="hidden md:block">
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Talla</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loadingSizes ? (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-center py-8">Cargando...</TableCell>
+                </TableRow>
+              ) : sizes.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-center py-8 text-gray-500">
+                    <Ruler className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                    No hay tallas registradas
+                  </TableCell>
+                </TableRow>
+              ) : (
+                sizes.map((size) => (
+                  <TableRow key={size.id}>
+                    <TableCell className="font-medium">{size.value}</TableCell>
+                    <TableCell>
+                      {size.isActive ? <Badge variant="outline">Activa</Badge> : <Badge variant="destructive">Inactiva</Badge>}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" variant="ghost" onClick={() => openEditSize(size)}><Pencil className="w-4 h-4" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => handleDeleteSize(size.id)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <div className="md:hidden">
+        {loadingSizes ? (
+          <p className="text-center py-8 text-gray-500">Cargando...</p>
+        ) : sizes.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            <Ruler className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+            <p className="mb-4">No hay tallas registradas</p>
+            <Button className="gap-2 min-h-11 bg-[#111111]" onClick={openNewSize}>
+              <Plus className="w-4 h-4" />
+              Nueva Talla
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {sizes.map((size) => (
+              <AdminListCard
+                key={size.id}
+                onNavigate={() => openEditSize(size)}
+                aria-label={`Editar talla ${size.value}`}
+                title={size.value}
+                badges={
+                  size.isActive ? <Badge variant="outline">Activa</Badge> : <Badge variant="destructive">Inactiva</Badge>
+                }
+                actions={[
+                  {
+                    key: 'delete',
+                    label: 'Eliminar',
+                    icon: <Trash2 className="w-4 h-4" />,
+                    variant: 'destructive',
+                    onSelect: () => handleDeleteSize(size.id),
+                  },
+                ]}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <ResponsiveDialog
+        open={sizeDialogOpen}
+        onOpenChange={setSizeDialogOpen}
+        title={editingSize ? 'Editar Talla' : 'Nueva Talla'}
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setSizeDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSaveSize} disabled={savingSize || !sizeForm.value} className="bg-[#111111]">
+              {savingSize ? 'Guardando...' : 'Guardar'}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label>Valor *</Label>
+            <Input value={sizeForm.value} onChange={e => setSizeForm({ ...sizeForm, value: e.target.value })} placeholder="Ej. M, 32, Única" />
+          </div>
+          <div className="flex items-center gap-2">
+            <input type="checkbox" checked={sizeForm.isActive} onChange={e => setSizeForm({ ...sizeForm, isActive: e.target.checked })} />
+            <Label>Activa</Label>
           </div>
         </div>
       </ResponsiveDialog>

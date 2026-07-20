@@ -1,12 +1,12 @@
 'use client';
 
 import { MapPin, Phone, Clock, Navigation } from 'lucide-react';
-import { STORES as DEFAULT_STORES } from '@/lib/dummy-data';
+// Removed dummy stores import
 import type { Store } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 export function Stores({ stores }: { stores?: Store[] }) {
-  const STORES = stores || DEFAULT_STORES;
+  const STORES = stores || [];
   return (
     <main className="min-h-screen bg-white pt-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">

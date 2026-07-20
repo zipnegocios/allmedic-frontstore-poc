@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { X, SlidersHorizontal } from 'lucide-react';
 import type { CatalogFilters, Gender, Size, ProductColor } from '@/lib/types';
-import { AVAILABLE_COLORS as DEFAULT_COLORS, BRANDS as DEFAULT_BRANDS } from '@/lib/dummy-data';
+// Removed dummy colors and brands fallback
 import { ColorSwatch } from './ColorSwatch';
 import { cn } from '@/lib/utils';
 
@@ -47,8 +47,8 @@ export function FilterSidebar({
   productTypeOptions,
   styleOptions,
 }: FilterSidebarProps) {
-  const BRANDS = brandNames || DEFAULT_BRANDS;
-  const AVAILABLE_COLORS = availableColors || DEFAULT_COLORS;
+  const BRANDS = brandNames || [];
+  const AVAILABLE_COLORS = availableColors || [];
   const PRODUCT_TYPES = productTypeOptions || [];
   const STYLE_OPTIONS = styleOptions || [];
   const [localFilters, setLocalFilters] = useState<CatalogFilters>(filters);

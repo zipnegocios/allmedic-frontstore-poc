@@ -161,6 +161,7 @@ const ENTITY_TABLES: Record<MediaEntityType, { table: PgTable; idCol: AnyPgColum
   SET: { table: corporateSetsTable, idCol: corporateSetsTable.id, nameCol: corporateSetsTable.name },
   BRAND: { table: brandsTable, idCol: brandsTable.id, nameCol: brandsTable.name },
   BANNER: { table: bannersTable, idCol: bannersTable.id, nameCol: bannersTable.title },
+  COLLECTION: { table: collectionsTable, idCol: collectionsTable.id, nameCol: collectionsTable.name },
 };
 
 export async function getMediaAssetDetail(id: string) {

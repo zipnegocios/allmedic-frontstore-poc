@@ -29,10 +29,11 @@ import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Plus, Trash2, AlertTriangle, GripVertical } from 'lucide-react';
 import { toast } from 'sonner';
+import Link from 'next/link';
 import { MediaThumb } from '@/components/admin/media/MediaThumb';
 import { cn } from '@/lib/utils';
 import type { ProductFormData, Color } from './schema';
-import { SIZES, STATUSES, STATUS_META } from './schema';
+import { STATUSES, STATUS_META } from './schema';
 import { AttributeMatrixSection } from './AttributeMatrixSection';
 import { GalleryImageTile } from './GalleryImageTile';
 import {
@@ -59,6 +60,9 @@ interface VariantsMediaSectionProps {
   watch: UseFormWatch<ProductFormData>;
   setValue: UseFormSetValue<ProductFormData>;
   colors: Color[];
+  /** Tallas activas del catálogo global (`/admin/atributos` → Tallas), ya
+   * ordenadas — reemplaza la lista fija que existía antes. */
+  sizes: string[];
   /** Tipo de producto elegido en la pestaña General — impulsa qué atributos EAV
    * están disponibles para el generador de matriz. */
   productTypeId: string | undefined;
@@ -134,6 +138,7 @@ export function VariantsMediaSection({
   watch,
   setValue,
   colors,
+  sizes,
   productTypeId,
   styleAttributes,
   variantFields,
@@ -468,6 +473,7 @@ export function VariantsMediaSection({
         productTypeId={productTypeId}
         styleAttributes={styleAttributes}
         colors={colors}
+        sizes={sizes}
         variantFields={variantFields}
         appendVariant={appendVariant}
         onColorCreated={onColorCreated}
@@ -636,12 +642,12 @@ export function VariantsMediaSection({
                           type="button"
                           size="sm"
                           variant="outline"
-                          disabled={usedSizesInColor.size >= SIZES.length}
+                          disabled={usedSizesInColor.size >= sizes.length}
                           onClick={() => {
                             // No puede haber dos variantes con la misma talla para el
                             // mismo color (ej. dos filas "S" para "Negro") — se ofrece
                             // automáticamente la primera talla libre.
-                            const nextSize = SIZES.find((s) => !usedSizesInColor.has(s));
+                            const nextSize = sizes.find((s) => !usedSizesInColor.has(s));
                             if (!nextSize) {
                               toast.error('Ya agregaste todas las tallas disponibles para este color');
                               return;
@@ -661,6 +667,14 @@ export function VariantsMediaSection({
                           Agregar Talla
                         </Button>
                       </div>
+                      {sizes.length === 0 && (
+                        <p className="text-xs text-amber-600">
+                          No hay tallas activas en el catálogo.{' '}
+                          <Link href="/admin/atributos" className="underline font-medium" target="_blank">
+                            Agrégalas aquí
+                          </Link>.
+                        </p>
+                      )}
 
                       {colorVariants.length > 0 && (
                         <div className="flex flex-wrap gap-2">
@@ -691,7 +705,7 @@ export function VariantsMediaSection({
                                       </PopoverTrigger>
                                       <PopoverContent className="w-40 p-1" align="start">
                                         <div className="grid grid-cols-3 gap-1">
-                                          {SIZES.map((s) => {
+                                          {sizes.map((s) => {
                                             // Tomada por OTRA variante del mismo color — no se puede
                                             // duplicar la talla dentro de un mismo color.
                                             const takenByOther = usedSizesInColor.has(s) && field.value !== s;

@@ -95,6 +95,20 @@ export const attributesRelations = relations(attributes, ({ many }) => ({
   typeAttributes: many(productTypeAttributes),
 }));
 
+// ─── Sizes (catálogo global de tallas) ───
+// Sin relación con el sistema EAV de `attributes`/`attributeValues` — es un catálogo
+// simple (agregar/quitar, activar/desactivar) que alimenta el selector de tallas del
+// formulario de producto. `product_variants.size` sigue siendo texto libre (no FK):
+// esta tabla solo gobierna qué valores ofrece el selector, no una relación referencial.
+export const sizes = pgTable("sizes", {
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
+  value: text("value").notNull().unique(),
+  sortOrder: integer("sort_order").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
 // ─── Product Type ↔ Attribute (regla de dependencia) ───
 export const productTypeAttributes = pgTable("product_type_attributes", {
   id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),

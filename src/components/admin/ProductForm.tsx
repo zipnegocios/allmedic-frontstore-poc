@@ -95,6 +95,7 @@ export default function ProductForm({
   const useWizardLayout = isMobile || embedded;
   const [brands, setBrands] = useState<Brand[]>([]);
   const [colors, setColors] = useState<Color[]>([]);
+  const [sizes, setSizes] = useState<string[]>([]);
   const [collections, setCollections] = useState<CollectionOption[]>([]);
   const [productTypeOptions, setProductTypeOptions] = useState<ProductTypeOption[]>([]);
   const [loading, setLoading] = useState(false);
@@ -239,9 +240,10 @@ export default function ProductForm({
     async function fetchData() {
       setLoading(true);
       try {
-        const [brandsRes, colorsRes] = await Promise.all([
+        const [brandsRes, colorsRes, sizesRes] = await Promise.all([
           fetch('/api/admin/brands?limit=1000'),
           fetch('/api/admin/colors?limit=1000'),
+          fetch('/api/admin/sizes'),
         ]);
         if (brandsRes.ok) {
           const b = await brandsRes.json();
@@ -250,6 +252,14 @@ export default function ProductForm({
         if (colorsRes.ok) {
           const c = await colorsRes.json();
           setColors(c.colors || []);
+        }
+        if (sizesRes.ok) {
+          const s = await sizesRes.json();
+          const activeSizes = (s.sizes || [])
+            .filter((sz: { isActive: boolean | null }) => sz.isActive)
+            .sort((a: { sortOrder: number | null }, b: { sortOrder: number | null }) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+            .map((sz: { value: string }) => sz.value);
+          setSizes(activeSizes);
         }
       } catch {
         toast.error('Error al cargar datos de referencia');
@@ -852,6 +862,7 @@ export default function ProductForm({
                   watch={watch}
                   setValue={setValue}
                   colors={colors}
+                  sizes={sizes}
                   codeMissing={codeMissing}
                   productTypeId={productTypeIdValue}
                   styleAttributes={styleAttributesValue}
@@ -1040,6 +1051,7 @@ export default function ProductForm({
                 watch={watch}
                 setValue={setValue}
                 colors={colors}
+                sizes={sizes}
                 codeMissing={codeMissing}
                 productTypeId={productTypeIdValue}
                 styleAttributes={styleAttributesValue}

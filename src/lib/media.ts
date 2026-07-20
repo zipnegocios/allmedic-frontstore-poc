@@ -2,6 +2,7 @@ const FOLDER_PREFIXES: Record<string, string> = {
   PRODUCTS: "products",
   SETS: "sets",
   BRANDS: "brands",
+  COLLECTIONS: "collections",
   BANNERS: "banners",
   SITE: "site",
 };
@@ -149,7 +150,7 @@ export function maxSizeForMime(mimeType: string): number {
 export const MAX_VIDEO_PREVIEW_DURATION_SECONDS = 30;
 
 export const MEDIA_FOLDERS = Object.keys(FOLDER_PREFIXES) as MediaFolder[];
-export const MEDIA_ENTITY_TYPES = ["PRODUCT", "SET", "BRAND", "BANNER"] as const;
+export const MEDIA_ENTITY_TYPES = ["PRODUCT", "SET", "BRAND", "BANNER", "COLLECTION"] as const;
 export type MediaEntityType = (typeof MEDIA_ENTITY_TYPES)[number];
 // `COVER_SECONDARY`: segunda imagen de portada del producto (nivel producto, no
 // por color) — habilita el crossfade "hover image swap" en la card del catálogo

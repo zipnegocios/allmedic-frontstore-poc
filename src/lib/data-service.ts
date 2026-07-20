@@ -14,13 +14,7 @@ import type { Product, ProductColor, ProductVariant, Store, Gender, Size, Fit, B
 import { eq, and, or, asc, sql, inArray, gte, lte, ne, type SQL } from 'drizzle-orm';
 import { resolveMediaUrl, isVideoMime, type MediaItem } from './media';
 import type { AttributesPayload } from './attributes-payload/build-payload';
-import {
-  PRODUCTS as DUMMY_PRODUCTS,
-  BRANDS as DUMMY_BRANDS,
-  AVAILABLE_COLORS as DUMMY_COLORS,
-  STORES as DUMMY_STORES,
-  HERO_SLIDES as DUMMY_HERO_SLIDES,
-} from './dummy-data';
+// No dummy data fallbacks
 
 // ── Fallback flag ──
 // Set FORCE_DUMMY_DATA=true to always use dummy data
@@ -354,24 +348,24 @@ async function fetchProductsWithJoins(whereCondition?: SQL<unknown>) {
 // ── Public API ──
 
 export async function getAllProducts(): Promise<Product[]> {
-  if (!await checkDbAvailable()) return DUMMY_PRODUCTS;
+  if (!await checkDbAvailable()) return [];
   // Excluye productos "Solo Grupos" — solo existen como piezas de sets corporativos.
   const results = await fetchProductsWithJoins(
     and(eq(productsTable.isActive, true), ne(productsTable.visibility, 'GROUPS'))
   );
-  return results.length > 0 ? results : DUMMY_PRODUCTS;
+  return results;
 }
 
 export async function getProductBySlug(slug: string): Promise<Product | undefined> {
-  if (!await checkDbAvailable()) return DUMMY_PRODUCTS.find(p => p.slug === slug);
+  if (!await checkDbAvailable()) return undefined;
   const results = await fetchProductsWithJoins(
     and(eq(productsTable.slug, slug), eq(productsTable.isActive, true))
   );
-  return results[0] ?? DUMMY_PRODUCTS.find(p => p.slug === slug);
+  return results[0];
 }
 
 export async function getFeaturedProducts(): Promise<Product[]> {
-  if (!await checkDbAvailable()) return DUMMY_PRODUCTS.filter(p => p.isBestSeller);
+  if (!await checkDbAvailable()) return [];
   const results = await db
     .select({ id: productsTable.id })
     .from(productsTable)
@@ -383,13 +377,13 @@ export async function getFeaturedProducts(): Promise<Product[]> {
     .limit(8);
 
   const productIds = results.map(r => r.id);
-  if (productIds.length === 0) return DUMMY_PRODUCTS.filter(p => p.isBestSeller);
+  if (productIds.length === 0) return [];
 
   return fetchProductsWithJoins(inArray(productsTable.id, productIds));
 }
 
 export async function getProductsByBrand(brandSlug: string): Promise<Product[]> {
-  if (!await checkDbAvailable()) return DUMMY_PRODUCTS.filter(p => p.brand.toLowerCase().replace(/\s+/g, '-') === brandSlug.toLowerCase());
+  if (!await checkDbAvailable()) return [];
   return fetchProductsWithJoins(
     and(
       eq(productsTable.isActive, true),
@@ -399,15 +393,7 @@ export async function getProductsByBrand(brandSlug: string): Promise<Product[]> 
 }
 
 export async function searchProductsDb(query: string): Promise<Product[]> {
-  if (!await checkDbAvailable()) {
-    const q = query.toLowerCase().trim();
-    return DUMMY_PRODUCTS.filter(p =>
-      p.name.toLowerCase().includes(q) ||
-      p.brand.toLowerCase().includes(q) ||
-      (p.productType?.name.toLowerCase().includes(q) ?? false) ||
-      p.description.toLowerCase().includes(q)
-    );
-  }
+  if (!await checkDbAvailable()) return [];
   const likeQuery = `%${query}%`;
   return fetchProductsWithJoins(
     and(
@@ -423,19 +409,7 @@ export async function searchProductsDb(query: string): Promise<Product[]> {
 }
 
 export async function getBrands(): Promise<Array<{ name: string; slug: string; description: string | null; logoUrl: string | null; productCount: number }>> {
-  if (!await checkDbAvailable()) {
-    const counts = new Map<string, number>();
-    for (const p of DUMMY_PRODUCTS) {
-      counts.set(p.brand, (counts.get(p.brand) || 0) + 1);
-    }
-    return DUMMY_BRANDS.map(name => ({
-      name,
-      slug: name.toLowerCase().replace(/\s+/g, '-').replace(/'/g, ''),
-      description: null,
-      logoUrl: `/images/brands/${name.toLowerCase().replace(/\s+/g, '-').replace(/'/g, '')}.png`,
-      productCount: counts.get(name) || 0,
-    }));
-  }
+  if (!await checkDbAvailable()) return [];
   const brands = await db
     .select({
       id: brandsTable.id,
@@ -483,7 +457,7 @@ export async function getBrands(): Promise<Array<{ name: string; slug: string; d
 }
 
 export async function getBrandNames(): Promise<string[]> {
-  if (!await checkDbAvailable()) return DUMMY_BRANDS;
+  if (!await checkDbAvailable()) return [];
   const brands = await db
     .select({ name: brandsTable.name })
     .from(brandsTable)
@@ -500,20 +474,20 @@ export async function getBrandsForNav(): Promise<BrandNavItem[]> {
 }
 
 export async function getColors(): Promise<ProductColor[]> {
-  if (!await checkDbAvailable()) return DUMMY_COLORS;
+  if (!await checkDbAvailable()) return [];
   const colors = await db.select().from(colorsTable);
-  return colors.length > 0 ? colors.map(c => ({ id: c.id, name: c.name, code: c.code, hex: c.hex })) : DUMMY_COLORS;
+  return colors.map(c => ({ id: c.id, name: c.name, code: c.code, hex: c.hex }));
 }
 
 export async function getStores(): Promise<Store[]> {
-  if (!await checkDbAvailable()) return DUMMY_STORES;
+  if (!await checkDbAvailable()) return [];
   const stores = await db
     .select()
     .from(storesTable)
     .where(eq(storesTable.isActive, true))
     .orderBy(asc(storesTable.sortOrder));
 
-  return stores.length > 0 ? stores.map(s => ({
+  return stores.map(s => ({
     id: s.id,
     name: s.name,
     address: s.address,
@@ -521,7 +495,7 @@ export async function getStores(): Promise<Store[]> {
     hours: s.hours || '',
     isMain: s.isMain ?? false,
     mapUrl: s.mapUrl ?? undefined,
-  })) : DUMMY_STORES;
+  }));
 }
 
 interface HeroSlideData {
@@ -534,20 +508,8 @@ interface HeroSlideData {
   ctaLink: string;
 }
 
-function dummyHeroSlides(): HeroSlideData[] {
-  return DUMMY_HERO_SLIDES.map(s => ({
-    id: String(s.id),
-    desktopMedia: { url: s.image, type: 'image', mimeType: 'image/jpeg', width: null, height: null },
-    mobileMedia: null,
-    title: s.title,
-    subtitle: s.subtitle,
-    cta: s.cta,
-    ctaLink: s.ctaLink,
-  }));
-}
-
 export async function getHeroSlides(): Promise<HeroSlideData[]> {
-  if (!await checkDbAvailable()) return dummyHeroSlides();
+  if (!await checkDbAvailable()) return [];
 
   const banners = await db
     .select()
@@ -555,7 +517,7 @@ export async function getHeroSlides(): Promise<HeroSlideData[]> {
     .where(eq(bannersTable.isActive, true))
     .orderBy(asc(bannersTable.sortOrder));
 
-  if (banners.length === 0) return dummyHeroSlides();
+  if (banners.length === 0) return [];
 
   const bannerIds = banners.map((b) => b.id);
   const mediaCols = {
@@ -622,18 +584,7 @@ export async function filterProducts(filters: {
   priceMax?: number;
 }): Promise<Product[]> {
   if (!await checkDbAvailable()) {
-    return DUMMY_PRODUCTS.filter(product => {
-      if (filters.gender && product.gender !== filters.gender && product.gender !== 'Unisex') return false;
-      if (filters.productTypeIds?.length && !(product.productType && filters.productTypeIds.includes(product.productType.id))) return false;
-      if (filters.brands?.length && !filters.brands.includes(product.brand)) return false;
-      if (filters.colors?.length && !product.colors.some(c => filters.colors!.includes(c.name))) return false;
-      if (filters.sizes?.length && !product.availableSizes.some(s => filters.sizes!.includes(s))) return false;
-      if (filters.styleSlug && filters.styleValue && !product.availableStyles?.[filters.styleSlug]?.includes(filters.styleValue)) return false;
-      const price = product.priceSale || product.priceNormal;
-      if (filters.priceMin !== undefined && price < filters.priceMin) return false;
-      if (filters.priceMax !== undefined && price > filters.priceMax) return false;
-      return true;
-    });
+    return [];
   }
 
   const genderDb = filters.gender ? Object.entries(genderFromDb).find(([, v]) => v === filters.gender)?.[0] : undefined;

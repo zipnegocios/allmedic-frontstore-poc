@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Sparkles, Info, Plus } from 'lucide-react';
 import type { ProductFormData, Color } from './schema';
-import { SIZES } from './schema';
 import { AddColorDialog } from './AddColorDialog';
 import { CollapsibleSection } from './CollapsibleSection';
 
@@ -23,6 +22,9 @@ interface AttributeMatrixSectionProps {
    * se copian sin cambios a `attributeValueIds` de cada variante generada. */
   styleAttributes: Record<string, string>;
   colors: Color[];
+  /** Tallas activas del catálogo global (`/admin/atributos` → Tallas), ya
+   * ordenadas — reemplaza la lista fija que existía antes. */
+  sizes: string[];
   variantFields: ProductFormData['variants'][number][];
   appendVariant: (value: Omit<ProductFormData['variants'][number], 'id'> & { id?: string }) => void;
   /** Se dispara al crear un color desde el diálogo "+ Agregar color" — el llamador
@@ -39,6 +41,7 @@ export function AttributeMatrixSection({
   productTypeId,
   styleAttributes,
   colors,
+  sizes,
   variantFields,
   appendVariant,
   onColorCreated,
@@ -153,7 +156,7 @@ export function AttributeMatrixSection({
           <div className="space-y-2">
             <Label className="text-xs font-semibold text-gray-700">Tallas</Label>
             <div className="flex flex-wrap gap-2">
-              {SIZES.map((s) => (
+              {sizes.map((s) => (
                 <button
                   key={s}
                   type="button"

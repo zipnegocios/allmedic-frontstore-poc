@@ -3,15 +3,15 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { BRANDS as DUMMY_BRAND_NAMES } from '@/lib/dummy-data';
+// Removed dummy brand names import
 import type { BrandNavItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-const DEFAULT_BRANDS: BrandNavItem[] = DUMMY_BRAND_NAMES.map((name) => ({ name, logoUrl: null }));
+const DEFAULT_BRANDS: BrandNavItem[] = [];
 
 // Featured brands with descriptions
 const BRAND_INFO: Record<string, { description: string; featured: boolean }> = {
-  'FIGS': { description: 'Tecnología médica de vanguardia', featured: true },
+  // Removed brand key to avoid hardcoded mock references
   "Grey's Anatomy": { description: 'El clásico atemporal', featured: true },
   'Skechers': { description: 'Máxima comodidad', featured: false },
   'Healing Hands': { description: 'Lujo y elegancia', featured: true },

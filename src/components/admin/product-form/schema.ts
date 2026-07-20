@@ -216,7 +216,6 @@ export const GENDERS = [
   { value: 'HOMBRE', label: 'Hombre' },
   { value: 'UNISEX', label: 'Unisex' },
 ];
-export const SIZES = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '2XL', '3XL', '4XL', '5XL', 'OS'];
 export const SELECT_EMPTY_VALUE = '__empty__';
 
 export const VISIBILITY_OPTIONS = [

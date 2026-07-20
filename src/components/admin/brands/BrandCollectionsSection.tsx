@@ -6,9 +6,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Trash2, Layers } from 'lucide-react';
+import { Plus, Pencil, Trash2, Layers, ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { ResponsiveDialog } from '@/components/admin/ResponsiveDialog';
+import { MediaPicker } from '@/components/admin/media/MediaPicker';
+import { resolveMediaUrl } from '@/lib/media';
 import { slugify } from '@/lib/slugify';
 
 interface Collection {
@@ -20,9 +22,10 @@ interface Collection {
   fabricTech: string | null;
   isActive: boolean | null;
   sortOrder: number | null;
+  logoUrl?: string | null;
 }
 
-const emptyForm = { name: '', slug: '', description: '', fabricTech: '', isActive: true, sortOrder: 0 };
+const emptyForm = { name: '', slug: '', description: '', fabricTech: '', logoUrl: '', logoAssetId: '', isActive: true, sortOrder: 0 };
 
 export function BrandCollectionsSection({ brandId, initialCollections }: { brandId: string; initialCollections: Collection[] }) {
   const [collections, setCollections] = useState<Collection[]>(initialCollections);
@@ -30,6 +33,7 @@ export function BrandCollectionsSection({ brandId, initialCollections }: { brand
   const [editing, setEditing] = useState<Collection | null>(null);
   const [formData, setFormData] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   async function refresh() {
     const res = await fetch(`/api/admin/collections?brandId=${brandId}`);
@@ -52,6 +56,8 @@ export function BrandCollectionsSection({ brandId, initialCollections }: { brand
       slug: c.slug,
       description: c.description || '',
       fabricTech: c.fabricTech || '',
+      logoUrl: c.logoUrl || '',
+      logoAssetId: '',
       isActive: c.isActive ?? true,
       sortOrder: c.sortOrder ?? 0,
     });
@@ -63,7 +69,8 @@ export function BrandCollectionsSection({ brandId, initialCollections }: { brand
     try {
       const url = editing ? `/api/admin/collections/${editing.id}` : '/api/admin/collections';
       const method = editing ? 'PATCH' : 'POST';
-      const payload = editing ? formData : { ...formData, brandId };
+      const payload: Record<string, unknown> = editing ? { ...formData } : { ...formData, brandId };
+      if (!payload.logoAssetId) delete payload.logoAssetId;
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
@@ -113,12 +120,21 @@ export function BrandCollectionsSection({ brandId, initialCollections }: { brand
             <div className="space-y-2">
               {collections.map((c) => (
                 <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 border rounded px-3 py-2">
-                  <div className="min-w-0">
-                    <p className="font-medium truncate">{c.name}</p>
-                    <p className="text-xs text-gray-500">
-                      <code className="bg-gray-100 px-1.5 py-0.5 rounded">{c.slug}</code>
-                      {c.fabricTech && <span className="ml-2">{c.fabricTech}</span>}
-                    </p>
+                  <div className="flex items-center gap-3 min-w-0">
+                    {c.logoUrl ? (
+                      <img src={c.logoUrl} alt="" className="w-8 h-8 object-contain rounded bg-gray-50 flex-shrink-0" />
+                    ) : (
+                      <div className="w-8 h-8 rounded bg-gray-100 flex items-center justify-center flex-shrink-0">
+                        <ImageIcon className="w-4 h-4 text-gray-300" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{c.name}</p>
+                      <p className="text-xs text-gray-500">
+                        <code className="bg-gray-100 px-1.5 py-0.5 rounded">{c.slug}</code>
+                        {c.fabricTech && <span className="ml-2">{c.fabricTech}</span>}
+                      </p>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {c.isActive ? <Badge variant="outline">Activa</Badge> : <Badge variant="destructive">Inactiva</Badge>}
@@ -168,12 +184,38 @@ export function BrandCollectionsSection({ brandId, initialCollections }: { brand
             <Label>Tecnología de tela</Label>
             <Input value={formData.fabricTech} onChange={e => setFormData({ ...formData, fabricTech: e.target.value })} />
           </div>
+          <div className="space-y-2">
+            <Label>Logo</Label>
+            <div className="flex items-center gap-3">
+              <div className="w-14 h-14 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
+                {formData.logoUrl ? (
+                  <img src={formData.logoUrl} alt="" className="w-full h-full object-contain" />
+                ) : (
+                  <ImageIcon className="w-5 h-5 text-gray-300" />
+                )}
+              </div>
+              <Button type="button" size="sm" variant="outline" onClick={() => setPickerOpen(true)}>
+                {formData.logoUrl ? 'Cambiar logo' : 'Elegir logo'}
+              </Button>
+            </div>
+          </div>
           <div className="flex items-center gap-2">
             <input type="checkbox" checked={formData.isActive} onChange={e => setFormData({ ...formData, isActive: e.target.checked })} />
             <Label>Activa</Label>
           </div>
         </div>
       </ResponsiveDialog>
+
+      <MediaPicker
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        folder="COLLECTIONS"
+        segments={formData.slug ? [formData.slug] : []}
+        onConfirm={(assets) => {
+          if (assets[0]) setFormData((prev) => ({ ...prev, logoUrl: resolveMediaUrl(assets[0].storageKey), logoAssetId: assets[0].id }));
+          setPickerOpen(false);
+        }}
+      />
     </div>
   );
 }

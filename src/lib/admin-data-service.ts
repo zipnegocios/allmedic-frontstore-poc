@@ -23,6 +23,7 @@ import {
   attributeValues as attributeValuesTable,
   productTypeAttributes as productTypeAttributesTable,
   variantAttributeValues as variantAttributeValuesTable,
+  sizes as sizesTable,
 } from '@/db/schema';
 import { eq, and, or, ne, asc, desc, sql, like, inArray, isNull, isNotNull, type SQL } from 'drizzle-orm';
 import { resolveMediaUrl } from './media';
@@ -40,7 +41,7 @@ import {
 // ── Helpers de vínculos de un solo medio (marcas/banners/sets) ──
 
 async function replaceSingleLink(
-  entityType: 'BRAND' | 'BANNER' | 'SET',
+  entityType: 'BRAND' | 'BANNER' | 'SET' | 'COLLECTION',
   entityId: string,
   role: string,
   assetId: string | null | undefined,
@@ -56,7 +57,7 @@ async function replaceSingleLink(
   }
 }
 
-async function getSingleLinkUrl(entityType: 'BRAND' | 'BANNER' | 'SET' | 'PRODUCT', entityId: string, role: string): Promise<string | null> {
+async function getSingleLinkUrl(entityType: 'BRAND' | 'BANNER' | 'SET' | 'PRODUCT' | 'COLLECTION', entityId: string, role: string): Promise<string | null> {
   const [link] = await db
     .select({ storageKey: mediaAssetsTable.storageKey })
     .from(mediaLinksTable)
@@ -69,7 +70,7 @@ async function getSingleLinkUrl(entityType: 'BRAND' | 'BANNER' | 'SET' | 'PRODUC
   return link ? resolveMediaUrl(link.storageKey) : null;
 }
 
-async function getSingleLinksUrlMap(entityType: 'BRAND' | 'BANNER' | 'SET' | 'PRODUCT', entityIds: string[], role: string): Promise<Map<string, string>> {
+async function getSingleLinksUrlMap(entityType: 'BRAND' | 'BANNER' | 'SET' | 'PRODUCT' | 'COLLECTION', entityIds: string[], role: string): Promise<Map<string, string>> {
   if (entityIds.length === 0) return new Map();
   const links = await db
     .select({ entityId: mediaLinksTable.entityId, storageKey: mediaAssetsTable.storageKey })
@@ -1748,16 +1749,21 @@ export async function deleteSetColorCombo(comboId: string) {
 
 export async function getAdminCollections(brandId?: string) {
   const where = brandId ? eq(collectionsTable.brandId, brandId) : undefined;
-  return db.select().from(collectionsTable).where(where).orderBy(asc(collectionsTable.sortOrder));
+  const collections = await db.select().from(collectionsTable).where(where).orderBy(asc(collectionsTable.sortOrder));
+  const logoMap = await getSingleLinksUrlMap('COLLECTION', collections.map((c) => c.id), 'LOGO');
+  return collections.map((c) => ({ ...c, logoUrl: logoMap.get(c.id) ?? null }));
 }
 
 export async function getAdminCollectionById(id: string) {
   const [collection] = await db.select().from(collectionsTable).where(eq(collectionsTable.id, id)).limit(1);
-  return collection ?? null;
+  if (!collection) return null;
+  const logoUrl = await getSingleLinkUrl('COLLECTION', id, 'LOGO');
+  return { ...collection, logoUrl };
 }
 
-export async function createCollection(data: typeof collectionsTable.$inferInsert) {
+export async function createCollection(data: typeof collectionsTable.$inferInsert, logoAssetId?: string) {
   const [collection] = await db.insert(collectionsTable).values(data).returning();
+  if (logoAssetId) await replaceSingleLink('COLLECTION', collection.id, 'LOGO', logoAssetId);
   return collection;
 }
 
@@ -1766,11 +1772,17 @@ export async function createCollection(data: typeof collectionsTable.$inferInser
  * de `attributes_payload` (Fase 2) para todas las variantes de los productos de
  * esta colección, ya que el nombre de la colección forma parte del payload.
  */
-export async function updateCollection(id: string, data: Partial<typeof collectionsTable.$inferInsert>) {
-  const [collection] = await db.update(collectionsTable).set(data).where(eq(collectionsTable.id, id)).returning();
+export async function updateCollection(id: string, data: Partial<typeof collectionsTable.$inferInsert>, logoAssetId?: string) {
+  let collection: typeof collectionsTable.$inferSelect | undefined;
+  if (Object.keys(data).length > 0) {
+    [collection] = await db.update(collectionsTable).set(data).where(eq(collectionsTable.id, id)).returning();
+  } else {
+    [collection] = await db.select().from(collectionsTable).where(eq(collectionsTable.id, id)).limit(1);
+  }
   if (data.name !== undefined) {
     await recalculateVariantPayloadsForCollection(id);
   }
+  if (logoAssetId !== undefined) await replaceSingleLink('COLLECTION', id, 'LOGO', logoAssetId);
   return collection;
 }
 
@@ -1955,6 +1967,26 @@ export async function updateAttribute(id: string, data: Partial<typeof attribute
 
 export async function deleteAttribute(id: string) {
   await db.delete(attributesTable).where(eq(attributesTable.id, id));
+}
+
+// ── Sizes (catálogo global, sin relación con el sistema EAV de arriba) ──
+
+export async function getAdminSizes() {
+  return db.select().from(sizesTable).orderBy(asc(sizesTable.sortOrder));
+}
+
+export async function createSize(data: typeof sizesTable.$inferInsert) {
+  const [size] = await db.insert(sizesTable).values(data).returning();
+  return size;
+}
+
+export async function updateSize(id: string, data: Partial<typeof sizesTable.$inferInsert>) {
+  const [size] = await db.update(sizesTable).set(data).where(eq(sizesTable.id, id)).returning();
+  return size;
+}
+
+export async function deleteSize(id: string) {
+  await db.delete(sizesTable).where(eq(sizesTable.id, id));
 }
 
 export async function getAttributeValues(attributeId: string) {
