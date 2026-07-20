@@ -398,460 +398,460 @@ export function VariantsMediaSection({
       {/* ─── LISTADO DE GRUPOS POR COLOR ─── */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-sm text-gray-900">*Colores</h3>
-          <div className="flex items-center gap-2">
-            <Select value={selectedNewColorId} onValueChange={setSelectedNewColorId}>
-              <SelectTrigger className="w-48 h-8 text-xs bg-white">
-                <SelectValue placeholder="Seleccionar color..." />
-              </SelectTrigger>
-              <SelectContent>
-                {availableColorsToAdd.length === 0 ? (
-                  <SelectItem value="_none" disabled>Todos los colores activos</SelectItem>
-                ) : (
-                  availableColorsToAdd.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full border" style={{ backgroundColor: c.hex }} />
-                        {c.name}
-                      </div>
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleAddColor}
-              disabled={!selectedNewColorId || selectedNewColorId === '_none'}
-              className="h-8 text-xs bg-[#111111]"
-            >
-              <Plus className="w-3.5 h-3.5 mr-1" />
-              Agregar Color
-            </Button>
-          </div>
-        </div>
-
-        {activeColorIds.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="p-8 text-center text-gray-500 text-xs">
-              No hay colores configurados. Agrega un color arriba para definir variantes y cargar medios.
-            </CardContent>
-          </Card>
-        ) : (
-          <Accordion
-            type="single"
-            collapsible
-            value={expandedColorId}
-            onValueChange={(value) => setExpandedColorId(value || undefined)}
-            className="space-y-3"
-          >
-            {activeColorIds.map((colorId) => {
-              const colorObj = colors.find((c) => c.id === colorId);
-              const colorName = colorObj?.name || 'Color desconocido';
-              const colorHex = colorObj?.hex || '#ccc';
-
-              // Filtrar variantes e imágenes correspondientes a este color
-              const colorVariants = variantsLive
-                .map((v, idx) => ({ v, idx }))
-                .filter((item) => item.v.colorId === colorId);
-
-              // Ordenado por `sortOrder` ascendente: la posición visual debe coincidir
-              // con la que consume el catálogo público (`images[0]` = swatch del color).
-              const colorImages = imagesLive
-                .map((img, idx) => ({ img, idx }))
-                .filter((item) => item.img.colorId === colorId)
-                .sort((a, b) => (a.img.sortOrder ?? 0) - (b.img.sortOrder ?? 0));
-
-              // Tallas ya usadas en este color — evita duplicar una misma talla dos
-              // veces para el mismo color (ej. dos filas "S" para "Negro").
-              const usedSizesInColor = new Set(colorVariants.map((item) => item.v.size));
-
-              // Umbral 2 (no 0): la imagen principal Y la secundaria son obligatorias
-              // para cada color activo (crossfade "hover image swap" en catálogo).
-              const colorHasError =
-                colorVariants.some((item) => variantsErrors?.[item.idx]) ||
-                (colorVariants.length > 0 && colorImages.length < 2);
-
-              return (
-                <AccordionItem
-                  key={colorId}
-                  value={colorId}
-                  className="border border-gray-200 shadow-sm overflow-hidden rounded-lg bg-white"
-                >
-                  <AccordionTrigger
-                    className="px-4 py-3 bg-gray-50 dark:bg-gray-900 hover:no-underline hover:bg-gray-100 [&[data-state=open]]:border-b rounded-none"
-                    actions={
-                      <>
-                        {colorHasError && (
-                          <button
-                            type="button"
-                            className="inline-flex appearance-none bg-transparent border-0 p-0"
-                            onClick={(e) => {
-                              // Evita que el clic también dispare el toggle del acordeón.
-                              e.stopPropagation();
-                              setErrorModalOpen(true);
-                            }}
-                          >
-                            <Badge
-                              variant="destructive"
-                              className="text-[10px] cursor-pointer hover:bg-destructive/80 mr-1"
-                            >
-                              <AlertTriangle className="w-3 h-3 mr-1" /> Con errores
-                            </Badge>
-                          </button>
-                        )}
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            // Eliminar todo el grupo de color
-                            const variantsToDelete = colorVariants.map(item => item.idx);
-                            const imagesToDelete = colorImages.map(item => item.idx);
-
-                            // Eliminar variantes
-                            variantsToDelete.reverse().forEach(idx => removeVariant(idx));
-                            // Eliminar imágenes
-                            imagesToDelete.reverse().forEach(idx => removeImage(idx));
-                          }}
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 px-2 mr-2"
-                        >
-                          <Trash2 className="w-3.5 h-3.5 mr-1" />
-                          Eliminar color
-                        </Button>
-                      </>
-                    }
-                  >
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                      <div className="w-5 h-5 rounded-full border border-gray-300 shadow-sm shrink-0" style={{ backgroundColor: colorHex }} />
-                      <span className="font-semibold text-sm text-gray-900">{colorName}</span>
-                      <Badge variant="secondary" className="text-[10px]">
-                        {colorVariants.length} tallas · {colorImages.length} fotos/videos
-                      </Badge>
+          <h3 className="font-semibold text-sm text-gray-900">*</h3></br>
+        <div className="flex items-center gap-2">
+          <Select value={selectedNewColorId} onValueChange={setSelectedNewColorId}>
+            <SelectTrigger className="w-48 h-8 text-xs bg-white">
+              <SelectValue placeholder="Seleccionar color..." />
+            </SelectTrigger>
+            <SelectContent>
+              {availableColorsToAdd.length === 0 ? (
+                <SelectItem value="_none" disabled>Todos los colores activos</SelectItem>
+              ) : (
+                availableColorsToAdd.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full border" style={{ backgroundColor: c.hex }} />
+                      {c.name}
                     </div>
-                  </AccordionTrigger>
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleAddColor}
+            disabled={!selectedNewColorId || selectedNewColorId === '_none'}
+            className="h-8 text-xs bg-[#111111]"
+          >
+            <Plus className="w-3.5 h-3.5 mr-1" />
+            Agregar Color
+          </Button>
+        </div>
+      </div>
 
-                  <AccordionContent className="p-4 pt-4 space-y-6">
-                    {/* Sección 1: Variantes (Tallas) */}
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs font-semibold text-gray-700 flex items-center gap-1">
-                          Tallas del Color
-                          {colorVariants.length === 0 && (
-                            <span className="text-xs text-amber-600 bg-amber-50 rounded px-1.5 py-0.5 border border-amber-200 flex items-center gap-1 font-normal">
-                              <AlertTriangle className="w-3 h-3" /> Sin tallas definidas
-                            </span>
-                          )}
-                        </Label>
-                        <Button
+      {activeColorIds.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="p-8 text-center text-gray-500 text-xs">
+            No hay colores configurados. Agrega un color arriba para definir variantes y cargar medios.
+          </CardContent>
+        </Card>
+      ) : (
+        <Accordion
+          type="single"
+          collapsible
+          value={expandedColorId}
+          onValueChange={(value) => setExpandedColorId(value || undefined)}
+          className="space-y-3"
+        >
+          {activeColorIds.map((colorId) => {
+            const colorObj = colors.find((c) => c.id === colorId);
+            const colorName = colorObj?.name || 'Color desconocido';
+            const colorHex = colorObj?.hex || '#ccc';
+
+            // Filtrar variantes e imágenes correspondientes a este color
+            const colorVariants = variantsLive
+              .map((v, idx) => ({ v, idx }))
+              .filter((item) => item.v.colorId === colorId);
+
+            // Ordenado por `sortOrder` ascendente: la posición visual debe coincidir
+            // con la que consume el catálogo público (`images[0]` = swatch del color).
+            const colorImages = imagesLive
+              .map((img, idx) => ({ img, idx }))
+              .filter((item) => item.img.colorId === colorId)
+              .sort((a, b) => (a.img.sortOrder ?? 0) - (b.img.sortOrder ?? 0));
+
+            // Tallas ya usadas en este color — evita duplicar una misma talla dos
+            // veces para el mismo color (ej. dos filas "S" para "Negro").
+            const usedSizesInColor = new Set(colorVariants.map((item) => item.v.size));
+
+            // Umbral 2 (no 0): la imagen principal Y la secundaria son obligatorias
+            // para cada color activo (crossfade "hover image swap" en catálogo).
+            const colorHasError =
+              colorVariants.some((item) => variantsErrors?.[item.idx]) ||
+              (colorVariants.length > 0 && colorImages.length < 2);
+
+            return (
+              <AccordionItem
+                key={colorId}
+                value={colorId}
+                className="border border-gray-200 shadow-sm overflow-hidden rounded-lg bg-white"
+              >
+                <AccordionTrigger
+                  className="px-4 py-3 bg-gray-50 dark:bg-gray-900 hover:no-underline hover:bg-gray-100 [&[data-state=open]]:border-b rounded-none"
+                  actions={
+                    <>
+                      {colorHasError && (
+                        <button
                           type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={usedSizesInColor.size >= SIZES.length}
-                          onClick={() => {
-                            // No puede haber dos variantes con la misma talla para el
-                            // mismo color (ej. dos filas "S" para "Negro") — se ofrece
-                            // automáticamente la primera talla libre.
-                            const nextSize = SIZES.find((s) => !usedSizesInColor.has(s));
-                            if (!nextSize) {
-                              toast.error('Ya agregaste todas las tallas disponibles para este color');
-                              return;
-                            }
-                            appendVariant({
-                              colorId: colorId,
-                              size: nextSize,
-                              sku: '',
-                              status: 'AVAILABLE',
-                              attributeValueIds: [],
-                            });
+                          className="inline-flex appearance-none bg-transparent border-0 p-0"
+                          onClick={(e) => {
+                            // Evita que el clic también dispare el toggle del acordeón.
+                            e.stopPropagation();
+                            setErrorModalOpen(true);
                           }}
-                          className="h-7 text-[10px] bg-white"
                         >
-                          <Plus className="w-3 h-3 mr-1" />
-                          Agregar Talla
-                        </Button>
-                      </div>
+                          <Badge
+                            variant="destructive"
+                            className="text-[10px] cursor-pointer hover:bg-destructive/80 mr-1"
+                          >
+                            <AlertTriangle className="w-3 h-3 mr-1" /> Con errores
+                          </Badge>
+                        </button>
+                      )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          // Eliminar todo el grupo de color
+                          const variantsToDelete = colorVariants.map(item => item.idx);
+                          const imagesToDelete = colorImages.map(item => item.idx);
 
-                      {colorVariants.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {colorVariants.map((item, localIdx) => {
-                            const v = item.v;
-                            const absoluteIdx = item.idx;
-                            const rowError = variantsErrors?.[absoluteIdx];
-                            const hasRowError = Boolean(rowError?.colorId || rowError?.size);
+                          // Eliminar variantes
+                          variantsToDelete.reverse().forEach(idx => removeVariant(idx));
+                          // Eliminar imágenes
+                          imagesToDelete.reverse().forEach(idx => removeImage(idx));
+                        }}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 px-2 mr-2"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 mr-1" />
+                        Eliminar color
+                      </Button>
+                    </>
+                  }
+                >
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <div className="w-5 h-5 rounded-full border border-gray-300 shadow-sm shrink-0" style={{ backgroundColor: colorHex }} />
+                    <span className="font-semibold text-sm text-gray-900">{colorName}</span>
+                    <Badge variant="secondary" className="text-[10px]">
+                      {colorVariants.length} tallas · {colorImages.length} fotos/videos
+                    </Badge>
+                  </div>
+                </AccordionTrigger>
 
-                            return (
-                              <div
-                                key={v.id || localIdx}
-                                className={cn(
-                                  'inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-full border bg-white text-xs',
-                                  hasRowError ? 'ring-2 ring-red-400 border-red-300' : 'border-gray-200'
+                <AccordionContent className="p-4 pt-4 space-y-6">
+                  {/* Sección 1: Variantes (Tallas) */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold text-gray-700 flex items-center gap-1">
+                        Tallas del Color
+                        {colorVariants.length === 0 && (
+                          <span className="text-xs text-amber-600 bg-amber-50 rounded px-1.5 py-0.5 border border-amber-200 flex items-center gap-1 font-normal">
+                            <AlertTriangle className="w-3 h-3" /> Sin tallas definidas
+                          </span>
+                        )}
+                      </Label>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={usedSizesInColor.size >= SIZES.length}
+                        onClick={() => {
+                          // No puede haber dos variantes con la misma talla para el
+                          // mismo color (ej. dos filas "S" para "Negro") — se ofrece
+                          // automáticamente la primera talla libre.
+                          const nextSize = SIZES.find((s) => !usedSizesInColor.has(s));
+                          if (!nextSize) {
+                            toast.error('Ya agregaste todas las tallas disponibles para este color');
+                            return;
+                          }
+                          appendVariant({
+                            colorId: colorId,
+                            size: nextSize,
+                            sku: '',
+                            status: 'AVAILABLE',
+                            attributeValueIds: [],
+                          });
+                        }}
+                        className="h-7 text-[10px] bg-white"
+                      >
+                        <Plus className="w-3 h-3 mr-1" />
+                        Agregar Talla
+                      </Button>
+                    </div>
+
+                    {colorVariants.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {colorVariants.map((item, localIdx) => {
+                          const v = item.v;
+                          const absoluteIdx = item.idx;
+                          const rowError = variantsErrors?.[absoluteIdx];
+                          const hasRowError = Boolean(rowError?.colorId || rowError?.size);
+
+                          return (
+                            <div
+                              key={v.id || localIdx}
+                              className={cn(
+                                'inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-full border bg-white text-xs',
+                                hasRowError ? 'ring-2 ring-red-400 border-red-300' : 'border-gray-200'
+                              )}
+                            >
+                              {/* Talla */}
+                              <Controller
+                                name={`variants.${absoluteIdx}.size`}
+                                control={control}
+                                render={({ field }) => (
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <button type="button" className="font-semibold hover:underline">
+                                        {field.value || 'Talla'}
+                                      </button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-40 p-1" align="start">
+                                      <div className="grid grid-cols-3 gap-1">
+                                        {SIZES.map((s) => {
+                                          // Tomada por OTRA variante del mismo color — no se puede
+                                          // duplicar la talla dentro de un mismo color.
+                                          const takenByOther = usedSizesInColor.has(s) && field.value !== s;
+                                          return (
+                                            <button
+                                              key={s}
+                                              type="button"
+                                              disabled={takenByOther}
+                                              title={takenByOther ? 'Esta talla ya existe para este color' : undefined}
+                                              onClick={() => field.onChange(s)}
+                                              className={cn(
+                                                'text-xs rounded px-1.5 py-1 border',
+                                                field.value === s
+                                                  ? 'bg-[#111111] text-white border-[#111111]'
+                                                  : takenByOther
+                                                    ? 'bg-gray-100 border-gray-100 text-gray-300 cursor-not-allowed'
+                                                    : 'bg-white border-gray-200'
+                                              )}
+                                            >
+                                              {s}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
                                 )}
-                              >
-                                {/* Talla */}
-                                <Controller
-                                  name={`variants.${absoluteIdx}.size`}
-                                  control={control}
-                                  render={({ field }) => (
+                              />
+
+                              <span className="text-gray-300">·</span>
+
+                              {/* Estado */}
+                              <Controller
+                                name={`variants.${absoluteIdx}.status`}
+                                control={control}
+                                render={({ field }) => {
+                                  const currentStatusMeta = STATUS_META[field.value] ?? STATUS_META.AVAILABLE;
+                                  return (
                                     <Popover>
                                       <PopoverTrigger asChild>
-                                        <button type="button" className="font-semibold hover:underline">
-                                          {field.value || 'Talla'}
+                                        <button type="button" className="flex items-center gap-1 hover:underline">
+                                          <span className={cn('w-2 h-2 rounded-full', currentStatusMeta.dot)} />
+                                          {currentStatusMeta.label}
                                         </button>
                                       </PopoverTrigger>
-                                      <PopoverContent className="w-40 p-1" align="start">
-                                        <div className="grid grid-cols-3 gap-1">
-                                          {SIZES.map((s) => {
-                                            // Tomada por OTRA variante del mismo color — no se puede
-                                            // duplicar la talla dentro de un mismo color.
-                                            const takenByOther = usedSizesInColor.has(s) && field.value !== s;
-                                            return (
-                                              <button
-                                                key={s}
-                                                type="button"
-                                                disabled={takenByOther}
-                                                title={takenByOther ? 'Esta talla ya existe para este color' : undefined}
-                                                onClick={() => field.onChange(s)}
-                                                className={cn(
-                                                  'text-xs rounded px-1.5 py-1 border',
-                                                  field.value === s
-                                                    ? 'bg-[#111111] text-white border-[#111111]'
-                                                    : takenByOther
-                                                      ? 'bg-gray-100 border-gray-100 text-gray-300 cursor-not-allowed'
-                                                      : 'bg-white border-gray-200'
-                                                )}
-                                              >
-                                                {s}
-                                              </button>
-                                            );
-                                          })}
+                                      <PopoverContent className="w-44 p-1" align="start">
+                                        <div className="flex flex-col gap-0.5">
+                                          {STATUSES.map((s) => (
+                                            <button
+                                              key={s.value}
+                                              type="button"
+                                              onClick={() => field.onChange(s.value)}
+                                              className={cn(
+                                                'flex items-center gap-1.5 text-xs rounded px-2 py-1.5 text-left',
+                                                field.value === s.value ? 'bg-gray-100 font-semibold' : 'hover:bg-gray-50'
+                                              )}
+                                            >
+                                              <span className={cn('w-2 h-2 rounded-full', STATUS_META[s.value]?.dot)} />
+                                              {s.label}
+                                            </button>
+                                          ))}
                                         </div>
                                       </PopoverContent>
                                     </Popover>
-                                  )}
-                                />
-
-                                <span className="text-gray-300">·</span>
-
-                                {/* Estado */}
-                                <Controller
-                                  name={`variants.${absoluteIdx}.status`}
-                                  control={control}
-                                  render={({ field }) => {
-                                    const currentStatusMeta = STATUS_META[field.value] ?? STATUS_META.AVAILABLE;
-                                    return (
-                                      <Popover>
-                                        <PopoverTrigger asChild>
-                                          <button type="button" className="flex items-center gap-1 hover:underline">
-                                            <span className={cn('w-2 h-2 rounded-full', currentStatusMeta.dot)} />
-                                            {currentStatusMeta.label}
-                                          </button>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-44 p-1" align="start">
-                                          <div className="flex flex-col gap-0.5">
-                                            {STATUSES.map((s) => (
-                                              <button
-                                                key={s.value}
-                                                type="button"
-                                                onClick={() => field.onChange(s.value)}
-                                                className={cn(
-                                                  'flex items-center gap-1.5 text-xs rounded px-2 py-1.5 text-left',
-                                                  field.value === s.value ? 'bg-gray-100 font-semibold' : 'hover:bg-gray-50'
-                                                )}
-                                              >
-                                                <span className={cn('w-2 h-2 rounded-full', STATUS_META[s.value]?.dot)} />
-                                                {s.label}
-                                              </button>
-                                            ))}
-                                          </div>
-                                        </PopoverContent>
-                                      </Popover>
-                                    );
-                                  }}
-                                />
-
-                                {/* Acción */}
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteVariantClick(absoluteIdx, colorId)}
-                                  className="text-red-400 hover:text-red-600 ml-0.5 p-0.5"
-                                  title="Eliminar talla"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Párrafo divisor */}
-                    <div className="border-t border-gray-100 my-4" />
-
-                    {/* Sección 2: Medios del Color */}
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs font-semibold text-gray-700">Galería del Color</Label>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={codeMissing}
-                          title={codeMissing ? 'Declara un Código de Estilo válido para habilitar los medios' : undefined}
-                          onClick={() => onPickTarget('append', colorId)}
-                          className="h-7 text-[10px] bg-white"
-                        >
-                          <Plus className="w-3 h-3 mr-1" />
-                          Agregar Medios
-                        </Button>
-                      </div>
-                      {codeMissing && (
-                        <p className="text-[11px] text-amber-700 bg-amber-50 rounded px-2 py-1">
-                          Declara un Código de Estilo válido en la ficha General para poder subir medios.
-                        </p>
-                      )}
-
-                      {colorImages.length === 0 ? (
-                        <div className="border border-dashed rounded-lg p-4 text-center text-gray-400 text-[11px]">
-                          No hay medios asociados a este color.
-                        </div>
-                      ) : (
-                        <>
-                          {colorImages.length === 1 && (
-                            <p className="text-xs text-amber-600 bg-amber-50 rounded px-2 py-1.5 border border-amber-200 flex items-center gap-1">
-                              <AlertTriangle className="w-3 h-3" /> Falta la imagen secundaria de este color.
-                            </p>
-                          )}
-                          <DndContext
-                            sensors={dndSensors}
-                            collisionDetection={closestCenter}
-                            onDragEnd={(event) => handleGalleryDragEnd(colorImages, event)}
-                          >
-                            <SortableContext
-                              items={colorImages.map((item) => item.img.id || String(item.idx))}
-                              strategy={rectSortingStrategy}
-                            >
-                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                                {colorImages.map((item, position) => {
-                                  const img = item.img;
-                                  const absoluteIdx = item.idx;
-
-                                  return (
-                                    <GalleryImageTile
-                                      key={img.id || absoluteIdx}
-                                      fieldId={img.id || String(absoluteIdx)}
-                                      absoluteIdx={absoluteIdx}
-                                      storageKey={img.storageKey!}
-                                      mimeType={img.mimeType ?? ''}
-                                      alt={img.alt}
-                                      isPrimary={position === 0}
-                                      isSecondary={position === 1}
-                                      position={position + 1}
-                                      register={register}
-                                      onRemove={() => removeImage(absoluteIdx)}
-                                      onSetPrimary={() => handleSetPrimaryImage(colorImages, absoluteIdx)}
-                                      onSetSecondary={() => handleSetSecondaryImage(colorImages, absoluteIdx)}
-                                    />
                                   );
-                                })}
-                              </div>
-                            </SortableContext>
-                          </DndContext>
-                        </>
-                      )}
+                                }}
+                              />
+
+                              {/* Acción */}
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteVariantClick(absoluteIdx, colorId)}
+                                className="text-red-400 hover:text-red-600 ml-0.5 p-0.5"
+                                title="Eliminar talla"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Párrafo divisor */}
+                  <div className="border-t border-gray-100 my-4" />
+
+                  {/* Sección 2: Medios del Color */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold text-gray-700">Galería del Color</Label>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={codeMissing}
+                        title={codeMissing ? 'Declara un Código de Estilo válido para habilitar los medios' : undefined}
+                        onClick={() => onPickTarget('append', colorId)}
+                        className="h-7 text-[10px] bg-white"
+                      >
+                        <Plus className="w-3 h-3 mr-1" />
+                        Agregar Medios
+                      </Button>
                     </div>
-                  </AccordionContent>
-                </AccordionItem>
-              );
-            })}
-          </Accordion>
-        )}
-      </div>
+                    {codeMissing && (
+                      <p className="text-[11px] text-amber-700 bg-amber-50 rounded px-2 py-1">
+                        Declara un Código de Estilo válido en la ficha General para poder subir medios.
+                      </p>
+                    )}
 
-      {/* ─── ALERT DIALOG DE COHERENCIA ─── */}
-      <AlertDialog open={deleteConfirm !== null} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-gray-900">¿Eliminar la última variante de este color?</AlertDialogTitle>
-            <AlertDialogDescription className="text-xs text-gray-500">
-              Estás borrando la última talla disponible para este color, pero el color aún tiene imágenes asociadas en la galería. Para mantener la coherencia de la tienda, elige qué hacer con los medios de este color:
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="flex flex-col gap-2 py-3">
-            {colors
-              .filter(c => c.id !== deleteConfirm?.colorId && activeColorIds.includes(c.id))
-              .map(c => (
-                <Button
-                  key={c.id}
-                  type="button"
-                  variant="outline"
-                  onClick={() => handleConfirmDeleteAndReassign(c.id)}
-                  className="w-full text-xs justify-start"
-                >
-                  <span className="w-3 h-3 rounded-full border mr-2" style={{ backgroundColor: c.hex }} />
-                  Reasignar medios al color: <strong className="ml-1">{c.name}</strong>
-                </Button>
-              ))}
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeleteConfirm(null)} className="text-xs">
-              Cancelar
-            </AlertDialogCancel>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={handleConfirmDeleteAll}
-              className="text-xs"
-            >
-              <Trash2 className="w-4 h-4 mr-1.5" />
-              Eliminar variante y todos sus medios
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+                    {colorImages.length === 0 ? (
+                      <div className="border border-dashed rounded-lg p-4 text-center text-gray-400 text-[11px]">
+                        No hay medios asociados a este color.
+                      </div>
+                    ) : (
+                      <>
+                        {colorImages.length === 1 && (
+                          <p className="text-xs text-amber-600 bg-amber-50 rounded px-2 py-1.5 border border-amber-200 flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3" /> Falta la imagen secundaria de este color.
+                          </p>
+                        )}
+                        <DndContext
+                          sensors={dndSensors}
+                          collisionDetection={closestCenter}
+                          onDragEnd={(event) => handleGalleryDragEnd(colorImages, event)}
+                        >
+                          <SortableContext
+                            items={colorImages.map((item) => item.img.id || String(item.idx))}
+                            strategy={rectSortingStrategy}
+                          >
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                              {colorImages.map((item, position) => {
+                                const img = item.img;
+                                const absoluteIdx = item.idx;
 
-      {/* ─── MODAL DE DETALLE DE ERRORES ─── */}
-      <Dialog open={errorModalOpen} onOpenChange={setErrorModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-600">
-              <AlertTriangle className="w-4 h-4" />
-              Campos obligatorios pendientes
-            </DialogTitle>
-            <DialogDescription>
-              Estos son los campos que faltan completar para poder guardar el producto.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <p className="text-xs font-semibold text-gray-700">Ficha General</p>
-              {errorSummary.general.length > 0 ? (
-                <ul className="list-disc pl-4 text-sm text-red-600 space-y-0.5">
-                  {errorSummary.general.map((msg, i) => (
-                    <li key={i}>{msg}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-xs text-gray-400">Sin errores en esta sección.</p>
-              )}
-            </div>
-            <div className="space-y-1.5">
-              <p className="text-xs font-semibold text-gray-700">Variantes y Medios</p>
-              {errorSummary.variantsMedia.length > 0 ? (
-                <ul className="list-disc pl-4 text-sm text-red-600 space-y-0.5">
-                  {errorSummary.variantsMedia.map((msg, i) => (
-                    <li key={i}>{msg}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-xs text-gray-400">Sin errores en esta sección.</p>
-              )}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+                                return (
+                                  <GalleryImageTile
+                                    key={img.id || absoluteIdx}
+                                    fieldId={img.id || String(absoluteIdx)}
+                                    absoluteIdx={absoluteIdx}
+                                    storageKey={img.storageKey!}
+                                    mimeType={img.mimeType ?? ''}
+                                    alt={img.alt}
+                                    isPrimary={position === 0}
+                                    isSecondary={position === 1}
+                                    position={position + 1}
+                                    register={register}
+                                    onRemove={() => removeImage(absoluteIdx)}
+                                    onSetPrimary={() => handleSetPrimaryImage(colorImages, absoluteIdx)}
+                                    onSetSecondary={() => handleSetSecondaryImage(colorImages, absoluteIdx)}
+                                  />
+                                );
+                              })}
+                            </div>
+                          </SortableContext>
+                        </DndContext>
+                      </>
+                    )}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            );
+          })}
+        </Accordion>
+      )}
     </div>
+
+      {/* ─── ALERT DIALOG DE COHERENCIA ─── */ }
+  <AlertDialog open={deleteConfirm !== null} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle className="text-gray-900">¿Eliminar la última variante de este color?</AlertDialogTitle>
+        <AlertDialogDescription className="text-xs text-gray-500">
+          Estás borrando la última talla disponible para este color, pero el color aún tiene imágenes asociadas en la galería. Para mantener la coherencia de la tienda, elige qué hacer con los medios de este color:
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <div className="flex flex-col gap-2 py-3">
+        {colors
+          .filter(c => c.id !== deleteConfirm?.colorId && activeColorIds.includes(c.id))
+          .map(c => (
+            <Button
+              key={c.id}
+              type="button"
+              variant="outline"
+              onClick={() => handleConfirmDeleteAndReassign(c.id)}
+              className="w-full text-xs justify-start"
+            >
+              <span className="w-3 h-3 rounded-full border mr-2" style={{ backgroundColor: c.hex }} />
+              Reasignar medios al color: <strong className="ml-1">{c.name}</strong>
+            </Button>
+          ))}
+      </div>
+      <AlertDialogFooter>
+        <AlertDialogCancel onClick={() => setDeleteConfirm(null)} className="text-xs">
+          Cancelar
+        </AlertDialogCancel>
+        <Button
+          type="button"
+          variant="destructive"
+          onClick={handleConfirmDeleteAll}
+          className="text-xs"
+        >
+          <Trash2 className="w-4 h-4 mr-1.5" />
+          Eliminar variante y todos sus medios
+        </Button>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
+
+  {/* ─── MODAL DE DETALLE DE ERRORES ─── */ }
+  <Dialog open={errorModalOpen} onOpenChange={setErrorModalOpen}>
+    <DialogContent className="max-w-md">
+      <DialogHeader>
+        <DialogTitle className="flex items-center gap-2 text-red-600">
+          <AlertTriangle className="w-4 h-4" />
+          Campos obligatorios pendientes
+        </DialogTitle>
+        <DialogDescription>
+          Estos son los campos que faltan completar para poder guardar el producto.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="space-y-4">
+        <div className="space-y-1.5">
+          <p className="text-xs font-semibold text-gray-700">Ficha General</p>
+          {errorSummary.general.length > 0 ? (
+            <ul className="list-disc pl-4 text-sm text-red-600 space-y-0.5">
+              {errorSummary.general.map((msg, i) => (
+                <li key={i}>{msg}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-gray-400">Sin errores en esta sección.</p>
+          )}
+        </div>
+        <div className="space-y-1.5">
+          <p className="text-xs font-semibold text-gray-700">Variantes y Medios</p>
+          {errorSummary.variantsMedia.length > 0 ? (
+            <ul className="list-disc pl-4 text-sm text-red-600 space-y-0.5">
+              {errorSummary.variantsMedia.map((msg, i) => (
+                <li key={i}>{msg}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-gray-400">Sin errores en esta sección.</p>
+          )}
+        </div>
+      </div>
+    </DialogContent>
+  </Dialog>
+    </div >
   );
 }
