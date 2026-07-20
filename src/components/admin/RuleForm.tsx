@@ -311,9 +311,10 @@ export function RuleForm({ mode, ruleId, initial, embedded = false, lockedScope,
     }
   }
 
-  const scopeOptions: Record<Exclude<Scope, 'GLOBAL' | 'PRODUCT' | 'SET_GROUP'>, ScopeOption[]> = {
+  const scopeOptions: Record<Exclude<Scope, 'GLOBAL' | 'PRODUCT'>, ScopeOption[]> = {
     BRAND: brands,
     SET: sets,
+    SET_GROUP: [],
   };
   const unavailableScopes = SCOPE_UNAVAILABLE_BY_TYPE[ruleType] ?? [];
 

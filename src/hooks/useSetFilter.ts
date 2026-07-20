@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import type { CorporateSetSummary, SetGroupSummary } from '@/lib/corporate-types';
+import type { CorporateSetSummary } from '@/lib/corporate-types';
 import {
   EMPTY_SET_FILTERS,
   matchesSetFilters,
@@ -21,7 +21,6 @@ export interface SetStyleFilterOption {
 }
 
 export interface SetFilterOptions {
-  groups: SetGroupSummary[];
   /** Nombres de `productTypes` (EAV) presentes entre los sets recibidos — dinámico, sin opción muerta. */
   productTypes: string[];
   brands: string[];
@@ -32,7 +31,7 @@ export interface SetFilterOptions {
 
 const ITEMS_PER_PAGE_DEFAULT = 20;
 
-export function useSetFilter(sets: CorporateSetSummary[], groups: SetGroupSummary[]) {
+export function useSetFilter(sets: CorporateSetSummary[]) {
   const [filters, setFilters] = useState<SetFilterState>(EMPTY_SET_FILTERS);
   const [sortBy, setSortBy] = useState<SetSortOption>('relevance');
   const [itemsPerPage, setItemsPerPageState] = useState<number>(ITEMS_PER_PAGE_DEFAULT);
@@ -60,14 +59,13 @@ export function useSetFilter(sets: CorporateSetSummary[], groups: SetGroupSummar
       values: Array.from(values).sort(),
     }));
     return {
-      groups,
       productTypes: Array.from(productTypes).sort(),
       brands: Array.from(brands).sort(),
       colors: Array.from(colorMap.values()),
       sizes: Array.from(sizes),
       styleOptions,
     };
-  }, [sets, groups]);
+  }, [sets]);
 
   const filteredSets = useMemo(() => {
     const matched = sets.filter((s) => matchesSetFilters(s, filters));
