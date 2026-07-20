@@ -110,7 +110,20 @@ export default function AdminBrandsPage() {
     if (!confirm('¿Estás seguro de eliminar esta marca?')) return;
     try {
       const res = await fetch(`/api/admin/brands/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete');
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        if (res.status === 409 && data?.usage) {
+          const { products, collections, sets } = data.usage as { products: number; collections: number; sets: number };
+          const parts = [
+            products > 0 ? `${products} producto(s)` : null,
+            collections > 0 ? `${collections} colección/es` : null,
+            sets > 0 ? `${sets} set(s) corporativo(s)` : null,
+          ].filter(Boolean);
+          toast.error(`No se puede eliminar: la marca tiene ${parts.join(', ')}. Elimínalos o reasígnalos primero.`);
+          return;
+        }
+        throw new Error('Failed to delete');
+      }
       toast.success('Marca eliminada');
       fetchBrands();
     } catch {

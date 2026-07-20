@@ -38,6 +38,10 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     await deleteBrand(id);
     return NextResponse.json({ success: true });
   } catch (err) {
+    const error = err as Error & { usage?: { products: number; collections: number; sets: number } };
+    if (error.usage) {
+      return NextResponse.json({ error: 'Marca en uso', usage: error.usage }, { status: 409 });
+    }
     const message = err instanceof Error ? err.message : 'Unknown error';
     if (message === 'Unauthorized') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (message === 'Forbidden') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

@@ -874,7 +874,32 @@ export async function updateBrand(id: string, data: Partial<typeof brandsTable.$
   return brand;
 }
 
+/** Error lanzado cuando una marca no se puede borrar porque todavía tiene
+ * productos, colecciones o sets corporativos que la referencian (`brand_id` es
+ * `RESTRICT` en esas tablas — sin este chequeo, Postgres rechaza el `DELETE` y
+ * el error crudo de FK se propaga como 500 sin explicación). */
+export class BrandInUseError extends Error {
+  usage: { products: number; collections: number; sets: number };
+  constructor(usage: { products: number; collections: number; sets: number }) {
+    const parts: string[] = [];
+    if (usage.products > 0) parts.push(`${usage.products} producto(s)`);
+    if (usage.collections > 0) parts.push(`${usage.collections} colección/es`);
+    if (usage.sets > 0) parts.push(`${usage.sets} set(s) corporativo(s)`);
+    super(`Marca en uso por ${parts.join(', ')}`);
+    this.name = 'BrandInUseError';
+    this.usage = usage;
+  }
+}
+
 export async function deleteBrand(id: string) {
+  const [[{ count: productCount }], [{ count: collectionCount }], [{ count: setCount }]] = await Promise.all([
+    db.select({ count: sql<number>`count(*)::int` }).from(productsTable).where(eq(productsTable.brandId, id)),
+    db.select({ count: sql<number>`count(*)::int` }).from(collectionsTable).where(eq(collectionsTable.brandId, id)),
+    db.select({ count: sql<number>`count(*)::int` }).from(corporateSetsTable).where(eq(corporateSetsTable.brandId, id)),
+  ]);
+  const usage = { products: productCount, collections: collectionCount, sets: setCount };
+  if (usage.products > 0 || usage.collections > 0 || usage.sets > 0) throw new BrandInUseError(usage);
+
   await db.delete(brandsTable).where(eq(brandsTable.id, id));
 }
 
