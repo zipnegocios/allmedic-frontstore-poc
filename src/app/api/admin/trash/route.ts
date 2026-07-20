@@ -5,7 +5,7 @@ import { z } from 'zod';
 
 const TrashActionSchema = z.object({
   action: z.enum(['restore', 'delete']),
-  entityType: z.enum(['SET', 'QUOTE']),
+  entityType: z.enum(['SET', 'QUOTE', 'PRODUCT']),
   entityId: z.string().min(1),
 });
 
@@ -38,6 +38,10 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: 'Validation error', details: err.issues }, { status: 400 });
+    }
+    const error = err as Error & { usage?: { count: number; setNames: string[] } };
+    if (error.usage) {
+      return NextResponse.json({ error: 'Producto en uso', usage: error.usage }, { status: 409 });
     }
     const message = err instanceof Error ? err.message : 'Unknown error';
     if (message === 'Unauthorized') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

@@ -27,6 +27,7 @@ import {
 import { eq, and, or, ne, asc, desc, sql, like, inArray, isNull, isNotNull, type SQL } from 'drizzle-orm';
 import { resolveMediaUrl } from './media';
 import { reorganizeProductMedia, reorganizeSetMedia } from './media-reorganize-service';
+import { deleteObject } from '@/lib/r2';
 import type { BusinessRule, RuleConflict } from '@/lib/rules-engine';
 import {
   syncVariantAttributesPayload,
@@ -137,7 +138,9 @@ export async function getAdminProducts(opts: {
     search, brandId, productTypeId, collectionId, gender, visibility, isActive,
     attributeSlug, attributeValue, page = 1, limit = 20,
   } = opts;
-  const conditions: SQL<unknown>[] = [];
+  // Un producto en la Papelera nunca debe reaparecer en `/admin/productos`, sin
+  // importar los demás filtros — mismo criterio que `getAdminSets`.
+  const conditions: SQL<unknown>[] = [isNull(productsTable.deletedAt)];
 
   if (search) {
     conditions.push(or(
@@ -364,9 +367,100 @@ export async function updateProduct(id: string, data: Partial<typeof productsTab
   return product;
 }
 
-export async function deleteProduct(id: string) {
-  // Soft delete
-  await db.update(productsTable).set({ isActive: false }).where(eq(productsTable.id, id));
+/** Error lanzado cuando una operación de borrado de producto se bloquea porque el
+ * producto sigue asociado a uno o más sets corporativos (`set_items`/
+ * `set_color_combo_items`). Expone `.usage` con el detalle para que la API lo
+ * traduzca a 409 y la UI muestre qué sets hay que editar primero. */
+export class ProductInUseError extends Error {
+  usage: { count: number; setNames: string[] };
+  constructor(usage: { count: number; setNames: string[] }) {
+    super(`Producto en uso por ${usage.count} set(s): ${usage.setNames.join(', ')}`);
+    this.name = 'ProductInUseError';
+    this.usage = usage;
+  }
+}
+
+/** Sets corporativos (piezas normales o combos de color) que referencian este
+ * producto — ignora sets ya en su propia papelera, que no deberían bloquear nada. */
+export async function getProductSetUsage(productId: string): Promise<{ count: number; setNames: string[] }> {
+  const [viaItems, viaCombos] = await Promise.all([
+    db
+      .selectDistinct({ setName: corporateSetsTable.name })
+      .from(setItemsTable)
+      .innerJoin(corporateSetsTable, eq(setItemsTable.setId, corporateSetsTable.id))
+      .where(and(eq(setItemsTable.productId, productId), isNull(corporateSetsTable.deletedAt))),
+    db
+      .selectDistinct({ setName: corporateSetsTable.name })
+      .from(setColorComboItemsTable)
+      .innerJoin(setColorCombosTable, eq(setColorComboItemsTable.comboId, setColorCombosTable.id))
+      .innerJoin(corporateSetsTable, eq(setColorCombosTable.setId, corporateSetsTable.id))
+      .where(and(eq(setColorComboItemsTable.productId, productId), isNull(corporateSetsTable.deletedAt))),
+  ]);
+
+  const setNames = Array.from(new Set([...viaItems, ...viaCombos].map((r) => r.setName)));
+  return { count: setNames.length, setNames };
+}
+
+/** Mueve el producto a la Papelera (reversible) — bloqueado si sigue en algún set. */
+export async function softDeleteProduct(id: string) {
+  const usage = await getProductSetUsage(id);
+  if (usage.count > 0) throw new ProductInUseError(usage);
+  await db.update(productsTable).set({ deletedAt: new Date(), isActive: false }).where(eq(productsTable.id, id));
+}
+
+export async function restoreProduct(id: string) {
+  await db.update(productsTable).set({ deletedAt: null, isActive: true }).where(eq(productsTable.id, id));
+}
+
+/**
+ * Borrado permanente (solo desde la Papelera) — bloqueado si sigue en algún set.
+ * Además del producto (y sus variantes/documentos, que cascadean por FK), limpia
+ * sus vínculos de medios (`media_links` tipo PRODUCT) y borra los `media_assets`
+ * subyacentes SOLO si quedan sin ningún otro vínculo tras desasociar este producto
+ * (si el medio se comparte con otra entidad, permanece en la Biblioteca).
+ */
+export async function permanentlyDeleteProduct(id: string) {
+  const usage = await getProductSetUsage(id);
+  if (usage.count > 0) throw new ProductInUseError(usage);
+
+  await db.transaction(async (tx) => {
+    const links = await tx
+      .select({ assetId: mediaLinksTable.assetId })
+      .from(mediaLinksTable)
+      .where(and(eq(mediaLinksTable.entityType, 'PRODUCT'), eq(mediaLinksTable.entityId, id)));
+
+    await tx.delete(mediaLinksTable).where(and(eq(mediaLinksTable.entityType, 'PRODUCT'), eq(mediaLinksTable.entityId, id)));
+
+    const assetIds = Array.from(new Set(links.map((l) => l.assetId)));
+    for (const assetId of assetIds) {
+      const [{ count }] = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(mediaLinksTable)
+        .where(eq(mediaLinksTable.assetId, assetId));
+      if (count === 0) {
+        const [asset] = await tx.select().from(mediaAssetsTable).where(eq(mediaAssetsTable.id, assetId)).limit(1);
+        await tx.delete(mediaAssetsTable).where(eq(mediaAssetsTable.id, assetId));
+        if (asset) await deleteObject(asset.storageKey);
+      }
+    }
+
+    await tx.delete(productsTable).where(eq(productsTable.id, id));
+  });
+}
+
+export async function getTrashedProducts() {
+  return db
+    .select({
+      id: productsTable.id,
+      name: productsTable.name,
+      code: productsTable.code,
+      brandName: brandsTable.name,
+      deletedAt: productsTable.deletedAt,
+    })
+    .from(productsTable)
+    .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
+    .where(isNotNull(productsTable.deletedAt))
+    .orderBy(desc(productsTable.deletedAt));
 }
 
 /**

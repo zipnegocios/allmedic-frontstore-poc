@@ -29,6 +29,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Search, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Package, SlidersHorizontal, Columns3, ImageOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { AdminListCard } from '@/components/admin/AdminListCard';
@@ -162,6 +171,7 @@ export default function AdminProductsPage() {
   const [visibility, setVisibility] = useState('ALL');
   const [activeFilter, setActiveFilter] = useState('ALL'); // 'ALL' | 'true' | 'false'
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [blockedDelete, setBlockedDelete] = useState<{ productName: string; setNames: string[] } | null>(null);
 
   // ─── Columnas visibles (persistidas en localStorage) ───
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => new Set(DEFAULT_VISIBLE_COLUMNS));
@@ -295,12 +305,32 @@ export default function AdminProductsPage() {
     };
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('¿Estás seguro de eliminar este producto?')) return;
+  async function handleDelete(id: string, name: string) {
+    try {
+      const usageRes = await fetch(`/api/admin/products/${id}/set-usage`);
+      if (usageRes.ok) {
+        const usage = await usageRes.json();
+        if (usage.count > 0) {
+          setBlockedDelete({ productName: name, setNames: usage.setNames });
+          return;
+        }
+      }
+    } catch {
+      // Si falla el chequeo previo, seguimos: el servidor igual valida antes de borrar.
+    }
+
+    if (!confirm(`¿Enviar "${name}" a la papelera?`)) return;
     try {
       const res = await fetch(`/api/admin/products/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete');
-      toast.success('Producto eliminado');
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        if (res.status === 409 && data?.usage) {
+          setBlockedDelete({ productName: name, setNames: data.usage.setNames });
+          return;
+        }
+        throw new Error('Failed to delete');
+      }
+      toast.success('Producto enviado a la papelera');
       fetchProducts();
     } catch {
       toast.error('Error al eliminar producto');
@@ -563,7 +593,7 @@ export default function AdminProductsPage() {
                             <Pencil className="w-4 h-4" />
                           </Button>
                         </Link>
-                        <Button size="sm" variant="ghost" onClick={() => handleDelete(product.id)}>
+                        <Button size="sm" variant="ghost" onClick={() => handleDelete(product.id, product.name)}>
                           <Trash2 className="w-4 h-4 text-red-500" />
                         </Button>
                       </div>
@@ -639,7 +669,7 @@ export default function AdminProductsPage() {
                     label: 'Eliminar',
                     icon: <Trash2 className="w-4 h-4" />,
                     variant: 'destructive',
-                    onSelect: () => handleDelete(product.id),
+                    onSelect: () => handleDelete(product.id, product.name),
                   },
                 ]}
               />
@@ -671,6 +701,20 @@ export default function AdminProductsPage() {
           </Button>
         </div>
       )}
+
+      <AlertDialog open={blockedDelete !== null} onOpenChange={(open) => !open && setBlockedDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-gray-900">No se puede eliminar &quot;{blockedDelete?.productName}&quot;</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-gray-600">
+              Este producto está asociado a {blockedDelete?.setNames.length === 1 ? 'un set corporativo' : 'estos sets corporativos'}: {blockedDelete?.setNames.join(', ')}. Quítalo de {blockedDelete?.setNames.length === 1 ? 'ese set' : 'esos sets'} antes de enviarlo a la papelera.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setBlockedDelete(null)}>Entendido</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

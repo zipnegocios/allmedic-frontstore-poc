@@ -29,7 +29,7 @@ import { toast } from 'sonner';
 interface TrashedItem {
   id: string;
   name: string;
-  entityType: 'SET' | 'QUOTE';
+  entityType: 'SET' | 'QUOTE' | 'PRODUCT';
   deletedAt: string;
   details: string;
 }
@@ -94,7 +94,14 @@ export default function TrashPage() {
           entityId: id,
         }),
       });
-      if (!res.ok) throw new Error('Failed to delete');
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        if (res.status === 409 && data?.usage?.setNames) {
+          toast.error(`No se puede eliminar: sigue en ${data.usage.setNames.join(', ')}. Quítalo del set primero.`);
+          return;
+        }
+        throw new Error('Failed to delete');
+      }
       toast.success(`${name} eliminado definitivamente`);
       fetchTrash();
       setDeleteTarget(null);
@@ -168,7 +175,7 @@ export default function TrashPage() {
                   <TableRow key={item.id} className="hover:bg-gray-50 transition-colors">
                     <TableCell>
                       <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200">
-                        {item.entityType === 'SET' ? 'Set Corporativo' : item.entityType === 'QUOTE' ? 'Cotización' : item.entityType}
+                        {item.entityType === 'SET' ? 'Set Corporativo' : item.entityType === 'QUOTE' ? 'Cotización' : item.entityType === 'PRODUCT' ? 'Producto' : item.entityType}
                       </Badge>
                     </TableCell>
                     <TableCell className="font-medium text-gray-900">{item.name}</TableCell>
@@ -231,15 +238,33 @@ export default function TrashPage() {
               <div>
                 {deleteTarget?.entityType === 'SET' ? (
                   <p>
-                    Esta acción es <span className="font-semibold text-gray-950">irreversible</span>. 
-                    Se borrará definitivamente el set <span className="font-semibold text-gray-950">"{deleteTarget.name}"</span>, 
+                    Esta acción es <span className="font-semibold text-gray-950">irreversible</span>.
+                    Se borrará definitivamente el set <span className="font-semibold text-gray-950">"{deleteTarget.name}"</span>,
                     sus imágenes vinculadas y sus reglas de negocio asociadas. Las cotizaciones que lo referencien mantendrán su snapshot pero desvinculadas.
                   </p>
+                ) : deleteTarget?.entityType === 'PRODUCT' ? (
+                  <div className="space-y-3">
+                    <p>
+                      Esta acción es <span className="font-semibold text-gray-950">irreversible</span>.
+                      Se borrará definitivamente el producto <span className="font-semibold text-gray-950">"{deleteTarget.name}"</span>,
+                      sus variantes y sus imágenes — salvo que alguna imagen también esté vinculada a otro producto, set, marca o banner, en cuyo caso permanecerá en la Biblioteca. Las cotizaciones que lo referencien mantendrán su snapshot pero desvinculadas.
+                    </p>
+                    <p>
+                      Para confirmar esta acción, escribe la palabra de seguridad{' '}
+                      <span className="font-bold text-gray-950">ELIMINAR</span> a continuación:
+                    </p>
+                    <Input
+                      placeholder="Escribe ELIMINAR"
+                      value={securityInput}
+                      onChange={(e) => setSecurityInput(e.target.value)}
+                      className="mt-1 h-10 border-gray-250 focus-visible:ring-[#111111]"
+                    />
+                  </div>
                 ) : (
                   <div className="space-y-3">
                     <p>
-                      Esta acción es <span className="font-semibold text-gray-950">irreversible</span>. 
-                      Se borrarán definitivamente los registros de la cotización <span className="font-semibold text-gray-950">"{deleteTarget?.name}"</span>, 
+                      Esta acción es <span className="font-semibold text-gray-950">irreversible</span>.
+                      Se borrarán definitivamente los registros de la cotización <span className="font-semibold text-gray-950">"{deleteTarget?.name}"</span>,
                       sus partidas, sus documentos adjuntos y el archivo PDF de Cloudflare R2.
                     </p>
                     <p>
@@ -266,7 +291,7 @@ export default function TrashPage() {
                   handlePermanentDelete(deleteTarget.id, deleteTarget.entityType, deleteTarget.name);
                 }
               }}
-              disabled={actionInProgress !== null || (deleteTarget?.entityType === 'QUOTE' && securityInput !== 'ELIMINAR')}
+              disabled={actionInProgress !== null || (deleteTarget?.entityType !== 'SET' && securityInput !== 'ELIMINAR')}
               className="bg-red-600 hover:bg-red-700 text-white rounded-lg"
             >
               Confirmar eliminación

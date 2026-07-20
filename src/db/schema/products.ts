@@ -178,12 +178,16 @@ export const products = pgTable("products", {
   crossSellId: pgUuid("cross_sell_id"),
   features: jsonb("features"),
   careInstructions: jsonb("care_instructions"),
+  // Papelera (mismo patrón que `corporate_sets`/`quotes`): no nulo = producto en
+  // papelera, oculto de `/admin/productos` y del storefront (ver `softDeleteProduct`).
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 }, (table) => [
   index("idx_products_brand").on(table.brandId),
   index("idx_products_gender").on(table.gender),
   index("idx_products_active").on(table.isActive),
+  index("idx_products_deleted").on(table.deletedAt),
 ]);
 
 export const productsRelations = relations(products, ({ one, many }) => ({

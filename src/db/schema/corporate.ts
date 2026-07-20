@@ -277,8 +277,11 @@ export const quoteItems = pgTable("quote_items", {
   quoteId: pgUuid("quote_id").notNull().references(() => quotes.id, { onDelete: "cascade" }),
   // Kind: CATALOG | FREE
   kind: text("kind").notNull(),
-  productId: pgUuid("product_id").references(() => products.id),
-  variantId: pgUuid("variant_id").references(() => productVariants.id),
+  // `set null` (no `restrict`): una cotización histórica no debe bloquear el borrado
+  // permanente de un producto/variante ya descontinuado — las líneas ya están
+  // desnormalizadas (`description`, `unitPrice`, etc.), mismo criterio que `setId`.
+  productId: pgUuid("product_id").references(() => products.id, { onDelete: "set null" }),
+  variantId: pgUuid("variant_id").references(() => productVariants.id, { onDelete: "set null" }),
   setId: pgUuid("set_id").references(() => corporateSets.id, { onDelete: "set null" }),
   size: text("size"),
   color: text("color"),

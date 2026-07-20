@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
-import { getAdminProductById, updateProductWithRelations, deleteProduct } from '@/lib/admin-data-service';
+import { getAdminProductById, updateProductWithRelations, softDeleteProduct } from '@/lib/admin-data-service';
 import { z } from 'zod';
 
 const VariantSchema = z.object({
@@ -101,9 +101,13 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   try {
     await requireAdmin();
     const { id } = await params;
-    await deleteProduct(id);
+    await softDeleteProduct(id);
     return NextResponse.json({ success: true });
   } catch (err) {
+    const error = err as Error & { usage?: { count: number; setNames: string[] } };
+    if (error.usage) {
+      return NextResponse.json({ error: 'Producto en uso', usage: error.usage }, { status: 409 });
+    }
     const message = err instanceof Error ? err.message : 'Unknown error';
     if (message === 'Unauthorized') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (message === 'Forbidden') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
