@@ -385,12 +385,17 @@ export async function createMediaTag(name: string, slug: string) {
 
 export interface LibraryTreeColor {
   id: string;
-  name: string;
+  /** Código universal del color (ej. "WIN", "BLK") — coincide con la
+   * subcarpeta física real en R2 (`products/{codigo}/{codigo-color}/`). */
+  code: string;
 }
 
 export interface LibraryTreeProduct {
   id: string;
   name: string;
+  /** Código de estilo (ej. "CK4700") — coincide con la carpeta física real en
+   * R2 (`products/{codigo}/...`); es el label mostrado en el árbol. */
+  code: string;
   colors: LibraryTreeColor[];
 }
 
@@ -413,23 +418,23 @@ export async function getMediaLibraryTree(): Promise<LibraryTreeBrand[]> {
     db.select({ id: brandsTable.id, name: brandsTable.name }).from(brandsTable).orderBy(asc(brandsTable.sortOrder), asc(brandsTable.name)),
     db.select({ id: collectionsTable.id, name: collectionsTable.name, brandId: collectionsTable.brandId })
       .from(collectionsTable).orderBy(asc(collectionsTable.sortOrder), asc(collectionsTable.name)),
-    db.select({ id: productsTable.id, name: productsTable.name, brandId: productsTable.brandId, collectionId: productsTable.collectionId })
-      .from(productsTable).orderBy(asc(productsTable.name)),
-    db.selectDistinct({ productId: variantsTable.productId, colorId: variantsTable.colorId, colorName: colorsTable.name })
+    db.select({ id: productsTable.id, name: productsTable.name, code: productsTable.code, brandId: productsTable.brandId, collectionId: productsTable.collectionId })
+      .from(productsTable).orderBy(asc(productsTable.code)),
+    db.selectDistinct({ productId: variantsTable.productId, colorId: variantsTable.colorId, colorCode: colorsTable.code })
       .from(variantsTable)
       .innerJoin(colorsTable, eq(variantsTable.colorId, colorsTable.id))
-      .orderBy(asc(colorsTable.name)),
+      .orderBy(asc(colorsTable.code)),
   ]);
 
   const colorsByProduct = new Map<string, LibraryTreeColor[]>();
   for (const row of colorRows) {
     const list = colorsByProduct.get(row.productId) ?? [];
-    list.push({ id: row.colorId, name: row.colorName });
+    list.push({ id: row.colorId, code: row.colorCode });
     colorsByProduct.set(row.productId, list);
   }
 
-  function toTreeProduct(p: { id: string; name: string }): LibraryTreeProduct {
-    return { id: p.id, name: p.name, colors: colorsByProduct.get(p.id) ?? [] };
+  function toTreeProduct(p: { id: string; name: string; code: string }): LibraryTreeProduct {
+    return { id: p.id, name: p.name, code: p.code, colors: colorsByProduct.get(p.id) ?? [] };
   }
 
   const productsByCollection = new Map<string, LibraryTreeProduct[]>();

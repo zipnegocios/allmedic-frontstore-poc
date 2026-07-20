@@ -10,7 +10,7 @@ import {
 } from '@/db/schema';
 import { eq, and, ne, inArray } from 'drizzle-orm';
 import { deleteObject, copyObject } from '@/lib/r2';
-import { buildProductMediaKey, buildSetMediaKey, fileNameFromStorageKey, COVER_SEGMENT } from '@/lib/media';
+import { buildProductMediaKey, buildSetMediaKey, fileNameFromStorageKey, COVER_SEGMENT, NO_COLOR_SEGMENT } from '@/lib/media';
 
 async function writeAudit(assetId: string, action: string, payload: Record<string, unknown>, userId?: string) {
   await db.insert(mediaAuditTable).values({ assetId, action, payload, userId });
@@ -36,6 +36,7 @@ async function ensureUniqueKey(candidateKey: string, assetId: string): Promise<s
 export interface ReorganizeResult {
   moved: Array<{ assetId: string; oldKey: string; newKey: string }>;
   skippedReused: number;
+  failed: Array<{ assetId: string; error: string }>;
 }
 
 /**
@@ -50,6 +51,8 @@ export async function reorganizeProductMedia(productId: string, userId?: string)
   const [product] = await db.select({ code: productsTable.code }).from(productsTable).where(eq(productsTable.id, productId));
   if (!product) throw new Error('Producto no encontrado');
 
+  // Colores "activos" (con variante actual en este producto) — primera fuente,
+  // igual que antes.
   const colorRows = await db
     .selectDistinct({ colorId: variantsTable.colorId, code: colorsTable.code })
     .from(variantsTable)
@@ -68,7 +71,23 @@ export async function reorganizeProductMedia(productId: string, userId?: string)
     .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
     .where(and(eq(mediaLinksTable.entityType, 'PRODUCT'), eq(mediaLinksTable.entityId, productId)));
 
-  if (links.length === 0) return { moved: [], skippedReused: 0 };
+  if (links.length === 0) return { moved: [], skippedReused: 0, failed: [] };
+
+  // Color "huérfano": un vínculo de galería puede apuntar a un `colorId` que ya
+  // no tiene ninguna variante activa en este producto (la variante se borró,
+  // pero el vínculo de la imagen conservó el color) — el color sigue siendo
+  // válido en la tabla `colors`, así que se resuelve ahí como respaldo en vez
+  // de dejarlo sin reorganizar para siempre.
+  const unresolvedColorIds = [...new Set(
+    links.map((l) => l.colorId).filter((id): id is string => Boolean(id) && !colorCodeById.has(id!))
+  )];
+  if (unresolvedColorIds.length > 0) {
+    const orphanColorRows = await db
+      .select({ id: colorsTable.id, code: colorsTable.code })
+      .from(colorsTable)
+      .where(inArray(colorsTable.id, unresolvedColorIds));
+    for (const c of orphanColorRows) colorCodeById.set(c.id, c.code);
+  }
 
   const assetIds = [...new Set(links.map((l) => l.assetId))];
   const externalLinkRows = await db
@@ -78,6 +97,7 @@ export async function reorganizeProductMedia(productId: string, userId?: string)
   const reusedElsewhere = new Set(externalLinkRows.map((r) => r.assetId));
 
   const moved: ReorganizeResult['moved'] = [];
+  const failed: ReorganizeResult['failed'] = [];
   let skippedReused = 0;
   const seenAssetIds = new Set<string>();
 
@@ -91,26 +111,33 @@ export async function reorganizeProductMedia(productId: string, userId?: string)
     }
 
     const isCover = link.role === 'COVER' || link.role === 'COVER_SECONDARY';
+    // Galería sin color (patrón legacy soportado por `VariantsMediaSection`) va
+    // a una subcarpeta fija en vez de quedar sin reorganizar.
     const colorCode = link.colorId ? colorCodeById.get(link.colorId) : undefined;
-    if (!isCover && !colorCode) continue; // vínculo de galería sin color resoluble (dato inconsistente) — no se mueve
+    const segment = isCover ? COVER_SEGMENT : (colorCode ?? NO_COLOR_SEGMENT);
 
-    const segment = isCover ? COVER_SEGMENT : colorCode!;
-    const fileName = fileNameFromStorageKey(link.storageKey);
-    let targetKey = buildProductMediaKey(product.code, segment, fileName);
-    if (targetKey === link.storageKey) continue; // ya está en su lugar
+    try {
+      const fileName = fileNameFromStorageKey(link.storageKey);
+      let targetKey = buildProductMediaKey(product.code, segment, fileName);
+      if (targetKey === link.storageKey) continue; // ya está en su lugar
 
-    targetKey = await ensureUniqueKey(targetKey, link.assetId);
-    if (targetKey === link.storageKey) continue;
+      targetKey = await ensureUniqueKey(targetKey, link.assetId);
+      if (targetKey === link.storageKey) continue;
 
-    await copyObject(link.storageKey, targetKey);
-    await db.update(mediaAssetsTable).set({ storageKey: targetKey, updatedAt: new Date() }).where(eq(mediaAssetsTable.id, link.assetId));
-    await deleteObject(link.storageKey);
-    await writeAudit(link.assetId, 'RENAME', { oldKey: link.storageKey, newKey: targetKey, reason: 'reorganize-product-media' }, userId);
+      await copyObject(link.storageKey, targetKey);
+      await db.update(mediaAssetsTable).set({ storageKey: targetKey, updatedAt: new Date() }).where(eq(mediaAssetsTable.id, link.assetId));
+      await deleteObject(link.storageKey);
+      await writeAudit(link.assetId, 'RENAME', { oldKey: link.storageKey, newKey: targetKey, reason: 'reorganize-product-media' }, userId);
 
-    moved.push({ assetId: link.assetId, oldKey: link.storageKey, newKey: targetKey });
+      moved.push({ assetId: link.assetId, oldKey: link.storageKey, newKey: targetKey });
+    } catch (err) {
+      // Un asset problemático (ej. ya no existe en R2) no debe abortar la
+      // reorganización del resto del producto.
+      failed.push({ assetId: link.assetId, error: err instanceof Error ? err.message : String(err) });
+    }
   }
 
-  return { moved, skippedReused };
+  return { moved, skippedReused, failed };
 }
 
 /**
@@ -131,7 +158,7 @@ export async function reorganizeSetMedia(setId: string, userId?: string): Promis
     .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
     .where(and(eq(mediaLinksTable.entityType, 'SET'), eq(mediaLinksTable.entityId, setId), eq(mediaLinksTable.role, 'COVER')));
 
-  if (links.length === 0) return { moved: [], skippedReused: 0 };
+  if (links.length === 0) return { moved: [], skippedReused: 0, failed: [] };
 
   const assetIds = links.map((l) => l.assetId);
   const externalLinkRows = await db
@@ -141,6 +168,7 @@ export async function reorganizeSetMedia(setId: string, userId?: string): Promis
   const reusedElsewhere = new Set(externalLinkRows.map((r) => r.assetId));
 
   const moved: ReorganizeResult['moved'] = [];
+  const failed: ReorganizeResult['failed'] = [];
   let skippedReused = 0;
 
   for (const link of links) {
@@ -149,20 +177,24 @@ export async function reorganizeSetMedia(setId: string, userId?: string): Promis
       continue;
     }
 
-    const fileName = fileNameFromStorageKey(link.storageKey);
-    let targetKey = buildSetMediaKey(set.slug, fileName);
-    if (targetKey === link.storageKey) continue;
+    try {
+      const fileName = fileNameFromStorageKey(link.storageKey);
+      let targetKey = buildSetMediaKey(set.slug, fileName);
+      if (targetKey === link.storageKey) continue;
 
-    targetKey = await ensureUniqueKey(targetKey, link.assetId);
-    if (targetKey === link.storageKey) continue;
+      targetKey = await ensureUniqueKey(targetKey, link.assetId);
+      if (targetKey === link.storageKey) continue;
 
-    await copyObject(link.storageKey, targetKey);
-    await db.update(mediaAssetsTable).set({ storageKey: targetKey, updatedAt: new Date() }).where(eq(mediaAssetsTable.id, link.assetId));
-    await deleteObject(link.storageKey);
-    await writeAudit(link.assetId, 'RENAME', { oldKey: link.storageKey, newKey: targetKey, reason: 'reorganize-set-media' }, userId);
+      await copyObject(link.storageKey, targetKey);
+      await db.update(mediaAssetsTable).set({ storageKey: targetKey, updatedAt: new Date() }).where(eq(mediaAssetsTable.id, link.assetId));
+      await deleteObject(link.storageKey);
+      await writeAudit(link.assetId, 'RENAME', { oldKey: link.storageKey, newKey: targetKey, reason: 'reorganize-set-media' }, userId);
 
-    moved.push({ assetId: link.assetId, oldKey: link.storageKey, newKey: targetKey });
+      moved.push({ assetId: link.assetId, oldKey: link.storageKey, newKey: targetKey });
+    } catch (err) {
+      failed.push({ assetId: link.assetId, error: err instanceof Error ? err.message : String(err) });
+    }
   }
 
-  return { moved, skippedReused };
+  return { moved, skippedReused, failed };
 }

@@ -81,6 +81,12 @@ export function sanitizeCodeSegment(input: string): string {
  * (producto o set) — compartido entre ambas, no exclusivo de productos. */
 export const COVER_SEGMENT = "portada";
 
+/** Segmento fijo para imágenes de galería sin color asignado (patrón legacy,
+ * soportado explícitamente por `VariantsMediaSection`) — sin esto, esas
+ * imágenes no tienen ninguna subcarpeta de color válida a la que mudarse y
+ * quedarían para siempre sin reorganizar. */
+export const NO_COLOR_SEGMENT = "sin-color";
+
 function buildFolderMediaKey(folder: MediaFolder, mainSegment: string, subSegment: string, fileName: string): string {
   const prefix = FOLDER_PREFIXES[folder];
   const mainSeg = sanitizeCodeSegment(mainSegment);

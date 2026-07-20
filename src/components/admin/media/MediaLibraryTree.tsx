@@ -14,12 +14,13 @@ export interface LibraryTreeNode {
 
 interface TreeColor {
   id: string;
-  name: string;
+  code: string;
 }
 
 interface TreeProduct {
   id: string;
   name: string;
+  code: string;
   colors: TreeColor[];
 }
 
@@ -66,7 +67,7 @@ export function MediaLibraryTree({ selected, onSelect }: MediaLibraryTreeProps) 
     return selected?.type === node.type && selected?.id === node.id && selected?.productId === node.productId;
   }
 
-  function NodeButton({ node, icon, indent }: { node: LibraryTreeNode; icon: React.ReactNode; indent: number }) {
+  function NodeButton({ node, icon, indent, sublabel }: { node: LibraryTreeNode; icon: React.ReactNode; indent: number; sublabel?: string }) {
     return (
       <button
         type="button"
@@ -78,7 +79,14 @@ export function MediaLibraryTree({ selected, onSelect }: MediaLibraryTreeProps) 
         )}
       >
         {icon}
-        <span className="truncate">{node.label}</span>
+        <span className="truncate min-w-0">
+          <span className="font-mono">{node.label}</span>
+          {sublabel && (
+            <span className={cn('ml-1.5 font-normal', isSelected(node) ? 'text-white/70' : 'text-gray-400')}>
+              {sublabel}
+            </span>
+          )}
+        </span>
       </button>
     );
   }
@@ -100,16 +108,17 @@ export function MediaLibraryTree({ selected, onSelect }: MediaLibraryTreeProps) 
           )}
           <div className="flex-1">
             <NodeButton
-              node={{ type: 'product', id: product.id, label: product.name }}
+              node={{ type: 'product', id: product.id, label: product.code }}
               icon={<Package className="w-3.5 h-3.5 flex-shrink-0" />}
               indent={product.colors.length > 0 ? indent - 0.5 : indent}
+              sublabel={product.name}
             />
           </div>
         </div>
         {expanded && product.colors.map((c) => (
           <NodeButton
             key={c.id}
-            node={{ type: 'color', id: c.id, productId: product.id, label: c.name }}
+            node={{ type: 'color', id: c.id, productId: product.id, label: c.code }}
             icon={<Palette className="w-3.5 h-3.5 flex-shrink-0" />}
             indent={indent + 1}
           />

@@ -33,6 +33,7 @@ import {
   type ProductTypeOption,
 } from '@/components/admin/product-form/schema';
 import { buildValidationSummary } from '@/components/admin/product-form/validation-summary';
+import { mapProductDetailToFormData } from '@/components/admin/product-form/map-product-to-form';
 import {
   PRODUCT_FORM_WIZARD_STEPS,
   getStepProgressLabel,
@@ -208,75 +209,7 @@ export default function ProductForm({
           return res.json();
         })
         .then((product) => {
-          reset({
-            slug: product.slug,
-            name: product.name,
-            description: product.description || '',
-            sku: product.sku || '',
-            brandId: product.brandId,
-            collectionId: product.collectionId || '',
-            code: product.code || '',
-            productTypeId: product.productTypeId || '',
-            styleAttributes: {},
-            gender: product.gender,
-            priceNormal: product.priceNormal,
-            priceSale: product.priceSale || '',
-            discountPct: product.discountPct || undefined,
-            discountEnd: product.discountEnd
-              ? new Date(product.discountEnd).toISOString().slice(0, 16)
-              : '',
-            priceWholesale: product.priceWholesale || '',
-            priceWholesaleSale: product.priceWholesaleSale || '',
-            wholesaleDiscountEnd: product.wholesaleDiscountEnd
-              ? new Date(product.wholesaleDiscountEnd).toISOString().slice(0, 16)
-              : '',
-            visibility: (product.visibility as 'INDIVIDUAL' | 'GROUPS' | 'BOTH') || 'INDIVIDUAL',
-            coverSource: (product.coverSource as 'CUSTOM' | 'FIRST_VARIANT') || 'CUSTOM',
-            isNew: product.isNew ?? false,
-            isBestSeller: product.isBestSeller ?? false,
-            isActive: product.isActive ?? true,
-            features: (product.features as string[]) || [],
-            careInstructions: (product.careInstructions as string[]) || [],
-            crossSellId: product.crossSellId || '',
-            variants: product.variants.map((v: any) => ({
-              id: v.id,
-              colorId: v.colorId,
-              size: v.size,
-              sku: v.sku || '',
-              status: v.status,
-              attributeValueIds: (v.attributeValueIds as string[]) || [],
-            })),
-            images: product.images.map((i: any) => ({
-              id: i.id,
-              assetId: i.assetId,
-              colorId: i.colorId || '',
-              url: i.url,
-              storageKey: i.storageKey,
-              mimeType: i.mimeType,
-              alt: i.alt || '',
-              sortOrder: i.sortOrder ?? 0,
-            })),
-            cover: product.cover
-              ? {
-                  id: product.cover.id,
-                  assetId: product.cover.assetId,
-                  url: product.cover.url,
-                  storageKey: product.cover.storageKey,
-                  mimeType: product.cover.mimeType,
-                  alt: product.cover.alt || '',
-                }
-              : { assetId: '', url: '', storageKey: '', mimeType: '', alt: '' },
-            secondaryCover: product.secondaryCover
-              ? {
-                  id: product.secondaryCover.id,
-                  assetId: product.secondaryCover.assetId,
-                  url: product.secondaryCover.url,
-                  storageKey: product.secondaryCover.storageKey,
-                  mimeType: product.secondaryCover.mimeType,
-                  alt: product.secondaryCover.alt || '',
-                }
-              : { assetId: '', url: '', storageKey: '', mimeType: '', alt: '' },
-          });
+          reset(mapProductDetailToFormData(product));
         })
         .catch((err) => {
           toast.error(err instanceof Error ? err.message : 'Error al cargar detalles');

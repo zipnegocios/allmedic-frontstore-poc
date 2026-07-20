@@ -534,7 +534,10 @@ export async function createProductWithRelations(input: ProductWithRelationsInpu
   await recalculateVariantPayloadsForProduct(product.id);
 
   try {
-    await reorganizeProductMedia(product.id);
+    const result = await reorganizeProductMedia(product.id);
+    if (result.failed.length > 0) {
+      console.error(`[reorganizeProductMedia] ${result.failed.length} asset(s) fallaron para producto ${product.id}:`, result.failed);
+    }
   } catch (err) {
     console.error(`[reorganizeProductMedia] Falló para producto ${product.id}:`, err);
   }
@@ -677,7 +680,10 @@ export async function updateProductWithRelations(
   // No bloquea el guardado si falla — el producto ya quedó persistido correctamente
   // y la reorganización es idempotente, se reintentará en el próximo guardado.
   try {
-    await reorganizeProductMedia(id);
+    const result = await reorganizeProductMedia(id);
+    if (result.failed.length > 0) {
+      console.error(`[reorganizeProductMedia] ${result.failed.length} asset(s) fallaron para producto ${id}:`, result.failed);
+    }
   } catch (err) {
     console.error(`[reorganizeProductMedia] Falló para producto ${id}:`, err);
   }
@@ -1132,7 +1138,10 @@ export async function createSetWithItems(input: CorporateSetInput) {
 
   if (coverAssetId) await replaceSingleLink('SET', set.id, 'COVER', coverAssetId, coverAlt);
   try {
-    await reorganizeSetMedia(set.id);
+    const result = await reorganizeSetMedia(set.id);
+    if (result.failed.length > 0) {
+      console.error(`[reorganizeSetMedia] ${result.failed.length} asset(s) fallaron para set ${set.id}:`, result.failed);
+    }
   } catch (err) {
     console.error(`[reorganizeSetMedia] Falló para set ${set.id}:`, err);
   }
@@ -1172,7 +1181,10 @@ export async function updateSetWithItems(id: string, input: Partial<CorporateSet
 
   if (coverAssetId !== undefined) await replaceSingleLink('SET', id, 'COVER', coverAssetId, coverAlt);
   try {
-    await reorganizeSetMedia(id);
+    const result = await reorganizeSetMedia(id);
+    if (result.failed.length > 0) {
+      console.error(`[reorganizeSetMedia] ${result.failed.length} asset(s) fallaron para set ${id}:`, result.failed);
+    }
   } catch (err) {
     console.error(`[reorganizeSetMedia] Falló para set ${id}:`, err);
   }
