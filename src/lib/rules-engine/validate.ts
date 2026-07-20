@@ -8,7 +8,7 @@ import type {
   ValidationResult,
   ValidationViolation,
 } from "./types";
-import { resolveRules, resolveContextualRule } from "./resolve";
+import { resolveRules, resolveContextualRule, isRuleActive } from "./resolve";
 
 function pluralSets(n: number): string {
   return n === 1 ? "set" : "sets";
@@ -103,6 +103,14 @@ export function validateCorporateCart(
 
     const label = item.setName ?? item.setId;
 
+    // COLOR_PAIRING — chequeo defensivo (espejo del que ya hace el armador en el cliente):
+    // si el set tiene una regla COLOR_PAIRING activa de su propio ámbito SET, todas las piezas
+    // de cada combinación deben compartir un único color. Existencia simple, no jerarquía —
+    // no pasa por resolveRules porque este tipo no participa de ResolvedRules.
+    const hasColorPairing = allRules.some(
+      (r) => r.ruleType === "COLOR_PAIRING" && r.scope === "SET" && r.scopeId === item.setId && isRuleActive(r, now)
+    );
+
     if (item.lines.length === 0) {
       violations.push({
         code: "EMPTY_SET",
@@ -159,6 +167,20 @@ export function validateCorporateCart(
           violations.push({
             code: "QUANTITY_RANGE",
             message: `La cantidad para "${label}" debe estar ${rangeText}.`,
+            setId: item.setId,
+          });
+        }
+      }
+
+      // COLOR_PAIRING — todas las piezas de la combinación deben compartir un único color.
+      if (hasColorPairing) {
+        const distinctColors = new Set(
+          (line.pieceSelections ?? []).map((sel) => sel.color).filter((c): c is string => Boolean(c))
+        );
+        if (distinctColors.size > 1) {
+          violations.push({
+            code: "COLOR_PAIRING_MISMATCH",
+            message: `Todas las piezas de "${label}" deben llevar el mismo color en esta combinación.`,
             setId: item.setId,
           });
         }

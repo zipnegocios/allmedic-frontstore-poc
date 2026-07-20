@@ -55,6 +55,14 @@ export async function POST(request: NextRequest) {
   try {
     await requireAdmin();
     const body = CreateRuleSchema.parse(await request.json());
+
+    if (body.ruleType === 'COLOR_PAIRING') {
+      return NextResponse.json(
+        { error: 'COLOR_PAIRING es una regla gestionada por el sistema — no se puede crear manualmente. Se activa/desactiva sola según el modo de color del set.' },
+        { status: 403 }
+      );
+    }
+
     const config = validateRuleConfig(body.ruleType, body.config);
 
     // Doble validación en servidor (regla de oro del proyecto): un ERROR de conflicto

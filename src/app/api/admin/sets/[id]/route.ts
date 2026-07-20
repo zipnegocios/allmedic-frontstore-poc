@@ -17,6 +17,7 @@ const UpdateSetSchema = z.object({
   coverAlt: z.string().optional(),
   setGroupId: z.string().optional().nullable(),
   brandId: z.string().optional().nullable(),
+  colorMode: z.enum(['PAIRED', 'MIXED']).optional(),
   isActive: z.boolean().optional(),
   isFeatured: z.boolean().optional(),
   sortOrder: z.number().optional(),

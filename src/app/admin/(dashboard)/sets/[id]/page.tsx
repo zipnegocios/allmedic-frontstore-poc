@@ -23,6 +23,7 @@ export default async function EditSetPage({ params }: EditSetPageProps) {
     coverAlt: set.cover?.alt || '',
     setGroupId: set.setGroupId || '',
     brandId: set.brandId || '',
+    colorMode: set.colorMode as 'PAIRED' | 'MIXED',
     isActive: set.isActive ?? true,
     isFeatured: set.isFeatured ?? false,
     priceManual: set.priceManual ?? '',

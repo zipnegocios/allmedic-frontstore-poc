@@ -23,7 +23,7 @@ interface SetDetailContentProps {
   colorRestrictions: ColorRestrictionConfig[];
 }
 
-type PieceSelection = { size?: string; color?: string };
+type PieceSelection = { size?: string };
 type PieceSelectionMap = Record<string, PieceSelection>;
 
 interface CombinationRow {
@@ -45,6 +45,8 @@ export function SetDetailContent({
 }: SetDetailContentProps) {
   const { addLine } = useCorporateCart();
   const showsSizes = sizeMode !== 'NO_SIZES';
+  const isPaired = set.colorMode === 'PAIRED';
+  const isMixed = set.colorMode === 'MIXED';
 
   // ── Tallas comunes a todas las piezas — solo se usan para el atajo de MATRIX ──
   const commonSizes = useMemo(() => {
@@ -53,7 +55,23 @@ export function SetDetailContent({
     return first.availableSizes.filter((size) => rest.every((p) => p.availableSizes.includes(size)));
   }, [set.pieces]);
 
+  // PAIRED: colores presentes en TODAS las piezas (con al menos una variante no agotada) — el
+  // resto de colores no tienen paridad completa y no se ofrecen, tal como exige la regla.
+  const pairedColorOptions = useMemo(() => {
+    if (!isPaired || set.pieces.length === 0) return [];
+    const [first, ...rest] = set.pieces;
+    return first.colors.filter((c) =>
+      rest.every((p) => p.colors.some((pc) => pc.code === c.code)) &&
+      set.pieces.every((p) => {
+        const match = p.colors.find((pc) => pc.code === c.code);
+        return match && p.variants.some((v) => v.colorId === match.id && v.status !== 'OUT_OF_STOCK');
+      })
+    );
+  }, [isPaired, set.pieces]);
+
   const [selections, setSelections] = useState<PieceSelectionMap>({});
+  const [pairedColor, setPairedColor] = useState<string | undefined>(undefined);
+  const [selectedComboId, setSelectedComboId] = useState<string | undefined>(undefined);
   const [quantity, setQuantity] = useState<number>(Math.max(1, minQuantity));
   const [rows, setRows] = useState<CombinationRow[]>([]);
 
@@ -73,14 +91,6 @@ export function SetDetailContent({
     pieces: set.pieces.map((p) => ({ productId: p.productId, productName: p.productName, quantityPerSet: p.quantityPerSet })),
   };
 
-  function setPieceColor(productId: string, color: ProductColor) {
-    setSelections((prev) => {
-      const current = prev[productId] ?? {};
-      const next = current.color === color.code ? undefined : color.code;
-      return { ...prev, [productId]: { ...current, color: next } };
-    });
-  }
-
   function setPieceSize(productId: string, size: string) {
     setSelections((prev) => ({ ...prev, [productId]: { ...prev[productId], size } }));
   }
@@ -95,8 +105,19 @@ export function SetDetailContent({
     });
   }
 
+  /** Color efectivo de una pieza según la modalidad del set — PAIRED comparte un único color
+   * entre todas las piezas; MIXED lo toma de la combinación curada elegida. */
+  function colorForPiece(productId: string): string | undefined {
+    if (isPaired) return pairedColor;
+    if (isMixed) {
+      const combo = set.colorCombos.find((c) => c.id === selectedComboId);
+      return combo?.items.find((i) => i.productId === productId)?.colorCode;
+    }
+    return undefined;
+  }
+
   function pieceColorImage(piece: SetPiece): MediaItem | undefined {
-    const colorCode = selections[piece.productId]?.color;
+    const colorCode = colorForPiece(piece.productId);
     if (!colorCode) return undefined;
     const color = piece.colors.find((c) => c.code === colorCode);
     if (!color) return undefined;
@@ -105,7 +126,7 @@ export function SetDetailContent({
   }
 
   function sizeStatusesFor(piece: SetPiece) {
-    const colorCode = selections[piece.productId]?.color;
+    const colorCode = colorForPiece(piece.productId);
     const color = colorCode ? piece.colors.find((c) => c.code === colorCode) : undefined;
     const relevantVariants = color ? piece.variants.filter((v) => v.colorId === color.id) : piece.variants;
     const statuses: Partial<Record<Size, 'AVAILABLE' | 'BACKORDER' | 'OUT_OF_STOCK'>> = {};
@@ -121,13 +142,21 @@ export function SetDetailContent({
     return set.pieces.map((p) => ({
       productId: p.productId,
       size: selections[p.productId]?.size,
-      color: selections[p.productId]?.color,
+      color: colorForPiece(p.productId),
     }));
   }
 
   function handleAddCombination() {
     if (quantity <= 0) {
       toast.error('Ingresa una cantidad válida.');
+      return;
+    }
+    if (isPaired && pairedColorOptions.length > 0 && !pairedColor) {
+      toast.error('Elige el color del set.');
+      return;
+    }
+    if (isMixed && set.colorCombos.length > 0 && !selectedComboId) {
+      toast.error('Elige una combinación de color.');
       return;
     }
     const pieceSelections = currentSelectionsArray();
@@ -149,6 +178,18 @@ export function SetDetailContent({
       return;
     }
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, quantity: newQuantity } : r)));
+  }
+
+  /** Espejo cliente de la verificación defensiva de `validate.ts` — con esta UI no debería ser
+   * posible armar una fila con colores distintos, pero se revalida por si el estado quedó
+   * desactualizado (ej. dos pestañas, o el set cambió de modalidad mientras se armaba). */
+  function rowPairingViolations(row: CombinationRow): string[] {
+    if (!isPaired) return [];
+    const distinct = new Set(row.pieceSelections.map((s) => s.color).filter(Boolean));
+    if (distinct.size > 1) {
+      return ['Todas las piezas de esta combinación deben llevar el mismo color.'];
+    }
+    return [];
   }
 
   function rowColorViolations(row: CombinationRow): string[] {
@@ -174,7 +215,7 @@ export function SetDetailContent({
       toast.error('Arma al menos una combinación.');
       return;
     }
-    const hasColorViolation = rows.some((r) => rowColorViolations(r).length > 0);
+    const hasColorViolation = rows.some((r) => rowColorViolations(r).length > 0 || rowPairingViolations(r).length > 0);
     if (hasColorViolation) {
       toast.error('Corrige las combinaciones marcadas antes de continuar.');
       return;
@@ -276,14 +317,59 @@ export function SetDetailContent({
             </div>
           )}
 
+          {isPaired && pairedColorOptions.length > 0 && (
+            <div className="mb-6 border border-[#E5E5E5] rounded-lg p-4">
+              <h3 className="text-sm font-semibold mb-2">Color del set</h3>
+              <ColorSwatchGroup
+                colors={pairedColorOptions}
+                selectedColorId={pairedColorOptions.find((c) => c.code === pairedColor)?.id}
+                availableColorIds={pairedColorOptions.map((c) => c.id)}
+                onColorSelect={(color: ProductColor) => setPairedColor((prev) => (prev === color.code ? undefined : color.code))}
+                size="sm"
+              />
+              <p className="text-xs text-gray-400 mt-2">Todas las piezas de este set se piden en el mismo color.</p>
+            </div>
+          )}
+
+          {isMixed && (
+            <div className="mb-6 border border-[#E5E5E5] rounded-lg p-4">
+              <h3 className="text-sm font-semibold mb-2">Elige una combinación de color</h3>
+              {set.colorCombos.length === 0 ? (
+                <p className="text-sm text-gray-500">No hay combinaciones de color disponibles para este set — contacta a ventas.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {set.colorCombos.map((combo) => (
+                    <button
+                      key={combo.id}
+                      type="button"
+                      onClick={() => setSelectedComboId((prev) => (prev === combo.id ? undefined : combo.id))}
+                      className={cn(
+                        'text-left border rounded-lg p-3 transition-colors',
+                        selectedComboId === combo.id ? 'border-[#111111] bg-[#F5F5F7]' : 'border-[#E5E5E5] hover:border-gray-300'
+                      )}
+                    >
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
+                        {combo.items.map((item) => {
+                          const piece = set.pieces.find((p) => p.productId === item.productId);
+                          const color = piece?.colors.find((c) => c.code === item.colorCode);
+                          return (
+                            <span key={item.productId} className="inline-flex items-center gap-1">
+                              <span className="w-3 h-3 rounded-full border border-gray-300" style={{ backgroundColor: color?.hex ?? '#ccc' }} />
+                              {piece?.productName ?? item.productId}: {color?.name ?? item.colorCode}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="space-y-4 mb-6">
             {set.pieces.map((piece) => {
               const image = pieceColorImage(piece);
-              const selectedColorCode = selections[piece.productId]?.color;
-              const selectedColor = piece.colors.find((c) => c.code === selectedColorCode);
-              const availableColorIds = piece.colors
-                .filter((c) => piece.variants.some((v) => v.colorId === c.id && v.status !== 'OUT_OF_STOCK'))
-                .map((c) => c.id);
               const selectedSize = selections[piece.productId]?.size;
 
               return (
@@ -303,18 +389,6 @@ export function SetDetailContent({
                       <p className="text-sm font-medium text-[#111111] mb-2">
                         {piece.quantityPerSet}× {piece.productName}
                       </p>
-
-                      {piece.colors.length > 0 && (
-                        <div className="mb-3">
-                          <ColorSwatchGroup
-                            colors={piece.colors}
-                            selectedColorId={selectedColor?.id}
-                            availableColorIds={availableColorIds}
-                            onColorSelect={(color) => setPieceColor(piece.productId, color)}
-                            size="sm"
-                          />
-                        </div>
-                      )}
 
                       {showsSizes && piece.availableSizes.length > 0 && (
                         <SizeSelector
@@ -354,7 +428,7 @@ export function SetDetailContent({
             <div className="space-y-2 mb-6">
               <h3 className="text-sm font-semibold text-[#111111]">Combinaciones armadas</h3>
               {rows.map((row) => {
-                const violations = rowColorViolations(row);
+                const violations = [...rowColorViolations(row), ...rowPairingViolations(row)];
                 return (
                   <div
                     key={row.id}

@@ -34,6 +34,11 @@ export const corporateSets = pgTable("corporate_sets", {
   priceManual: decimal("price_manual", { precision: 10, scale: 2 }),
   priceManualSale: decimal("price_manual_sale", { precision: 10, scale: 2 }),
   manualDiscountEnd: timestamp("manual_discount_end", { withTimezone: true }),
+  // Modo de color del set: PAIRED = todas las piezas comparten el mismo color (dispara la
+  // regla automática COLOR_PAIRING); MIXED = el admin cura combinaciones fijas por pieza
+  // (ver setColorCombos). Obligatorio y mutuamente excluyente — sin default porque debe
+  // elegirse explícitamente en el wizard antes de armar las piezas.
+  colorMode: text("color_mode").notNull(),
   isActive: boolean("is_active").default(true),
   isFeatured: boolean("is_featured").default(false),
   sortOrder: integer("sort_order").default(0),
@@ -51,6 +56,7 @@ export const corporateSetsRelations = relations(corporateSets, ({ one, many }) =
   group: one(setGroups, { fields: [corporateSets.setGroupId], references: [setGroups.id] }),
   brand: one(brands, { fields: [corporateSets.brandId], references: [brands.id] }),
   items: many(setItems),
+  colorCombos: many(setColorCombos),
 }));
 
 // ─── Set Items (Piezas dentro de cada set — relación many-to-many con cantidad) ───
@@ -68,6 +74,43 @@ export const setItems = pgTable("set_items", {
 export const setItemsRelations = relations(setItems, ({ one }) => ({
   set: one(corporateSets, { fields: [setItems.setId], references: [corporateSets.id] }),
   product: one(products, { fields: [setItems.productId], references: [products.id] }),
+}));
+
+// ─── Set Color Combos (Modo MIXED — combinaciones de color curadas por el admin) ───
+// Una combinación es un conjunto de asignaciones color→pieza que el comprador puede elegir
+// tal cual (reemplaza la selección libre de color por pieza cuando el set está en modo MIXED).
+export const setColorCombos = pgTable("set_color_combos", {
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
+  setId: pgUuid("set_id").notNull().references(() => corporateSets.id, { onDelete: "cascade" }),
+  isActive: boolean("is_active").default(true),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => [
+  index("idx_set_color_combos_set").on(table.setId),
+]);
+
+export const setColorCombosRelations = relations(setColorCombos, ({ one, many }) => ({
+  set: one(corporateSets, { fields: [setColorCombos.setId], references: [corporateSets.id] }),
+  items: many(setColorComboItems),
+}));
+
+// Una fila por pieza dentro de una combinación — mismo shape que setItems, + colorCode.
+// colorCode es texto (referencia lógica a colors.code, no FK tipada) por el mismo criterio
+// que CorporateCartLine.pieceSelections[].color y ColorRestrictionConfig.colorCode.
+export const setColorComboItems = pgTable("set_color_combo_items", {
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
+  comboId: pgUuid("combo_id").notNull().references(() => setColorCombos.id, { onDelete: "cascade" }),
+  productId: pgUuid("product_id").notNull().references(() => products.id),
+  colorCode: text("color_code").notNull(),
+}, (table) => [
+  index("idx_set_color_combo_items_combo").on(table.comboId),
+  index("idx_set_color_combo_items_product").on(table.productId),
+]);
+
+export const setColorComboItemsRelations = relations(setColorComboItems, ({ one }) => ({
+  combo: one(setColorCombos, { fields: [setColorComboItems.comboId], references: [setColorCombos.id] }),
+  product: one(products, { fields: [setColorComboItems.productId], references: [products.id] }),
 }));
 
 // ─── Business Rules (Motor de reglas — validación, precios, restricciones) ───

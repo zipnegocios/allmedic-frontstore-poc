@@ -33,6 +33,9 @@ import {
   nextMaxVisitedIndex,
 } from '@/components/admin/set-form/wizard-steps';
 import { GeneralSection } from '@/components/admin/set-form/GeneralSection';
+import { ColorModeGate } from '@/components/admin/set-form/ColorModeGate';
+import { PairedColorAccordion } from '@/components/admin/set-form/PairedColorAccordion';
+import { MixedColorAccordion } from '@/components/admin/set-form/MixedColorAccordion';
 import { PiecesSection } from '@/components/admin/set-form/PiecesSection';
 import { PriceSection } from '@/components/admin/set-form/PriceSection';
 import { RulesSection } from '@/components/admin/set-form/RulesSection';
@@ -105,6 +108,18 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
 
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
   const items = watch('items');
+  const colorMode = watch('colorMode');
+
+  // Cambiar de modalidad ya elegida cambia cómo el comprador elige color en el catálogo público
+  // (duplas vs. combos curados) — se confirma con el usuario antes de aplicar el cambio. Las
+  // piezas (setItems) son compartidas por ambos modos y nunca se limpian; las combinaciones
+  // curadas de "mezcladas" simplemente dejan de usarse mientras el set no esté en ese modo.
+  function handleColorModeChange(next: 'PAIRED' | 'MIXED') {
+    if (colorMode && colorMode !== next) {
+      if (!confirm('Cambiar el modo de color afecta cómo el comprador elige color en este set. ¿Continuar?')) return;
+    }
+    setValue('colorMode', next, { shouldValidate: true });
+  }
 
   const [manualPriceEnabled, setManualPriceEnabled] = useState(Boolean(initialData?.priceManual));
 
@@ -239,6 +254,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
       if (!createdSetId) setCreatedSetId(saved.id);
       toast.success('Cambios guardados');
       setSaveStayStatus('success');
+      await refreshSetRules();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al guardar');
       setSaveStayStatus('error');
@@ -382,21 +398,29 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
                 />
               )}
 
+              {currentStep.id === 'color-mode' && (
+                <ColorModeGate value={colorMode} onChange={handleColorModeChange} nameFilled={Boolean(nameValue?.trim())} />
+              )}
+
               {currentStep.id === 'pieces' && (
-                <PiecesSection
-                  control={control}
-                  register={register}
-                  errors={errors}
-                  fields={fields}
-                  items={items}
-                  products={products}
-                  append={append}
-                  remove={remove}
-                  pieceComboOpen={pieceComboOpen}
-                  setPieceComboOpen={setPieceComboOpen}
-                  onOpenProductDrawer={setProductDrawer}
-                  pricePreview={pricePreview}
-                />
+                <div className="space-y-4">
+                  <PiecesSection
+                    control={control}
+                    register={register}
+                    errors={errors}
+                    fields={fields}
+                    items={items}
+                    products={products}
+                    append={append}
+                    remove={remove}
+                    pieceComboOpen={pieceComboOpen}
+                    setPieceComboOpen={setPieceComboOpen}
+                    onOpenProductDrawer={setProductDrawer}
+                    pricePreview={pricePreview}
+                  />
+                  {colorMode === 'PAIRED' && <PairedColorAccordion items={items} products={products} />}
+                  {colorMode === 'MIXED' && <MixedColorAccordion setId={createdSetId} items={items} products={products} />}
+                </div>
               )}
 
               {currentStep.id === 'price' && (
@@ -480,20 +504,28 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
               onOpenPicker={() => setPickerOpen(true)}
             />
 
-            <PiecesSection
-              control={control}
-              register={register}
-              errors={errors}
-              fields={fields}
-              items={items}
-              products={products}
-              append={append}
-              remove={remove}
-              pieceComboOpen={pieceComboOpen}
-              setPieceComboOpen={setPieceComboOpen}
-              onOpenProductDrawer={setProductDrawer}
-              pricePreview={pricePreview}
-            />
+            <ColorModeGate value={colorMode} onChange={handleColorModeChange} nameFilled={Boolean(nameValue?.trim())} />
+
+            {colorMode && (
+              <>
+                <PiecesSection
+                  control={control}
+                  register={register}
+                  errors={errors}
+                  fields={fields}
+                  items={items}
+                  products={products}
+                  append={append}
+                  remove={remove}
+                  pieceComboOpen={pieceComboOpen}
+                  setPieceComboOpen={setPieceComboOpen}
+                  onOpenProductDrawer={setProductDrawer}
+                  pricePreview={pricePreview}
+                />
+                {colorMode === 'PAIRED' && <PairedColorAccordion items={items} products={products} />}
+                {colorMode === 'MIXED' && <MixedColorAccordion setId={createdSetId} items={items} products={products} />}
+              </>
+            )}
 
             <PriceSection
               register={register}

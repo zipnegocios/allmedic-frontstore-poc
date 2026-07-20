@@ -10,11 +10,11 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { RULE_TYPE_LABELS, type RuleTypeKey } from '@/lib/rule-config-schemas';
+import { RULE_TYPE_LABELS, SYSTEM_MANAGED_RULE_TYPES, type RuleTypeKey } from '@/lib/rule-config-schemas';
 import { RuleDocPanel } from './RuleDocPanel';
 import { RuleConflictsPanel } from './RuleConflictsPanel';
 import type { RuleConflict } from '@/lib/rules-engine';
-import { Trash2, Plus, BookOpen, ChevronLeft, ChevronRight, Save } from 'lucide-react';
+import { Trash2, Plus, BookOpen, ChevronLeft, ChevronRight, Save, Lock } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import {
@@ -73,7 +73,31 @@ const DEFAULT_CONFIG_BY_TYPE: Record<RuleTypeKey, Record<string, unknown>> = {
   PROMO: { kind: 'N_PLUS_ONE', buy: 13, free: 1 },
   COLOR_RESTRICTION: { colorCode: '', min: 6 },
   VOLUME_DISCOUNT_RETAIL: { tiers: [{ minItems: 3, pct: 10 }] },
+  COLOR_PAIRING: {},
 };
+
+/** Banner permanente para reglas gestionadas por el sistema (hoy solo COLOR_PAIRING) — no es un
+ * tooltip hover, es un aviso siempre visible con los datos de contacto para pedir su remoción. */
+function SystemManagedRuleBanner() {
+  return (
+    <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+      <Lock className="w-4 h-4 flex-shrink-0 mt-0.5" />
+      <p>
+        Esta regla la administra el sistema automáticamente según el modo de color del set — no se
+        puede activar ni desactivar manualmente. Si necesitas eliminarla o modificarla, contacta a{' '}
+        <strong>Gustavo Amarista</strong> por WhatsApp al{' '}
+        <a href="https://wa.me/13164695701" target="_blank" rel="noreferrer" className="underline">
+          +1 316 469 5701
+        </a>{' '}
+        o por correo a{' '}
+        <a href="mailto:zipnegocios@gmail.com" className="underline">
+          zipnegocios@gmail.com
+        </a>
+        .
+      </p>
+    </div>
+  );
+}
 
 const PROMO_KIND_LABELS: Record<string, string> = {
   N_PLUS_ONE: 'N + 1 (ej. 13 + 1 gratis)',
@@ -347,9 +371,11 @@ export function RuleForm({ mode, ruleId, initial, embedded = false, lockedScope,
         <Select value={ruleType} onValueChange={(v) => handleRuleTypeChange(v as RuleTypeKey)} disabled={mode === 'edit'}>
           <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
           <SelectContent>
-            {(Object.keys(RULE_TYPE_LABELS) as RuleTypeKey[]).map((t) => (
-              <SelectItem key={t} value={t}>{RULE_TYPE_LABELS[t]}</SelectItem>
-            ))}
+            {(Object.keys(RULE_TYPE_LABELS) as RuleTypeKey[])
+              .filter((t) => mode === 'edit' || !SYSTEM_MANAGED_RULE_TYPES.includes(t))
+              .map((t) => (
+                <SelectItem key={t} value={t}>{RULE_TYPE_LABELS[t]}</SelectItem>
+              ))}
           </SelectContent>
         </Select>
         {mode === 'edit' && <p className="text-xs text-gray-400 mt-1">El tipo de regla no se puede cambiar al editar.</p>}
@@ -418,8 +444,14 @@ export function RuleForm({ mode, ruleId, initial, embedded = false, lockedScope,
 
       {mode === 'edit' && (
         <div className="flex items-center gap-2 pt-6">
-          <Switch checked={isActive} onCheckedChange={setIsActive} />
+          <Switch checked={isActive} onCheckedChange={setIsActive} disabled={ruleType === 'COLOR_PAIRING'} />
           <Label>Regla activa</Label>
+        </div>
+      )}
+
+      {mode === 'edit' && ruleType === 'COLOR_PAIRING' && (
+        <div className="md:col-span-2">
+          <SystemManagedRuleBanner />
         </div>
       )}
     </div>
@@ -940,6 +972,16 @@ function RuleConfigFields({
             <Input type="number" value={Number(config.min ?? 0)} onChange={(e) => onChange({ min: Number(e.target.value) })} />
           </div>
         </div>
+      );
+
+    case 'COLOR_PAIRING':
+      return (
+        <p className="text-sm text-gray-500">
+          Esta regla no tiene parámetros configurables: exige que todas las piezas del set
+          compartan el mismo color en cada combinación del carrito. Se activa o desactiva
+          automáticamente según el &quot;Modo de color&quot; configurado en la ficha del set — no
+          se edita aquí.
+        </p>
       );
 
     default:

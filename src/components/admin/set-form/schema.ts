@@ -20,6 +20,9 @@ export const SetFormSchema = z.object({
   imageUrl: z.string().optional(), // solo para previsualización, no se persiste
   setGroupId: z.string().optional(),
   brandId: z.string().optional(),
+  // Modo de color del set — obligatorio y mutuamente excluyente. Sin elegirlo no se puede avanzar
+  // del paso "Modo de color" (mobile) ni ver el paso "Piezas" (desktop). Ver ColorModeGate.
+  colorMode: z.enum(['PAIRED', 'MIXED'], { message: 'Elige un modo de color para el set' }),
   isActive: z.boolean().default(true),
   isFeatured: z.boolean().default(false),
   priceManual: z.string().optional(),
@@ -47,15 +50,32 @@ export interface EligibleProduct {
   id: string;
   name: string;
   slug: string;
+  code: string | null;
+  sku: string | null;
+  collectionName: string | null;
   priceWholesale: string | null;
   priceWholesaleSale: string | null;
   priceNormal: string;
   visibility: 'INDIVIDUAL' | 'GROUPS' | 'BOTH';
   brandName: string | null;
   imageUrl: string | null;
-  colors: { id: string; name: string; hex: string }[];
+  colors: { id: string; name: string; code: string; hex: string }[];
   sizes: string[];
   hasActiveVariant: boolean;
+}
+
+// ─── Combinaciones de color curadas (modo MIXED) ───
+
+export interface SetColorComboItemData {
+  productId: string;
+  colorCode: string;
+}
+
+export interface SetColorComboData {
+  id: string;
+  items: SetColorComboItemData[];
+  isActive: boolean;
+  sortOrder: number;
 }
 
 export interface SetRuleRow {

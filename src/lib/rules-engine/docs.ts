@@ -408,4 +408,33 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
       "Diseñada solo para ámbito Global — no existe ningún flujo que la resuelva con contexto de marca o producto específico en el catálogo individual.",
     ],
   },
+
+  COLOR_PAIRING: {
+    ruleType: "COLOR_PAIRING",
+    title: "Duplas por color (piezas combinadas)",
+    summary: "Exige que todas las piezas de un set se pidan en el mismo color — gestionada automáticamente por el sistema, nunca manualmente.",
+    detail:
+      "Esta regla no se crea ni se edita desde el panel de reglas: se activa automáticamente cuando " +
+      "un set corporativo se configura en modo 'Piezas combinadas por color' (acordeón de modalidad " +
+      "de color en la ficha del set) y se desactiva automáticamente si el set cambia a 'Piezas " +
+      "mezcladas por color'. Mientras está activa, el armador de combinaciones del catálogo " +
+      "corporativo reemplaza los selectores de color por pieza por un único selector: el color " +
+      "elegido se aplica a todas las piezas del set a la vez, y solo se ofrecen los colores que " +
+      "tienen variante disponible en TODAS las piezas (paridad de color). El servidor revalida esto " +
+      "mismo al enviar la solicitud, por si el estado del cliente quedó desactualizado. No tiene " +
+      "parámetros configurables — su sola presencia activa (ámbito Set) ya expresa la regla completa.",
+    appliesTo: ["CORPORATE"],
+    supportedScopes: ["SET"],
+    defaultBehavior: "No existe por defecto — solo aparece cuando un set está en modo 'Piezas combinadas por color'.",
+    fields: [],
+    examples: [
+      { title: "Set en modo combinado", config: {}, explanation: "Sin parámetros — la regla en sí misma, activa y de ámbito Set, ya significa 'todas las piezas de este set deben compartir color'." },
+    ],
+    interactions: [
+      "Es incompatible por diseño con las combinaciones curadas de color ('Piezas mezcladas por color') de un mismo set — un set solo puede estar en un modo a la vez; cambiar de modo en la ficha del set apaga o crea esta regla automáticamente.",
+    ],
+    warnings: [
+      "El interruptor 'Activa' de esta regla aparece siempre bloqueado en el panel de reglas y en la ficha del set — no se puede encender ni apagar manualmente. La única forma de darla de baja es cambiar la modalidad de color del set a 'Piezas mezcladas por color'; para cualquier otro caso (eliminarla por completo, modificarla), contacta al desarrollador: Gustavo Amarista, WhatsApp +13164695701, zipnegocios@gmail.com.",
+    ],
+  },
 };

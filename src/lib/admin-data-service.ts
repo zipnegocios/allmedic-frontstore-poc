@@ -10,6 +10,8 @@ import {
   setGroups as setGroupsTable,
   corporateSets as corporateSetsTable,
   setItems as setItemsTable,
+  setColorCombos as setColorCombosTable,
+  setColorComboItems as setColorComboItemsTable,
   corporateAccounts as corporateAccountsTable,
   businessRules as businessRulesTable,
   mediaLinks as mediaLinksTable,
@@ -1100,6 +1102,9 @@ interface CorporateSetInput {
   description?: string;
   coverAssetId?: string;
   coverAlt?: string;
+  /** Modo de color del set — obligatorio, dispara la creación/desactivación automática de la
+   * regla COLOR_PAIRING (ver `syncColorPairingRule`). Sin default: debe elegirse explícitamente. */
+  colorMode: 'PAIRED' | 'MIXED';
   setGroupId?: string | null;
   brandId?: string | null;
   isActive?: boolean;
@@ -1132,6 +1137,8 @@ export async function createSetWithItems(input: CorporateSetInput) {
         }))
       );
     }
+
+    await syncColorPairingRule(set.id, setData.colorMode, tx);
 
     return set;
   });
@@ -1175,6 +1182,10 @@ export async function updateSetWithItems(id: string, input: Partial<CorporateSet
       }
     }
 
+    if (setData.colorMode !== undefined) {
+      await syncColorPairingRule(id, setData.colorMode, tx);
+    }
+
     const [set] = await tx.select().from(corporateSetsTable).where(eq(corporateSetsTable.id, id)).limit(1);
     return set;
   });
@@ -1209,6 +1220,9 @@ export async function permanentlyDeleteSet(id: string) {
   await db.transaction(async (tx) => {
     // 1. Eliminar relaciones set-piezas
     await tx.delete(setItemsTable).where(eq(setItemsTable.setId, id));
+    // 1b. Eliminar combinaciones de color curadas (modo MIXED) — el cascade de la FK ya lo
+    // cubriría, pero se borra explícito por el mismo criterio que setItemsTable arriba.
+    await tx.delete(setColorCombosTable).where(eq(setColorCombosTable.setId, id));
     // 2. Eliminar vínculos de medios polimórficos de tipo SET
     await tx.delete(mediaLinksTable).where(and(
       eq(mediaLinksTable.entityType, 'SET'),
@@ -1335,6 +1349,9 @@ export async function getGroupEligibleProducts() {
       id: productsTable.id,
       name: productsTable.name,
       slug: productsTable.slug,
+      code: productsTable.code,
+      sku: productsTable.sku,
+      collectionName: collectionsTable.name,
       priceWholesale: productsTable.priceWholesale,
       priceWholesaleSale: productsTable.priceWholesaleSale,
       priceNormal: productsTable.priceNormal,
@@ -1343,6 +1360,7 @@ export async function getGroupEligibleProducts() {
     })
     .from(productsTable)
     .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
+    .leftJoin(collectionsTable, eq(productsTable.collectionId, collectionsTable.id))
     .where(
       and(
         eq(productsTable.isActive, true),
@@ -1362,6 +1380,7 @@ export async function getGroupEligibleProducts() {
         status: variantsTable.status,
         colorId: colorsTable.id,
         colorName: colorsTable.name,
+        colorCode: colorsTable.code,
         colorHex: colorsTable.hex,
       })
       .from(variantsTable)
@@ -1372,12 +1391,12 @@ export async function getGroupEligibleProducts() {
 
   return products.map((p) => {
     const productVariants = variants.filter((v) => v.productId === p.id);
-    const colorMap = new Map<string, { id: string; name: string; hex: string }>();
+    const colorMap = new Map<string, { id: string; name: string; code: string; hex: string }>();
     const sizeSet = new Set<string>();
     let hasActiveVariant = false;
     for (const v of productVariants) {
       if (v.colorId && !colorMap.has(v.colorId)) {
-        colorMap.set(v.colorId, { id: v.colorId, name: v.colorName ?? '', hex: v.colorHex ?? '' });
+        colorMap.set(v.colorId, { id: v.colorId, name: v.colorName ?? '', code: v.colorCode ?? '', hex: v.colorHex ?? '' });
       }
       sizeSet.add(v.size);
       if (v.status === 'AVAILABLE') hasActiveVariant = true;
@@ -1481,6 +1500,117 @@ export async function updateRule(
 
 export async function deleteRule(id: string) {
   await db.delete(businessRulesTable).where(eq(businessRulesTable.id, id));
+}
+
+// ── COLOR_PAIRING (regla del sistema atada a corporateSets.colorMode) ──
+
+/**
+ * Crea/activa o desactiva la fila `COLOR_PAIRING` (ámbito SET) de un set según su `colorMode` —
+ * única vía legítima de tocar `isActive` de esta regla (ver candados en las rutas de `/api/admin/rules`).
+ * Idempotente: llamarla varias veces con el mismo `colorMode` no crea duplicados ni cambia nada.
+ * Recibe opcionalmente `tx` para participar de la misma transacción que crea/actualiza el set.
+ */
+export async function syncColorPairingRule(setId: string, colorMode: 'PAIRED' | 'MIXED', tx: typeof db = db) {
+  const [existing] = await tx
+    .select()
+    .from(businessRulesTable)
+    .where(and(
+      eq(businessRulesTable.ruleType, 'COLOR_PAIRING'),
+      eq(businessRulesTable.scope, 'SET'),
+      eq(businessRulesTable.scopeId, setId)
+    ))
+    .limit(1);
+
+  if (colorMode === 'PAIRED') {
+    if (!existing) {
+      await tx.insert(businessRulesTable).values({
+        name: 'Duplas por color (automática)',
+        ruleType: 'COLOR_PAIRING',
+        scope: 'SET',
+        scopeId: setId,
+        config: {},
+        isActive: true,
+        priority: 0,
+      });
+    } else if (!existing.isActive) {
+      await tx.update(businessRulesTable).set({ isActive: true, updatedAt: new Date() }).where(eq(businessRulesTable.id, existing.id));
+    }
+  } else if (existing?.isActive) {
+    await tx.update(businessRulesTable).set({ isActive: false, updatedAt: new Date() }).where(eq(businessRulesTable.id, existing.id));
+  }
+}
+
+// ── Set Color Combos (modo MIXED — combinaciones de color curadas por el admin) ──
+
+export async function getSetColorCombos(setId: string) {
+  const combos = await db
+    .select()
+    .from(setColorCombosTable)
+    .where(eq(setColorCombosTable.setId, setId))
+    .orderBy(asc(setColorCombosTable.sortOrder));
+
+  const comboIds = combos.map((c) => c.id);
+  const items = comboIds.length > 0
+    ? await db.select().from(setColorComboItemsTable).where(inArray(setColorComboItemsTable.comboId, comboIds))
+    : [];
+
+  const itemsByCombo = new Map<string, typeof items>();
+  for (const item of items) {
+    if (!itemsByCombo.has(item.comboId)) itemsByCombo.set(item.comboId, []);
+    itemsByCombo.get(item.comboId)!.push(item);
+  }
+
+  return combos.map((combo) => ({
+    ...combo,
+    items: (itemsByCombo.get(combo.id) ?? []).map((i) => ({ productId: i.productId, colorCode: i.colorCode })),
+  }));
+}
+
+export async function createSetColorCombo(
+  setId: string,
+  input: { items: Array<{ productId: string; colorCode: string }>; isActive?: boolean; sortOrder?: number }
+) {
+  return db.transaction(async (tx) => {
+    const [combo] = await tx.insert(setColorCombosTable).values({
+      setId,
+      isActive: input.isActive ?? true,
+      sortOrder: input.sortOrder ?? 0,
+    }).returning();
+
+    if (input.items.length > 0) {
+      await tx.insert(setColorComboItemsTable).values(
+        input.items.map((i) => ({ comboId: combo.id, productId: i.productId, colorCode: i.colorCode }))
+      );
+    }
+
+    return combo;
+  });
+}
+
+export async function updateSetColorCombo(
+  comboId: string,
+  input: Partial<{ items: Array<{ productId: string; colorCode: string }>; isActive: boolean; sortOrder: number }>
+) {
+  return db.transaction(async (tx) => {
+    const { items, ...comboData } = input;
+    if (Object.keys(comboData).length > 0) {
+      await tx.update(setColorCombosTable).set({ ...comboData, updatedAt: new Date() }).where(eq(setColorCombosTable.id, comboId));
+    }
+    if (items !== undefined) {
+      await tx.delete(setColorComboItemsTable).where(eq(setColorComboItemsTable.comboId, comboId));
+      if (items.length > 0) {
+        await tx.insert(setColorComboItemsTable).values(
+          items.map((i) => ({ comboId, productId: i.productId, colorCode: i.colorCode }))
+        );
+      }
+    }
+    const [combo] = await tx.select().from(setColorCombosTable).where(eq(setColorCombosTable.id, comboId)).limit(1);
+    return combo;
+  });
+}
+
+export async function deleteSetColorCombo(comboId: string) {
+  await db.delete(setColorCombosTable).where(eq(setColorCombosTable.id, comboId));
 }
 
 // ── Collections (Fase 3.1 — CRUD asociado a marca) ──

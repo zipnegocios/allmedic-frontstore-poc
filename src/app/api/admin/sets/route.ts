@@ -17,6 +17,7 @@ const CreateSetSchema = z.object({
   coverAlt: z.string().optional(),
   setGroupId: z.string().optional().nullable(),
   brandId: z.string().optional().nullable(),
+  colorMode: z.enum(['PAIRED', 'MIXED'], { message: 'Elige un modo de color para el set' }),
   isActive: z.boolean().default(true),
   isFeatured: z.boolean().default(false),
   sortOrder: z.number().default(0),

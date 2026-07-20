@@ -13,6 +13,7 @@ const ALL_RULE_TYPES: RuleType[] = [
   'PROMO',
   'COLOR_RESTRICTION',
   'VOLUME_DISCOUNT_RETAIL',
+  'COLOR_PAIRING',
 ];
 
 /**

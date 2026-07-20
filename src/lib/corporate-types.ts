@@ -51,8 +51,19 @@ export interface CorporateSetSummary {
   createdAt: string;
 }
 
+/** Una combinación de color curada por el admin (modo MIXED) — una entrada por pieza del set. */
+export interface SetColorCombo {
+  id: string;
+  items: Array<{ productId: string; colorCode: string }>;
+}
+
 export interface CorporateSetDetail extends CorporateSetSummary {
   setGroupId: string | null;
   brandId: string | null;
   pieces: SetPiece[];
+  /** PAIRED = todas las piezas se piden en un único color compartido; MIXED = el comprador solo
+   * puede elegir entre `colorCombos` (combinaciones de color curadas por el admin). */
+  colorMode: 'PAIRED' | 'MIXED';
+  /** Solo poblado (y relevante) cuando `colorMode === 'MIXED'` — combos activos, ya ordenados. */
+  colorCombos: SetColorCombo[];
 }

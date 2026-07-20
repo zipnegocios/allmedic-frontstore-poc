@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Pencil, Trash2, Settings2, CheckCircle2, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, Settings2, CheckCircle2, AlertTriangle, AlertCircle, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { RULE_TYPE_LABELS, type RuleTypeKey } from '@/lib/rule-config-schemas';
 import { getRuleHealthStatus } from '@/lib/rule-health';
@@ -89,7 +89,14 @@ export default function AdminRulesPage() {
     fetchRules();
   }, [fetchRules]);
 
+  const CONTACT_MESSAGE =
+    'Regla gestionada por el sistema — cambia el modo de color del set para desactivarla, o contacta a Gustavo Amarista (WhatsApp +1 316 469 5701 / zipnegocios@gmail.com).';
+
   async function handleToggleActive(rule: AdminRule) {
+    if (rule.ruleType === 'COLOR_PAIRING') {
+      toast.error(CONTACT_MESSAGE);
+      return;
+    }
     try {
       const res = await fetch(`/api/admin/rules/${rule.id}`, {
         method: 'PATCH',
@@ -104,6 +111,11 @@ export default function AdminRulesPage() {
   }
 
   async function handleDelete(id: string) {
+    const rule = rules.find((r) => r.id === id);
+    if (rule?.ruleType === 'COLOR_PAIRING') {
+      toast.error(CONTACT_MESSAGE);
+      return;
+    }
     if (!confirm('¿Estás seguro de eliminar esta regla?')) return;
     try {
       const res = await fetch(`/api/admin/rules/${id}`, { method: 'DELETE' });
@@ -167,14 +179,29 @@ export default function AdminRulesPage() {
                     <TableCell>{rule.priority}</TableCell>
                     <TableCell><HealthBadge rule={rule} /></TableCell>
                     <TableCell>
-                      <Switch checked={rule.isActive} onCheckedChange={() => handleToggleActive(rule)} />
+                      <span className="inline-flex items-center gap-1.5" title={rule.ruleType === 'COLOR_PAIRING' ? CONTACT_MESSAGE : undefined}>
+                        <Switch
+                          checked={rule.isActive}
+                          onCheckedChange={() => handleToggleActive(rule)}
+                          disabled={rule.ruleType === 'COLOR_PAIRING'}
+                        />
+                        {rule.ruleType === 'COLOR_PAIRING' && <Lock className="w-3.5 h-3.5 text-amber-600" />}
+                      </span>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Link href={`/admin/reglas/${rule.id}`}>
                           <Button size="sm" variant="ghost"><Pencil className="w-4 h-4" /></Button>
                         </Link>
-                        <Button size="sm" variant="ghost" onClick={() => handleDelete(rule.id)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDelete(rule.id)}
+                          disabled={rule.ruleType === 'COLOR_PAIRING'}
+                          title={rule.ruleType === 'COLOR_PAIRING' ? CONTACT_MESSAGE : undefined}
+                        >
+                          <Trash2 className="w-4 h-4 text-red-500" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -221,10 +248,12 @@ export default function AdminRulesPage() {
                     <Switch
                       checked={rule.isActive}
                       onCheckedChange={() => handleToggleActive(rule)}
+                      disabled={rule.ruleType === 'COLOR_PAIRING'}
                       aria-label={rule.isActive ? `Desactivar regla ${rule.name}` : `Activar regla ${rule.name}`}
                       className="relative before:absolute before:-inset-[14px] before:content-['']"
                     />
                     <span className="text-sm text-gray-600">{rule.isActive ? 'Activa' : 'Inactiva'}</span>
+                    {rule.ruleType === 'COLOR_PAIRING' && <Lock className="w-3.5 h-3.5 text-amber-600" />}
                   </div>
                 }
                 actions={[
@@ -234,6 +263,7 @@ export default function AdminRulesPage() {
                     icon: <Trash2 className="w-4 h-4" />,
                     variant: 'destructive',
                     onSelect: () => handleDelete(rule.id),
+                    disabled: rule.ruleType === 'COLOR_PAIRING',
                   },
                 ]}
               />

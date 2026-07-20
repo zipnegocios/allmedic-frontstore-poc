@@ -75,6 +75,9 @@ export const RULE_CONFIG_SCHEMAS = {
   VOLUME_DISCOUNT_RETAIL: z.object({
     tiers: z.array(z.object({ minItems: z.number().int().positive(), pct: z.number().min(0).max(100) })).min(1),
   }),
+  // Sin parámetros — gestionada exclusivamente por el sistema (ver syncColorPairingRule),
+  // nunca creable/editable manualmente desde el panel de reglas.
+  COLOR_PAIRING: z.object({}).strict(),
 } as const;
 
 export type RuleTypeKey = keyof typeof RULE_CONFIG_SCHEMAS;
@@ -89,7 +92,14 @@ export const RULE_TYPE_LABELS: Record<RuleTypeKey, string> = {
   PROMO: 'Promoción',
   COLOR_RESTRICTION: 'Restricción por color',
   VOLUME_DISCOUNT_RETAIL: 'Descuento por volumen (individual)',
+  COLOR_PAIRING: 'Duplas por color (piezas combinadas)',
 };
+
+/** Tipos de regla gestionados exclusivamente por el sistema — nunca aparecen en el selector de
+ * creación manual de `/admin/reglas/nueva`, y su `isActive`/`scope`/`scopeId`/`config` no se
+ * pueden editar vía la API genérica de reglas (ver guards en `rules/route.ts` y
+ * `rules/[id]/route.ts`). */
+export const SYSTEM_MANAGED_RULE_TYPES: RuleTypeKey[] = ['COLOR_PAIRING'];
 
 export function validateRuleConfig(ruleType: string, config: unknown) {
   const schema = RULE_CONFIG_SCHEMAS[ruleType as RuleTypeKey];

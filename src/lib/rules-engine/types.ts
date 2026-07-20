@@ -10,7 +10,8 @@ export type RuleType =
   | "VOLUME_SCALE"
   | "PROMO"
   | "COLOR_RESTRICTION"
-  | "VOLUME_DISCOUNT_RETAIL";
+  | "VOLUME_DISCOUNT_RETAIL"
+  | "COLOR_PAIRING";
 
 export type RuleScope = "GLOBAL" | "BRAND" | "SET_GROUP" | "SET" | "PRODUCT";
 
@@ -144,6 +145,14 @@ export interface ColorRestrictionConfig {
   colorCode: string;
   min: number;
 }
+
+/** COLOR_PAIRING: sin parámetros — su sola presencia (activa, ámbito SET) exige que todas las
+ * piezas de esa combinación compartan un único color. Gestionada exclusivamente por el sistema
+ * (ver `syncColorPairingRule` en `admin-data-service.ts`), atada 1:1 a `corporateSets.colorMode
+ * === 'PAIRED'` — nunca se crea/edita/desactiva manualmente desde el panel de reglas. No
+ * participa de `resolveRules`/`ResolvedRules` (no tiene config que resolver para pricing); solo
+ * se consulta su existencia/actividad directamente en `validate.ts` como chequeo defensivo. */
+export type ColorPairingConfig = Record<string, never>;
 
 export interface VolumeDiscountRetailTier {
   minItems: number;

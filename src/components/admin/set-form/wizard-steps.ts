@@ -9,7 +9,7 @@ import type { SetFormData } from './schema';
  * existían en la vista desktop.
  */
 
-export type SetFormWizardStepId = 'general' | 'pieces' | 'price' | 'rules';
+export type SetFormWizardStepId = 'general' | 'color-mode' | 'pieces' | 'price' | 'rules';
 
 export interface SetFormWizardStepDef {
   id: SetFormWizardStepId;
@@ -30,6 +30,11 @@ export const SET_FORM_WIZARD_STEPS: SetFormWizardStepDef[] = [
     id: 'general',
     label: 'Datos generales',
     fields: ['name', 'slug', 'coverAssetId'],
+  },
+  {
+    id: 'color-mode',
+    label: 'Modo de color',
+    fields: ['colorMode'],
   },
   {
     id: 'pieces',

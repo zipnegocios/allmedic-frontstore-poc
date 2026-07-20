@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/admin-auth';
 import { getAdminRuleById, updateRule, deleteRule, getAdminRules, checkComboSetsExist } from '@/lib/admin-data-service';
+
 import { validateRuleConfig, toBusinessRule } from '@/lib/rule-config-schemas';
 import { detectConflicts, type BusinessRule } from '@/lib/rules-engine';
 
@@ -39,6 +40,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const existing = await getAdminRuleById(id);
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+    if (existing.ruleType === 'COLOR_PAIRING') {
+      const triesToChangeManagedFields =
+        (body.isActive !== undefined && body.isActive !== existing.isActive) ||
+        (body.scope !== undefined && body.scope !== existing.scope) ||
+        (body.scopeId !== undefined && body.scopeId !== existing.scopeId) ||
+        body.config !== undefined;
+      if (triesToChangeManagedFields) {
+        return NextResponse.json(
+          { error: 'Esta regla es gestionada por el sistema — no se puede activar, desactivar ni reconfigurar manualmente. Cambia el modo de color del set, o contacta al desarrollador.' },
+          { status: 403 }
+        );
+      }
+    }
 
     const config = body.config !== undefined
       ? validateRuleConfig(existing.ruleType, body.config)
@@ -98,6 +113,14 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   try {
     await requireAdmin();
     const { id } = await params;
+    const existing = await getAdminRuleById(id);
+    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    if (existing.ruleType === 'COLOR_PAIRING') {
+      return NextResponse.json(
+        { error: 'Esta regla es gestionada por el sistema — no se puede eliminar manualmente. Cambia el modo de color del set a "mezclada" para desactivarla.' },
+        { status: 403 }
+      );
+    }
     await deleteRule(id);
     return NextResponse.json({ success: true });
   } catch (err) {

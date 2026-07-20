@@ -135,14 +135,14 @@ export function PiecesSection({
                             </PopoverTrigger>
                             <PopoverContent className="w-[420px] max-w-[calc(100vw-2rem)] p-0" align="start">
                               <Command>
-                                <CommandInput placeholder="Buscar por nombre o marca..." />
+                                <CommandInput placeholder="Buscar por nombre, código, marca o colección..." />
                                 <CommandList>
                                   <CommandEmpty>Sin resultados.</CommandEmpty>
                                   <CommandGroup>
                                     {products.map((p) => (
                                       <CommandItem
                                         key={p.id}
-                                        value={`${p.name} ${p.brandName ?? ''}`}
+                                        value={`${p.name} ${p.code ?? ''} ${p.sku ?? ''} ${p.brandName ?? ''} ${p.collectionName ?? ''}`}
                                         onSelect={() => {
                                           selectField.onChange(p.id);
                                           setPieceComboOpen(null);
@@ -158,9 +158,9 @@ export function PiecesSection({
                                           )}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                          <p className="text-sm truncate">{p.name}</p>
+                                          <p className="text-sm truncate">{p.name}{p.code ? ` (${p.code})` : ''}</p>
                                           <p className="text-xs text-gray-400 truncate">
-                                            {p.brandName ?? 'Sin marca'} · {productPrice(p) !== null ? `$${productPrice(p)!.toFixed(2)}` : 'Sin precio'}
+                                            {p.brandName ?? 'Sin marca'}{p.collectionName ? ` · ${p.collectionName}` : ''} · {productPrice(p) !== null ? `$${productPrice(p)!.toFixed(2)}` : 'Sin precio'}
                                           </p>
                                         </div>
                                       </CommandItem>

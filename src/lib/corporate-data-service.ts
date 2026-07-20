@@ -3,6 +3,8 @@ import {
   corporateSets as corporateSetsTable,
   setGroups as setGroupsTable,
   setItems as setItemsTable,
+  setColorCombos as setColorCombosTable,
+  setColorComboItems as setColorComboItemsTable,
   products as productsTable,
   brands as brandsTable,
   colors as colorsTable,
@@ -225,6 +227,7 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
       priceManual: corporateSetsTable.priceManual,
       priceManualSale: corporateSetsTable.priceManualSale,
       manualDiscountEnd: corporateSetsTable.manualDiscountEnd,
+      colorMode: corporateSetsTable.colorMode,
       createdAt: corporateSetsTable.createdAt,
     })
     .from(corporateSetsTable)
@@ -399,6 +402,28 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
 
   const coverImages = await getCoverImageMap([set.id]);
 
+  // Combinaciones de color curadas (modo MIXED) — solo se consultan/usan cuando aplica; en
+  // modo PAIRED el armador calcula la intersección de color directamente de `pieces[].colors`.
+  let colorCombos: CorporateSetDetail['colorCombos'] = [];
+  if (set.colorMode === 'MIXED') {
+    const combos = await db
+      .select({ id: setColorCombosTable.id, sortOrder: setColorCombosTable.sortOrder })
+      .from(setColorCombosTable)
+      .where(and(eq(setColorCombosTable.setId, set.id), eq(setColorCombosTable.isActive, true)))
+      .orderBy(asc(setColorCombosTable.sortOrder));
+    const comboIds = combos.map((c) => c.id);
+    const comboItems = comboIds.length > 0
+      ? await db
+          .select({ comboId: setColorComboItemsTable.comboId, productId: setColorComboItemsTable.productId, colorCode: setColorComboItemsTable.colorCode })
+          .from(setColorComboItemsTable)
+          .where(inArray(setColorComboItemsTable.comboId, comboIds))
+      : [];
+    colorCombos = combos.map((c) => ({
+      id: c.id,
+      items: comboItems.filter((i) => i.comboId === c.id).map((i) => ({ productId: i.productId, colorCode: i.colorCode })),
+    }));
+  }
+
   const manualPrice = effectiveManualPrice(set.priceManual, set.priceManualSale, set.manualDiscountEnd);
   const effectiveHasMissingPrices = manualPrice !== null ? false : hasMissingPrices;
 
@@ -428,6 +453,8 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
     pieceNames: pieces.map((p) => p.productName).filter((n) => !!n),
     createdAt: set.createdAt ? set.createdAt.toISOString() : new Date(0).toISOString(),
     pieces,
+    colorMode: set.colorMode as 'PAIRED' | 'MIXED',
+    colorCombos,
   };
 }
 
