@@ -18,7 +18,20 @@ import {
 } from '@/components/ui/accordion';
 import { toast } from 'sonner';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, Save, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Save, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Loader2, AlertCircle, IdCard, DollarSign, FileText, Images } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import type { WizardStepId } from '@/components/admin/product-form/wizard-steps';
+
+// Un ícono SVG por paso del wizard — representa de un vistazo qué contiene
+// cada paso (identidad del producto, precios, contenido enriquecido,
+// variantes/medios). Vive aquí (no en `wizard-steps.ts`) porque ese módulo es
+// deliberadamente data pura sin dependencias de React/lucide.
+const WIZARD_STEP_ICONS: Record<WizardStepId, LucideIcon> = {
+  identification: IdCard,
+  pricing: DollarSign,
+  content: FileText,
+  variants_and_media: Images,
+};
 import Link from 'next/link';
 import { MediaPicker } from '@/components/admin/media/MediaPicker';
 import { resolveMediaUrl, sanitizeCodeSegment, COVER_SEGMENT } from '@/lib/media';
@@ -722,10 +735,11 @@ export default function ProductForm({
               <p className="text-sm font-medium text-gray-500">
                 {getStepProgressLabel(currentStepIndex)}
               </p>
-              <div className="flex gap-1.5" role="tablist" aria-label="Pasos del formulario">
+              <div className="flex gap-2" role="tablist" aria-label="Pasos del formulario">
                 {PRODUCT_FORM_WIZARD_STEPS.map((step, index) => {
                   const isVisited = canNavigateToStep(index, maxVisitedStepIndex);
                   const isCurrent = index === currentStepIndex;
+                  const StepIcon = WIZARD_STEP_ICONS[step.id];
                   return (
                     <button
                       key={step.id}
@@ -736,11 +750,15 @@ export default function ProductForm({
                       disabled={!isVisited}
                       onClick={() => goToStep(index)}
                       className={cn(
-                        'min-h-11 flex-1 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111111]',
-                        isCurrent ? 'bg-[#111111]' : isVisited ? 'bg-gray-400' : 'bg-gray-200',
-                        !isVisited && 'cursor-not-allowed'
+                        'flex-1 min-h-11 rounded-full border-2 flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111111]',
+                        isCurrent
+                          ? 'bg-[#111111] border-[#111111] text-white'
+                          : 'bg-white border-[#111111] text-[#111111]',
+                        !isVisited && 'opacity-40 cursor-not-allowed'
                       )}
-                    />
+                    >
+                      <StepIcon className="w-4 h-4" strokeWidth={2} aria-hidden="true" />
+                    </button>
                   );
                 })}
               </div>
