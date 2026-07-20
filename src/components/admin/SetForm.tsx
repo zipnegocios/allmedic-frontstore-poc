@@ -542,9 +542,14 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
         }}
       />
 
-      {/* ── Drawer: crear/editar producto sin salir del set ── */}
+      {/* ── Drawer: crear/editar producto sin salir del set ──
+          Angosto a propósito (`sm:max-w-2xl`, no el `90vw` genérico de los
+          demás drawers): el wizard que contiene está pensado para una sola
+          columna angosta (`max-w-xl`, ver `ProductForm.tsx`) — el marco debe
+          adaptarse al tamaño del contenido, no al revés, para no dejar
+          espacio en blanco alrededor. */}
       <Sheet open={productDrawer !== null} onOpenChange={(open) => !open && setProductDrawer(null)}>
-        <SheetContent side="right" className="w-full sm:max-w-[90vw] overflow-y-auto">
+        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
           <SheetHeader>
             <SheetTitle className="sr-only">
               {productDrawer?.productId ? 'Editar producto' : 'Nuevo producto'}

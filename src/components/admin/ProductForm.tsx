@@ -640,12 +640,10 @@ export default function ProductForm({
     <div
       className={cn(
         embedded ? 'p-4 md:p-6' : 'p-4 md:p-8 max-w-5xl',
-        // El drawer de sets es muy ancho (`sm:max-w-[90vw]`) — el wizard se
-        // centra en vez de estirarse a lo ancho de todo el drawer, pero en
-        // desktop `max-w-xl` dejaba demasiado espacio en blanco a los costados
-        // (reportado tras la sesión anterior); `max-w-3xl` aprovecha mejor el
-        // ancho del drawer sin perder la columna angosta en mobile.
-        embedded && useWizardLayout && 'max-w-xl md:max-w-3xl mx-auto'
+        // El wizard está pensado para una columna angosta — se acota y centra
+        // en vez de estirarse. El drawer que lo contiene (`SetForm.tsx`) se
+        // ajusta a este mismo ancho para no dejar espacio en blanco alrededor.
+        embedded && useWizardLayout && 'max-w-xl mx-auto'
       )}
     >
       <div className="flex items-center justify-between mb-8">
