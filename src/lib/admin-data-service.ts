@@ -1518,7 +1518,11 @@ export async function deleteRule(id: string) {
  * Idempotente: llamarla varias veces con el mismo `colorMode` no crea duplicados ni cambia nada.
  * Recibe opcionalmente `tx` para participar de la misma transacción que crea/actualiza el set.
  */
-export async function syncColorPairingRule(setId: string, colorMode: 'PAIRED' | 'MIXED', tx: typeof db = db) {
+export async function syncColorPairingRule(
+  setId: string,
+  colorMode: 'PAIRED' | 'MIXED',
+  tx: typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0] = db
+) {
   const [existing] = await tx
     .select()
     .from(businessRulesTable)

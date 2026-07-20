@@ -146,6 +146,7 @@ async function seedCorporateSets() {
       description: "Camisa Casma + Pantalón Yola de FIGS. Set completo premium para profesionales de la salud.",
       setGroupId: groupIds["uniformes-completos"],
       brandId: figsProduct?.brandId ?? null,
+      colorMode: "PAIRED" as const,
       isFeatured: true,
       items: [
         { slug: "figs-casma-scrub-top", quantityPerSet: 1 },
@@ -158,6 +159,7 @@ async function seedCorporateSets() {
       description: "Camisa Lexie de Grey's Anatomy + Pantalón Lindsey de Koi. Combinación versátil.",
       setGroupId: groupIds["uniformes-completos"],
       brandId: null,
+      colorMode: "PAIRED" as const,
       isFeatured: false,
       items: [
         { slug: "greys-anatomy-lexie-scrub-top", quantityPerSet: 1 },
@@ -170,6 +172,7 @@ async function seedCorporateSets() {
       description: "Pack de camisas Cherokee Workwear y Dickies EDS para instituciones y hospitales.",
       setGroupId: groupIds["packs-institucionales"],
       brandId: null,
+      colorMode: "PAIRED" as const,
       isFeatured: true,
       items: [
         { slug: "cherokee-workwear-scrub-top", quantityPerSet: 2 },
