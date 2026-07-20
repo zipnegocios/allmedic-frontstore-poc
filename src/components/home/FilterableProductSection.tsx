@@ -51,7 +51,7 @@ export function FilterableProductSection({ products }: { products?: import('@/li
         {/* Section Header */}
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-8">
           <div>
-            <h2 className="text-2xl md:text-3xl font-bold text-[#111111] mb-2">
+            <h2 className="font-display uppercase text-h2-mobile md:text-h2 text-[#111111] mb-2">
               Explora nuestro catálogo
             </h2>
             <p className="text-gray-500">

@@ -60,7 +60,7 @@ interface RuleFormProps {
 const SCOPE_UNAVAILABLE_BY_TYPE: Partial<Record<RuleTypeKey, Scope[]>> = {
   // Descuento por volumen (individual) es un único descuento sobre el carrito retail completo
   // por diseño — no tiene sentido un ámbito más específico.
-  VOLUME_DISCOUNT_RETAIL: ['BRAND', 'SET_GROUP', 'SET', 'PRODUCT'],
+  VOLUME_DISCOUNT_RETAIL: ['BRAND', 'SET', 'PRODUCT'],
 };
 
 const DEFAULT_CONFIG_BY_TYPE: Record<RuleTypeKey, Record<string, unknown>> = {
@@ -134,7 +134,6 @@ export function RuleForm({ mode, ruleId, initial, embedded = false, lockedScope,
   const [saving, setSaving] = useState(false);
 
   const [brands, setBrands] = useState<ScopeOption[]>([]);
-  const [setGroups, setSetGroups] = useState<ScopeOption[]>([]);
   const [sets, setSets] = useState<ScopeOption[]>([]);
   const [products, setProducts] = useState<ScopeOption[]>([]);
   const [colors, setColors] = useState<{ id: string; name: string; code: string; hex: string }[]>([]);
@@ -153,13 +152,11 @@ export function RuleForm({ mode, ruleId, initial, embedded = false, lockedScope,
   useEffect(() => {
     Promise.all([
       fetch('/api/admin/brands?limit=1000').then((r) => (r.ok ? r.json() : { brands: [] })),
-      fetch('/api/admin/set-groups').then((r) => (r.ok ? r.json() : { groups: [] })),
       fetch('/api/admin/sets').then((r) => (r.ok ? r.json() : { sets: [] })),
       fetch('/api/admin/products/lite').then((r) => (r.ok ? r.json() : { products: [] })),
       fetch('/api/admin/colors?limit=1000').then((r) => (r.ok ? r.json() : { colors: [] })),
-    ]).then(([b, g, s, p, c]) => {
+    ]).then(([b, s, p, c]) => {
       setBrands(b.brands ?? []);
-      setSetGroups((g.groups ?? []).map((x: { id: string; name: string }) => ({ id: x.id, name: x.name })));
       setSets((s.sets ?? []).map((x: { id: string; name: string }) => ({ id: x.id, name: x.name })));
       setProducts((p.products ?? []).map((x: { id: string; name: string; brandName?: string }) => ({
         id: x.id,
@@ -314,9 +311,8 @@ export function RuleForm({ mode, ruleId, initial, embedded = false, lockedScope,
     }
   }
 
-  const scopeOptions: Record<Exclude<Scope, 'GLOBAL' | 'PRODUCT'>, ScopeOption[]> = {
+  const scopeOptions: Record<Exclude<Scope, 'GLOBAL' | 'PRODUCT' | 'SET_GROUP'>, ScopeOption[]> = {
     BRAND: brands,
-    SET_GROUP: setGroups,
     SET: sets,
   };
   const unavailableScopes = SCOPE_UNAVAILABLE_BY_TYPE[ruleType] ?? [];
@@ -392,7 +388,6 @@ export function RuleForm({ mode, ruleId, initial, embedded = false, lockedScope,
           <SelectContent>
             <SelectItem value="GLOBAL">Global (todo el catálogo)</SelectItem>
             <SelectItem value="BRAND" disabled={unavailableScopes.includes('BRAND')}>Marca</SelectItem>
-            <SelectItem value="SET_GROUP" disabled={unavailableScopes.includes('SET_GROUP')}>Grupo de Sets</SelectItem>
             <SelectItem value="SET" disabled={unavailableScopes.includes('SET')}>Set específico</SelectItem>
             <SelectItem value="PRODUCT" disabled={unavailableScopes.includes('PRODUCT')}>Producto específico</SelectItem>
           </SelectContent>
@@ -408,7 +403,7 @@ export function RuleForm({ mode, ruleId, initial, embedded = false, lockedScope,
 
       {scope !== 'GLOBAL' && scope !== 'PRODUCT' && (
         <div>
-          <Label className="mb-1 block">{scope === 'BRAND' ? 'Marca' : scope === 'SET_GROUP' ? 'Grupo de Sets' : 'Set'}</Label>
+          <Label className="mb-1 block">{scope === 'BRAND' ? 'Marca' : 'Set'}</Label>
           <Select value={scopeId ?? ''} onValueChange={setScopeId}>
             <SelectTrigger className="w-full"><SelectValue placeholder="Selecciona..." /></SelectTrigger>
             <SelectContent>

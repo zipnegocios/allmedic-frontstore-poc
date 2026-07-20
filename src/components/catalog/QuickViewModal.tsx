@@ -150,7 +150,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
     <Modal isOpen={isOpen} onClose={onClose} size="lg" showCloseButton={false}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Media */}
-        <div className="aspect-[4/5] bg-[#F5F5F7] rounded-lg overflow-hidden relative">
+        <div className="aspect-product bg-[#F5F5F7] rounded-lg overflow-hidden relative">
           {displayMedia?.type === 'video' ? (
             <video
               key={displayMedia.url}
@@ -165,17 +165,17 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
               alt={product.name}
               fill
               sizes="(max-width: 768px) 100vw, 50vw"
-              className="object-cover"
+              className="object-contain"
               onError={(e) => {
                 (e.target as HTMLImageElement).src = '/images/placeholder-product.jpg';
               }}
             />
           )}
           
-          {/* Status Badge on Image */}
-          {selectedVariant && (
+          {/* Badge de estado — solo en excepciones (BACKORDER / OUT_OF_STOCK) */}
+          {selectedVariant && selectedVariant.status !== 'AVAILABLE' && (
             <div className={cn(
-              'absolute top-3 right-3 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5',
+              'absolute top-3 right-3 px-3 py-1.5 rounded-full text-body-xs font-medium tracking-badge flex items-center gap-1.5',
               statusConfig[selectedVariant.status].bg,
               statusConfig[selectedVariant.status].text
             )}>

@@ -51,7 +51,7 @@ export function ImageGallery({ images, productName, brandLogo }: ImageGalleryPro
   return (
     <div className="space-y-4">
       {/* Main viewer */}
-      <div className="relative aspect-[4/5] bg-[#F5F5F7] overflow-hidden rounded-lg">
+      <div className="relative aspect-product bg-[#F5F5F7] overflow-hidden rounded-lg">
         {/* Loading Spinner */}
         {isImageLoading && !isActiveVideo && (
           <div className="absolute inset-0 flex items-center justify-center bg-[#F5F5F7] z-10">
@@ -76,7 +76,7 @@ export function ImageGallery({ images, productName, brandLogo }: ImageGalleryPro
             sizes="(max-width: 768px) 100vw, 50vw"
             priority={selectedIndex === 0}
             className={cn(
-              'object-cover transition-opacity duration-300',
+              'object-contain transition-opacity duration-300',
               isTransitioning ? 'opacity-0' : 'opacity-100',
               isImageLoading && 'opacity-0'
             )}

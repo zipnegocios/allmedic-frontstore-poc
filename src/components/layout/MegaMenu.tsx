@@ -227,19 +227,20 @@ export function MegaMenu({ isOpen, onClose, products: productsProp, brands: bran
                           onClick={onClose}
                           className="group"
                         >
-                          <div className="relative aspect-[3/4] bg-[#F5F5F7] rounded-lg overflow-hidden mb-2 sm:mb-3">
+                          <div className="relative aspect-product bg-[#F5F5F7] rounded-lg overflow-hidden mb-2 sm:mb-3">
                             <MediaGridThumb
                               item={resolveCoverMedia(product)}
                               fallback="/images/placeholder-product.jpg"
                               alt={product.name}
                               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 16vw"
-                              className="object-cover group-hover:scale-105 transition-transform duration-300"
+                              fit="cover"
+                              className="object-contain group-hover:scale-105 transition-transform duration-300"
                             />
                           </div>
-                          <p className="text-xs text-gray-400 uppercase mb-0.5">{product.brand}</p>
-                          <p className="text-sm font-medium text-[#111111] line-clamp-2 group-hover:underline">{product.name}</p>
+                          <p className="font-sans text-body-sm text-gray-400 uppercase mb-0.5">{product.brand}</p>
+                          <p className="font-sans text-body-sm font-medium text-[#111111] line-clamp-2 group-hover:underline">{product.name}</p>
                           {showPrices && (
-                            <p className="text-sm font-semibold mt-1">
+                            <p className="font-sans text-body-sm font-semibold mt-1">
                               ${(product.priceSale || product.priceNormal).toFixed(2)}
                             </p>
                           )}

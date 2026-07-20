@@ -137,7 +137,7 @@ export function BrandCarousel({ brands: brandsProp }: { brands?: BrandNavItem[] 
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-[#111111] mb-2">
+            <h2 className="font-display uppercase text-h2-mobile sm:text-h2 text-[#111111] mb-2">
               Marcas que representamos
             </h2>
             <p className="text-sm sm:text-base text-gray-500">

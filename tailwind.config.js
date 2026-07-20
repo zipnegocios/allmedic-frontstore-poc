@@ -55,6 +55,29 @@ export default {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      // ── Sistema tipográfico Allmedic ──────────────────────────────────────
+      fontFamily: {
+        display: ['var(--font-display)', 'Impact', 'sans-serif'], // Anton
+        sans:    ['var(--font-sans)', 'Helvetica Neue', 'Arial', 'sans-serif'], // Inter
+      },
+      fontSize: {
+        'body-xs': ['0.625rem', { lineHeight: '1.6' }],           // 10px — badges
+        'body-sm': ['0.75rem',  { lineHeight: '1.6' }],           // 12px — captions, SKU, vendor
+        'body-md': ['0.875rem', { lineHeight: '1.6' }],           // 14px — body, cards, precios
+        'body-lg': ['1rem',     { lineHeight: '1.6' }],           // 16px — navegación
+        'h1-pdp':  ['1.25rem',  { lineHeight: '1.4', fontWeight: '500' }], // 20px — título PDP
+        'h2':      ['1.5rem',   { lineHeight: '1' }],             // 24px — H2 sección desktop
+        'h2-mobile': ['1.125rem', { lineHeight: '1' }],           // 18px — H2 sección móvil
+        'h1-col':  ['2.5rem',   { lineHeight: '1' }],             // 40px — H1 colección/catálogo
+        'h1-hero': ['5rem',     { lineHeight: '1' }],             // 80px — H1 hero desktop
+      },
+      letterSpacing: {
+        badge: '0.04em',
+      },
+      // ── Token de proporción de imagen de producto (650 × 1000 px nativos) ─
+      aspectRatio: {
+        product: '650 / 1000',
+      },
       keyframes: {
         "accordion-down": {
           from: { height: "0" },

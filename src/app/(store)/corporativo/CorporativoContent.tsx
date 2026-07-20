@@ -4,24 +4,23 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Building2, Star, AlertTriangle, Search, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { CorporateSetSummary, SetGroupSummary } from '@/lib/corporate-types';
+import type { CorporateSetSummary } from '@/lib/corporate-types';
 import { resolveRules, type BusinessRule } from '@/lib/rules-engine';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 import { LayoutSwitcher, type ViewMode } from '@/components/catalog/LayoutSwitcher';
 import { SetFilterSidebar, SetFilterButton } from '@/components/catalog/SetFilterSidebar';
-import { SetListItem, coverImageItem } from '@/components/catalog/SetListItem';
+import { SetListItem } from '@/components/catalog/SetListItem';
 import { useSetFilter } from '@/hooks/useSetFilter';
 import type { SetSortOption } from '@/lib/set-filter-logic';
 
 interface CorporativoContentProps {
   sets: CorporateSetSummary[];
-  groups: SetGroupSummary[];
   /** Solo las reglas PRICE_VISIBILITY — se resuelven por set en el cliente (loop en memoria). */
   priceVisibilityRules: BusinessRule[];
   minQuantity: number;
 }
 
-export function CorporativoContent({ sets, groups, priceVisibilityRules, minQuantity }: CorporativoContentProps) {
+export function CorporativoContent({ sets, priceVisibilityRules, minQuantity }: CorporativoContentProps) {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('grid-4');
 
@@ -41,12 +40,11 @@ export function CorporativoContent({ sets, groups, priceVisibilityRules, minQuan
     setSortBy,
     itemsPerPage,
     setItemsPerPage,
-  } = useSetFilter(sets, groups);
+  } = useSetFilter(sets);
 
   const showPricesFor = (set: CorporateSetSummary): boolean => {
     const resolved = resolveRules(priceVisibilityRules, {
       setId: set.id,
-      setGroupId: set.setGroupId,
       brandId: set.brandId,
       productIds: set.productIds,
     });
@@ -200,15 +198,28 @@ export function CorporativoContent({ sets, groups, priceVisibilityRules, minQuan
                         href={`/corporativo/s/${set.slug}`}
                         className="group border border-[#E5E5E5] rounded-xl overflow-hidden hover:shadow-lg transition-shadow bg-white"
                       >
-                        <div className="relative aspect-[4/5] bg-[#F5F5F7] overflow-hidden">
-                          {set.imageUrl ? (
-                            <MediaGridThumb
-                              item={coverImageItem(set.imageUrl)}
-                              fallback="/images/placeholder-product.jpg"
-                              alt={set.name}
-                              className="object-cover group-hover:scale-105 transition-transform duration-500"
-                              sizes="400px"
-                            />
+                        <div className="relative aspect-product bg-[#F5F5F7] overflow-hidden">
+                          {set.cover ? (
+                            <>
+                              <MediaGridThumb
+                                item={set.cover}
+                                fallback="/images/placeholder-product.jpg"
+                                alt={set.name}
+                                fit="cover"
+                                className={`object-cover transition-opacity duration-300 ${set.secondaryCover ? 'group-hover:opacity-0' : 'group-hover:scale-105 transition-transform duration-500'}`}
+                                sizes="400px"
+                              />
+                              {set.secondaryCover && (
+                                <MediaGridThumb
+                                  item={set.secondaryCover}
+                                  fallback="/images/placeholder-product.jpg"
+                                  alt={set.name}
+                                  fit="cover"
+                                  className="absolute inset-0 object-cover opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                                  sizes="400px"
+                                />
+                              )}
+                            </>
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-gray-300">
                               <Building2 className="w-12 h-12" strokeWidth={1} />
@@ -226,7 +237,6 @@ export function CorporativoContent({ sets, groups, priceVisibilityRules, minQuan
                           <h3 className="font-semibold text-[#111111] mb-1">{set.name}</h3>
                           <p className="text-sm text-gray-500 mb-3">
                             {set.pieceCount} {set.pieceCount === 1 ? 'pieza' : 'piezas'}
-                            {set.groupName && ` · ${set.groupName}`}
                           </p>
                           {showPricesFor(set) &&
                             (set.referencePrice !== null ? (

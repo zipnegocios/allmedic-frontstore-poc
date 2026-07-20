@@ -117,11 +117,11 @@ export function ProductListItem({ product, onQuickView }: ProductListItemProps) 
       {/* Info */}
       <div className="flex-1 min-w-0 flex flex-col">
         <div className="flex-1">
-          <p className="text-xs uppercase tracking-wider text-gray-400 mb-1">
+          <p className="font-sans text-body-sm uppercase tracking-badge text-gray-400 mb-1">
             {product.brand}
           </p>
           <Link href={`/p/${product.slug}`}>
-            <h3 className="text-base sm:text-lg font-semibold text-[#111111] mb-1 group-hover:underline line-clamp-2">
+            <h3 className="font-sans text-body-md font-medium text-[#111111] mb-1 group-hover:underline line-clamp-2">
               {product.name}
             </h3>
           </Link>
@@ -147,15 +147,15 @@ export function ProductListItem({ product, onQuickView }: ProductListItemProps) 
           <div className="flex items-baseline gap-2">
             {hasDiscount ? (
               <>
-                <span className="text-lg font-bold text-[#111111]">
+                <span className="font-sans text-body-lg font-medium text-[#111111]">
                   ${product.priceSale?.toFixed(2)}
                 </span>
-                <span className="text-sm text-gray-400 line-through">
+                <span className="font-sans text-body-md text-gray-400 line-through">
                   ${product.priceNormal.toFixed(2)}
                 </span>
               </>
             ) : (
-              <span className="text-lg font-bold text-[#111111]">
+              <span className="font-sans text-body-lg font-medium text-[#111111]">
                 ${product.priceNormal.toFixed(2)}
               </span>
             )}

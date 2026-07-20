@@ -10,6 +10,8 @@ interface MediaGridThumbProps {
   alt: string;
   className?: string;
   sizes?: string;
+  /** Fit del elemento: aplica a video vía VideoPreviewThumb; para imágenes el fit va en `className`. */
+  fit?: 'cover' | 'contain';
   onLoad?: () => void;
   onError?: () => void;
 }
@@ -19,7 +21,7 @@ interface MediaGridThumbProps {
  * representación estática — si el item es video, se reproduce mudo en loop dentro de su
  * ventana de vista previa; nunca el video completo (eso es solo en la vista expandida).
  */
-export function MediaGridThumb({ item, fallback, alt, className, sizes = '400px', onLoad, onError }: MediaGridThumbProps) {
+export function MediaGridThumb({ item, fallback, alt, className, sizes = '400px', fit = 'cover', onLoad, onError }: MediaGridThumbProps) {
   if (!item) {
     return <Image src={fallback} alt={alt} fill sizes={sizes} className={className} onLoad={onLoad} onError={onError} />;
   }
@@ -30,6 +32,7 @@ export function MediaGridThumb({ item, fallback, alt, className, sizes = '400px'
         url={item.url}
         start={item.previewStartSeconds ?? 0}
         duration={item.previewDurationSeconds ?? 3}
+        fit={fit}
         className={className}
       />
     );

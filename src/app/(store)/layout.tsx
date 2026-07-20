@@ -27,14 +27,17 @@ export default async function StoreLayout({
   const priceVisibilityRules = rules.filter((r) => r.ruleType === 'PRICE_VISIBILITY');
 
   return (
-    <NotificationProvider>
-      <PriceVisibilityProvider rules={priceVisibilityRules}>
-        <CartProvider>
-          <AppShell products={products} brands={brands} stores={stores}>
-            {children}
-          </AppShell>
-        </CartProvider>
-      </PriceVisibilityProvider>
-    </NotificationProvider>
+    // font-sans aplica Inter a todo el sitio público; el admin (/admin) no pasa por este layout
+    <div className="font-sans">
+      <NotificationProvider>
+        <PriceVisibilityProvider rules={priceVisibilityRules}>
+          <CartProvider>
+            <AppShell products={products} brands={brands} stores={stores}>
+              {children}
+            </AppShell>
+          </CartProvider>
+        </PriceVisibilityProvider>
+      </NotificationProvider>
+    </div>
   );
 }

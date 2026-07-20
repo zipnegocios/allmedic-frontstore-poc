@@ -113,11 +113,11 @@ function HeroCarousel({ slides }: { slides: HeroSlide[] }) {
           <div className="relative h-full flex items-center">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
               <div className="max-w-xl px-2 sm:px-0">
-                <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-3 sm:mb-4 tracking-tight leading-tight">
+                <h1 className="font-display uppercase text-h2-mobile sm:text-h1-col md:text-h1-hero text-white mb-3 sm:mb-4">
                   {slide.title}
                 </h1>
                 {slide.subtitle && (
-                  <p className="text-base sm:text-lg md:text-xl text-white/80 mb-6 sm:mb-8 max-w-md">
+                  <p className="font-sans text-body-md sm:text-body-lg text-white/80 mb-6 sm:mb-8 max-w-md">
                     {slide.subtitle}
                   </p>
                 )}
@@ -180,7 +180,7 @@ function QuickAccessCards() {
               <div className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105" style={{ backgroundImage: `url(${card.image})`, backgroundColor: '#3A3A3A' }} />
               <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition-colors" />
               <div className="absolute inset-0 flex items-center justify-center">
-                <h3 className="text-2xl font-bold text-white">{card.title}</h3>
+                <h3 className="font-display uppercase text-h2-mobile text-white">{card.title}</h3>
               </div>
             </Link>
           ))}
@@ -201,7 +201,7 @@ function FeaturedProductsSection({ products }: { products: Product[] }) {
     <section className="py-16 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-          <h2 className="text-2xl font-semibold">Lo más solicitado</h2>
+          <h2 className="font-display uppercase text-h2-mobile md:text-h2">Lo más solicitado</h2>
           <div className="flex items-center gap-4">
             <div className="hidden sm:block">
               <LayoutSwitcher viewMode={viewMode} onViewModeChange={setViewMode} itemsPerPage={itemsPerPage} onItemsPerPageChange={setItemsPerPage} totalItems={products.length} showAllColumns={true} />

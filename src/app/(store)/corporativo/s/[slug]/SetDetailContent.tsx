@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { Building2, ChevronLeft, Info, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -81,9 +80,8 @@ export function SetDetailContent({
     setId: set.id,
     setSlug: set.slug,
     setName: set.name,
-    imageUrl: set.imageUrl,
+    imageUrl: set.cover?.url ?? null,
     sizeMode,
-    setGroupId: set.setGroupId,
     brandId: set.brandId,
     unitPrice: set.referencePrice ?? 0,
     hasMissingPrices: set.hasMissingPrices,
@@ -236,9 +234,26 @@ export function SetDetailContent({
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Imagen de portada — misma proporción que el catálogo individual */}
-          <div className="relative aspect-[4/5] bg-[#F5F5F7] rounded-xl overflow-hidden">
-            {set.imageUrl ? (
-              <Image src={set.imageUrl} alt={set.name} fill className="object-cover" />
+          <div className="relative aspect-product bg-[#F5F5F7] rounded-xl overflow-hidden group">
+            {set.cover ? (
+              <>
+                <MediaGridThumb
+                  item={set.cover}
+                  fallback="/images/placeholder-product.jpg"
+                  alt={set.name}
+                  fit="contain"
+                  className={`object-contain transition-opacity duration-300 ${set.secondaryCover ? 'group-hover:opacity-0' : ''}`}
+                />
+                {set.secondaryCover && (
+                  <MediaGridThumb
+                    item={set.secondaryCover}
+                    fallback="/images/placeholder-product.jpg"
+                    alt={set.name}
+                    fit="contain"
+                    className="absolute inset-0 object-contain opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                  />
+                )}
+              </>
             ) : (
               <div className="w-full h-full flex items-center justify-center text-gray-300">
                 <Building2 className="w-16 h-16" strokeWidth={1} />
@@ -248,8 +263,8 @@ export function SetDetailContent({
 
           {/* Info */}
           <div>
-            {set.brandName && <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{set.brandName}</p>}
-            <h1 className="text-2xl sm:text-3xl font-bold text-[#111111] mb-2">{set.name}</h1>
+            {set.brandName && <p className="font-sans text-body-sm text-gray-400 uppercase tracking-badge mb-1">{set.brandName}</p>}
+            <h1 className="font-sans font-medium text-h1-pdp sm:text-2xl text-[#111111] mb-2">{set.name}</h1>
             {set.description && <p className="text-gray-600 mb-4">{set.description}</p>}
 
             <div className="border border-[#E5E5E5] rounded-lg p-4 mb-4">
@@ -375,12 +390,13 @@ export function SetDetailContent({
               return (
                 <div key={piece.setItemId} className="border border-[#E5E5E5] rounded-lg p-4">
                   <div className="flex gap-4">
-                    <div className="relative w-20 sm:w-24 aspect-[4/5] flex-shrink-0 bg-[#F5F5F7] rounded-lg overflow-hidden">
+                    <div className="relative w-20 sm:w-24 aspect-product flex-shrink-0 bg-[#F5F5F7] rounded-lg overflow-hidden">
                       <MediaGridThumb
                         item={image}
                         fallback="/images/placeholder-product.jpg"
                         alt={piece.productName}
-                        className="object-cover"
+                        fit="cover"
+                        className="object-contain"
                         sizes="120px"
                       />
                     </div>

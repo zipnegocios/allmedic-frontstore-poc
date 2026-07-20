@@ -1,7 +1,24 @@
 import type { Metadata } from 'next';
+import { Anton, Inter } from 'next/font/google';
 import '@/index.css';
 import { SessionProvider } from '@/components/providers/SessionProvider';
 import { Toaster } from '@/components/ui/sonner';
+
+// Fuente display (headings): Anton — peso único 400, impacto visual por mayúsculas + line-height 1
+const anton = Anton({
+  weight: '400',
+  subsets: ['latin'],
+  variable: '--font-display',
+  display: 'swap',
+});
+
+// Fuente primaria (body / UI): Inter — pesos 400, 500, 600
+const inter = Inter({
+  weight: ['400', '500', '600'],
+  subsets: ['latin'],
+  variable: '--font-sans',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'All Medic - Uniformes Médicos Americanos | Ecuador',
@@ -24,7 +41,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es">
+    <html lang="es" className={`${anton.variable} ${inter.variable}`}>
       <body>
         <SessionProvider>{children}</SessionProvider>
         <Toaster />

@@ -102,7 +102,7 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
             del `group` genérico de la card (que ya controla el botón "Vista rápida"
             y el scale/brightness del countdown), para que el crossfade hover-swap
             no colisione con esos otros efectos. */}
-        <div className="relative aspect-[4/5] bg-[#F5F5F7] overflow-hidden group/media">
+        <div className="relative aspect-product bg-[#F5F5F7] overflow-hidden group/media">
           <Link href={`/p/${product.slug}`} className="block w-full h-full">
             {/* Badges */}
             <div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
@@ -111,16 +111,18 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
               {hasDiscount && !hasActiveCountdown && <Badge variant="destructive">-{discountPercentage}%</Badge>}
             </div>
 
-            {/* Availability Status Badge - Top Right */}
-            <div className="absolute top-3 right-3 z-10">
-              <div className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-white text-xs font-medium shadow-md",
-                availability.color
-              )}>
-                {getStatusIcon()}
-                <span className="hidden sm:inline">{availability.label}</span>
+            {/* Badge de estado — solo en excepciones (BACKORDER / OUT_OF_STOCK); AVAILABLE es el default implícito */}
+            {availability.status !== 'AVAILABLE' && (
+              <div className="absolute top-3 right-3 z-10">
+                <div className={cn(
+                  "flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-white text-body-xs font-medium tracking-badge shadow-md",
+                  availability.color
+                )}>
+                  {getStatusIcon()}
+                  <span className="hidden sm:inline">{availability.label}</span>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Countdown Timer - Bottom of image */}
             {hasActiveCountdown && product.discountEnd && (
@@ -146,8 +148,9 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
               fallback="/images/placeholder-product.jpg"
               alt={`${product.name} - ${selectedColor?.name || ''}`}
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              fit="cover"
               className={cn(
-                "object-cover transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]",
+                "object-contain transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]",
                 hasActiveCountdown && "group-hover:scale-105 group-hover:brightness-95",
                 isImageLoading && displayMedia?.type !== 'video' && "opacity-0"
               )}
@@ -164,7 +167,8 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
                   fallback="/images/placeholder-product.jpg"
                   alt={`${product.name} - vista alterna`}
                   sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                  className="object-cover"
+                  fit="cover"
+                  className="object-contain"
                 />
               </div>
             )}
@@ -201,13 +205,13 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
         {/* Info */}
         <div className="pt-4">
           {/* Brand */}
-          <p className="text-xs uppercase tracking-widest text-gray-400 mb-1">
+          <p className="font-sans text-body-sm uppercase tracking-badge text-gray-400 mb-1">
             {product.brand}
           </p>
 
           {/* Name */}
           <Link href={`/p/${product.slug}`}>
-            <h3 className="text-sm font-medium text-[#111111] mb-2 line-clamp-2 group-hover:underline">
+            <h3 className="font-sans text-body-md font-normal text-[#111111] mb-2 line-clamp-2 group-hover:underline">
               {product.name}
             </h3>
           </Link>
@@ -217,15 +221,15 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
             <div className="flex items-center gap-2 mb-3">
               {hasDiscount ? (
                 <>
-                  <span className="text-sm font-bold text-[#111111]">
+                  <span className="font-sans text-body-md font-medium text-[#111111]">
                     ${product.priceSale?.toFixed(2)}
                   </span>
-                  <span className="text-sm text-gray-400 line-through">
+                  <span className="font-sans text-body-md text-gray-400 line-through">
                     ${product.priceNormal.toFixed(2)}
                   </span>
                 </>
               ) : (
-                <span className="text-sm font-bold text-[#111111]">
+                <span className="font-sans text-body-md font-medium text-[#111111]">
                   ${product.priceNormal.toFixed(2)}
                 </span>
               )}

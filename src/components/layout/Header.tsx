@@ -152,7 +152,7 @@ export function Header({ onCartClick, products, brands, stores }: HeaderProps) {
               <button
                 onClick={() => setIsMegaMenuOpen(!isMegaMenuOpen)}
                 className={cn(
-                  'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full transition-all duration-200',
+                  'flex items-center gap-2 px-4 py-2 font-sans text-body-lg rounded-full transition-all duration-200',
                   isMegaMenuOpen
                     ? 'bg-[#111111] text-white'
                     : 'text-[#333333] hover:bg-[#F5F5F7] hover:text-[#111111]'
@@ -167,7 +167,7 @@ export function Header({ onCartClick, products, brands, stores }: HeaderProps) {
                   key={link.href}
                   href={link.href}
                   className={cn(
-                    'px-4 py-2 text-sm font-medium rounded-full transition-all duration-200',
+                    'px-4 py-2 font-sans text-body-lg rounded-full transition-all duration-200',
                     isActive(link.href)
                       ? 'bg-[#111111] text-white'
                       : 'text-[#333333] hover:bg-[#F5F5F7] hover:text-[#111111]'
