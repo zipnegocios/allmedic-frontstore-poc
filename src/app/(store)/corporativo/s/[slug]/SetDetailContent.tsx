@@ -531,9 +531,9 @@ function BlockStrip({
               selected ? 'border-[#111111] bg-[#F5F5F7]' : 'border-transparent hover:bg-[#F5F5F7]'
             )}
           >
-            <div className="w-10 h-10 rounded-md flex-shrink-0 bg-[#F5F5F7] overflow-hidden">
+            <div className="relative w-10 h-10 rounded-md flex-shrink-0 bg-[#F5F5F7] overflow-hidden">
               {image ? (
-                <MediaGridThumb item={image} fallback="/images/placeholder-product.jpg" alt={p.productName} fit="cover" sizes="40px" />
+                <MediaGridThumb item={image} fallback="/images/placeholder-product.jpg" alt={p.productName} fit="cover" sizes="40px" className="object-cover" />
               ) : (
                 <div className="w-full h-full" style={{ backgroundColor: selected ? tintHex : undefined }} />
               )}
@@ -591,9 +591,9 @@ function GalleryRail({
               key={idx}
               type="button"
               onClick={() => onFocus({ side, index: idx })}
-              className={cn('w-16 h-16 rounded-md overflow-hidden border-2', active ? 'border-[#111111]' : 'border-transparent')}
+              className={cn('relative w-16 h-16 rounded-md overflow-hidden border-2 bg-[#F5F5F7]', active ? 'border-[#111111]' : 'border-transparent')}
             >
-              <MediaGridThumb item={images[idx]} fallback="/images/placeholder-product.jpg" alt="" fit="cover" sizes="64px" />
+              <MediaGridThumb item={images[idx]} fallback="/images/placeholder-product.jpg" alt="" fit="cover" sizes="64px" className="object-cover" />
             </button>
           );
         })}
@@ -640,7 +640,7 @@ function Gallery({
       <div className="flex-1">
         <div className="relative w-full aspect-product bg-[#F5F5F7] rounded-xl overflow-hidden">
           {focusedImage ? (
-            <MediaGridThumb item={focusedImage} fallback="/images/placeholder-product.jpg" alt={focus.side === 'A' ? pieceA.productName : pieceB.productName} fit="contain" />
+            <MediaGridThumb item={focusedImage} fallback="/images/placeholder-product.jpg" alt={focus.side === 'A' ? pieceA.productName : pieceB.productName} fit="contain" className="object-contain" />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-gray-300" style={{ backgroundColor: tintHex }}>
               <Building2 className="w-16 h-16" strokeWidth={1} />
@@ -702,12 +702,16 @@ function SizeGroupBox({
   statusesB: Partial<Record<Size, 'AVAILABLE' | 'BACKORDER' | 'OUT_OF_STOCK'>>;
 }) {
   return (
-    <div className="relative border border-[#E5E5E5] rounded-lg divide-y sm:divide-y-0 sm:divide-x flex flex-col sm:flex-row">
+    <div className="border border-[#E5E5E5] rounded-lg flex flex-col sm:flex-row sm:items-stretch">
       <SizePanel piece={pieceA} size={sizeA} onSize={onSizeA} statuses={statusesA} />
+      {/* Carril central propio para el conector "+" — nunca se superpone a las tallas (a
+          diferencia de un posicionamiento absoluto centrado sobre todo el contenedor). */}
+      <div className="flex items-center justify-center py-1 sm:py-0 sm:px-1 border-t border-b-0 sm:border-t-0 sm:border-l sm:border-r border-[#E5E5E5]">
+        <span className="w-8 h-8 rounded-full bg-[#111111] text-white flex items-center justify-center flex-shrink-0">
+          <Plus className="w-4 h-4" />
+        </span>
+      </div>
       <SizePanel piece={pieceB} size={sizeB} onSize={onSizeB} statuses={statusesB} />
-      <span className="hidden sm:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-[#111111] text-white items-center justify-center">
-        <Plus className="w-4 h-4" />
-      </span>
     </div>
   );
 }
