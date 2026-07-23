@@ -358,14 +358,16 @@ export const RULE_DOCS: Record<RuleType, RuleTypeDoc> = {
     title: "Restricción por color",
     summary: "Exige una cantidad mínima de una pieza cuando el cliente elige un color específico para ella, dentro de una combinación del armador.",
     detail:
-      "El cliente elige color por CADA PIEZA del set en el armador de combinaciones (el color de una " +
-      "camisa y el de un pantalón dentro del mismo set pueden ser distintos). El selector de color de " +
-      "cada pieza solo ofrece los colores con al menos una variante activa de esa pieza — si una pieza " +
-      "no tiene ningún color con variantes disponibles (status distinto de agotado), no se muestra selector para ella y la regla no tiene " +
-      "forma de activarse sobre esa pieza. La restricción se evalúa por fila de combinación × pieza: " +
-      "las unidades de una pieza en un color, dentro de una combinación, son " +
-      "`cantidadDeSets × piezasPorSet` de esa pieza. Si ese total es menor al mínimo configurado para " +
-      "el color, el envío se bloquea con un mensaje que nombra la pieza, el color y el mínimo exigido.",
+      "Cada set corporativo se compone de 2 bloques fijos (Bloque A / Bloque B); el cliente elige 1 " +
+      "opción por bloque en el armador de combinaciones. Cómo se elige el color depende del modo de " +
+      "color del set: en modo 'Piezas combinadas por color' (PAIRED), un único color se aplica a la vez " +
+      "a la pieza elegida del Bloque A y a la del Bloque B (ver COLOR_PAIRING); en modo 'Piezas " +
+      "mezcladas por color' (MIXED), cada pieza elegida tiene su propio color, curado vía combinaciones " +
+      "predefinidas. En ambos casos, esta restricción se evalúa por fila de combinación × pieza: las " +
+      "unidades de una pieza en un color, dentro de una combinación, son `cantidadDeSets × " +
+      "piezasPorSet` de esa pieza (piezasPorSet = cantidad del bloque al que pertenece). Si ese total " +
+      "es menor al mínimo configurado para el color, el envío se bloquea con un mensaje que nombra la " +
+      "pieza, el color y el mínimo exigido.",
     appliesTo: ["CORPORATE"],
     supportedScopes: ["GLOBAL", "BRAND", "SET_GROUP", "SET", "PRODUCT"],
     defaultBehavior: "Sin ninguna regla activa, elegir cualquier color no exige ninguna cantidad mínima adicional.",

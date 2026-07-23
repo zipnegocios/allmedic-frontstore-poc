@@ -34,7 +34,8 @@ export function PriceSection({ register, manualPriceEnabled, setManualPriceEnabl
           <div>
             <h3 className="font-semibold">Precio del set</h3>
             <p className="text-xs text-gray-500">
-              Por defecto el precio es automático (suma de piezas de arriba). Actívalo para fijar un precio propio del set.
+              Por defecto el precio es automático: suma del precio mínimo de cada bloque × su cantidad ("Desde $X").
+              Actívalo para fijar un precio propio del set.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -60,12 +61,12 @@ export function PriceSection({ register, manualPriceEnabled, setManualPriceEnabl
               </div>
             </div>
             <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg text-sm">
-              <span className="text-gray-500">Suma automática de piezas (referencia)</span>
+              <span className="text-gray-500">Desde $X automático (mínimo por bloque × cantidad)</span>
               <div className="flex items-center gap-2">
                 <span className="font-medium">${pricePreview.total.toFixed(2)}</span>
                 {deltaPct !== null && (
                   <Badge variant={deltaPct < 0 ? 'default' : 'secondary'}>
-                    {deltaPct > 0 ? '+' : ''}{deltaPct}% vs. suma de piezas
+                    {deltaPct > 0 ? '+' : ''}{deltaPct}% vs. suma automática
                   </Badge>
                 )}
               </div>

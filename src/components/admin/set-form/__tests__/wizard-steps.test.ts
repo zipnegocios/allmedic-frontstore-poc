@@ -8,9 +8,10 @@ import {
 } from '../wizard-steps';
 
 describe('SET_FORM_WIZARD_STEPS', () => {
-  it('define exactamente 4 pasos en el orden del plan (Datos generales, Piezas, Precio, Reglas)', () => {
+  it('define exactamente 5 pasos en orden (Datos generales, Modo de color, Bloques, Precio, Reglas)', () => {
     expect(SET_FORM_WIZARD_STEPS.map((s) => s.id)).toEqual([
       'general',
+      'color-mode',
       'pieces',
       'price',
       'rules',
@@ -27,14 +28,16 @@ describe('SET_FORM_WIZARD_STEPS', () => {
     }
   });
 
-  it('solo "general" y "pieces" tienen campos que bloquean el avance', () => {
+  it('"general", "color-mode" y "pieces" tienen campos que bloquean el avance', () => {
     const general = SET_FORM_WIZARD_STEPS.find((s) => s.id === 'general')!;
+    const colorMode = SET_FORM_WIZARD_STEPS.find((s) => s.id === 'color-mode')!;
     const pieces = SET_FORM_WIZARD_STEPS.find((s) => s.id === 'pieces')!;
     const price = SET_FORM_WIZARD_STEPS.find((s) => s.id === 'price')!;
     const rules = SET_FORM_WIZARD_STEPS.find((s) => s.id === 'rules')!;
 
     expect(general.fields).toEqual(['name', 'slug', 'coverAssetId', 'secondaryCoverAssetId']);
-    expect(pieces.fields).toEqual(['items']);
+    expect(colorMode.fields).toEqual(['colorMode']);
+    expect(pieces.fields).toEqual(['blocks']);
     expect(price.fields).toEqual([]);
     expect(rules.fields).toEqual([]);
   });
@@ -42,9 +45,9 @@ describe('SET_FORM_WIZARD_STEPS', () => {
 
 describe('getStepProgressLabel', () => {
   it('formatea "N/total · Etiqueta"', () => {
-    expect(getStepProgressLabel(0)).toBe('1/4 · Datos generales');
-    expect(getStepProgressLabel(1)).toBe('2/4 · Piezas del set');
-    expect(getStepProgressLabel(3)).toBe('4/4 · Reglas del set');
+    expect(getStepProgressLabel(0)).toBe('1/5 · Datos generales');
+    expect(getStepProgressLabel(2)).toBe('3/5 · Bloques del set');
+    expect(getStepProgressLabel(4)).toBe('5/5 · Reglas del set');
   });
 
   it('retorna cadena vacía si el índice está fuera de rango', () => {

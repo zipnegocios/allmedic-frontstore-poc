@@ -307,6 +307,174 @@ describe("validateCorporateCart — reglas adicionales", () => {
   });
 });
 
+// ─── Sets de bloques de alternancia (2 bloques fijos, 1 opción elegida por bloque) ───
+// `setMeta.pieces` sigue siendo SetPieceInfo[] (ver corporate-data-service.getSetPiecesByIds) —
+// aquí representa las 2 piezas REALMENTE elegidas (una por bloque) de una combinación concreta,
+// cada una con el quantityPerSet de SU bloque (no de las 2 opciones cargadas del bloque).
+describe("validateCorporateCart — sets de bloques de alternancia", () => {
+  it("combinación válida: 1 pieza por bloque, mismo color (modo PAIRED vía COLOR_PAIRING) — sin violaciones", () => {
+    const rules = [
+      rule({ ruleType: "COLOR_PAIRING", scope: "SET", scopeId: "set-1", config: {} }),
+    ];
+    const setMeta = {
+      "set-1": {
+        pieces: [
+          { productId: "blusa-cuello-v", productName: "Blusa Cuello V", quantityPerSet: 1 },
+          { productId: "jogger-bolsillos", productName: "Jogger con Bolsillos", quantityPerSet: 1 },
+        ],
+      },
+    };
+    const cart: CorporateCart = {
+      items: [
+        {
+          setId: "set-1",
+          setName: "Set Quirófano",
+          sizeMode: "MATRIX",
+          lines: [
+            {
+              quantity: 12,
+              pieceSelections: [
+                { productId: "blusa-cuello-v", size: "M", color: "NAV" },
+                { productId: "jogger-bolsillos", size: "M", color: "NAV" },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const result = validateCorporateCart(cart, rules, setMeta);
+    expect(result.canSubmit).toBe(true);
+    expect(result.violations).toEqual([]);
+  });
+
+  it("bloque incompleto: falta la talla de una de las 2 piezas elegidas — MISSING_SIZE", () => {
+    const setMeta = {
+      "set-1": {
+        pieces: [
+          { productId: "blusa-cuello-v", productName: "Blusa Cuello V", quantityPerSet: 1 },
+          { productId: "jogger-bolsillos", productName: "Jogger con Bolsillos", quantityPerSet: 1 },
+        ],
+      },
+    };
+    const cart: CorporateCart = {
+      items: [
+        {
+          setId: "set-1",
+          setName: "Set Quirófano",
+          sizeMode: "MATRIX",
+          lines: [
+            {
+              quantity: 12,
+              pieceSelections: [
+                { productId: "blusa-cuello-v", size: "M", color: "NAV" },
+                { productId: "jogger-bolsillos", color: "NAV" }, // sin talla
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const result = validateCorporateCart(cart, [], setMeta);
+    expect(result.violations.some((v) => v.code === "MISSING_SIZE")).toBe(true);
+  });
+
+  it("MIN_QUANTITY con piecesPerSet recalculado desde los 2 bloques (no desde las 4 opciones cargadas)", () => {
+    // GLOBAL en 0 para aislar el mínimo contextual del set bajo prueba (el mínimo GLOBAL por
+    // defecto es 12 sets y contaminaría este caso, que usa 10 sets deliberadamente).
+    const rules = [
+      rule({ id: "g", ruleType: "MIN_QUANTITY", scope: "GLOBAL", config: { min: 0, countUnit: "SETS" } }),
+      rule({ id: "s", ruleType: "MIN_QUANTITY", scope: "SET", scopeId: "set-1", config: { min: 20, countUnit: "PIECES" } }),
+    ];
+    // 2 bloques con quantityPerSet 1 cada uno → piecesPerSet = 2, sin importar que cada bloque
+    // tenga 2 opciones cargadas (4 productos en total no significan piecesPerSet: 4).
+    const setMeta = { "set-1": { piecesPerSet: 2 } };
+    const cart: CorporateCart = {
+      items: [
+        {
+          setId: "set-1",
+          sizeMode: "NO_SIZES",
+          // 10 sets * 2 piezas/set = 20 piezas — alcanza el mínimo exacto.
+          lines: [{ quantity: 10, pieceSelections: [{ productId: "blusa-cuello-v" }, { productId: "jogger-bolsillos" }] }],
+        },
+      ],
+    };
+    const result = validateCorporateCart(cart, rules, setMeta);
+    expect(result.violations.some((v) => v.code === "MIN_QUANTITY")).toBe(false);
+  });
+
+  it("COLOR_RESTRICTION con color único de fila (PAIRED): mismo colorCode aplicado a las 2 piezas del bloque", () => {
+    const rules = [rule({ ruleType: "COLOR_RESTRICTION", scope: "GLOBAL", config: { colorCode: "NAV", min: 20 } })];
+    const setMeta = {
+      "set-1": {
+        pieces: [
+          { productId: "blusa-cuello-v", productName: "Blusa Cuello V", quantityPerSet: 1 },
+          { productId: "jogger-bolsillos", productName: "Jogger con Bolsillos", quantityPerSet: 1 },
+        ],
+      },
+    };
+    const cart: CorporateCart = {
+      items: [
+        {
+          setId: "set-1",
+          setName: "Set Quirófano",
+          sizeMode: "MATRIX",
+          // Un solo color ("NAV") repetido en ambas piezas de la fila — comportamiento PAIRED.
+          // 10 sets * 1 pieza/set = 10 unidades de cada pieza en NAV, por debajo del mínimo 20.
+          lines: [
+            {
+              quantity: 10,
+              pieceSelections: [
+                { productId: "blusa-cuello-v", size: "M", color: "NAV" },
+                { productId: "jogger-bolsillos", size: "M", color: "NAV" },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const result = validateCorporateCart(cart, rules, setMeta);
+    const colorViolations = result.violations.filter((v) => v.code === "COLOR_RESTRICTION");
+    expect(colorViolations.length).toBe(2); // ambas piezas incumplen el mismo mínimo por separado
+  });
+
+  it("intersección de color vacía entre las 2 piezas elegidas (COLOR_PAIRING): colores distintos bloquea el envío", () => {
+    const rules = [
+      rule({ ruleType: "COLOR_PAIRING", scope: "SET", scopeId: "set-1", config: {} }),
+    ];
+    const setMeta = {
+      "set-1": {
+        pieces: [
+          { productId: "blusa-cuello-v", productName: "Blusa Cuello V", quantityPerSet: 1 },
+          { productId: "jogger-bolsillos", productName: "Jogger con Bolsillos", quantityPerSet: 1 },
+        ],
+      },
+    };
+    const cart: CorporateCart = {
+      items: [
+        {
+          setId: "set-1",
+          setName: "Set Quirófano",
+          sizeMode: "MATRIX",
+          // Sin intersección real de color entre las 2 piezas elegidas — el cliente (o un
+          // request manipulado) intentó combinar 2 colores distintos en modo PAIRED.
+          lines: [
+            {
+              quantity: 12,
+              pieceSelections: [
+                { productId: "blusa-cuello-v", size: "M", color: "NAV" },
+                { productId: "jogger-bolsillos", size: "M", color: "BLK" },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const result = validateCorporateCart(cart, rules, setMeta);
+    expect(result.violations.some((v) => v.code === "COLOR_PAIRING_MISMATCH")).toBe(true);
+    expect(result.canSubmit).toBe(false);
+  });
+});
+
 describe("computeCartPricing — escala de volumen", () => {
   it("calcula subtotal sin descuento cuando no hay VOLUME_SCALE", () => {
     const cart: CorporateCart = {

@@ -7,11 +7,12 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { Switch } from '@/components/ui/switch';
 import { CollapsibleSection } from '@/components/admin/product-form/CollapsibleSection';
 import { ArrowUp, ArrowDown, Plus, Trash2 } from 'lucide-react';
-import type { SetFormData, EligibleProduct, SetColorComboData } from './schema';
+import type { EligibleProduct, SetColorComboData } from './schema';
 
 interface MixedColorAccordionProps {
   setId: string | undefined;
-  items: SetFormData['items'];
+  /** Lista aplanada de las 4 opciones de bloque (2 bloques × 2 opciones) — nunca piezas recomendadas. */
+  items: Array<{ productId: string }>;
   products: EligibleProduct[];
 }
 

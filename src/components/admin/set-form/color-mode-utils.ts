@@ -1,4 +1,4 @@
-import type { SetFormData, EligibleProduct } from './schema';
+import type { EligibleProduct } from './schema';
 
 export interface PairedColorWarning {
   /** Pieza a la que le falta el color (para resaltarla en la UI si hace falta). */
@@ -10,10 +10,11 @@ export interface PairedColorWarning {
  * Para el modo "Piezas combinadas por color": calcula, para cada pieza del set, qué colores
  * tienen las DEMÁS piezas pero a ella le faltan — esos colores no tendrán paridad completa y por
  * lo tanto no se ofrecerán en el armador público (ver SetDetailContent.tsx). Puramente
- * informativo para el admin, nunca bloquea el guardado.
+ * informativo para el admin, nunca bloquea el guardado. `items` es la lista aplanada de las 4
+ * opciones de bloque (2 bloques × 2 opciones) — nunca incluye piezas recomendadas.
  */
 export function computePairedColorWarnings(
-  items: SetFormData['items'],
+  items: Array<{ productId: string }>,
   products: EligibleProduct[]
 ): PairedColorWarning[] {
   const pieces = items

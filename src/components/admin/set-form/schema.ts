@@ -6,9 +6,21 @@ import type { RuleTypeKey } from '@/lib/rule-config-schemas';
 // esquema, misma fuente de verdad, reutilizado tanto por la vista desktop
 // (Cards secuenciales) como por el wizard mobile (Task 8, Fase 3).
 
-export const SetItemSchema = z.object({
+// ─── Bloques de alternancia: exactamente 2 bloques (A/B), exactamente 2 opciones cada uno ───
+// El límite "exactamente 2" se valida aquí en zod, no en constraint de DB (ver
+// docs/superpowers/plans/2026-07-23-ensamblador-sets-bloques-alternancia.md, Fase 4).
+export const SetBlockOptionSchema = z.object({
   productId: z.string().min(1, 'Producto requerido'),
+});
+
+export const SetBlockSchema = z.object({
+  blockCode: z.enum(['A', 'B']),
   quantityPerSet: z.coerce.number().min(1, 'Cantidad mínima 1'),
+  options: z.tuple([SetBlockOptionSchema, SetBlockOptionSchema]),
+});
+
+export const SetRecommendedItemSchema = z.object({
+  productId: z.string().min(1, 'Producto requerido'),
 });
 
 export const SetFormSchema = z.object({
@@ -25,17 +37,22 @@ export const SetFormSchema = z.object({
   secondaryCoverAlt: z.string().optional(),
   secondaryImageUrl: z.string().optional(), // solo para previsualización, no se persiste
   // Modo de color del set — obligatorio y mutuamente excluyente. Sin elegirlo no se puede avanzar
-  // del paso "Modo de color" (mobile) ni ver el paso "Piezas" (desktop). Ver ColorModeGate.
+  // del paso "Modo de color" (mobile) ni ver el paso "Bloques" (desktop). Ver ColorModeGate.
   colorMode: z.enum(['PAIRED', 'MIXED'], { message: 'Elige un modo de color para el set' }),
   isActive: z.boolean().default(true),
   isFeatured: z.boolean().default(false),
   priceManual: z.string().optional(),
   priceManualSale: z.string().optional(),
   manualDiscountEnd: z.string().optional(),
-  items: z.array(SetItemSchema).min(1, 'Agrega al menos una pieza al set'),
+  // Tupla fija de 2 — Bloque A y Bloque B, siempre en ese orden. No hay botón para agregar un
+  // Bloque C ni para quitar los existentes (Decisión 1 del plan).
+  blocks: z.tuple([SetBlockSchema, SetBlockSchema]),
+  // Lista libre, sin límite, sin campo de cantidad — no forma parte de los bloques.
+  recommendedItems: z.array(SetRecommendedItemSchema).default([]),
 });
 
 export type SetFormData = z.infer<typeof SetFormSchema>;
+export type SetBlockFormData = z.infer<typeof SetBlockSchema>;
 
 // ─── Types ───
 

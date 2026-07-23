@@ -36,28 +36,67 @@ export const corporateSets = pgTable("corporate_sets", {
 
 export const corporateSetsRelations = relations(corporateSets, ({ one, many }) => ({
   brand: one(brands, { fields: [corporateSets.brandId], references: [brands.id] }),
-  items: many(setItems),
+  blocks: many(setBlocks),
+  recommendedItems: many(setRecommendedItems),
   colorCombos: many(setColorCombos),
 }));
 
-// ─── Set Items (Piezas dentro de cada set — relación many-to-many con cantidad) ───
-export const setItems = pgTable("set_items", {
+// ─── Set Blocks (Bloques de alternancia — exactamente 2 por set, Bloque A / Bloque B) ───
+// La tabla no fuerza "exactamente 2 filas" a nivel de constraint — se valida en zod
+// (schema.ts del admin) y en la API — pero `UNIQUE(set_id, block_code)` impide duplicar
+// el mismo bloque dentro de un set. `quantityPerSet` es único por bloque (compartido entre
+// sus 2 opciones), no por pieza individual.
+export const setBlocks = pgTable("set_blocks", {
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
+  setId: pgUuid("set_id").notNull().references(() => corporateSets.id, { onDelete: "cascade" }),
+  blockCode: text("block_code").notNull(), // 'A' | 'B'
+  quantityPerSet: integer("quantity_per_set").default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => [
+  index("idx_set_blocks_set").on(table.setId),
+  unique("uq_set_blocks_set_code").on(table.setId, table.blockCode),
+]);
+
+export const setBlocksRelations = relations(setBlocks, ({ one, many }) => ({
+  set: one(corporateSets, { fields: [setBlocks.setId], references: [corporateSets.id] }),
+  options: many(setBlockOptions),
+}));
+
+// ─── Set Block Options (Piezas alternativas dentro de un bloque — exactamente 2 por bloque) ───
+export const setBlockOptions = pgTable("set_block_options", {
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
+  blockId: pgUuid("block_id").notNull().references(() => setBlocks.id, { onDelete: "cascade" }),
+  productId: pgUuid("product_id").notNull().references(() => products.id),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+}, (table) => [
+  index("idx_set_block_options_block").on(table.blockId),
+  index("idx_set_block_options_product").on(table.productId),
+  unique("uq_set_block_options_block_product").on(table.blockId, table.productId),
+]);
+
+export const setBlockOptionsRelations = relations(setBlockOptions, ({ one }) => ({
+  block: one(setBlocks, { fields: [setBlockOptions.blockId], references: [setBlocks.id] }),
+  product: one(products, { fields: [setBlockOptions.productId], references: [products.id] }),
+}));
+
+// ─── Set Recommended Items (Piezas recomendadas — lista libre, no forman parte de los bloques) ───
+export const setRecommendedItems = pgTable("set_recommended_items", {
   id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
   setId: pgUuid("set_id").notNull().references(() => corporateSets.id, { onDelete: "cascade" }),
   productId: pgUuid("product_id").notNull().references(() => products.id),
-  quantityPerSet: integer("quantity_per_set").default(1),
   sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 }, (table) => [
-  index("idx_set_items_set").on(table.setId),
-  index("idx_set_items_product").on(table.productId),
-  // Impide agregar el mismo producto dos veces al mismo set (PLAN-ajustes-admin-sets.md
-  // Fase 3.2) — protección de última línea; la API y la UI ya rechazan el duplicado antes.
-  unique("uq_set_items_set_product").on(table.setId, table.productId),
+  index("idx_set_recommended_items_set").on(table.setId),
+  index("idx_set_recommended_items_product").on(table.productId),
+  unique("uq_set_recommended_items_set_product").on(table.setId, table.productId),
 ]);
 
-export const setItemsRelations = relations(setItems, ({ one }) => ({
-  set: one(corporateSets, { fields: [setItems.setId], references: [corporateSets.id] }),
-  product: one(products, { fields: [setItems.productId], references: [products.id] }),
+export const setRecommendedItemsRelations = relations(setRecommendedItems, ({ one }) => ({
+  set: one(corporateSets, { fields: [setRecommendedItems.setId], references: [corporateSets.id] }),
+  product: one(products, { fields: [setRecommendedItems.productId], references: [products.id] }),
 }));
 
 // ─── Set Color Combos (Modo MIXED — combinaciones de color curadas por el admin) ───
@@ -79,7 +118,8 @@ export const setColorCombosRelations = relations(setColorCombos, ({ one, many })
   items: many(setColorComboItems),
 }));
 
-// Una fila por pieza dentro de una combinación — mismo shape que setItems, + colorCode.
+// Una fila por pieza dentro de una combinación — un productId (opción de algún bloque del
+// set) + colorCode.
 // colorCode es texto (referencia lógica a colors.code, no FK tipada) por el mismo criterio
 // que CorporateCartLine.pieceSelections[].color y ColorRestrictionConfig.colorCode.
 export const setColorComboItems = pgTable("set_color_combo_items", {

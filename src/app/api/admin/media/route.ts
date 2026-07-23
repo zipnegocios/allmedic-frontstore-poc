@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 
     // Portadas de set en modo "Portadas del contenido": galerías de los productos
     // asociados al set en memoria (funciona con el set todavía sin guardar, no
-    // depende de `set_items` en la base — ver PLAN-ajustes-admin-sets.md Fase 2).
+    // depende de ninguna tabla de piezas en la base — ver PLAN-ajustes-admin-sets.md Fase 2).
     const productIdsParam = searchParams.get('productIds');
     if (productIdsParam) {
       assetIds = await getAssetIdsForProducts(productIdsParam.split(',').filter(Boolean));

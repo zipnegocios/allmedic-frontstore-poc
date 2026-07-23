@@ -38,8 +38,8 @@ export const SET_FORM_WIZARD_STEPS: SetFormWizardStepDef[] = [
   },
   {
     id: 'pieces',
-    label: 'Piezas del set',
-    fields: ['items'],
+    label: 'Bloques del set',
+    fields: ['blocks'],
   },
   {
     id: 'price',

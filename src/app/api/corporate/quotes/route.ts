@@ -84,6 +84,31 @@ export async function POST(request: NextRequest) {
       setIds.map((id) => [id, { ...setMeta[id], pieces: setPieces[id] ?? [] }])
     );
 
+    // Cada productId de una combinación debe pertenecer a las opciones de bloque configuradas de
+    // ESE set (rechaza productos ajenos, incluidas las piezas recomendadas del mismo set — esas
+    // van en líneas propias, nunca dentro de `pieceSelections` de una combinación).
+    const foreignProductIssues: Array<{ code: string; message: string; setId: string }> = [];
+    for (const item of cart.items) {
+      const validProductIds = new Set((setPieces[item.setId] ?? []).map((p) => p.productId));
+      for (const cartLine of item.lines) {
+        for (const sel of cartLine.pieceSelections) {
+          if (!validProductIds.has(sel.productId)) {
+            foreignProductIssues.push({
+              code: 'FOREIGN_PRODUCT',
+              message: `${item.setName ?? 'Set'}: el producto seleccionado no pertenece a este set.`,
+              setId: item.setId,
+            });
+          }
+        }
+      }
+    }
+    if (foreignProductIssues.length > 0) {
+      return NextResponse.json(
+        { error: 'El carrito incluye productos que no pertenecen al set indicado', violations: foreignProductIssues },
+        { status: 400 }
+      );
+    }
+
     // Re-validación en servidor: si el carrito no cumple las reglas, se rechaza.
     const validation = validateCorporateCart(cart, rules, setMetaWithPieces);
     if (!validation.canSubmit) {

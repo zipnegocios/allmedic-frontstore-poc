@@ -3,10 +3,11 @@
 import { AlertTriangle } from 'lucide-react';
 import { CollapsibleSection } from '@/components/admin/product-form/CollapsibleSection';
 import { computePairedColorWarnings } from './color-mode-utils';
-import type { SetFormData, EligibleProduct } from './schema';
+import type { EligibleProduct } from './schema';
 
 interface PairedColorAccordionProps {
-  items: SetFormData['items'];
+  /** Lista aplanada de las 4 opciones de bloque (2 bloques × 2 opciones) — nunca piezas recomendadas. */
+  items: Array<{ productId: string }>;
   products: EligibleProduct[];
 }
 

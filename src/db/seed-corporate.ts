@@ -91,18 +91,27 @@ async function seedWholesalePrices() {
   console.log(`    - ${Object.keys(wholesalePrices).length} productos actualizados con precio al mayor.`);
 }
 
-// ── Sets corporativos de ejemplo ──
+// ── Sets corporativos de ejemplo (modelo de bloques de alternancia) ──
+// Cada set tiene exactamente 2 bloques (A y B), cada uno con exactamente 2 opciones — el
+// cliente elige 1 opción por bloque. Si algún slug no existe en el catálogo actual, el bloque
+// completo se omite con una advertencia (un set sin sus 2 bloques no queda utilizable, pero el
+// seed es aditivo/best-effort y no debe fallar por catálogo incompleto).
 async function seedCorporateSets() {
   console.log("  Insertando sets corporativos de ejemplo...");
 
-  // Buscar productos existentes por slug para armar los sets
   const productSlugs = [
     "figs-casma-scrub-top",
+    "figs-catarina-scrub-top",
     "figs-yola-scrub-pants",
+    "figs-livingston-scrub-pants",
     "greys-anatomy-lexie-scrub-top",
+    "greys-anatomy-jane-scrub-top",
     "koi-lindsey-scrub-pants",
+    "koi-morgan-scrub-pants",
     "cherokee-workwear-scrub-top",
+    "cherokee-revolution-scrub-top",
     "dickies-eds-scrub-top",
+    "dickies-gen-flex-scrub-top",
   ];
 
   const products = await db
@@ -117,43 +126,46 @@ async function seedCorporateSets() {
     {
       slug: "uniforme-figs-premium",
       name: "Uniforme FIGS Premium",
-      description: "Camisa Casma + Pantalón Yola de FIGS. Set completo premium para profesionales de la salud.",
+      description: "Camisa (Casma o Catarina) + Pantalón (Yola o Livingston) de FIGS. Set completo premium para profesionales de la salud.",
       brandId: figsProduct?.brandId ?? null,
       colorMode: "PAIRED" as const,
       isFeatured: true,
-      items: [
-        { slug: "figs-casma-scrub-top", quantityPerSet: 1 },
-        { slug: "figs-yola-scrub-pants", quantityPerSet: 1 },
+      blocks: [
+        { blockCode: "A" as const, quantityPerSet: 1, optionSlugs: ["figs-casma-scrub-top", "figs-catarina-scrub-top"] },
+        { blockCode: "B" as const, quantityPerSet: 1, optionSlugs: ["figs-yola-scrub-pants", "figs-livingston-scrub-pants"] },
       ],
+      recommendedSlugs: [] as string[],
     },
     {
       slug: "uniforme-mixto-greys-koi",
       name: "Uniforme Mixto Grey's Anatomy + Koi",
-      description: "Camisa Lexie de Grey's Anatomy + Pantalón Lindsey de Koi. Combinación versátil.",
+      description: "Camisa (Lexie o Jane) de Grey's Anatomy + Pantalón (Lindsey o Morgan) de Koi. Combinación versátil.",
       brandId: null,
       colorMode: "PAIRED" as const,
       isFeatured: false,
-      items: [
-        { slug: "greys-anatomy-lexie-scrub-top", quantityPerSet: 1 },
-        { slug: "koi-lindsey-scrub-pants", quantityPerSet: 1 },
+      blocks: [
+        { blockCode: "A" as const, quantityPerSet: 1, optionSlugs: ["greys-anatomy-lexie-scrub-top", "greys-anatomy-jane-scrub-top"] },
+        { blockCode: "B" as const, quantityPerSet: 1, optionSlugs: ["koi-lindsey-scrub-pants", "koi-morgan-scrub-pants"] },
       ],
+      recommendedSlugs: [] as string[],
     },
     {
       slug: "pack-camisas-institucional",
       name: "Pack Camisas Institucional",
-      description: "Pack de camisas Cherokee Workwear y Dickies EDS para instituciones y hospitales.",
+      description: "Pack de camisas Cherokee Workwear/Revolution y Dickies EDS/Gen Flex para instituciones y hospitales.",
       brandId: null,
       colorMode: "PAIRED" as const,
       isFeatured: true,
-      items: [
-        { slug: "cherokee-workwear-scrub-top", quantityPerSet: 2 },
-        { slug: "dickies-eds-scrub-top", quantityPerSet: 1 },
+      blocks: [
+        { blockCode: "A" as const, quantityPerSet: 2, optionSlugs: ["cherokee-workwear-scrub-top", "cherokee-revolution-scrub-top"] },
+        { blockCode: "B" as const, quantityPerSet: 1, optionSlugs: ["dickies-eds-scrub-top", "dickies-gen-flex-scrub-top"] },
       ],
+      recommendedSlugs: [] as string[],
     },
   ];
 
   for (const setData of setsData) {
-    const { items, ...setFields } = setData;
+    const { blocks, recommendedSlugs, ...setFields } = setData;
 
     const [existing] = await db
       .select({ id: schema.corporateSets.id })
@@ -166,26 +178,52 @@ async function seedCorporateSets() {
       continue;
     }
 
+    // Cada bloque exige sus 2 opciones disponibles en el catálogo actual — si falta alguna, se
+    // omite el bloque completo (y con él, el set: un set sin sus 2 bloques no es válido).
+    const resolvedBlocks = blocks.map((block) => ({
+      ...block,
+      options: block.optionSlugs.map((slug) => productsBySlug[slug]).filter((p): p is NonNullable<typeof p> => !!p),
+    }));
+    const missingBlock = resolvedBlocks.find((b) => b.options.length < 2);
+    if (missingBlock) {
+      console.warn(`    ⚠ Set "${setFields.name}" omitido: Bloque ${missingBlock.blockCode} no tiene sus 2 opciones en el catálogo actual.`);
+      continue;
+    }
+
     const setId = uuid();
     await db.insert(schema.corporateSets).values({ id: setId, ...setFields });
 
-    let sortOrder = 0;
-    for (const item of items) {
-      const product = productsBySlug[item.slug];
-      if (!product) {
-        console.warn(`    ⚠ Producto "${item.slug}" no encontrado, se omite del set.`);
-        continue;
-      }
-      await db.insert(schema.setItems).values({
+    for (const block of resolvedBlocks) {
+      const [insertedBlock] = await db.insert(schema.setBlocks).values({
         id: uuid(),
         setId,
-        productId: product.id,
-        quantityPerSet: item.quantityPerSet,
-        sortOrder: sortOrder++,
-      });
+        blockCode: block.blockCode,
+        quantityPerSet: block.quantityPerSet,
+      }).returning();
+
+      await db.insert(schema.setBlockOptions).values(
+        block.options.map((product, idx) => ({
+          id: uuid(),
+          blockId: insertedBlock.id,
+          productId: product.id,
+          sortOrder: idx,
+        }))
+      );
     }
 
-    console.log(`    - Set "${setFields.name}" creado con ${items.length} piezas.`);
+    const recommendedProducts = recommendedSlugs.map((slug) => productsBySlug[slug]).filter((p): p is NonNullable<typeof p> => !!p);
+    if (recommendedProducts.length > 0) {
+      await db.insert(schema.setRecommendedItems).values(
+        recommendedProducts.map((product, idx) => ({
+          id: uuid(),
+          setId,
+          productId: product.id,
+          sortOrder: idx,
+        }))
+      );
+    }
+
+    console.log(`    - Set "${setFields.name}" creado con 2 bloques (${resolvedBlocks.map((b) => `${b.blockCode}: ${b.options.length} opciones`).join(', ')}).`);
   }
 }
 

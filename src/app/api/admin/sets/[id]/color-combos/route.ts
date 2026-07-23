@@ -42,12 +42,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const set = await getAdminSetById(id);
     if (!set) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    const piecesIds = set.items.map((i) => i.productId).filter((pid): pid is string => !!pid);
+    // Piezas válidas para una combinación de color = las 4 opciones de bloque (2 bloques × 2
+    // opciones). Las piezas recomendadas quedan fuera — no participan de COLOR_PAIRING/combos.
+    const piecesIds = set.blocks.flatMap((b) => b.options.map((o) => o.productId)).filter((pid): pid is string => !!pid);
     const bodyProductIds = body.items.map((i) => i.productId);
 
     if (bodyProductIds.length !== piecesIds.length) {
       return NextResponse.json(
-        { error: `La combinación debe tener exactamente una entrada por cada pieza del set (${piecesIds.length}).` },
+        { error: `La combinación debe tener exactamente una entrada por cada opción de bloque del set (${piecesIds.length}).` },
         { status: 400 }
       );
     }

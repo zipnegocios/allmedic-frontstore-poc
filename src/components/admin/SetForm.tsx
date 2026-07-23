@@ -34,7 +34,8 @@ import { GeneralSection } from '@/components/admin/set-form/GeneralSection';
 import { ColorModeGate } from '@/components/admin/set-form/ColorModeGate';
 import { PairedColorAccordion } from '@/components/admin/set-form/PairedColorAccordion';
 import { MixedColorAccordion } from '@/components/admin/set-form/MixedColorAccordion';
-import { PiecesSection } from '@/components/admin/set-form/PiecesSection';
+import { BlockSection } from '@/components/admin/set-form/BlockSection';
+import { RecommendedItemsSection } from '@/components/admin/set-form/RecommendedItemsSection';
 import { PriceSection } from '@/components/admin/set-form/PriceSection';
 import { RulesSection } from '@/components/admin/set-form/RulesSection';
 import { buildSetValidationSummary } from '@/components/admin/set-form/validation-summary';
@@ -74,10 +75,16 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
   // formaba parte del alcance de la galería consultada, no solo si es
   // certeramente el dueño de la imagen.
   const [coverContentScope, setCoverContentScope] = useState<{ cover?: string[]; secondaryCover?: string[] }>({});
-  const [pieceComboOpen, setPieceComboOpen] = useState<number | null>(null);
+  const [optionComboOpen, setOptionComboOpen] = useState<string | null>(null);
+  const [recommendedComboOpen, setRecommendedComboOpen] = useState<number | null>(null);
 
-  // Drawer de producto (crear pieza nueva / editar pieza existente sin salir del set)
-  const [productDrawer, setProductDrawer] = useState<{ productId?: string; targetIndex: number } | null>(null);
+  // Drawer de producto (crear pieza nueva / editar pieza existente sin salir del set) — el
+  // target identifica si la pieza vive en un bloque (blockIndex/optionIndex) o en la lista de
+  // recomendadas (recommendedIndex), nunca ambos.
+  type ProductDrawerTarget =
+    | { productId?: string; blockIndex: 0 | 1; optionIndex: 0 | 1 }
+    | { productId?: string; recommendedIndex: number };
+  const [productDrawer, setProductDrawer] = useState<ProductDrawerTarget | null>(null);
 
   // Sección "Reglas de este set" (solo edición)
   const [setRules, setSetRules] = useState<SetRuleRow[]>([]);
@@ -108,19 +115,42 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
       secondaryImageUrl: '',
       isActive: true,
       isFeatured: false,
-      items: [],
+      blocks: [
+        { blockCode: 'A', quantityPerSet: 1, options: [{ productId: '' }, { productId: '' }] },
+        { blockCode: 'B', quantityPerSet: 1, options: [{ productId: '' }, { productId: '' }] },
+      ],
+      recommendedItems: [],
     },
   });
 
-  const { fields, append, remove } = useFieldArray({ control, name: 'items' });
-  const items = watch('items');
+  const {
+    fields: recommendedFields,
+    append: appendRecommended,
+    remove: removeRecommended,
+  } = useFieldArray({ control, name: 'recommendedItems' });
+  const blocks = watch('blocks');
+  const recommendedItems = watch('recommendedItems');
   const colorMode = watch('colorMode');
 
-  /** Quita una pieza y avisa si podría haber sido la fuente de alguna portada
+  // Todas las piezas del set (4 opciones de bloque + recomendadas) — usado por los acordeones de
+  // color (paridad/combos) y por el chequeo de duplicados entre bloques.
+  const allPieceItems = useMemo(
+    () => [
+      ...blocks.flatMap((b) => b.options.map((o) => ({ productId: o.productId, quantityPerSet: b.quantityPerSet }))),
+      ...recommendedItems.map((r) => ({ productId: r.productId, quantityPerSet: 1 })),
+    ],
+    [blocks, recommendedItems]
+  );
+  const blockOnlyItems = useMemo(
+    () => blocks.flatMap((b) => b.options.map((o) => ({ productId: o.productId, quantityPerSet: b.quantityPerSet }))),
+    [blocks]
+  );
+
+  /** Quita una pieza recomendada y avisa si podría haber sido la fuente de alguna portada
    * elegida en modo "Portadas del contenido" (Fase 2.4). */
-  function handleRemovePiece(index: number) {
-    const removedProductId = items[index]?.productId;
-    remove(index);
+  function handleRemoveRecommended(index: number) {
+    const removedProductId = recommendedItems[index]?.productId;
+    removeRecommended(index);
     if (!removedProductId) return;
     const affected = (['cover', 'secondaryCover'] as const).filter((slot) =>
       coverContentScope[slot]?.includes(removedProductId)
@@ -134,7 +164,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
 
   // Cambiar de modalidad ya elegida cambia cómo el comprador elige color en el catálogo público
   // (duplas vs. combos curados) — se confirma con el usuario antes de aplicar el cambio. Las
-  // piezas (setItems) son compartidas por ambos modos y nunca se limpian; las combinaciones
+  // piezas de los bloques son compartidas por ambos modos y nunca se limpian; las combinaciones
   // curadas de "mezcladas" simplemente dejan de usarse mientras el set no esté en ese modo.
   function handleColorModeChange(next: 'PAIRED' | 'MIXED') {
     if (colorMode && colorMode !== next) {
@@ -187,15 +217,18 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
     }
   }, [nameValue, slugValue, setId, setValue]);
 
-  // ── Vista previa de precio referencial (suma de precios al mayor × cantidad) ──
-  const pricePreview = items.reduce(
-    (acc, item) => {
-      const price = productPrice(products.find((p) => p.id === item.productId));
-      if (price === null) {
+  // ── Vista previa de precio referencial: "Desde $X" — mínimo de cada bloque × su cantidad,
+  // sumado entre bloques (Decisión 3 del plan). Las piezas recomendadas nunca participan. ──
+  const pricePreview = blocks.reduce(
+    (acc, block) => {
+      const prices = block.options
+        .map((o) => productPrice(products.find((p) => p.id === o.productId)))
+        .filter((p): p is number => p !== null);
+      if (prices.length === 0) {
         acc.hasMissing = true;
         return acc;
       }
-      acc.total += price * (item.quantityPerSet || 1);
+      acc.total += Math.min(...prices) * (block.quantityPerSet || 1);
       return acc;
     },
     { total: 0, hasMissing: false }
@@ -213,7 +246,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
       priceManual: manualPriceEnabled ? (data.priceManual || null) : null,
       priceManualSale: manualPriceEnabled ? (data.priceManualSale || null) : null,
       manualDiscountEnd: manualPriceEnabled ? (data.manualDiscountEnd || null) : null,
-      items: data.items.map((item, idx) => ({ ...item, sortOrder: idx })),
+      recommendedItems: data.recommendedItems.map((item, idx) => ({ ...item, sortOrder: idx })),
     };
   }
 
@@ -298,6 +331,56 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
     }
     return map;
   }, [setRules]);
+
+  /** Contenido del paso "Bloques del set": los 2 bloques fijos (A/B), el acordeón de color
+   * correspondiente al modo elegido, y la sección de piezas recomendadas — idéntico en desktop
+   * (Card secuencial) y en el paso 3 del wizard mobile. */
+  function renderBlocksAndRecommended() {
+    const usedProductIds = allPieceItems.map((i) => i.productId).filter(Boolean);
+    return (
+      <div className="space-y-4">
+        <BlockSection
+          blockIndex={0}
+          blockCode="A"
+          control={control}
+          register={register}
+          errors={errors}
+          products={products}
+          optionComboOpen={optionComboOpen}
+          setOptionComboOpen={setOptionComboOpen}
+          onOpenProductDrawer={setProductDrawer}
+          selectedProductIds={usedProductIds}
+          optionProductIds={[blocks[0]?.options[0]?.productId ?? '', blocks[0]?.options[1]?.productId ?? '']}
+        />
+        <BlockSection
+          blockIndex={1}
+          blockCode="B"
+          control={control}
+          register={register}
+          errors={errors}
+          products={products}
+          optionComboOpen={optionComboOpen}
+          setOptionComboOpen={setOptionComboOpen}
+          onOpenProductDrawer={setProductDrawer}
+          selectedProductIds={usedProductIds}
+          optionProductIds={[blocks[1]?.options[0]?.productId ?? '', blocks[1]?.options[1]?.productId ?? '']}
+        />
+        {colorMode === 'PAIRED' && <PairedColorAccordion items={blockOnlyItems} products={products} />}
+        {colorMode === 'MIXED' && <MixedColorAccordion setId={createdSetId} items={blockOnlyItems} products={products} />}
+        <RecommendedItemsSection
+          control={control}
+          fields={recommendedFields}
+          items={recommendedItems}
+          products={products}
+          append={appendRecommended}
+          remove={handleRemoveRecommended}
+          comboOpenIndex={recommendedComboOpen}
+          setComboOpenIndex={setRecommendedComboOpen}
+          onOpenProductDrawer={setProductDrawer}
+        />
+      </div>
+    );
+  }
 
   // ─── Navegación del wizard mobile ───
 
@@ -406,7 +489,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
                   control={control}
                   errors={errors}
                   watch={watch}
-                  hasPieces={items.some((i) => i.productId)}
+                  hasPieces={allPieceItems.some((i) => i.productId)}
                   onOpenPicker={(target, mode) => setPickerRequest({ target, mode })}
                 />
               )}
@@ -415,26 +498,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
                 <ColorModeGate value={colorMode} onChange={handleColorModeChange} nameFilled={Boolean(nameValue?.trim())} />
               )}
 
-              {currentStep.id === 'pieces' && (
-                <div className="space-y-4">
-                  <PiecesSection
-                    control={control}
-                    register={register}
-                    errors={errors}
-                    fields={fields}
-                    items={items}
-                    products={products}
-                    append={append}
-                    remove={handleRemovePiece}
-                    pieceComboOpen={pieceComboOpen}
-                    setPieceComboOpen={setPieceComboOpen}
-                    onOpenProductDrawer={setProductDrawer}
-                    pricePreview={pricePreview}
-                  />
-                  {colorMode === 'PAIRED' && <PairedColorAccordion items={items} products={products} />}
-                  {colorMode === 'MIXED' && <MixedColorAccordion setId={createdSetId} items={items} products={products} />}
-                </div>
-              )}
+              {currentStep.id === 'pieces' && renderBlocksAndRecommended()}
 
               {currentStep.id === 'price' && (
                 <PriceSection
@@ -512,32 +576,13 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
               control={control}
               errors={errors}
               watch={watch}
-              hasPieces={items.some((i) => i.productId)}
+              hasPieces={allPieceItems.some((i) => i.productId)}
               onOpenPicker={(target, mode) => setPickerRequest({ target, mode })}
             />
 
             <ColorModeGate value={colorMode} onChange={handleColorModeChange} nameFilled={Boolean(nameValue?.trim())} />
 
-            {colorMode && (
-              <>
-                <PiecesSection
-                  control={control}
-                  register={register}
-                  errors={errors}
-                  fields={fields}
-                  items={items}
-                  products={products}
-                  append={append}
-                  remove={handleRemovePiece}
-                  pieceComboOpen={pieceComboOpen}
-                  setPieceComboOpen={setPieceComboOpen}
-                  onOpenProductDrawer={setProductDrawer}
-                  pricePreview={pricePreview}
-                />
-                {colorMode === 'PAIRED' && <PairedColorAccordion items={items} products={products} />}
-                {colorMode === 'MIXED' && <MixedColorAccordion setId={createdSetId} items={items} products={products} />}
-              </>
-            )}
+            {colorMode && renderBlocksAndRecommended()}
 
             <PriceSection
               register={register}
@@ -577,7 +622,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
         keyPrefix={pickerRequest?.mode === 'special' && slugValue?.trim() ? `sets/${sanitizeCodeSegment(slugValue.trim())}/${COVER_SEGMENT}/` : undefined}
         linkedEntityType={pickerRequest?.mode === 'special' ? 'SET' : undefined}
         linkedEntityId={pickerRequest?.mode === 'special' ? createdSetId : undefined}
-        productIds={pickerRequest?.mode === 'content' ? items.map((i) => i.productId).filter(Boolean) : undefined}
+        productIds={pickerRequest?.mode === 'content' ? allPieceItems.map((i) => i.productId).filter(Boolean) : undefined}
         onConfirm={(assets) => {
           if (assets[0] && pickerRequest) {
             const assetIdField = pickerRequest.target === 'cover' ? 'coverAssetId' : 'secondaryCoverAssetId';
@@ -587,7 +632,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
             setCoverContentScope((prev) => ({
               ...prev,
               [pickerRequest.target]: pickerRequest.mode === 'content'
-                ? items.map((i) => i.productId).filter(Boolean)
+                ? allPieceItems.map((i) => i.productId).filter(Boolean)
                 : undefined,
             }));
           }
@@ -616,7 +661,11 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
               onCancel={() => setProductDrawer(null)}
               onSaved={async (saved) => {
                 await fetchProducts();
-                setValue(`items.${productDrawer.targetIndex}.productId`, saved.id);
+                if ('recommendedIndex' in productDrawer) {
+                  setValue(`recommendedItems.${productDrawer.recommendedIndex}.productId`, saved.id);
+                } else {
+                  setValue(`blocks.${productDrawer.blockIndex}.options.${productDrawer.optionIndex}.productId`, saved.id);
+                }
                 setProductDrawer(null);
               }}
             />

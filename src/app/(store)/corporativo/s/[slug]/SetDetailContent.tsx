@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Building2, ChevronLeft, Info, Trash2 } from 'lucide-react';
+import { Building2, ChevronLeft, ChevronUp, ChevronDown, Check, Info, Minus, Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCorporateCart } from '@/context/CorporateCartContext';
 import type { CorporateSetDetail, SetPiece } from '@/lib/corporate-types';
@@ -22,8 +22,12 @@ interface SetDetailContentProps {
   colorRestrictions: ColorRestrictionConfig[];
 }
 
-type PieceSelection = { size?: string };
-type PieceSelectionMap = Record<string, PieceSelection>;
+const GALLERY_RAIL_WINDOW = 4;
+const GALLERY_ARROWS_THRESHOLD = 4;
+
+function newRowId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
 
 interface CombinationRow {
   id: string;
@@ -31,8 +35,8 @@ interface CombinationRow {
   pieceSelections: Array<{ productId: string; size?: string; color?: string }>;
 }
 
-function newRowId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+function money(n: number): string {
+  return `$${n.toFixed(2)}`;
 }
 
 export function SetDetailContent({
@@ -46,35 +50,45 @@ export function SetDetailContent({
   const showsSizes = sizeMode !== 'NO_SIZES';
   const isPaired = set.colorMode === 'PAIRED';
   const isMixed = set.colorMode === 'MIXED';
+  const [blockA, blockB] = set.blocks;
 
-  // ── Tallas comunes a todas las piezas — solo se usan para el atajo de MATRIX ──
-  const commonSizes = useMemo(() => {
-    if (set.pieces.length === 0) return [];
-    const [first, ...rest] = set.pieces;
-    return first.availableSizes.filter((size) => rest.every((p) => p.availableSizes.includes(size)));
-  }, [set.pieces]);
-
-  // PAIRED: colores presentes en TODAS las piezas (con al menos una variante no agotada) — el
-  // resto de colores no tienen paridad completa y no se ofrecen, tal como exige la regla.
+  // ── Preselección por defecto (Decisión 8): cada bloque trae su primera opción elegida ──
+  const [choiceAId, setChoiceAId] = useState(blockA.options[0].productId);
+  const [choiceBId, setChoiceBId] = useState(blockB.options[0].productId);
+  const pieceA = useMemo(
+    () => blockA.options.find((o) => o.productId === choiceAId) ?? blockA.options[0],
+    [blockA, choiceAId]
+  );
+  const pieceB = useMemo(
+    () => blockB.options.find((o) => o.productId === choiceBId) ?? blockB.options[0],
+    [blockB, choiceBId]
+  );
+  // PAIRED: colores presentes en AMBAS piezas elegidas (con al menos una variante no agotada) —
+  // la intersección se recalcula cada vez que cambia la pieza elegida de cualquier bloque.
   const pairedColorOptions = useMemo(() => {
-    if (!isPaired || set.pieces.length === 0) return [];
-    const [first, ...rest] = set.pieces;
-    return first.colors.filter((c) =>
-      rest.every((p) => p.colors.some((pc) => pc.code === c.code)) &&
-      set.pieces.every((p) => {
-        const match = p.colors.find((pc) => pc.code === c.code);
-        return match && p.variants.some((v) => v.colorId === match.id && v.status !== 'OUT_OF_STOCK');
-      })
-    );
-  }, [isPaired, set.pieces]);
+    if (!isPaired) return [];
+    return pieceA.colors.filter((c) => {
+      const matchB = pieceB.colors.find((pc) => pc.code === c.code);
+      if (!matchB) return false;
+      const availableInA = pieceA.variants.some((v) => v.colorId === c.id && v.status !== 'OUT_OF_STOCK');
+      const availableInB = pieceB.variants.some((v) => v.colorId === matchB.id && v.status !== 'OUT_OF_STOCK');
+      return availableInA && availableInB;
+    });
+  }, [isPaired, pieceA, pieceB]);
 
-  const [selections, setSelections] = useState<PieceSelectionMap>({});
-  const [pairedColor, setPairedColor] = useState<string | undefined>(undefined);
+  const [pairedColor, setPairedColor] = useState<string | undefined>(() => pairedColorOptions[0]?.code);
   const [selectedComboId, setSelectedComboId] = useState<string | undefined>(undefined);
+  const [sizeA, setSizeA] = useState<string | undefined>(undefined);
+  const [sizeB, setSizeB] = useState<string | undefined>(undefined);
   const [quantity, setQuantity] = useState<number>(Math.max(1, minQuantity));
   const [rows, setRows] = useState<CombinationRow[]>([]);
 
-  const piecesPerSet = set.pieces.reduce((sum, p) => sum + p.quantityPerSet, 0);
+  // ── Galería de doble carril (Decisión 13) ──
+  const [focus, setFocus] = useState<{ side: 'A' | 'B'; index: number }>({ side: 'A', index: 0 });
+  const [offsetA, setOffsetA] = useState(0);
+  const [offsetB, setOffsetB] = useState(0);
+
+  const piecesPerSet = blockA.quantityPerSet + blockB.quantityPerSet;
 
   const setCartItemBase = {
     setId: set.id,
@@ -86,25 +100,50 @@ export function SetDetailContent({
     unitPrice: set.referencePrice ?? 0,
     hasMissingPrices: set.hasMissingPrices,
     piecesPerSet,
-    pieces: set.pieces.map((p) => ({ productId: p.productId, productName: p.productName, quantityPerSet: p.quantityPerSet })),
+    pieces: [
+      { productId: blockA.options[0].productId, productName: blockA.options[0].productName, quantityPerSet: blockA.quantityPerSet },
+      { productId: blockA.options[1].productId, productName: blockA.options[1].productName, quantityPerSet: blockA.quantityPerSet },
+      { productId: blockB.options[0].productId, productName: blockB.options[0].productName, quantityPerSet: blockB.quantityPerSet },
+      { productId: blockB.options[1].productId, productName: blockB.options[1].productName, quantityPerSet: blockB.quantityPerSet },
+    ],
   };
 
-  function setPieceSize(productId: string, size: string) {
-    setSelections((prev) => ({ ...prev, [productId]: { ...prev[productId], size } }));
+  /** Cambiar de opción en un bloque resetea su talla y reajusta el color si ya no es válido
+   * (Decisión 8) — nunca deja el armador en un estado inválido. */
+  function selectPieceA(productId: string) {
+    setChoiceAId(productId);
+    setSizeA(undefined);
+    setFocus({ side: 'A', index: 0 });
+    setOffsetA(0);
+    if (isPaired) {
+      const nextPiece = blockA.options.find((o) => o.productId === productId);
+      const stillValid = nextPiece && pairedColor && nextPiece.colors.some((c) => c.code === pairedColor) &&
+        pieceB.colors.some((c) => c.code === pairedColor);
+      if (!stillValid) {
+        const nextIntersection = (nextPiece?.colors ?? []).filter((c) => pieceB.colors.some((pc) => pc.code === c.code));
+        setPairedColor(nextIntersection[0]?.code);
+      }
+    }
   }
 
-  function applyMatrixShortcut(size: string) {
-    setSelections((prev) => {
-      const next: PieceSelectionMap = { ...prev };
-      for (const piece of set.pieces) {
-        next[piece.productId] = { ...next[piece.productId], size };
+  function selectPieceB(productId: string) {
+    setChoiceBId(productId);
+    setSizeB(undefined);
+    setFocus({ side: 'B', index: 0 });
+    setOffsetB(0);
+    if (isPaired) {
+      const nextPiece = blockB.options.find((o) => o.productId === productId);
+      const stillValid = nextPiece && pairedColor && nextPiece.colors.some((c) => c.code === pairedColor) &&
+        pieceA.colors.some((c) => c.code === pairedColor);
+      if (!stillValid) {
+        const nextIntersection = (nextPiece?.colors ?? []).filter((c) => pieceA.colors.some((pc) => pc.code === c.code));
+        setPairedColor(nextIntersection[0]?.code);
       }
-      return next;
-    });
+    }
   }
 
   /** Color efectivo de una pieza según la modalidad del set — PAIRED comparte un único color
-   * entre todas las piezas; MIXED lo toma de la combinación curada elegida. */
+   * entre las 2 piezas elegidas; MIXED lo toma de la combinación curada elegida. */
   function colorForPiece(productId: string): string | undefined {
     if (isPaired) return pairedColor;
     if (isMixed) {
@@ -114,14 +153,11 @@ export function SetDetailContent({
     return undefined;
   }
 
-  function pieceColorImage(piece: SetPiece): MediaItem | undefined {
-    const colorCode = colorForPiece(piece.productId);
-    if (!colorCode) return undefined;
-    const color = piece.colors.find((c) => c.code === colorCode);
-    if (!color) return undefined;
-    const variant = piece.variants.find((v) => v.colorId === color.id && v.images.length > 0);
-    return variant?.images[0];
-  }
+  const tintHex = useMemo(() => {
+    const colorCode = isPaired ? pairedColor : undefined;
+    const color = colorCode ? pieceA.colors.find((c) => c.code === colorCode) : undefined;
+    return color?.hex;
+  }, [isPaired, pairedColor, pieceA]);
 
   function sizeStatusesFor(piece: SetPiece) {
     const colorCode = colorForPiece(piece.productId);
@@ -130,19 +166,43 @@ export function SetDetailContent({
     const statuses: Partial<Record<Size, 'AVAILABLE' | 'BACKORDER' | 'OUT_OF_STOCK'>> = {};
     for (const v of relevantVariants) {
       const existing = statuses[v.size];
-      // Si hay varias variantes con la misma talla (varios colores), prioriza la más disponible.
       if (!existing || v.status === 'AVAILABLE') statuses[v.size] = v.status;
     }
     return statuses;
   }
 
+  const galleryImagesA = useMemo(() => {
+    const colorCode = colorForPiece(pieceA.productId);
+    const color = colorCode ? pieceA.colors.find((c) => c.code === colorCode) : undefined;
+    const variant = color ? pieceA.variants.find((v) => v.colorId === color.id) : pieceA.variants[0];
+    return variant?.images ?? [];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pieceA, pairedColor, selectedComboId]);
+
+  const galleryImagesB = useMemo(() => {
+    const colorCode = colorForPiece(pieceB.productId);
+    const color = colorCode ? pieceB.colors.find((c) => c.code === colorCode) : undefined;
+    const variant = color ? pieceB.variants.find((v) => v.colorId === color.id) : pieceB.variants[0];
+    return variant?.images ?? [];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pieceB, pairedColor, selectedComboId]);
+
+  const focusedImage = focus.side === 'A' ? galleryImagesA[focus.index] : galleryImagesB[focus.index];
+
   function currentSelectionsArray() {
-    return set.pieces.map((p) => ({
-      productId: p.productId,
-      size: selections[p.productId]?.size,
-      color: colorForPiece(p.productId),
-    }));
+    return [
+      { productId: pieceA.productId, size: sizeA, color: colorForPiece(pieceA.productId) },
+      { productId: pieceB.productId, size: sizeB, color: colorForPiece(pieceB.productId) },
+    ];
   }
+
+  const comboReady = Boolean(
+    (!isPaired || pairedColorOptions.length === 0 || pairedColor) &&
+    (!isMixed || set.colorCombos.length === 0 || selectedComboId) &&
+    (!showsSizes || (sizeA && sizeB))
+  );
+
+  const comboUnitPrice = (pieceA.priceWholesaleSale ?? pieceA.priceWholesale ?? 0) + (pieceB.priceWholesaleSale ?? pieceB.priceWholesale ?? 0);
 
   function handleAddCombination() {
     if (quantity <= 0) {
@@ -163,6 +223,7 @@ export function SetDetailContent({
       return;
     }
     setRows((prev) => [...prev, { id: newRowId(), quantity, pieceSelections }]);
+    setQuantity(Math.max(1, minQuantity));
     toast.success('Combinación agregada — sigue armando o agrégala al carrito.');
   }
 
@@ -190,17 +251,20 @@ export function SetDetailContent({
     return [];
   }
 
+  function pieceLabelFor(productId: string): string {
+    return [pieceA, pieceB].find((p) => p.productId === productId)?.productName ?? productId;
+  }
+
   function rowColorViolations(row: CombinationRow): string[] {
     const messages: string[] = [];
     for (const sel of row.pieceSelections) {
       if (!sel.color) continue;
-      const piece = set.pieces.find((p) => p.productId === sel.productId);
-      if (!piece) continue;
-      const units = row.quantity * piece.quantityPerSet;
+      const qtyPerSet = sel.productId === pieceA.productId ? blockA.quantityPerSet : blockB.quantityPerSet;
+      const units = row.quantity * qtyPerSet;
       for (const restriction of colorRestrictions) {
         if (restriction.colorCode === sel.color && units < restriction.min) {
           messages.push(
-            `"${piece.productName}" en color "${sel.color}" requiere un mínimo de ${restriction.min} unidades; esta combinación lleva ${units}.`
+            `"${pieceLabelFor(sel.productId)}" en color "${sel.color}" requiere un mínimo de ${restriction.min} unidades; esta combinación lleva ${units}.`
           );
         }
       }
@@ -225,280 +289,705 @@ export function SetDetailContent({
     setRows([]);
   }
 
+  // ── Piezas recomendadas: color/talla/cantidad independientes, sin relación con los bloques ──
+  const [extraChoices, setExtraChoices] = useState<Record<string, { color?: string; size?: string; quantity?: number }>>({});
+  function setExtraChoice(productId: string, patch: Partial<{ color: string; size: string; quantity: number }>) {
+    setExtraChoices((prev) => ({ ...prev, [productId]: { ...prev[productId], ...patch } }));
+  }
+  function addRecommendedToCart(piece: SetPiece) {
+    const choice = extraChoices[piece.productId] ?? {};
+    if (!choice.color || (showsSizes && piece.availableSizes.length > 0 && !choice.size)) {
+      toast.error('Elige color y talla antes de agregar.');
+      return;
+    }
+    addLine(
+      {
+        setId: `${set.id}::recommended::${piece.productId}`,
+        setSlug: set.slug,
+        setName: piece.productName,
+        imageUrl: set.cover?.url ?? null,
+        sizeMode,
+        brandId: set.brandId,
+        unitPrice: piece.priceWholesaleSale ?? piece.priceWholesale ?? 0,
+        hasMissingPrices: piece.priceWholesale === null,
+        piecesPerSet: 1,
+        pieces: [{ productId: piece.productId, productName: piece.productName, quantityPerSet: 1 }],
+      },
+      {
+        quantity: choice.quantity ?? 1,
+        pieceSelections: [{ productId: piece.productId, size: choice.size, color: choice.color }],
+      }
+    );
+    toast.success(`${piece.productName} agregado a la cotización`);
+    setExtraChoices((prev) => ({ ...prev, [piece.productId]: {} }));
+  }
+
   return (
     <main className="pt-14 sm:pt-16 min-h-screen">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Link href="/corporativo" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-[#111111] mb-6">
           <ChevronLeft className="w-4 h-4" /> Volver al catálogo corporativo
         </Link>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Imagen de portada — misma proporción que el catálogo individual */}
-          <div className="relative aspect-product bg-[#F5F5F7] rounded-xl overflow-hidden group">
-            {set.cover ? (
-              <>
-                <MediaGridThumb
-                  item={set.cover}
-                  fallback="/images/placeholder-product.jpg"
-                  alt={set.name}
-                  fit="contain"
-                  className={`object-contain transition-opacity duration-300 ${set.secondaryCover ? 'group-hover:opacity-0' : ''}`}
-                />
-                {set.secondaryCover && (
-                  <MediaGridThumb
-                    item={set.secondaryCover}
-                    fallback="/images/placeholder-product.jpg"
-                    alt={set.name}
-                    fit="contain"
-                    className="absolute inset-0 object-contain opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                  />
-                )}
-              </>
+        {/* ── (a) Color del set — a todo el ancho ── */}
+        {isPaired && (
+          <div className="mb-6">
+            <h2 className="text-sm font-semibold text-[#111111]">Color del set</h2>
+            <p className="text-xs text-gray-500 mb-3">Todas las piezas de este set se piden en el mismo color.</p>
+            {pairedColorOptions.length === 0 ? (
+              <div className="flex items-center gap-2 text-sm text-amber-800 bg-amber-50 border rounded-lg p-3">
+                <Info className="w-4 h-4 flex-shrink-0" />
+                <span>Estas dos piezas no comparten ningún color en común — elige otra combinación.</span>
+              </div>
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-300">
-                <Building2 className="w-16 h-16" strokeWidth={1} />
+              <ColorSwatchGroup
+                colors={pairedColorOptions}
+                selectedColorId={pairedColorOptions.find((c) => c.code === pairedColor)?.id}
+                availableColorIds={pairedColorOptions.map((c) => c.id)}
+                onColorSelect={(color: ProductColor) => setPairedColor(color.code)}
+                size="sm"
+              />
+            )}
+          </div>
+        )}
+
+        {isMixed && (
+          <div className="mb-6 border border-[#E5E5E5] rounded-lg p-4">
+            <h3 className="text-sm font-semibold mb-2">Elige una combinación de color</h3>
+            {set.colorCombos.length === 0 ? (
+              <p className="text-sm text-gray-500">No hay combinaciones de color disponibles para este set — contacta a ventas.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {set.colorCombos.map((combo) => (
+                  <button
+                    key={combo.id}
+                    type="button"
+                    onClick={() => setSelectedComboId((prev) => (prev === combo.id ? undefined : combo.id))}
+                    className={cn(
+                      'text-left border rounded-lg p-3 transition-colors',
+                      selectedComboId === combo.id ? 'border-[#111111] bg-[#F5F5F7]' : 'border-[#E5E5E5] hover:border-gray-300'
+                    )}
+                  >
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
+                      {combo.items.map((item) => {
+                        const piece = [pieceA, pieceB].find((p) => p.productId === item.productId);
+                        const color = piece?.colors.find((c) => c.code === item.colorCode);
+                        return (
+                          <span key={item.productId} className="inline-flex items-center gap-1">
+                            <span className="w-3 h-3 rounded-full border border-gray-300" style={{ backgroundColor: color?.hex ?? '#ccc' }} />
+                            {piece?.productName ?? item.productId}: {color?.name ?? item.colorCode}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </button>
+                ))}
               </div>
             )}
           </div>
+        )}
 
-          {/* Info */}
-          <div>
-            {set.brandName && <p className="font-sans text-body-sm text-gray-400 uppercase tracking-badge mb-1">{set.brandName}</p>}
-            <h1 className="font-sans font-medium text-h1-pdp sm:text-2xl text-[#111111] mb-2">{set.name}</h1>
-            {set.description && <p className="text-gray-600 mb-4">{set.description}</p>}
+        {/* ── (b) Tiras de selección de pieza por bloque ── */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-8">
+          <BlockStrip pieces={blockA.options} selectedId={pieceA.productId} onSelect={selectPieceA} tintHex={tintHex} />
+          <BlockStrip pieces={blockB.options} selectedId={pieceB.productId} onSelect={selectPieceB} tintHex={tintHex} />
+        </div>
 
-            <div className="border border-[#E5E5E5] rounded-lg p-4 mb-4">
-              <h3 className="text-sm font-semibold mb-2">Composición del set</h3>
-              <ul className="space-y-1 text-sm text-gray-600">
-                {set.pieces.map((p) => (
-                  <li key={p.setItemId} className="flex justify-between">
-                    <span>{p.quantityPerSet}× {p.productName}</span>
-                    {showPrices && p.priceWholesale && (
-                      <span className="text-gray-400">${(p.priceWholesaleSale ?? p.priceWholesale).toFixed(2)}</span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
+        {/* ── (c) Galería + tallas / Info + armador ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="space-y-4">
+            <Gallery
+              pieceA={pieceA}
+              pieceB={pieceB}
+              imagesA={galleryImagesA}
+              imagesB={galleryImagesB}
+              focusedImage={focusedImage}
+              tintHex={tintHex}
+              focus={focus}
+              setFocus={setFocus}
+              offsetA={offsetA}
+              setOffsetA={setOffsetA}
+              offsetB={offsetB}
+              setOffsetB={setOffsetB}
+            />
+
+            {showsSizes && (
+              <SizeGroupBox
+                pieceA={pieceA}
+                sizeA={sizeA}
+                onSizeA={setSizeA}
+                statusesA={sizeStatusesFor(pieceA)}
+                pieceB={pieceB}
+                sizeB={sizeB}
+                onSizeB={setSizeB}
+                statusesB={sizeStatusesFor(pieceB)}
+              />
+            )}
+          </div>
+
+          <div className="space-y-5">
+            {set.brandName && <p className="font-sans text-body-sm text-gray-400 uppercase tracking-badge">{set.brandName}</p>}
+            <h1 className="font-sans font-medium text-h1-pdp sm:text-2xl text-[#111111]">{set.name}</h1>
+            {set.description && <p className="text-gray-600">{set.description}</p>}
+
+            <CompositionCard
+              pieceA={pieceA}
+              qtyA={blockA.quantityPerSet}
+              sizeA={sizeA}
+              pieceB={pieceB}
+              qtyB={blockB.quantityPerSet}
+              sizeB={sizeB}
+              showsSizes={showsSizes}
+              showPrices={showPrices}
+              colorName={isPaired ? pairedColorOptions.find((c) => c.code === pairedColor)?.name : undefined}
+            />
 
             {showPrices && (
-              <div className="mb-4">
+              <p className="text-2xl font-bold text-[#111111]">
                 {set.referencePrice !== null ? (
-                  <p className="text-2xl font-bold text-[#111111]">
-                    ${set.referencePrice.toFixed(2)}{' '}
-                    <span className="text-sm font-normal text-gray-400">/ set referencial</span>
-                  </p>
+                  <>
+                    {money(set.referencePrice)} <span className="text-sm font-normal text-gray-400">/ set referencial</span>
+                  </>
                 ) : (
-                  <p className="text-gray-500">Precio bajo cotización</p>
+                  <span className="text-base font-normal text-gray-500">Precio bajo cotización</span>
                 )}
-              </div>
+              </p>
             )}
 
-            <div className="flex items-start gap-2 text-sm text-gray-500 bg-[#F5F5F7] rounded-lg p-3 mb-6">
+            <div className="flex items-start gap-2 text-sm text-gray-600 bg-[#F5F5F7] rounded-lg p-3">
               <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
               <span>
                 Compra mínima: <strong>{minQuantity} sets</strong>. Precio referencial — sujeto a cotización formal.
               </span>
             </div>
-          </div>
-        </div>
 
-        {/* ── Armador de combinaciones ── */}
-        <div className="mt-10">
-          <h2 className="text-lg font-semibold text-[#111111] mb-1">Arma tu combinación</h2>
-          <p className="text-sm text-gray-500 mb-6">
-            Elige color y talla de cada pieza, define la cantidad de sets y agrega la combinación. Puedes repetir el
-            proceso para armar varias combinaciones distintas antes de llevarlas al carrito.
-          </p>
-
-          {sizeMode === 'MATRIX' && commonSizes.length > 0 && (
-            <div className="mb-6 border border-[#E5E5E5] rounded-lg p-4 bg-[#F5F5F7]">
-              <h3 className="text-sm font-semibold mb-2">Todo el set en la misma talla</h3>
-              <div className="flex flex-wrap gap-2">
-                {commonSizes.map((size) => (
-                  <button
-                    key={size}
-                    type="button"
-                    onClick={() => applyMatrixShortcut(size)}
-                    className="px-4 h-9 text-sm font-medium rounded-full border border-[#E5E5E5] bg-white text-[#111111] hover:border-[#111111] transition-colors"
-                  >
-                    {size}
-                  </button>
-                ))}
-              </div>
-              <p className="text-xs text-gray-400 mt-2">
-                Rellena la talla de todas las piezas de un tap — luego puedes ajustar cada pieza individualmente.
+            <div>
+              <h2 className="text-base font-semibold text-[#111111]">Arma tu combinación</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Elige color y talla de cada pieza, define la cantidad de sets y agrega la combinación. Puedes repetir el
+                proceso para armar varias combinaciones distintas antes de llevarlas al carrito.
               </p>
             </div>
-          )}
 
-          {isPaired && pairedColorOptions.length > 0 && (
-            <div className="mb-6 border border-[#E5E5E5] rounded-lg p-4">
-              <h3 className="text-sm font-semibold mb-2">Color del set</h3>
-              <ColorSwatchGroup
-                colors={pairedColorOptions}
-                selectedColorId={pairedColorOptions.find((c) => c.code === pairedColor)?.id}
-                availableColorIds={pairedColorOptions.map((c) => c.id)}
-                onColorSelect={(color: ProductColor) => setPairedColor((prev) => (prev === color.code ? undefined : color.code))}
-                size="sm"
-              />
-              <p className="text-xs text-gray-400 mt-2">Todas las piezas de este set se piden en el mismo color.</p>
-            </div>
-          )}
-
-          {isMixed && (
-            <div className="mb-6 border border-[#E5E5E5] rounded-lg p-4">
-              <h3 className="text-sm font-semibold mb-2">Elige una combinación de color</h3>
-              {set.colorCombos.length === 0 ? (
-                <p className="text-sm text-gray-500">No hay combinaciones de color disponibles para este set — contacta a ventas.</p>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {set.colorCombos.map((combo) => (
-                    <button
-                      key={combo.id}
-                      type="button"
-                      onClick={() => setSelectedComboId((prev) => (prev === combo.id ? undefined : combo.id))}
-                      className={cn(
-                        'text-left border rounded-lg p-3 transition-colors',
-                        selectedComboId === combo.id ? 'border-[#111111] bg-[#F5F5F7]' : 'border-[#E5E5E5] hover:border-gray-300'
-                      )}
-                    >
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
-                        {combo.items.map((item) => {
-                          const piece = set.pieces.find((p) => p.productId === item.productId);
-                          const color = piece?.colors.find((c) => c.code === item.colorCode);
-                          return (
-                            <span key={item.productId} className="inline-flex items-center gap-1">
-                              <span className="w-3 h-3 rounded-full border border-gray-300" style={{ backgroundColor: color?.hex ?? '#ccc' }} />
-                              {piece?.productName ?? item.productId}: {color?.name ?? item.colorCode}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="space-y-4 mb-6">
-            {set.pieces.map((piece) => {
-              const image = pieceColorImage(piece);
-              const selectedSize = selections[piece.productId]?.size;
-
-              return (
-                <div key={piece.setItemId} className="border border-[#E5E5E5] rounded-lg p-4">
-                  <div className="flex gap-4">
-                    <div className="relative w-20 sm:w-24 aspect-product flex-shrink-0 bg-[#F5F5F7] rounded-lg overflow-hidden">
-                      <MediaGridThumb
-                        item={image}
-                        fallback="/images/placeholder-product.jpg"
-                        alt={piece.productName}
-                        fit="cover"
-                        className="object-contain"
-                        sizes="120px"
-                      />
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-[#111111] mb-2">
-                        {piece.quantityPerSet}× {piece.productName}
-                      </p>
-
-                      {showsSizes && piece.availableSizes.length > 0 && (
-                        <SizeSelector
-                          sizes={piece.availableSizes as Size[]}
-                          selectedSize={selectedSize as Size | undefined}
-                          sizeStatuses={sizeStatusesFor(piece) as Record<Size, 'AVAILABLE' | 'BACKORDER' | 'OUT_OF_STOCK'>}
-                          onSizeSelect={(size) => setPieceSize(piece.productId, size)}
-                        />
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            <CombinationBuilderCard
+              quantity={quantity}
+              setQuantity={setQuantity}
+              comboReady={comboReady}
+              comboUnitPrice={comboUnitPrice}
+              showPrices={showPrices}
+              onAdd={handleAddCombination}
+              rows={rows}
+              pieceLabelFor={pieceLabelFor}
+              onUpdateQuantity={updateRowQuantity}
+              onRemoveRow={removeRow}
+              rowViolations={(row) => [...rowColorViolations(row), ...rowPairingViolations(row)]}
+              onCheckout={handleAddToCart}
+            />
           </div>
-
-          <div className="border border-[#E5E5E5] rounded-lg p-4 mb-4">
-            <div className="flex items-center gap-3 mb-3">
-              <label className="text-sm text-gray-500">Cantidad de sets con esta combinación</label>
-              <input
-                type="number"
-                min={1}
-                value={quantity}
-                onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))}
-                className="w-24 border border-[#E5E5E5] rounded-lg px-3 py-2 text-center"
-              />
-            </div>
-            <button
-              onClick={handleAddCombination}
-              className="w-full sm:w-auto px-6 py-2.5 bg-white border border-[#111111] text-[#111111] font-medium rounded-full hover:bg-[#F5F5F7] transition-colors"
-            >
-              Agregar combinación
-            </button>
-          </div>
-
-          {rows.length > 0 && (
-            <div className="space-y-2 mb-6">
-              <h3 className="text-sm font-semibold text-[#111111]">Combinaciones armadas</h3>
-              {rows.map((row) => {
-                const violations = [...rowColorViolations(row), ...rowPairingViolations(row)];
-                return (
-                  <div
-                    key={row.id}
-                    className={cn(
-                      'border rounded-lg p-3',
-                      violations.length > 0 ? 'border-red-300 bg-red-50' : 'border-[#E5E5E5]'
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex-1 min-w-0 text-sm text-gray-600">
-                        {row.pieceSelections
-                          .map((s) => {
-                            const piece = set.pieces.find((p) => p.productId === s.productId);
-                            const parts = [s.size, s.color].filter(Boolean).join(' / ');
-                            return `${piece?.productName ?? s.productId}${parts ? ` (${parts})` : ''}`;
-                          })
-                          .join(' + ')}
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <input
-                          type="number"
-                          min={1}
-                          value={row.quantity}
-                          onChange={(e) => updateRowQuantity(row.id, Math.max(0, Number(e.target.value) || 0))}
-                          className="w-16 border border-[#E5E5E5] rounded px-2 py-1 text-center text-sm"
-                        />
-                        <span className="text-xs text-gray-400">sets</span>
-                        <button onClick={() => removeRow(row.id)} className="text-gray-400 hover:text-red-500">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                    {violations.length > 0 && (
-                      <div className="mt-2 space-y-1">
-                        {violations.map((msg, idx) => (
-                          <p key={idx} className="text-xs text-red-600">{msg}</p>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          <button
-            onClick={handleAddToCart}
-            disabled={rows.length === 0}
-            className="w-full px-6 py-3 bg-[#111111] text-white font-medium rounded-full hover:opacity-90 transition-opacity disabled:bg-gray-300 disabled:cursor-not-allowed"
-          >
-            Agregar al carrito corporativo
-          </button>
         </div>
+
+        {/* ── (d) Piezas recomendadas ── */}
+        {set.recommendedPieces.length > 0 && (
+          <div className="mt-12">
+            <RecommendedSection
+              items={set.recommendedPieces}
+              showsSizes={showsSizes}
+              showPrices={showPrices}
+              extraChoices={extraChoices}
+              setExtraChoice={setExtraChoice}
+              onAdd={addRecommendedToCart}
+            />
+          </div>
+        )}
       </div>
     </main>
+  );
+}
+
+// ── Tiras "qué pieza elegir" por bloque, con preselección ──
+function BlockStrip({
+  pieces,
+  selectedId,
+  onSelect,
+  tintHex,
+}: {
+  pieces: [SetPiece, SetPiece];
+  selectedId: string;
+  onSelect: (productId: string) => void;
+  tintHex: string | undefined;
+}) {
+  return (
+    <div className="flex-1 border border-[#E5E5E5] rounded-lg p-2 flex gap-2">
+      {pieces.map((p) => {
+        const selected = selectedId === p.productId;
+        const image = p.variants.find((v) => v.images.length > 0)?.images[0];
+        return (
+          <button
+            key={p.productId}
+            type="button"
+            onClick={() => onSelect(p.productId)}
+            className={cn(
+              'relative flex items-center gap-2 flex-1 p-2 rounded-md border text-left transition-colors',
+              selected ? 'border-[#111111] bg-[#F5F5F7]' : 'border-transparent hover:bg-[#F5F5F7]'
+            )}
+          >
+            <div className="w-10 h-10 rounded-md flex-shrink-0 bg-[#F5F5F7] overflow-hidden">
+              {image ? (
+                <MediaGridThumb item={image} fallback="/images/placeholder-product.jpg" alt={p.productName} fit="cover" sizes="40px" />
+              ) : (
+                <div className="w-full h-full" style={{ backgroundColor: selected ? tintHex : undefined }} />
+              )}
+            </div>
+            <span className="text-xs font-medium truncate pr-4">{p.productName}</span>
+            {selected && (
+              <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[#111111] flex items-center justify-center">
+                <Check className="w-2.5 h-2.5 text-white" />
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Galería de doble carril (Decisión 13) ──
+function GalleryRail({
+  images,
+  side,
+  focusSide,
+  focusIndex,
+  onFocus,
+  offset,
+  setOffset,
+}: {
+  images: MediaItem[];
+  side: 'A' | 'B';
+  focusSide: 'A' | 'B';
+  focusIndex: number;
+  onFocus: (f: { side: 'A' | 'B'; index: number }) => void;
+  offset: number;
+  setOffset: (updater: (o: number) => number) => void;
+}) {
+  const total = images.length;
+  if (total === 0) return <div className="w-16 flex-shrink-0" />;
+  const showArrows = total > GALLERY_ARROWS_THRESHOLD;
+  const canUp = offset > 0;
+  const canDown = offset + GALLERY_RAIL_WINDOW < total;
+  const visible = Array.from({ length: Math.min(GALLERY_RAIL_WINDOW, total) }, (_, i) => offset + i).filter((i) => i < total);
+
+  return (
+    <div className="flex flex-col items-center gap-1.5 w-16 flex-shrink-0">
+      {showArrows && (
+        <button type="button" disabled={!canUp} onClick={() => setOffset((o) => Math.max(0, o - 1))} className="disabled:opacity-20 text-gray-400 hover:text-[#111111]">
+          <ChevronUp className="w-4 h-4" />
+        </button>
+      )}
+      <div className="flex flex-col gap-1.5">
+        {visible.map((idx) => {
+          const active = focusSide === side && focusIndex === idx;
+          return (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => onFocus({ side, index: idx })}
+              className={cn('w-16 h-16 rounded-md overflow-hidden border-2', active ? 'border-[#111111]' : 'border-transparent')}
+            >
+              <MediaGridThumb item={images[idx]} fallback="/images/placeholder-product.jpg" alt="" fit="cover" sizes="64px" />
+            </button>
+          );
+        })}
+      </div>
+      {showArrows && (
+        <button type="button" disabled={!canDown} onClick={() => setOffset((o) => Math.min(total - GALLERY_RAIL_WINDOW, o + 1))} className="disabled:opacity-20 text-gray-400 hover:text-[#111111]">
+          <ChevronDown className="w-4 h-4" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Gallery({
+  pieceA,
+  pieceB,
+  imagesA,
+  imagesB,
+  focusedImage,
+  tintHex,
+  focus,
+  setFocus,
+  offsetA,
+  setOffsetA,
+  offsetB,
+  setOffsetB,
+}: {
+  pieceA: SetPiece;
+  pieceB: SetPiece;
+  imagesA: MediaItem[];
+  imagesB: MediaItem[];
+  focusedImage: MediaItem | undefined;
+  tintHex: string | undefined;
+  focus: { side: 'A' | 'B'; index: number };
+  setFocus: (f: { side: 'A' | 'B'; index: number }) => void;
+  offsetA: number;
+  setOffsetA: (updater: (o: number) => number) => void;
+  offsetB: number;
+  setOffsetB: (updater: (o: number) => number) => void;
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <GalleryRail images={imagesA} side="A" focusSide={focus.side} focusIndex={focus.index} onFocus={setFocus} offset={offsetA} setOffset={setOffsetA} />
+      <div className="flex-1">
+        <div className="relative w-full aspect-product bg-[#F5F5F7] rounded-xl overflow-hidden">
+          {focusedImage ? (
+            <MediaGridThumb item={focusedImage} fallback="/images/placeholder-product.jpg" alt={focus.side === 'A' ? pieceA.productName : pieceB.productName} fit="contain" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-gray-300" style={{ backgroundColor: tintHex }}>
+              <Building2 className="w-16 h-16" strokeWidth={1} />
+            </div>
+          )}
+        </div>
+      </div>
+      <GalleryRail images={imagesB} side="B" focusSide={focus.side} focusIndex={focus.index} onFocus={setFocus} offset={offsetB} setOffset={setOffsetB} />
+    </div>
+  );
+}
+
+// ── Grupo de tallas con conector "+" ──
+function SizePanel({
+  piece,
+  size,
+  onSize,
+  statuses,
+}: {
+  piece: SetPiece;
+  size: string | undefined;
+  onSize: (size: string) => void;
+  statuses: Partial<Record<Size, 'AVAILABLE' | 'BACKORDER' | 'OUT_OF_STOCK'>>;
+}) {
+  return (
+    <div className="flex-1 p-4 space-y-2">
+      <p className="text-sm font-medium text-[#111111] truncate">{piece.productName}</p>
+      {piece.availableSizes.length > 0 ? (
+        <SizeSelector
+          sizes={piece.availableSizes as Size[]}
+          selectedSize={size as Size | undefined}
+          sizeStatuses={statuses as Record<Size, 'AVAILABLE' | 'BACKORDER' | 'OUT_OF_STOCK'>}
+          onSizeSelect={onSize}
+        />
+      ) : (
+        <p className="text-xs text-gray-400">Sin tallas cargadas</p>
+      )}
+    </div>
+  );
+}
+
+function SizeGroupBox({
+  pieceA,
+  sizeA,
+  onSizeA,
+  statusesA,
+  pieceB,
+  sizeB,
+  onSizeB,
+  statusesB,
+}: {
+  pieceA: SetPiece;
+  sizeA: string | undefined;
+  onSizeA: (size: string) => void;
+  statusesA: Partial<Record<Size, 'AVAILABLE' | 'BACKORDER' | 'OUT_OF_STOCK'>>;
+  pieceB: SetPiece;
+  sizeB: string | undefined;
+  onSizeB: (size: string) => void;
+  statusesB: Partial<Record<Size, 'AVAILABLE' | 'BACKORDER' | 'OUT_OF_STOCK'>>;
+}) {
+  return (
+    <div className="relative border border-[#E5E5E5] rounded-lg divide-y sm:divide-y-0 sm:divide-x flex flex-col sm:flex-row">
+      <SizePanel piece={pieceA} size={sizeA} onSize={onSizeA} statuses={statusesA} />
+      <SizePanel piece={pieceB} size={sizeB} onSize={onSizeB} statuses={statusesB} />
+      <span className="hidden sm:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-[#111111] text-white items-center justify-center">
+        <Plus className="w-4 h-4" />
+      </span>
+    </div>
+  );
+}
+
+// ── Composición del set (dinámica) ──
+function CompositionLine({
+  piece,
+  quantityPerSet,
+  size,
+  colorName,
+  showsSizes,
+  showPrices,
+}: {
+  piece: SetPiece;
+  quantityPerSet: number;
+  size: string | undefined;
+  colorName: string | undefined;
+  showsSizes: boolean;
+  showPrices: boolean;
+}) {
+  const price = piece.priceWholesaleSale ?? piece.priceWholesale;
+  return (
+    <div className="flex items-start justify-between gap-3 text-sm py-2">
+      <span className="text-gray-700">
+        {quantityPerSet}× {piece.productName} {colorName ? `(${colorName}${size ? `, ${size}` : ''})` : ''}
+        {showsSizes && !size && <span className="text-amber-600"> — elige talla</span>}
+      </span>
+      {showPrices && price !== null && <span className="font-medium flex-shrink-0">{money(price)}</span>}
+    </div>
+  );
+}
+
+function CompositionCard({
+  pieceA,
+  qtyA,
+  sizeA,
+  pieceB,
+  qtyB,
+  sizeB,
+  showsSizes,
+  showPrices,
+  colorName,
+}: {
+  pieceA: SetPiece;
+  qtyA: number;
+  sizeA: string | undefined;
+  pieceB: SetPiece;
+  qtyB: number;
+  sizeB: string | undefined;
+  showsSizes: boolean;
+  showPrices: boolean;
+  colorName: string | undefined;
+}) {
+  return (
+    <div className="border border-[#E5E5E5] rounded-lg p-4">
+      <h3 className="text-sm font-semibold mb-1">Composición del set</h3>
+      <div className="divide-y">
+        <CompositionLine piece={pieceA} quantityPerSet={qtyA} size={sizeA} colorName={colorName} showsSizes={showsSizes} showPrices={showPrices} />
+        <CompositionLine piece={pieceB} quantityPerSet={qtyB} size={sizeB} colorName={colorName} showsSizes={showsSizes} showPrices={showPrices} />
+      </div>
+    </div>
+  );
+}
+
+// ── Armador: cantidad, agregar, combinaciones armadas, carrito ──
+function CombinationBuilderCard({
+  quantity,
+  setQuantity,
+  comboReady,
+  comboUnitPrice,
+  showPrices,
+  onAdd,
+  rows,
+  pieceLabelFor,
+  onUpdateQuantity,
+  onRemoveRow,
+  rowViolations,
+  onCheckout,
+}: {
+  quantity: number;
+  setQuantity: (q: number) => void;
+  comboReady: boolean;
+  comboUnitPrice: number;
+  showPrices: boolean;
+  onAdd: () => void;
+  rows: CombinationRow[];
+  pieceLabelFor: (productId: string) => string;
+  onUpdateQuantity: (id: string, quantity: number) => void;
+  onRemoveRow: (id: string) => void;
+  rowViolations: (row: CombinationRow) => string[];
+  onCheckout: () => void;
+}) {
+  return (
+    <div className="border border-[#E5E5E5] rounded-lg p-4 space-y-4">
+      <div>
+        <label className="text-xs text-gray-500">Cantidad de sets con esta combinación</label>
+        <input
+          type="number"
+          min={1}
+          value={quantity}
+          onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))}
+          className="mt-1 w-full border border-[#E5E5E5] rounded-lg px-3 py-2 text-center"
+        />
+      </div>
+
+      <button
+        type="button"
+        onClick={onAdd}
+        disabled={!comboReady}
+        className="w-full px-6 py-2.5 bg-white border border-[#111111] text-[#111111] font-medium rounded-full hover:bg-[#F5F5F7] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        Agregar combinación
+      </button>
+
+      {showPrices && comboReady && (
+        <p className="text-xs text-gray-500 text-center">
+          {money(comboUnitPrice)} / set × {quantity} = {money(comboUnitPrice * quantity)}
+        </p>
+      )}
+
+      {rows.length > 0 && (
+        <div className="pt-2 border-t space-y-2">
+          <p className="text-xs font-medium text-gray-500">Combinaciones armadas</p>
+          {rows.map((row) => {
+            const violations = rowViolations(row);
+            return (
+              <div key={row.id} className={cn('rounded-lg p-2', violations.length > 0 && 'bg-red-50')}>
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <span className="text-gray-700 flex-1 min-w-0 truncate">
+                    {row.pieceSelections
+                      .map((s) => {
+                        const parts = [s.size, s.color].filter(Boolean).join(' / ');
+                        return `${pieceLabelFor(s.productId)}${parts ? ` (${parts})` : ''}`;
+                      })
+                      .join(' + ')}
+                  </span>
+                  <span className="flex items-center gap-2 flex-shrink-0">
+                    <input
+                      type="number"
+                      min={1}
+                      value={row.quantity}
+                      onChange={(e) => onUpdateQuantity(row.id, Math.max(0, Number(e.target.value) || 0))}
+                      className="w-14 border border-[#E5E5E5] rounded px-1 py-0.5 text-center text-xs"
+                    />
+                    sets
+                    <button type="button" onClick={() => onRemoveRow(row.id)} className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-500">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                </div>
+                {violations.length > 0 && (
+                  <div className="mt-1 space-y-0.5">
+                    {violations.map((msg, idx) => (
+                      <p key={idx} className="text-xs text-red-600">{msg}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={onCheckout}
+        disabled={rows.length === 0}
+        className="w-full px-6 py-3 bg-[#111111] text-white font-medium rounded-full hover:opacity-90 transition-opacity disabled:bg-gray-300 disabled:cursor-not-allowed"
+      >
+        Agregar al carrito corporativo
+      </button>
+    </div>
+  );
+}
+
+// ── Piezas recomendadas ──
+function RecommendedSection({
+  items,
+  showsSizes,
+  showPrices,
+  extraChoices,
+  setExtraChoice,
+  onAdd,
+}: {
+  items: SetPiece[];
+  showsSizes: boolean;
+  showPrices: boolean;
+  extraChoices: Record<string, { color?: string; size?: string; quantity?: number }>;
+  setExtraChoice: (productId: string, patch: Partial<{ color: string; size: string; quantity: number }>) => void;
+  onAdd: (piece: SetPiece) => void;
+}) {
+  return (
+    <div>
+      <h2 className="text-lg font-semibold text-[#111111] mb-1">Piezas recomendadas</h2>
+      <p className="text-sm text-gray-500 mb-4">
+        De la misma colección. Se agregan de forma independiente a tu cotización, con su propio color, talla y
+        cantidad — no forman parte del combo de arriba ni comparten su regla de color.
+      </p>
+
+      <div className="space-y-4">
+        {items.map((item) => {
+          const choice = extraChoices[item.productId] || {};
+          const price = item.priceWholesaleSale ?? item.priceWholesale;
+          const availableColors = item.colors.filter((c) => item.variants.some((v) => v.colorId === c.id && v.status !== 'OUT_OF_STOCK'));
+          return (
+            <div key={item.productId} className="border border-[#E5E5E5] rounded-lg p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-medium">{item.productName}</p>
+                {showPrices && price !== null && <p className="text-sm text-gray-500">{money(price)}</p>}
+              </div>
+              <div className="flex flex-wrap items-end gap-4">
+                {availableColors.length > 0 && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1.5">Color</p>
+                    <div className="flex gap-2">
+                      {availableColors.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => setExtraChoice(item.productId, { color: c.code })}
+                          className={cn('w-6 h-6 rounded-full border-2', choice.color === c.code ? 'border-[#111111]' : 'border-transparent')}
+                          style={{ backgroundColor: c.hex }}
+                          title={c.name}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {showsSizes && item.availableSizes.length > 0 && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1.5">Talla</p>
+                    <div className="flex gap-2">
+                      {item.availableSizes.map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setExtraChoice(item.productId, { size: s })}
+                          className={cn(
+                            'px-2.5 h-7 text-xs rounded-full border',
+                            choice.size === s ? 'bg-[#111111] text-white border-[#111111]' : 'border-[#E5E5E5]'
+                          )}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs text-gray-500 mb-1.5">Cantidad</p>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setExtraChoice(item.productId, { quantity: Math.max(1, (choice.quantity || 1) - 1) })}
+                      className="w-7 h-7 flex items-center justify-center border border-[#E5E5E5] rounded"
+                    >
+                      <Minus className="w-3 h-3" />
+                    </button>
+                    <span className="w-6 text-center text-sm">{choice.quantity || 1}</span>
+                    <button
+                      type="button"
+                      onClick={() => setExtraChoice(item.productId, { quantity: (choice.quantity || 1) + 1 })}
+                      className="w-7 h-7 flex items-center justify-center border border-[#E5E5E5] rounded"
+                    >
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onAdd(item)}
+                  className="ml-auto px-4 py-2 text-sm border border-[#111111] text-[#111111] rounded-full hover:bg-[#F5F5F7] transition-colors"
+                >
+                  Agregar a la cotización
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

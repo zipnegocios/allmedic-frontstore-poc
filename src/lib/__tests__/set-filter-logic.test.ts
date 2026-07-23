@@ -22,6 +22,7 @@ function makeSet(overrides: Partial<CorporateSetSummary> = {}): CorporateSetSumm
     productIds: ['p1', 'p2'],
     isFeatured: false,
     pieceCount: 2,
+    hasRecommendedItems: false,
     referencePrice: 100,
     hasMissingPrices: false,
     colors: [{ id: 'c-navy', name: 'Navy', code: 'NVY', hex: '#1B2A4A' }],

@@ -1,7 +1,9 @@
 import { db } from '@/db';
 import {
   corporateSets as corporateSetsTable,
-  setItems as setItemsTable,
+  setBlocks as setBlocksTable,
+  setBlockOptions as setBlockOptionsTable,
+  setRecommendedItems as setRecommendedItemsTable,
   setColorCombos as setColorCombosTable,
   setColorComboItems as setColorComboItemsTable,
   products as productsTable,
@@ -18,7 +20,7 @@ import {
 } from '@/db/schema';
 import { eq, and, inArray, asc, desc, isNotNull, isNull } from 'drizzle-orm';
 import type { BusinessRule, SetPieceInfo } from './rules-engine';
-import type { CorporateSetSummary, CorporateSetDetail, SetPiece } from './corporate-types';
+import type { CorporateSetSummary, CorporateSetDetail, SetPiece, SetBlock } from './corporate-types';
 import type { ProductColor, ProductVariant, Gender } from './types';
 import { resolveMediaUrl, isVideoMime, type MediaItem } from './media';
 import { effectiveManualPrice } from './set-pricing';
@@ -122,22 +124,53 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
   const setIds = rows.map((r) => r.id);
   if (setIds.length === 0) return [];
 
-  const items = await db
-    .select({
-      setId: setItemsTable.setId,
-      productId: setItemsTable.productId,
-      quantityPerSet: setItemsTable.quantityPerSet,
-      priceWholesale: productsTable.priceWholesale,
-      priceWholesaleSale: productsTable.priceWholesaleSale,
-      productName: productsTable.name,
-      productTypeId: productsTable.productTypeId,
-      productTypeName: productTypesTable.name,
-      gender: productsTable.gender,
-    })
-    .from(setItemsTable)
-    .leftJoin(productsTable, eq(setItemsTable.productId, productsTable.id))
-    .leftJoin(productTypesTable, eq(productsTable.productTypeId, productTypesTable.id))
-    .where(inArray(setItemsTable.setId, setIds));
+  // Bloques del set (siempre 2) con sus opciones (siempre 2 cada uno) — el grid agrega
+  // colores/tallas/estilos/precio a través de TODAS las opciones cargadas, no solo la
+  // primera de cada bloque, porque el "Desde $X" y los filtros deben reflejar toda la
+  // composición posible del set.
+  const blocks = await db
+    .select({ id: setBlocksTable.id, setId: setBlocksTable.setId, quantityPerSet: setBlocksTable.quantityPerSet })
+    .from(setBlocksTable)
+    .where(inArray(setBlocksTable.setId, setIds));
+  const blockIds = blocks.map((b) => b.id);
+  const quantityPerBlock = new Map(blocks.map((b) => [b.id, b.quantityPerSet ?? 1]));
+  const setIdByBlockId = new Map(blocks.map((b) => [b.id, b.setId]));
+
+  const options = blockIds.length > 0
+    ? await db
+        .select({
+          blockId: setBlockOptionsTable.blockId,
+          productId: setBlockOptionsTable.productId,
+          priceWholesale: productsTable.priceWholesale,
+          priceWholesaleSale: productsTable.priceWholesaleSale,
+          productName: productsTable.name,
+          productTypeId: productsTable.productTypeId,
+          productTypeName: productTypesTable.name,
+          gender: productsTable.gender,
+        })
+        .from(setBlockOptionsTable)
+        .leftJoin(productsTable, eq(setBlockOptionsTable.productId, productsTable.id))
+        .leftJoin(productTypesTable, eq(productsTable.productTypeId, productTypesTable.id))
+        .where(inArray(setBlockOptionsTable.blockId, blockIds))
+    : [];
+
+  const items = options.map((o) => ({
+    setId: setIdByBlockId.get(o.blockId)!,
+    productId: o.productId,
+    quantityPerSet: quantityPerBlock.get(o.blockId) ?? 1,
+    priceWholesale: o.priceWholesale,
+    priceWholesaleSale: o.priceWholesaleSale,
+    productName: o.productName,
+    productTypeId: o.productTypeId,
+    productTypeName: o.productTypeName,
+    gender: o.gender,
+  }));
+
+  const recommendedRows = await db
+    .select({ setId: setRecommendedItemsTable.setId })
+    .from(setRecommendedItemsTable)
+    .where(inArray(setRecommendedItemsTable.setId, setIds));
+  const setsWithRecommended = new Set(recommendedRows.map((r) => r.setId));
 
   const productIds = Array.from(new Set(items.map((i) => i.productId).filter((id): id is string => !!id)));
 
@@ -159,18 +192,33 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
     : [];
 
   const coverMedia = await getCoverMediaMap(setIds);
+  const blocksBySet = new Map<string, typeof blocks>();
+  for (const b of blocks) {
+    if (!blocksBySet.has(b.setId)) blocksBySet.set(b.setId, []);
+    blocksBySet.get(b.setId)!.push(b);
+  }
+  const optionsByBlock = new Map<string, typeof options>();
+  for (const o of options) {
+    if (!optionsByBlock.has(o.blockId)) optionsByBlock.set(o.blockId, []);
+    optionsByBlock.get(o.blockId)!.push(o);
+  }
 
   return rows.map((set) => {
     const setItems = items.filter((i) => i.setId === set.id);
+    const setBlockRows = blocksBySet.get(set.id) ?? [];
+
+    // Precio "Desde $X" (Decisión 3): mínimo de cada bloque × su cantidad, sumado entre bloques.
     let autoPrice = 0;
     let hasMissingPrices = false;
-    for (const item of setItems) {
-      const price = wholesalePriceOf(item.priceWholesale, item.priceWholesaleSale);
-      if (price === null) {
+    for (const block of setBlockRows) {
+      const blockPrices = (optionsByBlock.get(block.id) ?? [])
+        .map((o) => wholesalePriceOf(o.priceWholesale, o.priceWholesaleSale))
+        .filter((p): p is number => p !== null);
+      if (blockPrices.length === 0) {
         hasMissingPrices = true;
         continue;
       }
-      autoPrice += price * (item.quantityPerSet ?? 1);
+      autoPrice += Math.min(...blockPrices) * (block.quantityPerSet ?? 1);
     }
     const manualPrice = effectiveManualPrice(set.priceManual, set.priceManualSale, set.manualDiscountEnd);
     const referencePrice = manualPrice ?? autoPrice;
@@ -215,8 +263,9 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
       brandId: set.brandId,
       productIds: setProductIds,
       isFeatured: set.isFeatured ?? false,
-      pieceCount: setItems.length,
-      referencePrice: setItems.length > 0 || manualPrice !== null ? referencePrice : null,
+      pieceCount: setBlockRows.length,
+      hasRecommendedItems: setsWithRecommended.has(set.id),
+      referencePrice: setBlockRows.length > 0 || manualPrice !== null ? referencePrice : null,
       hasMissingPrices,
       colors: Array.from(colorMap.values()),
       sizes: Array.from(sizeSet),
@@ -257,12 +306,42 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
 
   if (!set) return null;
 
-  const items = await db
+  const blockRows = await db
+    .select({ id: setBlocksTable.id, blockCode: setBlocksTable.blockCode, quantityPerSet: setBlocksTable.quantityPerSet })
+    .from(setBlocksTable)
+    .where(eq(setBlocksTable.setId, set.id))
+    .orderBy(asc(setBlocksTable.blockCode));
+
+  const blockIds = blockRows.map((b) => b.id);
+  const quantityPerBlockId = new Map(blockRows.map((b) => [b.id, b.quantityPerSet ?? 1]));
+
+  const optionRows = blockIds.length > 0
+    ? await db
+        .select({
+          setItemId: setBlockOptionsTable.id,
+          blockId: setBlockOptionsTable.blockId,
+          productId: setBlockOptionsTable.productId,
+          sortOrder: setBlockOptionsTable.sortOrder,
+          productName: productsTable.name,
+          productSlug: productsTable.slug,
+          priceWholesale: productsTable.priceWholesale,
+          priceWholesaleSale: productsTable.priceWholesaleSale,
+          productTypeId: productsTable.productTypeId,
+          productTypeName: productTypesTable.name,
+          gender: productsTable.gender,
+        })
+        .from(setBlockOptionsTable)
+        .leftJoin(productsTable, eq(setBlockOptionsTable.productId, productsTable.id))
+        .leftJoin(productTypesTable, eq(productsTable.productTypeId, productTypesTable.id))
+        .where(inArray(setBlockOptionsTable.blockId, blockIds))
+        .orderBy(asc(setBlockOptionsTable.sortOrder))
+    : [];
+
+  const recommendedRows = await db
     .select({
-      setItemId: setItemsTable.id,
-      productId: setItemsTable.productId,
-      quantityPerSet: setItemsTable.quantityPerSet,
-      sortOrder: setItemsTable.sortOrder,
+      setItemId: setRecommendedItemsTable.id,
+      productId: setRecommendedItemsTable.productId,
+      sortOrder: setRecommendedItemsTable.sortOrder,
       productName: productsTable.name,
       productSlug: productsTable.slug,
       priceWholesale: productsTable.priceWholesale,
@@ -271,11 +350,18 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
       productTypeName: productTypesTable.name,
       gender: productsTable.gender,
     })
-    .from(setItemsTable)
-    .leftJoin(productsTable, eq(setItemsTable.productId, productsTable.id))
+    .from(setRecommendedItemsTable)
+    .leftJoin(productsTable, eq(setRecommendedItemsTable.productId, productsTable.id))
     .leftJoin(productTypesTable, eq(productsTable.productTypeId, productTypesTable.id))
-    .where(eq(setItemsTable.setId, set.id))
-    .orderBy(asc(setItemsTable.sortOrder));
+    .where(eq(setRecommendedItemsTable.setId, set.id))
+    .orderBy(asc(setRecommendedItemsTable.sortOrder));
+
+  // `items` unifica opciones de bloque + recomendadas para la resolución de variantes/imágenes
+  // de abajo (mismo patrón para ambas) — el blockId (ausente en recomendadas) distingue el origen.
+  const items = [
+    ...optionRows.map((o) => ({ ...o, quantityPerSet: quantityPerBlockId.get(o.blockId) ?? 1, blockId: o.blockId as string | null })),
+    ...recommendedRows.map((r) => ({ ...r, quantityPerSet: 1, blockId: null as string | null })),
+  ];
 
   const productIds = items.map((i) => i.productId);
   const variants = productIds.length > 0
@@ -323,23 +409,13 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
         .orderBy(asc(mediaLinksTable.sortOrder))
     : [];
 
-  let referencePrice = 0;
-  let hasMissingPrices = false;
-
   const productTypesAgg = new Set<string>();
   const gendersAgg = new Set<Gender>();
   const colorMapAgg = new Map<string, ProductColor>();
   const sizeSetAgg = new Set<string>();
   const stylesMapAgg = new Map<string, Set<string>>();
 
-  const pieces: SetPiece[] = items.map((item) => {
-    const price = wholesalePriceOf(item.priceWholesale, item.priceWholesaleSale);
-    if (price === null) {
-      hasMissingPrices = true;
-    } else {
-      referencePrice += price * (item.quantityPerSet ?? 1);
-    }
-
+  const pieces: Array<SetPiece & { blockId: string | null }> = items.map((item) => {
     const productVariants = variants.filter((v) => v.productId === item.productId);
 
     if (item.productTypeName) productTypesAgg.add(item.productTypeName);
@@ -406,14 +482,31 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
       productId: item.productId!,
       productName: item.productName || '',
       productSlug: item.productSlug || '',
-      quantityPerSet: item.quantityPerSet ?? 1,
+      quantityPerSet: item.blockId ? (item.quantityPerSet ?? 1) : undefined,
       priceWholesale: item.priceWholesale ? Number(item.priceWholesale) : null,
       priceWholesaleSale: item.priceWholesaleSale ? Number(item.priceWholesaleSale) : null,
       colors: Array.from(colorMap.values()),
       availableSizes: Array.from(sizeSet),
       variants: mappedVariants,
+      blockId: item.blockId,
     };
   });
+
+  // Precio "Desde $X" (Decisión 3): mínimo de cada bloque × su cantidad, sumado entre bloques —
+  // las piezas recomendadas NUNCA participan de este cálculo (Decisión 2).
+  let referencePrice = 0;
+  let hasMissingPrices = false;
+  for (const block of blockRows) {
+    const blockPieces = pieces.filter((p) => p.blockId === block.id);
+    const blockPrices = blockPieces
+      .map((p) => (p.priceWholesaleSale ?? p.priceWholesale))
+      .filter((p): p is number => p !== null && p !== undefined);
+    if (blockPrices.length === 0) {
+      hasMissingPrices = true;
+      continue;
+    }
+    referencePrice += Math.min(...blockPrices) * (block.quantityPerSet ?? 1);
+  }
 
   const coverMedia = await getCoverMediaMap([set.id]);
 
@@ -442,6 +535,18 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
   const manualPrice = effectiveManualPrice(set.priceManual, set.priceManualSale, set.manualDiscountEnd);
   const effectiveHasMissingPrices = manualPrice !== null ? false : hasMissingPrices;
 
+  const blocks = blockRows.map((block): SetBlock => {
+    const blockPieces = pieces.filter((p) => p.blockId === block.id);
+    const [opt1, opt2] = blockPieces;
+    return {
+      id: block.id,
+      blockCode: block.blockCode as 'A' | 'B',
+      quantityPerSet: block.quantityPerSet ?? 1,
+      options: [opt1, opt2],
+    };
+  }) as [SetBlock, SetBlock];
+  const recommendedPieces: SetPiece[] = pieces.filter((p) => p.blockId === null);
+
   return {
     id: set.id,
     slug: set.slug,
@@ -453,8 +558,9 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
     brandName: set.brandName,
     productIds: pieces.map((p) => p.productId),
     isFeatured: set.isFeatured ?? false,
-    pieceCount: pieces.length,
-    referencePrice: pieces.length > 0 || manualPrice !== null ? (manualPrice ?? referencePrice) : null,
+    pieceCount: blocks.length,
+    hasRecommendedItems: recommendedPieces.length > 0,
+    referencePrice: blocks.length > 0 || manualPrice !== null ? (manualPrice ?? referencePrice) : null,
     hasMissingPrices: effectiveHasMissingPrices,
     colors: Array.from(colorMapAgg.values()),
     sizes: Array.from(sizeSetAgg),
@@ -465,7 +571,8 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
     ),
     pieceNames: pieces.map((p) => p.productName).filter((n) => !!n),
     createdAt: set.createdAt ? set.createdAt.toISOString() : new Date(0).toISOString(),
-    pieces,
+    blocks,
+    recommendedPieces,
     colorMode: set.colorMode as 'PAIRED' | 'MIXED',
     colorCombos,
   };
@@ -478,17 +585,19 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
 export async function getSetPricesByIds(setIds: string[]): Promise<Record<string, { pricePerSet: number; hasMissingPrices: boolean }>> {
   if (setIds.length === 0) return {};
 
-  const [items, setRows] = await Promise.all([
+  const [blockRows, setRows] = await Promise.all([
     db
       .select({
-        setId: setItemsTable.setId,
-        quantityPerSet: setItemsTable.quantityPerSet,
+        setId: setBlocksTable.setId,
+        blockId: setBlocksTable.id,
+        quantityPerSet: setBlocksTable.quantityPerSet,
         priceWholesale: productsTable.priceWholesale,
         priceWholesaleSale: productsTable.priceWholesaleSale,
       })
-      .from(setItemsTable)
-      .leftJoin(productsTable, eq(setItemsTable.productId, productsTable.id))
-      .where(inArray(setItemsTable.setId, setIds)),
+      .from(setBlocksTable)
+      .innerJoin(setBlockOptionsTable, eq(setBlockOptionsTable.blockId, setBlocksTable.id))
+      .leftJoin(productsTable, eq(setBlockOptionsTable.productId, productsTable.id))
+      .where(inArray(setBlocksTable.setId, setIds)),
     db
       .select({
         id: corporateSetsTable.id,
@@ -503,16 +612,20 @@ export async function getSetPricesByIds(setIds: string[]): Promise<Record<string
 
   const result: Record<string, { pricePerSet: number; hasMissingPrices: boolean }> = {};
   for (const setId of setIds) {
-    const setItems = items.filter((i) => i.setId === setId);
+    const setBlockRows = blockRows.filter((r) => r.setId === setId);
+    const blockIds = Array.from(new Set(setBlockRows.map((r) => r.blockId)));
     let pricePerSet = 0;
     let hasMissingPrices = false;
-    for (const item of setItems) {
-      const price = wholesalePriceOf(item.priceWholesale, item.priceWholesaleSale);
-      if (price === null) {
+    for (const blockId of blockIds) {
+      const optionsOfBlock = setBlockRows.filter((r) => r.blockId === blockId);
+      const prices = optionsOfBlock
+        .map((o) => wholesalePriceOf(o.priceWholesale, o.priceWholesaleSale))
+        .filter((p): p is number => p !== null);
+      if (prices.length === 0) {
         hasMissingPrices = true;
         continue;
       }
-      pricePerSet += price * (item.quantityPerSet ?? 1);
+      pricePerSet += Math.min(...prices) * (optionsOfBlock[0].quantityPerSet ?? 1);
     }
     const manual = manualById.get(setId);
     const manualPrice = manual ? effectiveManualPrice(manual.priceManual, manual.priceManualSale, manual.manualDiscountEnd) : null;
@@ -530,20 +643,22 @@ export async function getSetMetaByIds(
 ): Promise<Record<string, { brandId: string | null; piecesPerSet: number }>> {
   if (setIds.length === 0) return {};
 
-  const [setRows, itemRows] = await Promise.all([
+  const [setRows, blockRows] = await Promise.all([
     db
       .select({ id: corporateSetsTable.id, brandId: corporateSetsTable.brandId })
       .from(corporateSetsTable)
       .where(inArray(corporateSetsTable.id, setIds)),
     db
-      .select({ setId: setItemsTable.setId, quantityPerSet: setItemsTable.quantityPerSet })
-      .from(setItemsTable)
-      .where(inArray(setItemsTable.setId, setIds)),
+      .select({ setId: setBlocksTable.setId, quantityPerSet: setBlocksTable.quantityPerSet })
+      .from(setBlocksTable)
+      .where(inArray(setBlocksTable.setId, setIds)),
   ]);
 
+  // piecesPerSet = suma de quantityPerSet de los 2 bloques (no de las opciones cargadas) —
+  // cada bloque aporta su cantidad una sola vez, sin importar cuál de sus 2 opciones se elija.
   const piecesBySet = new Map<string, number>();
-  for (const item of itemRows) {
-    piecesBySet.set(item.setId, (piecesBySet.get(item.setId) ?? 0) + (item.quantityPerSet ?? 1));
+  for (const block of blockRows) {
+    piecesBySet.set(block.setId, (piecesBySet.get(block.setId) ?? 0) + (block.quantityPerSet ?? 1));
   }
 
   return Object.fromEntries(
@@ -552,28 +667,53 @@ export async function getSetMetaByIds(
 }
 
 // ── Composición de sets (productos + cantidad por set) — usada para resolver reglas de ámbito
-// PRODUCT y para COLOR_RESTRICTION (ver `SetMeta.pieces` en rules-engine/types.ts) ──
+// PRODUCT y para COLOR_RESTRICTION (ver `SetMeta.pieces` en rules-engine/types.ts). Devuelve TODAS
+// las opciones de bloque + piezas recomendadas: una regla de ámbito PRODUCTO puede apuntar a
+// cualquiera de ellas sin importar cuál elija después el cliente — distinto de `piecesPerSet`
+// (getSetMetaByIds), que sí depende del número de bloques, no del número de opciones. Las piezas
+// recomendadas se incluyen con quantityPerSet: 1 mostrando su presencia, pero quedan fuera de
+// MIN_QUANTITY/COLOR_RESTRICTION porque esas reglas evalúan solo las piezas REALMENTE elegidas en
+// el carrito (`CorporateCartLine.pieceSelections`), no esta lista completa de opciones.
 export async function getSetPiecesByIds(setIds: string[]): Promise<Record<string, SetPieceInfo[]>> {
   const result: Record<string, SetPieceInfo[]> = {};
   for (const setId of setIds) result[setId] = [];
   if (setIds.length === 0) return result;
 
-  const rows = await db
-    .select({
-      setId: setItemsTable.setId,
-      productId: setItemsTable.productId,
-      productName: productsTable.name,
-      quantityPerSet: setItemsTable.quantityPerSet,
-    })
-    .from(setItemsTable)
-    .leftJoin(productsTable, eq(setItemsTable.productId, productsTable.id))
-    .where(inArray(setItemsTable.setId, setIds));
+  const [blockOptionRows, recommendedRows] = await Promise.all([
+    db
+      .select({
+        setId: setBlocksTable.setId,
+        productId: setBlockOptionsTable.productId,
+        productName: productsTable.name,
+        quantityPerSet: setBlocksTable.quantityPerSet,
+      })
+      .from(setBlockOptionsTable)
+      .innerJoin(setBlocksTable, eq(setBlockOptionsTable.blockId, setBlocksTable.id))
+      .leftJoin(productsTable, eq(setBlockOptionsTable.productId, productsTable.id))
+      .where(inArray(setBlocksTable.setId, setIds)),
+    db
+      .select({
+        setId: setRecommendedItemsTable.setId,
+        productId: setRecommendedItemsTable.productId,
+        productName: productsTable.name,
+      })
+      .from(setRecommendedItemsTable)
+      .leftJoin(productsTable, eq(setRecommendedItemsTable.productId, productsTable.id))
+      .where(inArray(setRecommendedItemsTable.setId, setIds)),
+  ]);
 
-  for (const row of rows) {
+  for (const row of blockOptionRows) {
     result[row.setId].push({
       productId: row.productId,
       productName: row.productName ?? undefined,
       quantityPerSet: row.quantityPerSet ?? 1,
+    });
+  }
+  for (const row of recommendedRows) {
+    result[row.setId].push({
+      productId: row.productId,
+      productName: row.productName ?? undefined,
+      quantityPerSet: 1,
     });
   }
   return result;

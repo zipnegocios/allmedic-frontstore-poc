@@ -18,7 +18,10 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
     notFound();
   }
 
-  const productIds = set.pieces.map((p) => p.productId);
+  const productIds = [
+    ...set.blocks.flatMap((b) => b.options.map((o) => o.productId)),
+    ...set.recommendedPieces.map((p) => p.productId),
+  ];
   const resolved = resolveRules(rules, {
     setId: set.id,
     brandId: set.brandId,

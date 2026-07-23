@@ -1,12 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
 import { getAdminSets, createSetWithItems } from '@/lib/admin-data-service';
-import { findDuplicateSetItemIndexes } from '@/lib/set-validation';
+import { findDuplicateSetProductIds } from '@/lib/set-validation';
 import { z } from 'zod';
 
-const SetItemSchema = z.object({
+const SetBlockOptionSchema = z.object({
   productId: z.string().min(1),
+});
+
+const SetBlockSchema = z.object({
+  blockCode: z.enum(['A', 'B']),
   quantityPerSet: z.number().min(1).default(1),
+  options: z.tuple([SetBlockOptionSchema, SetBlockOptionSchema]),
+});
+
+const SetRecommendedItemSchema = z.object({
+  productId: z.string().min(1),
   sortOrder: z.number().default(0),
 });
 
@@ -25,7 +34,9 @@ const CreateSetSchema = z.object({
   priceManual: z.string().optional().nullable(),
   priceManualSale: z.string().optional().nullable(),
   manualDiscountEnd: z.string().optional().nullable(),
-  items: z.array(SetItemSchema).default([]),
+  // Exactamente 2 bloques (A y B) — Decisión 1 del plan de bloques de alternancia.
+  blocks: z.tuple([SetBlockSchema, SetBlockSchema]),
+  recommendedItems: z.array(SetRecommendedItemSchema).default([]),
 }).refine(
   (data) => !data.priceManualSale || !data.priceManual || Number(data.priceManualSale) < Number(data.priceManual),
   { message: 'El precio manual rebajado debe ser menor al precio manual', path: ['priceManualSale'] }
@@ -33,8 +44,9 @@ const CreateSetSchema = z.object({
   (data) => !data.manualDiscountEnd || !!data.priceManualSale,
   { message: 'La fecha de fin de rebaja requiere un precio manual rebajado', path: ['manualDiscountEnd'] }
 ).superRefine((data, ctx) => {
-  for (const idx of findDuplicateSetItemIndexes(data.items)) {
-    ctx.addIssue({ code: 'custom', message: 'Este producto ya está en el set', path: ['items', idx, 'productId'] });
+  const duplicates = findDuplicateSetProductIds(data.blocks, data.recommendedItems);
+  if (duplicates.length > 0) {
+    ctx.addIssue({ code: 'custom', message: 'Un mismo producto no puede repetirse entre bloques ni piezas recomendadas', path: ['blocks'] });
   }
 });
 

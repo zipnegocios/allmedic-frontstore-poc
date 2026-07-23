@@ -26,11 +26,11 @@ export async function PATCH(
     if (body.items !== undefined) {
       const set = await getAdminSetById(id);
       if (!set) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-      const piecesIds = set.items.map((i) => i.productId).filter((pid): pid is string => !!pid);
+      const piecesIds = set.blocks.flatMap((b) => b.options.map((o) => o.productId)).filter((pid): pid is string => !!pid);
       const bodyProductIds = body.items.map((i) => i.productId);
       if (bodyProductIds.length !== piecesIds.length) {
         return NextResponse.json(
-          { error: `La combinación debe tener exactamente una entrada por cada pieza del set (${piecesIds.length}).` },
+          { error: `La combinación debe tener exactamente una entrada por cada opción de bloque del set (${piecesIds.length}).` },
           { status: 400 }
         );
       }

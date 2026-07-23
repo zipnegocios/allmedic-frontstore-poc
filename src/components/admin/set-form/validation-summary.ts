@@ -23,20 +23,25 @@ export function buildSetValidationSummary(errors: FieldErrors<SetFormData>): str
     }
   }
 
-  const itemsError = errors.items;
-  if (Array.isArray(itemsError)) {
-    itemsError.forEach((itemError, idx) => {
-      if (!itemError) return;
-      const missing: string[] = [];
-      if (itemError.productId) missing.push('Producto');
-      if (itemError.quantityPerSet) missing.push('Cantidad');
-      if (missing.length > 0) {
-        messages.push(`Pieza ${idx + 1}: falta ${missing.join(' y ')}`);
+  const blocksError = errors.blocks;
+  const blockLabels = ['A', 'B'] as const;
+  if (Array.isArray(blocksError)) {
+    blocksError.forEach((blockError, blockIdx) => {
+      if (!blockError) return;
+      if (blockError.quantityPerSet) {
+        messages.push(`Bloque ${blockLabels[blockIdx] ?? blockIdx + 1}: cantidad por set inválida`);
+      }
+      const optionsError = blockError.options;
+      if (Array.isArray(optionsError)) {
+        optionsError.forEach((optionError, optionIdx) => {
+          if (optionError?.productId) {
+            messages.push(`Bloque ${blockLabels[blockIdx] ?? blockIdx + 1}, opción ${optionIdx + 1}: falta el producto`);
+          }
+        });
       }
     });
-  } else if (itemsError && typeof itemsError.message === 'string') {
-    // Error a nivel de array completo (ej. `items.min(1)` sin ninguna pieza agregada).
-    messages.push(itemsError.message);
+  } else if (blocksError && typeof (blocksError as { message?: string }).message === 'string') {
+    messages.push((blocksError as { message: string }).message);
   }
 
   return messages;

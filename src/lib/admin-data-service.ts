@@ -8,7 +8,9 @@ import {
   productVariants as variantsTable,
   leads as leadsTable,
   corporateSets as corporateSetsTable,
-  setItems as setItemsTable,
+  setBlocks as setBlocksTable,
+  setBlockOptions as setBlockOptionsTable,
+  setRecommendedItems as setRecommendedItemsTable,
   setColorCombos as setColorCombosTable,
   setColorComboItems as setColorComboItemsTable,
   corporateAccounts as corporateAccountsTable,
@@ -368,9 +370,9 @@ export async function updateProduct(id: string, data: Partial<typeof productsTab
 }
 
 /** Error lanzado cuando una operación de borrado de producto se bloquea porque el
- * producto sigue asociado a uno o más sets corporativos (`set_items`/
- * `set_color_combo_items`). Expone `.usage` con el detalle para que la API lo
- * traduzca a 409 y la UI muestre qué sets hay que editar primero. */
+ * producto sigue asociado a uno o más sets corporativos (`set_block_options`/
+ * `set_recommended_items`/`set_color_combo_items`). Expone `.usage` con el detalle
+ * para que la API lo traduzca a 409 y la UI muestre qué sets hay que editar primero. */
 export class ProductInUseError extends Error {
   usage: { count: number; setNames: string[] };
   constructor(usage: { count: number; setNames: string[] }) {
@@ -380,15 +382,21 @@ export class ProductInUseError extends Error {
   }
 }
 
-/** Sets corporativos (piezas normales o combos de color) que referencian este
- * producto — ignora sets ya en su propia papelera, que no deberían bloquear nada. */
+/** Sets corporativos (opción de bloque, pieza recomendada o combo de color) que referencian
+ * este producto — ignora sets ya en su propia papelera, que no deberían bloquear nada. */
 export async function getProductSetUsage(productId: string): Promise<{ count: number; setNames: string[] }> {
-  const [viaItems, viaCombos] = await Promise.all([
+  const [viaBlockOptions, viaRecommended, viaCombos] = await Promise.all([
     db
       .selectDistinct({ setName: corporateSetsTable.name })
-      .from(setItemsTable)
-      .innerJoin(corporateSetsTable, eq(setItemsTable.setId, corporateSetsTable.id))
-      .where(and(eq(setItemsTable.productId, productId), isNull(corporateSetsTable.deletedAt))),
+      .from(setBlockOptionsTable)
+      .innerJoin(setBlocksTable, eq(setBlockOptionsTable.blockId, setBlocksTable.id))
+      .innerJoin(corporateSetsTable, eq(setBlocksTable.setId, corporateSetsTable.id))
+      .where(and(eq(setBlockOptionsTable.productId, productId), isNull(corporateSetsTable.deletedAt))),
+    db
+      .selectDistinct({ setName: corporateSetsTable.name })
+      .from(setRecommendedItemsTable)
+      .innerJoin(corporateSetsTable, eq(setRecommendedItemsTable.setId, corporateSetsTable.id))
+      .where(and(eq(setRecommendedItemsTable.productId, productId), isNull(corporateSetsTable.deletedAt))),
     db
       .selectDistinct({ setName: corporateSetsTable.name })
       .from(setColorComboItemsTable)
@@ -397,7 +405,7 @@ export async function getProductSetUsage(productId: string): Promise<{ count: nu
       .where(and(eq(setColorComboItemsTable.productId, productId), isNull(corporateSetsTable.deletedAt))),
   ]);
 
-  const setNames = Array.from(new Set([...viaItems, ...viaCombos].map((r) => r.setName)));
+  const setNames = Array.from(new Set([...viaBlockOptions, ...viaRecommended, ...viaCombos].map((r) => r.setName)));
   return { count: setNames.length, setNames };
 }
 
@@ -1080,35 +1088,41 @@ export async function getAdminSets() {
     .orderBy(asc(corporateSetsTable.sortOrder));
 
   const setIds = rows.map(r => r.id);
-  const [itemCounts, coverMap, setProducts] = await Promise.all([
+  const [blockRows, coverMap] = await Promise.all([
     setIds.length > 0
       ? db
-          .select({ setId: setItemsTable.setId, count: sql<number>`count(*)` })
-          .from(setItemsTable)
-          .where(inArray(setItemsTable.setId, setIds))
-          .groupBy(setItemsTable.setId)
+          .select({ id: setBlocksTable.id, setId: setBlocksTable.setId })
+          .from(setBlocksTable)
+          .where(inArray(setBlocksTable.setId, setIds))
       : Promise.resolve([]),
     getSingleLinksUrlMap('SET', setIds, 'COVER'),
-    setIds.length > 0
-      ? db
-          .select({
-            setId: setItemsTable.setId,
-            productId: setItemsTable.productId,
-            productName: productsTable.name,
-            productSlug: productsTable.slug,
-          })
-          .from(setItemsTable)
-          .innerJoin(productsTable, eq(setItemsTable.productId, productsTable.id))
-          .where(inArray(setItemsTable.setId, setIds))
-          .orderBy(asc(setItemsTable.sortOrder))
-      : Promise.resolve([]),
   ]);
+
+  const blockIds = blockRows.map((b) => b.id);
+  const setIdByBlockId = new Map(blockRows.map((b) => [b.id, b.setId]));
+  const setProducts = blockIds.length > 0
+    ? await db
+        .select({
+          blockId: setBlockOptionsTable.blockId,
+          productId: setBlockOptionsTable.productId,
+          productName: productsTable.name,
+          productSlug: productsTable.slug,
+        })
+        .from(setBlockOptionsTable)
+        .innerJoin(productsTable, eq(setBlockOptionsTable.productId, productsTable.id))
+        .where(inArray(setBlockOptionsTable.blockId, blockIds))
+        .orderBy(asc(setBlockOptionsTable.sortOrder))
+    : [];
 
   const productIds = setProducts.map(sp => sp.productId);
   const productCovers = await getProductCoversMap(productIds);
 
-  const countMap = new Map(itemCounts.map(c => [c.setId, Number(c.count)]));
-  
+  // "Piezas" del set en el listado admin = número de bloques (siempre 2), no de opciones cargadas.
+  const countMap = new Map<string, number>();
+  for (const block of blockRows) {
+    countMap.set(block.setId, (countMap.get(block.setId) ?? 0) + 1);
+  }
+
   // Group products by set ID
   const productsBySetMap = new Map<
     string,
@@ -1123,7 +1137,9 @@ export async function getAdminSets() {
     }[]
   >();
   for (const item of setProducts) {
-    const list = productsBySetMap.get(item.setId) || [];
+    const setId = setIdByBlockId.get(item.blockId);
+    if (!setId) continue;
+    const list = productsBySetMap.get(setId) || [];
     const cover = productCovers.get(item.productId);
     list.push({
       productId: item.productId,
@@ -1134,7 +1150,7 @@ export async function getAdminSets() {
       previewStart: cover?.previewStart ?? null,
       previewDuration: cover?.previewDuration ?? null,
     });
-    productsBySetMap.set(item.setId, list);
+    productsBySetMap.set(setId, list);
   }
 
   return rows.map(r => ({
@@ -1170,23 +1186,41 @@ export async function getAdminSetById(id: string) {
       .limit(1);
   }
 
-  const [items, coverResult, secondaryCoverResult] = await Promise.all([
+  const [blockRows, recommendedRows, coverResult, secondaryCoverResult] = await Promise.all([
     db
       .select({
-        id: setItemsTable.id,
-        productId: setItemsTable.productId,
-        quantityPerSet: setItemsTable.quantityPerSet,
-        sortOrder: setItemsTable.sortOrder,
+        id: setBlocksTable.id,
+        blockCode: setBlocksTable.blockCode,
+        quantityPerSet: setBlocksTable.quantityPerSet,
+        optionId: setBlockOptionsTable.id,
+        productId: setBlockOptionsTable.productId,
+        sortOrder: setBlockOptionsTable.sortOrder,
         productName: productsTable.name,
         productSlug: productsTable.slug,
         priceWholesale: productsTable.priceWholesale,
         priceWholesaleSale: productsTable.priceWholesaleSale,
         priceNormal: productsTable.priceNormal,
       })
-      .from(setItemsTable)
-      .leftJoin(productsTable, eq(setItemsTable.productId, productsTable.id))
-      .where(eq(setItemsTable.setId, id))
-      .orderBy(asc(setItemsTable.sortOrder)),
+      .from(setBlocksTable)
+      .leftJoin(setBlockOptionsTable, eq(setBlockOptionsTable.blockId, setBlocksTable.id))
+      .leftJoin(productsTable, eq(setBlockOptionsTable.productId, productsTable.id))
+      .where(eq(setBlocksTable.setId, id))
+      .orderBy(asc(setBlocksTable.blockCode), asc(setBlockOptionsTable.sortOrder)),
+    db
+      .select({
+        id: setRecommendedItemsTable.id,
+        productId: setRecommendedItemsTable.productId,
+        sortOrder: setRecommendedItemsTable.sortOrder,
+        productName: productsTable.name,
+        productSlug: productsTable.slug,
+        priceWholesale: productsTable.priceWholesale,
+        priceWholesaleSale: productsTable.priceWholesaleSale,
+        priceNormal: productsTable.priceNormal,
+      })
+      .from(setRecommendedItemsTable)
+      .leftJoin(productsTable, eq(setRecommendedItemsTable.productId, productsTable.id))
+      .where(eq(setRecommendedItemsTable.setId, id))
+      .orderBy(asc(setRecommendedItemsTable.sortOrder)),
     coverQuery('COVER'),
     coverQuery('COVER_SECONDARY'),
   ]);
@@ -1196,14 +1230,32 @@ export async function getAdminSetById(id: string) {
   const imageUrl = cover?.url ?? null;
   const secondaryImageUrl = secondaryCover?.url ?? null;
 
-  return { ...set, cover, secondaryCover, imageUrl, secondaryImageUrl, items };
+  const blocksMap = new Map<string, { id: string; blockCode: string; quantityPerSet: number; options: typeof blockRows }>();
+  for (const row of blockRows) {
+    if (!blocksMap.has(row.id)) {
+      blocksMap.set(row.id, { id: row.id, blockCode: row.blockCode, quantityPerSet: row.quantityPerSet ?? 1, options: [] });
+    }
+    if (row.optionId) blocksMap.get(row.id)!.options.push(row);
+  }
+  const blocks = Array.from(blocksMap.values()).sort((a, b) => a.blockCode.localeCompare(b.blockCode));
+
+  return { ...set, cover, secondaryCover, imageUrl, secondaryImageUrl, blocks, recommendedItems: recommendedRows };
 }
 
 
-interface SetItemInput {
-  id?: string;
+interface SetBlockOptionInput {
   productId: string;
+}
+
+interface SetBlockInput {
+  blockCode: 'A' | 'B';
   quantityPerSet: number;
+  /** Exactamente 2 opciones — validado en la API/zod, no en constraint de DB. */
+  options: [SetBlockOptionInput, SetBlockOptionInput];
+}
+
+interface SetRecommendedItemInput {
+  productId: string;
   sortOrder: number;
 }
 
@@ -1226,7 +1278,9 @@ interface CorporateSetInput {
   priceManual?: string | null;
   priceManualSale?: string | null;
   manualDiscountEnd?: string | null;
-  items?: SetItemInput[];
+  /** Exactamente 2 bloques (A y B) — validado en la API/zod, no en constraint de DB. */
+  blocks?: [SetBlockInput, SetBlockInput];
+  recommendedItems?: SetRecommendedItemInput[];
 }
 
 /**
@@ -1246,9 +1300,38 @@ async function deriveSetBrandId(productIds: string[]): Promise<string | null> {
   return unique.length === 1 ? unique[0] : null;
 }
 
+/** Todos los productId de los 2 bloques + piezas recomendadas — para derivar la marca del set. */
+function collectProductIds(blocks: [SetBlockInput, SetBlockInput] | undefined, recommendedItems: SetRecommendedItemInput[] | undefined): string[] {
+  const fromBlocks = (blocks ?? []).flatMap((b) => b.options.map((o) => o.productId));
+  const fromRecommended = (recommendedItems ?? []).map((r) => r.productId);
+  return [...fromBlocks, ...fromRecommended];
+}
+
+async function insertBlocksWithOptions(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  setId: string,
+  blocks: [SetBlockInput, SetBlockInput]
+) {
+  for (const block of blocks) {
+    const [insertedBlock] = await tx.insert(setBlocksTable).values({
+      setId,
+      blockCode: block.blockCode,
+      quantityPerSet: block.quantityPerSet,
+    }).returning();
+
+    await tx.insert(setBlockOptionsTable).values(
+      block.options.map((opt, idx) => ({
+        blockId: insertedBlock.id,
+        productId: opt.productId,
+        sortOrder: idx,
+      }))
+    );
+  }
+}
+
 export async function createSetWithItems(input: CorporateSetInput) {
-  const { items = [], coverAssetId, coverAlt, secondaryCoverAssetId, secondaryCoverAlt, manualDiscountEnd, ...setData } = input;
-  const derivedBrandId = await deriveSetBrandId(items.map((i) => i.productId));
+  const { blocks, recommendedItems = [], coverAssetId, coverAlt, secondaryCoverAssetId, secondaryCoverAlt, manualDiscountEnd, ...setData } = input;
+  const derivedBrandId = await deriveSetBrandId(collectProductIds(blocks, recommendedItems));
 
   const set = await db.transaction(async (tx) => {
     const [set] = await tx.insert(corporateSetsTable).values({
@@ -1257,13 +1340,16 @@ export async function createSetWithItems(input: CorporateSetInput) {
       manualDiscountEnd: manualDiscountEnd ? new Date(manualDiscountEnd) : undefined,
     }).returning();
 
-    if (items.length > 0) {
-      await tx.insert(setItemsTable).values(
-        items.map(i => ({
-          productId: i.productId,
-          quantityPerSet: i.quantityPerSet,
-          sortOrder: i.sortOrder,
+    if (blocks) {
+      await insertBlocksWithOptions(tx, set.id, blocks);
+    }
+
+    if (recommendedItems.length > 0) {
+      await tx.insert(setRecommendedItemsTable).values(
+        recommendedItems.map((r, idx) => ({
           setId: set.id,
+          productId: r.productId,
+          sortOrder: r.sortOrder ?? idx,
         }))
       );
     }
@@ -1287,8 +1373,10 @@ export async function createSetWithItems(input: CorporateSetInput) {
 }
 
 export async function updateSetWithItems(id: string, input: Partial<CorporateSetInput>) {
-  const { items, coverAssetId, coverAlt, secondaryCoverAssetId, secondaryCoverAlt, manualDiscountEnd, ...setData } = input;
-  const derivedBrandId = items !== undefined ? await deriveSetBrandId(items.map((i) => i.productId)) : undefined;
+  const { blocks, recommendedItems, coverAssetId, coverAlt, secondaryCoverAssetId, secondaryCoverAlt, manualDiscountEnd, ...setData } = input;
+  const derivedBrandId = (blocks !== undefined || recommendedItems !== undefined)
+    ? await deriveSetBrandId(collectProductIds(blocks, recommendedItems))
+    : undefined;
 
   const set = await db.transaction(async (tx) => {
     if (Object.keys(setData).length > 0 || manualDiscountEnd !== undefined || derivedBrandId !== undefined) {
@@ -1301,15 +1389,22 @@ export async function updateSetWithItems(id: string, input: Partial<CorporateSet
       }).where(eq(corporateSetsTable.id, id));
     }
 
-    if (items !== undefined) {
-      await tx.delete(setItemsTable).where(eq(setItemsTable.setId, id));
-      if (items.length > 0) {
-        await tx.insert(setItemsTable).values(
-          items.map(i => ({
-            productId: i.productId,
-            quantityPerSet: i.quantityPerSet,
-            sortOrder: i.sortOrder,
+    // Reemplazo atómico completo (borra-y-reinserta) — mismo patrón que el modelo plano
+    // anterior (`set_items`), por consistencia con el resto del admin; el volumen de filas
+    // es trivial (2 bloques × 2 opciones + recomendadas).
+    if (blocks !== undefined) {
+      await tx.delete(setBlocksTable).where(eq(setBlocksTable.setId, id));
+      await insertBlocksWithOptions(tx, id, blocks);
+    }
+
+    if (recommendedItems !== undefined) {
+      await tx.delete(setRecommendedItemsTable).where(eq(setRecommendedItemsTable.setId, id));
+      if (recommendedItems.length > 0) {
+        await tx.insert(setRecommendedItemsTable).values(
+          recommendedItems.map((r, idx) => ({
             setId: id,
+            productId: r.productId,
+            sortOrder: r.sortOrder ?? idx,
           }))
         );
       }
@@ -1352,10 +1447,11 @@ export async function restoreSet(id: string) {
 
 export async function permanentlyDeleteSet(id: string) {
   await db.transaction(async (tx) => {
-    // 1. Eliminar relaciones set-piezas
-    await tx.delete(setItemsTable).where(eq(setItemsTable.setId, id));
+    // 1. Eliminar relaciones set-piezas (bloques + opciones vía cascade, recomendadas)
+    await tx.delete(setBlocksTable).where(eq(setBlocksTable.setId, id));
+    await tx.delete(setRecommendedItemsTable).where(eq(setRecommendedItemsTable.setId, id));
     // 1b. Eliminar combinaciones de color curadas (modo MIXED) — el cascade de la FK ya lo
-    // cubriría, pero se borra explícito por el mismo criterio que setItemsTable arriba.
+    // cubriría, pero se borra explícito por el mismo criterio que las tablas de arriba.
     await tx.delete(setColorCombosTable).where(eq(setColorCombosTable.setId, id));
     // 2. Eliminar vínculos de medios polimórficos de tipo SET
     await tx.delete(mediaLinksTable).where(and(
@@ -1391,18 +1487,18 @@ export async function getTrashedSets() {
     .orderBy(desc(corporateSetsTable.deletedAt));
 
   const setIds = rows.map(r => r.id);
-  const [itemCounts, coverMap] = await Promise.all([
+  const [blockCounts, coverMap] = await Promise.all([
     setIds.length > 0
       ? db
-          .select({ setId: setItemsTable.setId, count: sql<number>`count(*)` })
-          .from(setItemsTable)
-          .where(inArray(setItemsTable.setId, setIds))
-          .groupBy(setItemsTable.setId)
+          .select({ setId: setBlocksTable.setId, count: sql<number>`count(*)` })
+          .from(setBlocksTable)
+          .where(inArray(setBlocksTable.setId, setIds))
+          .groupBy(setBlocksTable.setId)
       : Promise.resolve([]),
     getSingleLinksUrlMap('SET', setIds, 'COVER'),
   ]);
 
-  const countMap = new Map(itemCounts.map(c => [c.setId, Number(c.count)]));
+  const countMap = new Map(blockCounts.map(c => [c.setId, Number(c.count)]));
 
   return rows.map(r => ({
     ...r,
@@ -1682,6 +1778,62 @@ export async function syncColorPairingRule(
   } else if (existing?.isActive) {
     await tx.update(businessRulesTable).set({ isActive: false, updatedAt: new Date() }).where(eq(businessRulesTable.id, existing.id));
   }
+}
+
+/** Chequeo suave (no bloqueante) para el admin de sets en modo PAIRED: ¿existe al menos una
+ * combinación posible (1 opción del Bloque A + 1 opción del Bloque B) que comparta al menos un
+ * color? Si no, el set queda "imposible de cotizar" — el cliente nunca podría elegir un color
+ * válido en la PDP (Decisión 6). No aplica a modo MIXED (ahí no hay color único por fila). */
+export async function getBlockColorIntersections(setId: string): Promise<{
+  hasAnyValidCombination: boolean;
+  emptyPairs: Array<{ blockAProductId: string; blockBProductId: string }>;
+}> {
+  const blockRows = await db
+    .select({ id: setBlocksTable.id, blockCode: setBlocksTable.blockCode })
+    .from(setBlocksTable)
+    .where(eq(setBlocksTable.setId, setId));
+
+  const blockA = blockRows.find((b) => b.blockCode === 'A');
+  const blockB = blockRows.find((b) => b.blockCode === 'B');
+  if (!blockA || !blockB) return { hasAnyValidCombination: true, emptyPairs: [] };
+
+  const optionRows = await db
+    .select({ blockId: setBlockOptionsTable.blockId, productId: setBlockOptionsTable.productId })
+    .from(setBlockOptionsTable)
+    .where(inArray(setBlockOptionsTable.blockId, [blockA.id, blockB.id]));
+
+  const optionsA = optionRows.filter((o) => o.blockId === blockA.id).map((o) => o.productId);
+  const optionsB = optionRows.filter((o) => o.blockId === blockB.id).map((o) => o.productId);
+  if (optionsA.length === 0 || optionsB.length === 0) return { hasAnyValidCombination: true, emptyPairs: [] };
+
+  const allProductIds = [...optionsA, ...optionsB];
+  const variantRows = await db
+    .select({ productId: variantsTable.productId, colorId: variantsTable.colorId })
+    .from(variantsTable)
+    .where(and(inArray(variantsTable.productId, allProductIds), eq(variantsTable.status, 'AVAILABLE')));
+
+  const colorsByProduct = new Map<string, Set<string>>();
+  for (const v of variantRows) {
+    if (!colorsByProduct.has(v.productId)) colorsByProduct.set(v.productId, new Set());
+    colorsByProduct.get(v.productId)!.add(v.colorId);
+  }
+
+  const emptyPairs: Array<{ blockAProductId: string; blockBProductId: string }> = [];
+  let hasAnyValidCombination = false;
+  for (const productA of optionsA) {
+    for (const productB of optionsB) {
+      const colorsA = colorsByProduct.get(productA) ?? new Set();
+      const colorsB = colorsByProduct.get(productB) ?? new Set();
+      const sharesColor = Array.from(colorsA).some((c) => colorsB.has(c));
+      if (sharesColor) {
+        hasAnyValidCombination = true;
+      } else {
+        emptyPairs.push({ blockAProductId: productA, blockBProductId: productB });
+      }
+    }
+  }
+
+  return { hasAnyValidCombination, emptyPairs };
 }
 
 // ── Set Color Combos (modo MIXED — combinaciones de color curadas por el admin) ──

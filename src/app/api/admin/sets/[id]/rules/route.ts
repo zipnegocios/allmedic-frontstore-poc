@@ -29,7 +29,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     const set = await getAdminSetById(id);
     if (!set) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    const productIds = set.items.map((i) => i.productId).filter((pid): pid is string => !!pid);
+    // Una regla de ámbito PRODUCTO puede apuntar a cualquier opción de bloque o pieza
+    // recomendada del set, sin importar cuál elija después el cliente.
+    const productIds = [
+      ...set.blocks.flatMap((b) => b.options.map((o) => o.productId)),
+      ...set.recommendedItems.map((r) => r.productId),
+    ].filter((pid): pid is string => !!pid);
     const context = { setId: set.id, brandId: set.brandId, productIds };
 
     const allRulesRaw = await getAdminRules();
