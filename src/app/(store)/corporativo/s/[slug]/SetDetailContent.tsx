@@ -10,6 +10,7 @@ import type { ColorRestrictionConfig, SizeMode } from '@/lib/rules-engine';
 import type { ProductColor, Size } from '@/lib/types';
 import type { MediaItem } from '@/lib/media';
 import { ColorSwatchGroup } from '@/components/catalog/ColorSwatch';
+import { MinQuantityInfoPopover } from '@/components/catalog/MinQuantityInfoPopover';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 import { cn } from '@/lib/utils';
 
@@ -347,31 +348,87 @@ export function SetDetailContent({
   return (
     <main className="pt-14 sm:pt-16 min-h-screen">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Link href="/corporativo" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-[#111111] mb-6">
-          <ChevronLeft className="w-4 h-4" /> Volver al catálogo corporativo
-        </Link>
+        <div className="flex items-center justify-between mb-6">
+          <Link href="/corporativo" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-[#111111]">
+            <ChevronLeft className="w-4 h-4" /> Volver al catálogo corporativo
+          </Link>
+          <MinQuantityInfoPopover minQuantity={minQuantity} />
+        </div>
 
-        {/* ── (a) Color del set — a todo el ancho, título en línea con los swatches en desktop ── */}
+        {/* ── (a) Guía de 2 pasos en caja "L" — solo isPaired. Fila superior: aviso de compra
+             mínima + encabezado "Elige la prenda" a la izquierda, "Elige el color del set"
+             (texto en línea con los swatches) a la derecha. Fila inferior: los 2 BlockStrip/
+             SizeRow en fila a todo el ancho, cruzando ambas columnas. Se apila en mobile.
+             Ninguna pieza cambia la lógica interna de BlockStrip/SizeRow/ColorSwatchGroup, solo
+             las envuelve bajo el nuevo encabezado. ── */}
         {isPaired && (
-          <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div>
-              <h2 className="font-display uppercase text-h2-mobile md:text-h2 text-[#111111]">Color del set</h2>
-              <p className="font-sans text-body-md text-gray-500">Todas las piezas de este set se piden en el mismo color.</p>
-            </div>
-            {pairedColorOptions.length === 0 ? (
-              <div className="flex items-center gap-2 font-sans text-body-md text-amber-800 bg-amber-50 border rounded-lg p-3">
-                <Info className="w-4 h-4 flex-shrink-0" />
-                <span>Estas dos piezas no comparten ningún color en común — elige otra combinación.</span>
+          <div className="border border-[#E5E5E5] rounded-xl p-4 sm:p-6 mb-8 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#111111] text-white text-xs font-medium flex items-center justify-center">1</span>
+                  <h2 className="font-display uppercase text-h2-mobile md:text-h2 text-[#111111]">Elige la prenda</h2>
+                </div>
+                <p className="font-sans text-body-md text-gray-500">
+                  Elige una pieza de cada bloque y su talla. Puedes usar tallas distintas en cada una — por
+                  ejemplo, camisa en L y pantalón en M.
+                </p>
               </div>
-            ) : (
-              <ColorSwatchGroup
-                colors={pairedColorOptions}
-                selectedColorId={pairedColorOptions.find((c) => c.code === pairedColor)?.id}
-                availableColorIds={pairedColorOptions.map((c) => c.id)}
-                onColorSelect={(color: ProductColor) => setPairedColor(color.code)}
-                size="sm"
-              />
-            )}
+
+              <div>
+                {/* Título y swatches en la misma fila envolvente (flex-wrap): los colores
+                    empiezan pegados al texto del encabezado y, si no caben, continúan
+                    envolviendo hacia abajo — nunca bajan solos a su propia línea aparte. */}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-1">
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#111111] text-white text-xs font-medium flex items-center justify-center">2</span>
+                  <h2 className="font-display uppercase text-h2-mobile md:text-h2 text-[#111111]">Elige el color del set</h2>
+                  {pairedColorOptions.length > 0 && (
+                    <ColorSwatchGroup
+                      colors={pairedColorOptions}
+                      selectedColorId={pairedColorOptions.find((c) => c.code === pairedColor)?.id}
+                      availableColorIds={pairedColorOptions.map((c) => c.id)}
+                      onColorSelect={(color: ProductColor) => setPairedColor(color.code)}
+                      size="sm"
+                    />
+                  )}
+                </div>
+                <p className="font-sans text-body-md text-gray-500">
+                  Un solo color para las 2 piezas que elegiste en el paso 1. Apenas lo elijas, verás su nombre junto
+                  al selector.
+                </p>
+                {pairedColorOptions.length === 0 && (
+                  <div className="mt-3 flex items-center gap-2 font-sans text-body-md text-amber-800 bg-amber-50 border rounded-lg p-3">
+                    <Info className="w-4 h-4 flex-shrink-0" />
+                    <span>Estas dos piezas no comparten ningún color en común — elige otra combinación.</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1 min-w-0 space-y-2">
+                <BlockStrip
+                  pieces={blockA.options}
+                  selectedId={pieceA.productId}
+                  onSelect={selectPieceA}
+                  colorForPieceOption={(p) => colorForPiece(p.productId)}
+                />
+                {showsSizes && (
+                  <SizeRow piece={pieceA} size={sizeA} onSize={setSizeA} statuses={sizeStatusesFor(pieceA)} />
+                )}
+              </div>
+              <div className="flex-1 min-w-0 space-y-2">
+                <BlockStrip
+                  pieces={blockB.options}
+                  selectedId={pieceB.productId}
+                  onSelect={selectPieceB}
+                  colorForPieceOption={(p) => colorForPiece(p.productId)}
+                />
+                {showsSizes && (
+                  <SizeRow piece={pieceB} size={sizeB} onSize={setSizeB} statuses={sizeStatusesFor(pieceB)} />
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -411,33 +468,36 @@ export function SetDetailContent({
           </div>
         )}
 
-        {/* ── (b) Selección de pieza + talla por bloque — la miniatura de cada opción refleja el
+        {/* ── (b) Selección de pieza + talla por bloque — solo cuando NO es isPaired (ese caso ya
+             vive dentro del Paso 1 de la guía de arriba). La miniatura de cada opción refleja el
              color activo del set (Decisión 3); debajo, tallas circulares solo para la opción
              elegida de ESE bloque (Decisión 6). Sin conector "+": ver SizeRow. ── */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-8">
-          <div className="flex-1 min-w-0 space-y-2">
-            <BlockStrip
-              pieces={blockA.options}
-              selectedId={pieceA.productId}
-              onSelect={selectPieceA}
-              colorForPieceOption={(p) => colorForPiece(p.productId)}
-            />
-            {showsSizes && (
-              <SizeRow piece={pieceA} size={sizeA} onSize={setSizeA} statuses={sizeStatusesFor(pieceA)} />
-            )}
+        {!isPaired && (
+          <div className="flex flex-col sm:flex-row gap-4 mb-8">
+            <div className="flex-1 min-w-0 space-y-2">
+              <BlockStrip
+                pieces={blockA.options}
+                selectedId={pieceA.productId}
+                onSelect={selectPieceA}
+                colorForPieceOption={(p) => colorForPiece(p.productId)}
+              />
+              {showsSizes && (
+                <SizeRow piece={pieceA} size={sizeA} onSize={setSizeA} statuses={sizeStatusesFor(pieceA)} />
+              )}
+            </div>
+            <div className="flex-1 min-w-0 space-y-2">
+              <BlockStrip
+                pieces={blockB.options}
+                selectedId={pieceB.productId}
+                onSelect={selectPieceB}
+                colorForPieceOption={(p) => colorForPiece(p.productId)}
+              />
+              {showsSizes && (
+                <SizeRow piece={pieceB} size={sizeB} onSize={setSizeB} statuses={sizeStatusesFor(pieceB)} />
+              )}
+            </div>
           </div>
-          <div className="flex-1 min-w-0 space-y-2">
-            <BlockStrip
-              pieces={blockB.options}
-              selectedId={pieceB.productId}
-              onSelect={selectPieceB}
-              colorForPieceOption={(p) => colorForPiece(p.productId)}
-            />
-            {showsSizes && (
-              <SizeRow piece={pieceB} size={sizeB} onSize={setSizeB} statuses={sizeStatusesFor(pieceB)} />
-            )}
-          </div>
-        </div>
+        )}
 
         {/* ── (c) Galería + tallas / Info + armador ── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -489,16 +549,9 @@ export function SetDetailContent({
             <div className="flex items-start gap-2 font-sans text-body-md text-gray-600 bg-[#F5F5F7] rounded-lg p-3">
               <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
               <span>
-                Compra mínima: <strong>{minQuantity} sets</strong>. Precio referencial — sujeto a cotización formal.
+                Compra mínima: <strong>{minQuantity} sets</strong> en tu carrito, combinables entre distintos sets.
+                Precio referencial — sujeto a cotización formal.
               </span>
-            </div>
-
-            <div>
-              <h2 className="font-display uppercase text-h2-mobile md:text-h2 text-[#111111]">Arma tu combinación</h2>
-              <p className="font-sans text-body-md text-gray-500 mt-1">
-                Elige color y talla de cada pieza, define la cantidad de sets y agrega la combinación. Puedes repetir el
-                proceso para armar varias combinaciones distintas antes de llevarlas al carrito.
-              </p>
             </div>
 
             <CombinationBuilderCard
@@ -561,6 +614,10 @@ function BlockStrip({
         const image = activeColor
           ? p.variants.find((v) => v.colorId === activeColor.id && v.images.length > 0)?.images[0]
           : undefined;
+        // La opción NO elegida se oculta si no tiene foto real en el color activo — mostrarla con
+        // placeholder genérico da la sensación de UI rota (el usuario ya vio el color aplicado en
+        // la opción elegida y espera lo mismo en la otra). La opción elegida nunca se oculta.
+        if (!selected && colorCode && !image) return null;
         return (
           <button
             key={p.productId}
