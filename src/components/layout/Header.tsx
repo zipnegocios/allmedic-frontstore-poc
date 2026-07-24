@@ -11,6 +11,7 @@ import { CorporateNavCTA } from './CorporateNavCTA';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 import { usePriceVisibility } from '@/context/PriceVisibilityContext';
 import type { Product, Store, BrandNavItem } from '@/lib/types';
+import type { CorporateSetNavItem } from '@/lib/corporate-types';
 import { cn } from '@/lib/utils';
 import { resolveCoverMedia } from '@/lib/product-cover';
 
@@ -19,6 +20,7 @@ interface HeaderProps {
   products?: Product[];
   brands?: BrandNavItem[];
   stores?: Store[];
+  corporateSets?: CorporateSetNavItem[];
 }
 
 const navLinks = [
@@ -28,7 +30,7 @@ const navLinks = [
   { label: 'Tiendas', href: '/sucursales', icon: MapPin },
 ];
 
-export function Header({ onCartClick, products, brands, stores }: HeaderProps) {
+export function Header({ onCartClick, products, brands, stores, corporateSets }: HeaderProps) {
   const { totalItems } = useCart();
   const showPrices = usePriceVisibility();
   const [isScrolled, setIsScrolled] = useState(false);
@@ -39,7 +41,72 @@ export function Header({ onCartClick, products, brands, stores }: HeaderProps) {
     setIsMounted(true);
   }, []);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isMegaMenuOpen, setIsMegaMenuOpen] = useState(false);
+  const [megaMenuOpenedBy, setMegaMenuOpenedBy] = useState<'hover' | 'click' | null>(null);
+  const isMegaMenuOpen = megaMenuOpenedBy !== null;
+  const megaMenuContainerRef = useRef<HTMLDivElement>(null);
+  const megaMenuCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const closeMegaMenu = () => {
+    if (megaMenuCloseTimeoutRef.current) {
+      clearTimeout(megaMenuCloseTimeoutRef.current);
+      megaMenuCloseTimeoutRef.current = null;
+    }
+    setMegaMenuOpenedBy(null);
+  };
+
+  // Núcleo común: cancela cierre pendiente y fija modo 'hover' sin pisar 'click'.
+  const openMegaMenuInHoverMode = () => {
+    if (megaMenuCloseTimeoutRef.current) {
+      clearTimeout(megaMenuCloseTimeoutRef.current);
+      megaMenuCloseTimeoutRef.current = null;
+    }
+    setMegaMenuOpenedBy((prev) => (prev === 'click' ? prev : 'hover'));
+  };
+
+  // Solo para onMouseEnter: en touch el guard evita que el hover "fantasma" abra el panel.
+  const openMegaMenuByHover = () => {
+    if (typeof window !== 'undefined' && !window.matchMedia('(hover: hover)').matches) return;
+    openMegaMenuInHoverMode();
+  };
+
+  // Solo para onFocus: el foco de teclado debe abrir el panel siempre, sin importar el
+  // tipo de puntero del dispositivo (accesibilidad en tablet/touch con teclado externo).
+  const openMegaMenuByFocus = () => {
+    openMegaMenuInHoverMode();
+  };
+
+  const scheduleMegaMenuHoverClose = () => {
+    setMegaMenuOpenedBy((prev) => {
+      if (prev !== 'hover') return prev;
+      megaMenuCloseTimeoutRef.current = setTimeout(() => {
+        setMegaMenuOpenedBy((current) => (current === 'hover' ? null : current));
+      }, 180);
+      return prev;
+    });
+  };
+
+  const toggleMegaMenuByClick = () => {
+    setMegaMenuOpenedBy((prev) => (prev !== null ? null : 'click'));
+  };
+
+  // Click-outside: solo cierra si el panel fue fijado por click (modo hover se cierra por mouseleave).
+  useEffect(() => {
+    if (megaMenuOpenedBy !== 'click') return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (megaMenuContainerRef.current && !megaMenuContainerRef.current.contains(e.target as Node)) {
+        closeMegaMenu();
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [megaMenuOpenedBy]);
+
+  // Limpieza del timeout de cierre por hover al desmontar.
+  useEffect(() => {
+    return () => {
+      if (megaMenuCloseTimeoutRef.current) clearTimeout(megaMenuCloseTimeoutRef.current);
+    };
+  }, []);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -148,19 +215,41 @@ export function Header({ onCartClick, products, brands, stores }: HeaderProps) {
 
             {/* Desktop Navigation */}
             <nav className="hidden lg:flex items-center gap-1">
-              {/* MegaMenu Button - Toggle behavior */}
-              <button
-                onClick={() => setIsMegaMenuOpen(!isMegaMenuOpen)}
-                className={cn(
-                  'flex items-center gap-2 px-4 py-2 font-sans text-body-lg rounded-full transition-all duration-200',
-                  isMegaMenuOpen
-                    ? 'bg-[#111111] text-white'
-                    : 'text-[#333333] hover:bg-[#F5F5F7] hover:text-[#111111]'
-                )}
+              {/* MegaMenu trigger container - hover en desktop, click fijo en touch, con panel anidado */}
+              <div
+                ref={megaMenuContainerRef}
+                className="relative"
+                onMouseEnter={openMegaMenuByHover}
+                onMouseLeave={scheduleMegaMenuHoverClose}
+                onFocus={openMegaMenuByFocus}
+                onBlur={(e) => {
+                  if (!megaMenuContainerRef.current?.contains(e.relatedTarget as Node)) {
+                    closeMegaMenu();
+                  }
+                }}
               >
-                <Grid3X3 className="w-4 h-4" strokeWidth={1.5} />
-                Explorar
-              </button>
+                <button
+                  onClick={toggleMegaMenuByClick}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2 font-sans text-body-lg rounded-full transition-all duration-200',
+                    isMegaMenuOpen
+                      ? 'bg-[#111111] text-white'
+                      : 'text-[#333333] hover:bg-[#F5F5F7] hover:text-[#111111]'
+                  )}
+                >
+                  <Grid3X3 className="w-4 h-4" strokeWidth={1.5} />
+                  Explorar
+                </button>
+
+                <MegaMenu
+                  isOpen={isMegaMenuOpen}
+                  onClose={closeMegaMenu}
+                  products={products}
+                  brands={brands}
+                  stores={stores}
+                  sets={corporateSets}
+                />
+              </div>
 
               {navLinks.map((link) => (
                 <Link
@@ -441,14 +530,6 @@ export function Header({ onCartClick, products, brands, stores }: HeaderProps) {
         </div>
       </div>
 
-      {/* MegaMenu */}
-      <MegaMenu
-        isOpen={isMegaMenuOpen}
-        onClose={() => setIsMegaMenuOpen(false)}
-        products={products}
-        brands={brands}
-        stores={stores}
-      />
     </>
   );
 }
