@@ -61,7 +61,7 @@ export function MegaMenu({ isOpen, onClose, brands: brandsProp, stores: storesPr
       case 'sets':
         return {
           sections: [{
-            title: 'Sets Corporativos',
+            title: '',
             items: SETS,
             type: 'set' as const,
           }]
@@ -146,9 +146,13 @@ export function MegaMenu({ isOpen, onClose, brands: brandsProp, stores: storesPr
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
           {/* Section Header with Navigation */}
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg sm:text-xl font-bold text-[#111111]">
-              {currentSection.title}
-            </h3>
+            {currentSection.title ? (
+              <h3 className="text-lg sm:text-xl font-bold text-[#111111]">
+                {currentSection.title}
+              </h3>
+            ) : (
+              <span />
+            )}
             <div className="flex items-center gap-2">
               {/* Section Dots */}
               {sections.length > 1 && (
