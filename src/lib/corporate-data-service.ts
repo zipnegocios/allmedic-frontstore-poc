@@ -20,7 +20,7 @@ import {
 } from '@/db/schema';
 import { eq, and, inArray, asc, desc, isNotNull, isNull } from 'drizzle-orm';
 import type { BusinessRule, SetPieceInfo } from './rules-engine';
-import type { CorporateSetSummary, CorporateSetDetail, SetPiece, SetBlock } from './corporate-types';
+import type { CorporateSetSummary, CorporateSetDetail, SetPiece, SetBlock, CorporateSetNavItem } from './corporate-types';
 import type { ProductColor, ProductVariant, Gender } from './types';
 import { resolveMediaUrl, isVideoMime, type MediaItem } from './media';
 import { effectiveManualPrice } from './set-pricing';
@@ -274,6 +274,86 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
       availableStyles,
       pieceNames,
       createdAt: set.createdAt ? set.createdAt.toISOString() : new Date(0).toISOString(),
+    };
+  });
+}
+
+// ── Últimos sets creados (para nav/mega-menu) — versión liviana sin variantes/colores/estilos ──
+export async function getLatestCorporateSets(limit = 8): Promise<CorporateSetNavItem[]> {
+  const rows = await db
+    .select({
+      id: corporateSetsTable.id,
+      slug: corporateSetsTable.slug,
+      name: corporateSetsTable.name,
+      brandName: brandsTable.name,
+      priceManual: corporateSetsTable.priceManual,
+      priceManualSale: corporateSetsTable.priceManualSale,
+      manualDiscountEnd: corporateSetsTable.manualDiscountEnd,
+    })
+    .from(corporateSetsTable)
+    .leftJoin(brandsTable, eq(corporateSetsTable.brandId, brandsTable.id))
+    .where(and(eq(corporateSetsTable.isActive, true), isNull(corporateSetsTable.deletedAt)))
+    .orderBy(desc(corporateSetsTable.createdAt))
+    .limit(limit);
+
+  const setIds = rows.map((r) => r.id);
+  if (setIds.length === 0) return [];
+
+  const blocks = await db
+    .select({ id: setBlocksTable.id, setId: setBlocksTable.setId, quantityPerSet: setBlocksTable.quantityPerSet })
+    .from(setBlocksTable)
+    .where(inArray(setBlocksTable.setId, setIds));
+  const blockIds = blocks.map((b) => b.id);
+
+  const options = blockIds.length > 0
+    ? await db
+        .select({
+          blockId: setBlockOptionsTable.blockId,
+          priceWholesale: productsTable.priceWholesale,
+          priceWholesaleSale: productsTable.priceWholesaleSale,
+        })
+        .from(setBlockOptionsTable)
+        .leftJoin(productsTable, eq(setBlockOptionsTable.productId, productsTable.id))
+        .where(inArray(setBlockOptionsTable.blockId, blockIds))
+    : [];
+
+  const optionsByBlock = new Map<string, typeof options>();
+  for (const o of options) {
+    if (!optionsByBlock.has(o.blockId)) optionsByBlock.set(o.blockId, []);
+    optionsByBlock.get(o.blockId)!.push(o);
+  }
+  const blocksBySet = new Map<string, typeof blocks>();
+  for (const b of blocks) {
+    if (!blocksBySet.has(b.setId)) blocksBySet.set(b.setId, []);
+    blocksBySet.get(b.setId)!.push(b);
+  }
+
+  const coverMedia = await getCoverMediaMap(setIds);
+
+  return rows.map((set) => {
+    const setBlockRows = blocksBySet.get(set.id) ?? [];
+    let autoPrice = 0;
+    let hasAnyPrice = setBlockRows.length > 0;
+    for (const block of setBlockRows) {
+      const blockPrices = (optionsByBlock.get(block.id) ?? [])
+        .map((o) => wholesalePriceOf(o.priceWholesale, o.priceWholesaleSale))
+        .filter((p): p is number => p !== null);
+      if (blockPrices.length === 0) {
+        hasAnyPrice = false;
+        continue;
+      }
+      autoPrice += Math.min(...blockPrices) * (block.quantityPerSet ?? 1);
+    }
+    const manualPrice = effectiveManualPrice(set.priceManual, set.priceManualSale, set.manualDiscountEnd);
+    const referencePrice = manualPrice !== null ? manualPrice : (hasAnyPrice ? autoPrice : null);
+
+    return {
+      id: set.id,
+      slug: set.slug,
+      name: set.name,
+      cover: coverMedia.get(set.id)?.cover ?? null,
+      brandName: set.brandName,
+      referencePrice,
     };
   });
 }

@@ -69,6 +69,17 @@ export interface SetColorCombo {
   items: Array<{ productId: string; colorCode: string }>;
 }
 
+/** Item liviano de set para navegación (mega-menu) — solo lo necesario para una card
+ * chica: sin colores/tallas/estilos/variantes agregados (eso es exclusivo de `/corporativo`). */
+export interface CorporateSetNavItem {
+  id: string;
+  slug: string;
+  name: string;
+  cover: MediaItem | null;
+  brandName: string | null;
+  referencePrice: number | null;
+}
+
 export interface CorporateSetDetail extends CorporateSetSummary {
   brandId: string | null;
   /** Tupla fija de 2 — Bloque A y Bloque B, siempre en ese orden. */

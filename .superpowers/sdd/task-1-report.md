@@ -1,93 +1,105 @@
-# Task 1 — Fase 1: Infraestructura mobile del shell admin — Reporte
+# Task 1 Report: `getLatestCorporateSets` data query + type
 
-## Resumen
+## Status: DONE
 
-Implementados los 5 requisitos del brief: `AdminBottomNav`, ajuste de `(dashboard)/layout.tsx`,
-verificación del header genérico (no existe, se deja para fases posteriores), `ResponsiveDialog`,
-y reemplazo de `p-8` → `p-4 md:p-8` en las 19 páginas admin que lo usaban.
+## What was implemented
 
-## Archivos creados
+1. **`src/lib/corporate-types.ts`** — added `CorporateSetNavItem` interface, placed
+   immediately before `CorporateSetDetail` (functionally "after `CorporateSetSummary`" as the
+   brief specified; `SetColorCombo` sits between them in the current file, so it landed right
+   after that instead of right after `CorporateSetSummary`'s literal closing brace — no
+   functional difference, it's just a type declaration ordering).
 
-- `src/components/admin/AdminBottomNav.tsx` — bottom nav fija `md:hidden`, 4 ítems primarios
-  (Cotizaciones, Pedidos, Productos, Cuentas) + botón "Más" que abre un `Drawer` (vaul) inferior
-  con grid 3 columnas de los 10 módulos restantes + "Cerrar sesión". Reutiliza `signOut` de
-  next-auth igual que `AdminSidebar`. Exporta `isNavItemActive(pathname, href)` (misma lógica de
-  coincidencia que `AdminSidebar`: exacta o por segmento con `startsWith(href + '/')`) para poder
-  testearla de forma aislada. Fondo `#111111`, safe area `pb-[env(safe-area-inset-bottom)]`,
-  targets táctiles `min-h-[44px]`, `focus-visible:ring-2` en todos los controles.
-- `src/components/admin/ResponsiveDialog.tsx` — wrapper con `useIsMobile()` que renderiza `Dialog`
-  (desktop) o `Drawer` (mobile) con API común (`open`, `onOpenChange`, `title`, `description`,
-  `children`, `footer`). `max-h-[85dvh]` con scroll interno (`overflow-y-auto`) en el body. No se
-  cableó a ningún dialog existente (según instrucción explícita del brief, queda para fases
-  posteriores).
-- `src/components/admin/__tests__/AdminBottomNav.test.ts` — 5 tests unitarios sobre
-  `isNavItemActive` (coincidencia exacta, subrutas, no-colisión de prefijos textuales tipo
-  `/admin/cotizaciones-legacy`, rutas no relacionadas, caso especial del dashboard raíz `/admin`).
+2. **`src/lib/corporate-data-service.ts`**:
+   - Added `CorporateSetNavItem` to the existing type-only import from `./corporate-types`.
+   - Added `getLatestCorporateSets(limit = 8)` after `getActiveCorporateSets`, before the
+     `// ── Detalle de un set` comment — exactly where the brief specified.
+   - Implementation matches the brief's code verbatim: queries `corporateSets` (active,
+     non-deleted) ordered by `createdAt DESC` capped at `limit`, joins `brands` for the name,
+     fetches `setBlocks`/`setBlockOptions`/`products` to compute the same min-per-block-summed
+     auto price used by `getActiveCorporateSets`, resolves manual price override via the
+     already-tested `effectiveManualPrice`, and resolves cover art via the existing private
+     `getCoverMediaMap` helper. No pricing logic was reimplemented — reused `wholesalePriceOf`
+     and `effectiveManualPrice` exactly as instructed.
 
-## Archivos modificados
+3. **`src/lib/__tests__/get-latest-corporate-sets.test.ts`** — created per Step 2, with one
+   deviation required by Step 2b.
 
-- `src/app/admin/(dashboard)/layout.tsx` — `AdminSidebar` ahora recibe `className="hidden md:flex"`;
-  `<main>` gana `pb-20 md:pb-0`; se monta `<AdminBottomNav />` como hermano de `<main>`.
-- `src/components/admin/AdminSidebar.tsx` — acepta prop opcional `className` (vía `cn`), agregada
-  para que el layout controle la visibilidad `hidden md:flex` sin tocar el resto del componente.
-  Comportamiento visual en `≥ md` sin cambios (mismo `w-64 bg-[#111111] ... flex-col`).
-- `src/index.css` — agregada regla global `@media (prefers-reduced-motion: reduce)` que reduce
-  duración de animaciones/transiciones a ~0, cubriendo las transiciones del `Drawer` de "Más" (y
-  cualquier otra animación de la app) sin tocar componentes individuales.
-- 19 `page.tsx` bajo `src/app/admin/(dashboard)/`: `p-8` → `p-4 md:p-8`, respetando los `max-w-*`
-  existentes donde los había (`configuracion`, `cotizaciones/nueva`, `cuentas-corporativas/[id]`,
-  `prospectos/[id]`, `reglas/nueva`, `reglas/[id]`).
+## Deviation from brief (Step 2b confirmed a real mismatch)
 
-## No tocado (fuera de alcance de este task, según el brief)
+The brief's test `cover` literal was `{ type: "image", url: "https://example.com/a.jpg" }`.
+I read `src/lib/media.ts` first (per Step 2b) and confirmed `MediaItem` requires `mimeType`,
+`width`, and `height` as non-optional fields (only `durationSeconds`,
+`previewStartSeconds`, `previewDurationSeconds` are optional). The brief's literal would not
+compile. Fixed the second test's `cover` object to:
 
-- No existe un header compartido genérico en el layout ni en un componente común: cada página
-  maneja su propio header inline. Se deja intacto para fases 2-4.
-- `ResponsiveDialog` no se conectó a ningún dialog existente.
-- `src/lib/rules-engine/` sin cambios.
+```typescript
+cover: {
+  type: "image",
+  url: "https://example.com/a.jpg",
+  mimeType: "image/jpeg",
+  width: 800,
+  height: 600,
+},
+```
 
-## Verificación
+This is exactly the scenario Step 2b anticipated ("Adjust the test's `cover` object literal to
+match if it differs") — no other changes needed.
 
-- `npx tsc --noEmit` → sin salida, limpio.
-- `npm run lint` → 83 problemas (80 errores, 3 warnings) preexistentes, **idénticos** antes y
-  después de mis cambios (verificado con `git stash` / `git stash pop` y comparación de conteo).
-  Ninguno de los errores reportados pertenece a archivos tocados en este task (verificado con grep
-  sobre la salida de lint filtrando por los nombres de archivo modificados/creados).
-- `npm test` → 13 archivos de test, **176 tests pasando** (incluye los 5 nuevos de
-  `AdminBottomNav.test.ts`).
+## Tests run
 
-## Autorevisión frente a los requisitos numerados
+**Focused test:**
+```
+npx vitest run src/lib/__tests__/get-latest-corporate-sets.test.ts
+```
+Result: `Test Files 1 passed (1)`, `Tests 2 passed (2)`. Output pristine, no warnings.
 
-1. `AdminBottomNav`: visible `< md`, fixed bottom, fondo `#111111`, iconos lucide + label corto,
-   activo por `usePathname` con mismo criterio que el sidebar — OK. 5 ítems (4 + Más) — OK. Drawer
-   "Más" con grid 3×N de los 10 módulos restantes + Cerrar sesión, módulo activo resaltado — OK.
-   Safe area — OK. Rutas verificadas contra `src/app/admin/(dashboard)/` — todas coinciden con las
-   del brief. Cierre de sesión reutiliza el mismo mecanismo (`signOut({ redirect: false })` +
-   redirect manual a `/admin/login`) — OK.
-2. Layout: sidebar `hidden md:flex`, `<main>` con `pb-20 md:pb-0`, `AdminBottomNav` montado — OK.
-3. Header mobile de página: no existe componente compartido genérico; no se tocó nada — OK
-   (conforme a instrucción condicional del brief).
-4. `ResponsiveDialog`: creado con la API pedida, `max-h-[85dvh]` + scroll interno en mobile, no
-   cableado a páginas existentes — OK.
-5. `p-8` → `p-4 md:p-8` en las 19 `page.tsx` del árbol admin, `max-w-*` respetados, nada fuera del
-   árbol admin tocado (verificado que el reemplazo fue solo sobre `className="p-8` dentro de
-   `src/app/admin/(dashboard)/**/page.tsx`) — OK.
+**Typecheck:**
+```
+npx tsc --noEmit
+```
+Result: 2 pre-existing errors unrelated to this change (`src/components/admin/set-form/__tests__/schema.test.ts` — `EligibleProduct.code` optional/null mismatch; `src/lib/rules-engine/__tests__/docs.test.ts` — missing `COLOR_PAIRING` in `RULE_DOCS`). Confirmed via `grep` that **no errors reference `corporate-data-service.ts`, `corporate-types.ts`, or the new test file**. These two failures are documented in prior session memory as pre-existing/unrelated (`colorMode`/`COLOR_PAIRING` gap).
 
-Restricciones globales: breakpoint `md` vía `useIsMobile()` (matchMedia por resize/innerWidth, sin
-user-agent) — OK. Touch targets `min-h-[44px]` en bottom nav y grid del Drawer — OK. Safe area iOS
-— OK. Focus visible (`focus-visible:ring-2`) en todos los controles nuevos — OK.
-`prefers-reduced-motion` respetado globalmente vía `src/index.css` — OK. Copy en español (Ecuador)
-— OK. `src/lib/rules-engine/` no tocado — OK. Sidebar desktop intacto — OK. Sin cambios de esquema
-de BD — OK.
+**Full suite:**
+```
+npx vitest run
+```
+Result: `Test Files 2 failed | 69 passed (69)`, `Tests 2 failed | 684 passed (686)`. The 2
+failures are both the same pre-existing `docs.test.ts` assertion (`COLOR_PAIRING` missing from
+`RULE_DOCS`), duplicated because a stale copy of the repo also exists under
+`.claude/worktrees/ensamblador-sets-bloques/` and vitest picked it up too — neither failure is
+related to this task. Re-ran with `--reporter=verbose` and grepped for the new test file to
+confirm both its cases passed within the full run:
+```
+✓ src/lib/__tests__/get-latest-corporate-sets.test.ts > CorporateSetNavItem shape > accepts a minimal valid nav item
+✓ src/lib/__tests__/get-latest-corporate-sets.test.ts > CorporateSetNavItem shape > accepts a fully populated nav item with a numeric price
+```
+
+## Files changed
+
+- `src/lib/corporate-types.ts` (modified — added `CorporateSetNavItem`)
+- `src/lib/corporate-data-service.ts` (modified — added `getLatestCorporateSets`, updated type import)
+- `src/lib/__tests__/get-latest-corporate-sets.test.ts` (created)
+
+## Self-review
+
+- Implemented exactly what the brief specified: the type, the function, the test.
+- No pricing logic reimplemented — reused `wholesalePriceOf` and `effectiveManualPrice` as-is.
+- Did not touch or restructure `getActiveCorporateSets` or any other existing function.
+- No extra fields, options, or caching added beyond what was asked (YAGNI respected).
+- Code style matches the file's existing conventions (same map-building pattern, same
+  private-helper reuse, same Spanish section-header comment style with `── ... ──`).
+- Confirmed via `git status`/`git diff --stat` that only the 3 intended files changed —
+  no accidental edits elsewhere.
+- Not committed — working tree left with changes unstaged, per instructions.
+
+## Suggested commit message (not executed, per project CLAUDE.md — commits are for the user)
+
+```
+feat(nav): agregar getLatestCorporateSets para el mega menu
+```
 
 ## Concerns
 
-- No hay convención previa de tests de componentes React con render (no hay `@testing-library/react`
-  ni entorno `jsdom` configurado en `vitest.config.ts`; el entorno es `node` y todos los tests
-  existentes son de lógica pura). Siguiendo la instrucción de "no inventar" una convención nueva,
-  testeé únicamente la lógica pura extraída (`isNavItemActive`) en vez de agregar dependencias de
-  testing de componentes. `ResponsiveDialog` y el renderizado JSX de `AdminBottomNav` no tienen
-  test automatizado de render; quedaron verificados solo por `tsc`/lint y revisión manual del
-  código. Si se desea cobertura de render en fases posteriores, habría que añadir
-  `@testing-library/react` + `jsdom` como convención nueva del proyecto.
-- `AdminSidebar` ahora acepta `className` opcional; es un cambio de firma pública mínimo pero es el
-  único consumidor (el layout), así que no hay riesgo de romper otros usos.
+None. The only judgment call was the Step 2b `MediaItem` fix, which the brief explicitly
+anticipated and instructed how to handle.
