@@ -38,6 +38,12 @@ interface ResponsiveDialogProps {
    * contenido denso (galerías, formularios largos con muchas secciones).
    */
   mobileFullScreen?: boolean;
+  /**
+   * Oculta visualmente el título/descripción (vía `sr-only`) sin quitarlos
+   * del DOM — Radix requiere un `DialogTitle`/`DrawerTitle` accesible aunque
+   * el contenido ya deje claro de qué se trata (ej. pickers autoexplicativos).
+   */
+  hideTitle?: boolean;
 }
 
 /**
@@ -54,6 +60,7 @@ export function ResponsiveDialog({
   footer,
   contentClassName,
   mobileFullScreen = false,
+  hideTitle = false,
 }: ResponsiveDialogProps) {
   const isMobile = useIsMobile();
 
@@ -65,7 +72,7 @@ export function ResponsiveDialog({
             mobileFullScreen ? 'h-[100dvh] max-h-[100dvh] rounded-t-none' : 'max-h-[85dvh]'
           )}
         >
-          <DrawerHeader>
+          <DrawerHeader className={cn(hideTitle && 'sr-only')}>
             <DrawerTitle>{title}</DrawerTitle>
             {description && <DrawerDescription>{description}</DrawerDescription>}
           </DrawerHeader>
@@ -79,7 +86,7 @@ export function ResponsiveDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={cn('max-h-[85dvh] flex flex-col overflow-hidden', contentClassName)}>
-        <DialogHeader>
+        <DialogHeader className={cn(hideTitle && 'sr-only')}>
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>

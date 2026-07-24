@@ -42,6 +42,22 @@ interface MediaGalleryProps {
    * a cualquiera de estos productos (galerías de las piezas del set, en
    * memoria — no depende de que el set ya esté guardado). */
   productIds?: string[];
+  /** Oculta la fila interna de búsqueda/filtros — para consumidores (ej.
+   * `MediaPicker`) que renderizan esos controles en su propio layout,
+   * pasando el estado por las props controladas de abajo. Sin esto,
+   * comportamiento de biblioteca completa sin cambios. */
+  hideFilters?: boolean;
+  /** Estado de filtros controlado desde afuera (junto con sus `on*Change`).
+   * Si no vienen, `MediaGallery` mantiene su propio estado interno — no
+   * rompe consumidores existentes como `/admin/biblioteca`. */
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
+  folderValue?: string;
+  onFolderChange?: (value: string) => void;
+  mediaTypeValue?: 'image' | 'video' | 'all';
+  onMediaTypeChange?: (value: 'image' | 'video' | 'all') => void;
+  unusedValue?: boolean;
+  onUnusedChange?: (value: boolean) => void;
 }
 
 export function MediaGallery({
@@ -58,16 +74,36 @@ export function MediaGallery({
   linkedEntityId,
   treeNode,
   productIds,
+  hideFilters = false,
+  searchValue,
+  onSearchChange,
+  folderValue,
+  onFolderChange,
+  mediaTypeValue,
+  onMediaTypeChange,
+  unusedValue,
+  onUnusedChange,
 }: MediaGalleryProps) {
   const [assets, setAssets] = useState<MediaAssetSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [q, setQ] = useState('');
-  const [folder, setFolder] = useState(fixedFolder ?? 'all');
-  const [mediaType, setMediaType] = useState(fixedMediaType ?? 'all');
-  const [unused, setUnused] = useState(false);
+  const [qInternal, setQInternal] = useState('');
+  const [folderInternal, setFolderInternal] = useState(fixedFolder ?? 'all');
+  const [mediaTypeInternal, setMediaTypeInternal] = useState(fixedMediaType ?? 'all');
+  const [unusedInternal, setUnusedInternal] = useState(false);
   const [loading, setLoading] = useState(true);
   const limit = 40;
+
+  // Controlado desde afuera si el consumidor pasó `*Value`+`on*Change` (ej.
+  // `MediaPicker` con `hideFilters`); si no, cae al estado interno de siempre.
+  const q = searchValue ?? qInternal;
+  const setQ = onSearchChange ?? setQInternal;
+  const folder = folderValue ?? folderInternal;
+  const setFolder = onFolderChange ?? setFolderInternal;
+  const mediaType = mediaTypeValue ?? mediaTypeInternal;
+  const setMediaType = onMediaTypeChange ?? setMediaTypeInternal;
+  const unused = unusedValue ?? unusedInternal;
+  const setUnused = onUnusedChange ?? setUnusedInternal;
 
   const fetchAssets = useCallback(async () => {
     setLoading(true);
@@ -109,58 +145,61 @@ export function MediaGallery({
   }, [fixedFolder, folder, fixedMediaType, mediaType, q, unused, page, keyPrefix, linkedEntityType, linkedEntityId, treeNode, productIds]);
 
   useEffect(() => { fetchAssets(); }, [fetchAssets, refreshKey]);
-  // Volver a la página 1 al cambiar de nodo del árbol — evita quedar en una
-  // página fuera de rango del nuevo resultado filtrado.
-  useEffect(() => { setPage(1); }, [treeNode?.type, treeNode?.id]);
+  // Volver a la página 1 al cambiar de nodo del árbol o de filtros — evita
+  // quedar en una página fuera de rango del nuevo resultado filtrado. Cubre
+  // tanto el estado interno como el controlado desde afuera (`MediaPicker`).
+  useEffect(() => { setPage(1); }, [treeNode?.type, treeNode?.id, q, folder, mediaType, unused]);
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <Input
-            placeholder="Buscar por nombre, alt o título..."
-            value={q}
-            onChange={(e) => { setQ(e.target.value); setPage(1); }}
-            className="pl-10"
-          />
+      {!hideFilters && (
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              placeholder="Buscar por nombre, alt o título..."
+              value={q}
+              onChange={(e) => { setQ(e.target.value); setPage(1); }}
+              className="pl-10"
+            />
+          </div>
+          {!fixedFolder && (
+            <Select value={folder} onValueChange={(v) => { setFolder(v); setPage(1); }}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Carpeta" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las carpetas</SelectItem>
+                {MEDIA_FOLDERS.map((f) => (
+                  <SelectItem key={f} value={f}>{FOLDER_LABELS[f] ?? f}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {!fixedMediaType && (
+            <Select value={mediaType} onValueChange={(v) => { setMediaType(v as 'image' | 'video' | 'all'); setPage(1); }}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Fotos y videos</SelectItem>
+                <SelectItem value="image">Solo fotos</SelectItem>
+                <SelectItem value="video">Solo videos</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+          <Button
+            type="button"
+            variant={unused ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => { setUnused(!unused); setPage(1); }}
+          >
+            Sin usos
+          </Button>
         </div>
-        {!fixedFolder && (
-          <Select value={folder} onValueChange={(v) => { setFolder(v); setPage(1); }}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Carpeta" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas las carpetas</SelectItem>
-              {MEDIA_FOLDERS.map((f) => (
-                <SelectItem key={f} value={f}>{FOLDER_LABELS[f] ?? f}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-        {!fixedMediaType && (
-          <Select value={mediaType} onValueChange={(v) => { setMediaType(v as 'image' | 'video' | 'all'); setPage(1); }}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="Tipo" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Fotos y videos</SelectItem>
-              <SelectItem value="image">Solo fotos</SelectItem>
-              <SelectItem value="video">Solo videos</SelectItem>
-            </SelectContent>
-          </Select>
-        )}
-        <Button
-          type="button"
-          variant={unused ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => { setUnused((u) => !u); setPage(1); }}
-        >
-          Sin usos
-        </Button>
-      </div>
+      )}
 
       {loading ? (
         <div className="text-center py-12 text-gray-400">Cargando...</div>
