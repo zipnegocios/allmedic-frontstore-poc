@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, MapPin, Tag, Package, Store, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MapPin, Boxes, Tag, Store } from 'lucide-react';
 // Removed dummy imports
 import type { Product, Store as StoreType, BrandNavItem } from '@/lib/types';
+import type { CorporateSetNavItem } from '@/lib/corporate-types';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 import { usePriceVisibility } from '@/context/PriceVisibilityContext';
-import { resolveCoverMedia } from '@/lib/product-cover';
 import { cn } from '@/lib/utils';
 
 interface MegaMenuProps {
@@ -16,20 +16,17 @@ interface MegaMenuProps {
   products?: Product[];
   brands?: BrandNavItem[];
   stores?: StoreType[];
+  sets?: CorporateSetNavItem[];
 }
 
 
-export function MegaMenu({ isOpen, onClose, products: productsProp, brands: brandsProp, stores: storesProp }: MegaMenuProps) {
+export function MegaMenu({ isOpen, onClose, brands: brandsProp, stores: storesProp, sets: setsProp }: MegaMenuProps) {
   const showPrices = usePriceVisibility();
-  const PRODUCTS = productsProp || [];
   const BRANDS = brandsProp || [];
   const STORES = storesProp || [];
+  const SETS = setsProp || [];
 
-  // Get featured products (best sellers)
-  const getFeaturedProducts = () => PRODUCTS.filter(p => p.isBestSeller).slice(0, 6);
-  const getNewArrivals = () => PRODUCTS.filter(p => p.isNew).slice(0, 6);
-  const getProductsByCategory = (category: string) => PRODUCTS.filter(p => p.productType?.name === category).slice(0, 6);
-  const [activeTab, setActiveTab] = useState<'products' | 'brands' | 'stores'>('products');
+  const [activeTab, setActiveTab] = useState<'sets' | 'brands' | 'stores'>('sets');
   const [currentIndex, setCurrentIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -54,21 +51,20 @@ export function MegaMenu({ isOpen, onClose, products: productsProp, brands: bran
   }, [isOpen, onClose]);
 
   const tabs = [
-    { id: 'products' as const, label: 'Productos', icon: Package },
+    { id: 'sets' as const, label: 'Sets Corporativos', icon: Boxes },
     { id: 'brands' as const, label: 'Marcas', icon: Tag },
     { id: 'stores' as const, label: 'Sucursales', icon: Store },
   ];
 
   const getCarouselItems = () => {
     switch (activeTab) {
-      case 'products':
+      case 'sets':
         return {
-          sections: [
-            { title: 'Más Solicitados', items: getFeaturedProducts(), type: 'product' as const },
-            { title: 'Nuevos Ingresos', items: getNewArrivals(), type: 'product' as const },
-            { title: 'Camisas', items: getProductsByCategory('Camisas'), type: 'product' as const },
-            { title: 'Pantalones', items: getProductsByCategory('Pantalones'), type: 'product' as const },
-          ]
+          sections: [{
+            title: 'Sets Corporativos',
+            items: SETS,
+            type: 'set' as const,
+          }]
         };
       case 'brands':
         return {
@@ -79,7 +75,6 @@ export function MegaMenu({ isOpen, onClose, products: productsProp, brands: bran
               name: brand.name,
               slug: brand.name.toLowerCase().replace(/\s+/g, '-'),
               logoUrl: brand.logoUrl,
-              productCount: PRODUCTS.filter(p => p.brand === brand.name).length
             })),
             type: 'brand' as const
           }]
@@ -115,51 +110,34 @@ export function MegaMenu({ isOpen, onClose, products: productsProp, brands: bran
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-40">
-      {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
-        onClick={onClose}
-      />
-
+    <div className="absolute left-0 right-0 top-full z-40">
       {/* MegaMenu Panel */}
-      <div 
+      <div
         ref={containerRef}
-        className="absolute top-[56px] sm:top-[64px] left-0 right-0 bg-white shadow-2xl animate-in slide-in-from-top-2 duration-200"
+        className="fixed left-0 right-0 top-[56px] sm:top-[64px] bg-white shadow-2xl animate-in slide-in-from-top-2 duration-200"
       >
-        {/* Tabs with Close Button */}
+        {/* Tabs */}
         <div className="border-b border-[#E5E5E5]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1 sm:gap-2">
-                {tabs.map((tab) => {
-                  const Icon = tab.icon;
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={cn(
-                        'flex items-center gap-2 px-3 sm:px-6 py-3 sm:py-4 text-sm font-medium transition-all border-b-2',
-                        activeTab === tab.id
-                          ? 'border-[#111111] text-[#111111]'
-                          : 'border-transparent text-gray-500 hover:text-[#111111] hover:bg-[#F5F5F7]'
-                      )}
-                    >
-                      <Icon className="w-4 h-4" strokeWidth={1.5} />
-                      <span className="hidden sm:inline">{tab.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              
-              {/* Close Button */}
-              <button
-                onClick={onClose}
-                className="flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-medium text-gray-500 hover:text-[#111111] hover:bg-[#F5F5F7] rounded-lg transition-all"
-              >
-                <X className="w-4 h-4" strokeWidth={1.5} />
-                <span className="hidden sm:inline">Cerrar</span>
-              </button>
+            <div className="flex items-center gap-1 sm:gap-2">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={cn(
+                      'flex items-center gap-2 px-3 sm:px-6 py-3 sm:py-4 text-sm font-medium transition-all border-b-2',
+                      activeTab === tab.id
+                        ? 'border-[#111111] text-[#111111]'
+                        : 'border-transparent text-gray-500 hover:text-[#111111] hover:bg-[#F5F5F7]'
+                    )}
+                  >
+                    <Icon className="w-4 h-4" strokeWidth={1.5} />
+                    <span className="hidden sm:inline">{tab.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -218,30 +196,29 @@ export function MegaMenu({ isOpen, onClose, products: productsProp, brands: bran
                   key={sectionIdx}
                   className="w-full flex-shrink-0"
                 >
-                  {section.type === 'product' && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-                      {section.items.map((product: any) => (
+                  {section.type === 'set' && (
+                    <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-2 sm:gap-3">
+                      {section.items.map((set: CorporateSetNavItem) => (
                         <Link
-                          key={product.id}
-                          href={`/p/${product.slug}`}
+                          key={set.id}
+                          href={`/corporativo/s/${set.slug}`}
                           onClick={onClose}
                           className="group"
                         >
-                          <div className="relative aspect-product bg-[#F5F5F7] rounded-lg overflow-hidden mb-2 sm:mb-3">
+                          <div className="relative aspect-product bg-[#F5F5F7] rounded-lg overflow-hidden mb-1 sm:mb-1.5">
                             <MediaGridThumb
-                              item={resolveCoverMedia(product)}
+                              item={set.cover ?? undefined}
                               fallback="/images/placeholder-product.jpg"
-                              alt={product.name}
-                              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 16vw"
+                              alt={set.name}
+                              sizes="(max-width: 640px) 25vw, (max-width: 1024px) 16vw, 12vw"
                               fit="cover"
                               className="object-contain group-hover:scale-105 transition-transform duration-300"
                             />
                           </div>
-                          <p className="font-sans text-body-sm text-gray-400 uppercase mb-0.5">{product.brand}</p>
-                          <p className="font-sans text-body-sm font-medium text-[#111111] line-clamp-2 group-hover:underline">{product.name}</p>
-                          {showPrices && (
-                            <p className="font-sans text-body-sm font-semibold mt-1">
-                              ${(product.priceSale || product.priceNormal).toFixed(2)}
+                          <p className="font-sans text-[10px] leading-tight font-medium text-[#111111] line-clamp-2 group-hover:underline">{set.name}</p>
+                          {showPrices && set.referencePrice !== null && (
+                            <p className="font-sans text-[10px] leading-tight font-semibold mt-0.5">
+                              ${set.referencePrice.toFixed(2)}
                             </p>
                           )}
                         </Link>
@@ -250,15 +227,15 @@ export function MegaMenu({ isOpen, onClose, products: productsProp, brands: bran
                   )}
 
                   {section.type === 'brand' && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+                    <div className="flex flex-wrap gap-3 items-center">
                       {section.items.map((brand: any) => (
                         <Link
                           key={brand.id}
                           href={`/catalogo?brand=${encodeURIComponent(brand.name)}`}
                           onClick={onClose}
-                          className="group bg-[#F5F5F7] rounded-xl p-4 sm:p-6 hover:bg-[#111111] transition-colors"
+                          className="group p-1"
                         >
-                          <div className="aspect-square max-w-[60px] sm:max-w-[80px] mx-auto mb-3 flex items-center justify-center">
+                          <div className="aspect-square max-w-[60px] sm:max-w-[80px] flex items-center justify-center">
                             {brand.logoUrl ? (
                               <img
                                 src={brand.logoUrl}
@@ -270,24 +247,18 @@ export function MegaMenu({ isOpen, onClose, products: productsProp, brands: bran
                                   const parent = target.parentElement;
                                   if (parent) {
                                     const fallback = document.createElement('div');
-                                    fallback.className = 'text-lg font-bold text-[#111111] group-hover:text-white text-center';
+                                    fallback.className = 'text-sm font-bold text-[#111111] group-hover:opacity-70 text-center';
                                     fallback.textContent = brand.name;
                                     parent.appendChild(fallback);
                                   }
                                 }}
                               />
                             ) : (
-                              <span className="text-lg font-bold text-[#111111] group-hover:text-white text-center">
+                              <span className="text-sm font-bold text-[#111111] group-hover:opacity-70 text-center">
                                 {brand.name}
                               </span>
                             )}
                           </div>
-                          <p className="text-sm font-semibold text-[#111111] group-hover:text-white text-center mb-1">
-                            {brand.name}
-                          </p>
-                          <p className="text-xs text-gray-500 group-hover:text-gray-300 text-center">
-                            {brand.productCount} productos
-                          </p>
                         </Link>
                       ))}
                     </div>
@@ -337,7 +308,7 @@ export function MegaMenu({ isOpen, onClose, products: productsProp, brands: bran
           {/* View All Link */}
           <div className="mt-6 sm:mt-8 pt-4 border-t border-[#E5E5E5]">
             <Link
-              href={activeTab === 'stores' ? '/sucursales' : activeTab === 'brands' ? '/catalogo' : '/catalogo'}
+              href={activeTab === 'stores' ? '/sucursales' : activeTab === 'brands' ? '/catalogo' : '/corporativo'}
               onClick={onClose}
               className="inline-flex items-center gap-2 text-sm font-medium text-[#111111] hover:underline"
             >
