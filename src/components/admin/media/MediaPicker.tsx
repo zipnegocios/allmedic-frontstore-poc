@@ -73,7 +73,7 @@ export function MediaPicker({ open, onClose, folder, segments = [], multiple = f
       onOpenChange={(o) => { if (!o) onClose(); }}
       title="Seleccionar medio"
       description="Elige un medio existente de la librería o sube uno nuevo."
-      contentClassName="max-w-4xl"
+      contentClassName="max-w-[95vw] max-h-[95vh]"
       mobileFullScreen
       footer={(
         <>

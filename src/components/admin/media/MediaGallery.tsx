@@ -67,7 +67,7 @@ export function MediaGallery({
   const [mediaType, setMediaType] = useState(fixedMediaType ?? 'all');
   const [unused, setUnused] = useState(false);
   const [loading, setLoading] = useState(true);
-  const limit = 24;
+  const limit = 40;
 
   const fetchAssets = useCallback(async () => {
     setLoading(true);
@@ -170,7 +170,7 @@ export function MediaGallery({
           No hay medios que coincidan con los filtros
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-3">
           {assets.map((asset) => {
             const isSelected = selectedIds.includes(asset.id);
             return (
