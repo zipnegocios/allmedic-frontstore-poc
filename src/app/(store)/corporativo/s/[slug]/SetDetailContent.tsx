@@ -10,7 +10,6 @@ import type { ColorRestrictionConfig, SizeMode } from '@/lib/rules-engine';
 import type { ProductColor, Size } from '@/lib/types';
 import type { MediaItem } from '@/lib/media';
 import { ColorSwatchGroup } from '@/components/catalog/ColorSwatch';
-import { SizeSelector } from '@/components/catalog/SizeSelector';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 import { cn } from '@/lib/utils';
 
@@ -517,7 +516,7 @@ function BlockStrip({
   tintHex: string | undefined;
 }) {
   return (
-    <div className="flex-1 border border-[#E5E5E5] rounded-lg p-2 flex gap-2">
+    <div className="flex-1 min-w-0 border border-[#E5E5E5] rounded-lg p-2 flex gap-2">
       {pieces.map((p) => {
         const selected = selectedId === p.productId;
         const image = p.variants.find((v) => v.images.length > 0)?.images[0];
@@ -527,7 +526,7 @@ function BlockStrip({
             type="button"
             onClick={() => onSelect(p.productId)}
             className={cn(
-              'relative flex items-center gap-2 flex-1 p-2 rounded-md border text-left transition-colors',
+              'relative flex items-center gap-2 flex-1 min-w-0 p-2 rounded-md border text-left transition-colors',
               selected ? 'border-[#111111] bg-[#F5F5F7]' : 'border-transparent hover:bg-[#F5F5F7]'
             )}
           >
@@ -538,7 +537,9 @@ function BlockStrip({
                 <div className="w-full h-full" style={{ backgroundColor: selected ? tintHex : undefined }} />
               )}
             </div>
-            <span className="text-xs font-medium truncate pr-4">{p.productName}</span>
+            {/* min-w-0 en el botón + line-clamp-2 aquí: el título envuelve a máximo 2 líneas y
+                nunca fuerza el ancho de la card más allá de su columna flex. */}
+            <span className="flex-1 min-w-0 text-xs font-medium leading-tight line-clamp-2 pr-4">{p.productName}</span>
             {selected && (
               <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[#111111] flex items-center justify-center">
                 <Check className="w-2.5 h-2.5 text-white" />
@@ -666,15 +667,41 @@ function SizePanel({
   statuses: Partial<Record<Size, 'AVAILABLE' | 'BACKORDER' | 'OUT_OF_STOCK'>>;
 }) {
   return (
-    <div className="flex-1 p-4 space-y-2">
-      <p className="text-sm font-medium text-[#111111] truncate">{piece.productName}</p>
+    <div className="flex-1 min-w-0 p-4 space-y-2">
+      {/* Título envuelve libremente (sin truncate) y nunca se sale de su caja gracias a min-w-0. */}
+      <p className="text-sm font-medium text-[#111111] leading-tight break-words">{piece.productName}</p>
       {piece.availableSizes.length > 0 ? (
-        <SizeSelector
-          sizes={piece.availableSizes as Size[]}
-          selectedSize={size as Size | undefined}
-          sizeStatuses={statuses as Record<Size, 'AVAILABLE' | 'BACKORDER' | 'OUT_OF_STOCK'>}
-          onSizeSelect={onSize}
-        />
+        // Grid fijo de 3 tallas por línea (requisito de diseño del armador de sets) — a diferencia
+        // del SizeSelector compartido (flex-wrap), aquí el ancho por columna es determinista y no
+        // depende del ancho del panel, evitando desbordes con muchas tallas.
+        <div className="grid grid-cols-3 gap-2">
+          {(piece.availableSizes as Size[]).map((s) => {
+            const status = statuses[s];
+            const isAvailable = status !== 'OUT_OF_STOCK';
+            const isSelected = size === s;
+            const isBackorder = status === 'BACKORDER';
+            return (
+              <button
+                key={s}
+                type="button"
+                onClick={() => isAvailable && onSize(s)}
+                disabled={!isAvailable}
+                title={isBackorder ? 'Bajo pedido: llega en 7-10 días' : !isAvailable ? 'Agotado' : undefined}
+                className={cn(
+                  'h-10 px-2 text-sm font-medium rounded transition-colors',
+                  isSelected
+                    ? 'bg-[#111111] text-white'
+                    : isAvailable
+                    ? 'border border-[#E5E5E5] text-[#111111] hover:border-[#111111] bg-white'
+                    : 'border border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed',
+                  isBackorder && !isSelected && 'border-[#FF9500]'
+                )}
+              >
+                <span className={cn(!isAvailable && 'line-through')}>{s}</span>
+              </button>
+            );
+          })}
+        </div>
       ) : (
         <p className="text-xs text-gray-400">Sin tallas cargadas</p>
       )}
