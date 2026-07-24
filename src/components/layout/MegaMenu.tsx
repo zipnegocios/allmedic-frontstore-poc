@@ -308,18 +308,6 @@ export function MegaMenu({ isOpen, onClose, brands: brandsProp, stores: storesPr
               ))}
             </div>
           </div>
-
-          {/* View All Link */}
-          <div className="mt-6 sm:mt-8 pt-4 border-t border-[#E5E5E5]">
-            <Link
-              href={activeTab === 'stores' ? '/sucursales' : activeTab === 'brands' ? '/catalogo' : '/corporativo'}
-              onClick={onClose}
-              className="inline-flex items-center gap-2 text-sm font-medium text-[#111111] hover:underline"
-            >
-              Ver todo
-              <ChevronRight className="w-4 h-4" strokeWidth={1.5} />
-            </Link>
-          </div>
         </div>
       </div>
     </div>
