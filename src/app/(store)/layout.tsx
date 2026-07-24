@@ -3,7 +3,7 @@ import { NotificationProvider } from '@/context/NotificationContext';
 import { PriceVisibilityProvider } from '@/context/PriceVisibilityContext';
 import { AppShell } from '@/components/layout/AppShell';
 import { getAllProducts, getBrandsForNav, getStores } from '@/lib/data-service';
-import { getAllBusinessRules } from '@/lib/corporate-data-service';
+import { getAllBusinessRules, getLatestCorporateSets } from '@/lib/corporate-data-service';
 
 // Fuerza renderizado dinámico en toda la tienda: la base de datos no está disponible
 // durante `docker build` (solo en runtime vía EasyPanel), así que un prerender estático
@@ -15,11 +15,12 @@ export default async function StoreLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [products, brands, stores, rules] = await Promise.all([
+  const [products, brands, stores, rules, corporateSets] = await Promise.all([
     getAllProducts(),
     getBrandsForNav(),
     getStores(),
     getAllBusinessRules(),
+    getLatestCorporateSets(),
   ]);
 
   // Solo las reglas PRICE_VISIBILITY viajan al cliente — se resuelven por ítem (marca/producto)
@@ -32,7 +33,7 @@ export default async function StoreLayout({
       <NotificationProvider>
         <PriceVisibilityProvider rules={priceVisibilityRules}>
           <CartProvider>
-            <AppShell products={products} brands={brands} stores={stores}>
+            <AppShell products={products} brands={brands} stores={stores} corporateSets={corporateSets}>
               {children}
             </AppShell>
           </CartProvider>
