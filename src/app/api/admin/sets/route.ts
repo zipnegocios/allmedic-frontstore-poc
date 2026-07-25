@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
+import { requireRole, ForbiddenError } from '@/lib/permissions';
 import { getAdminSets, createSetWithItems } from '@/lib/admin-data-service';
 import { findDuplicateSetProductIds } from '@/lib/set-validation';
 import { z } from 'zod';
@@ -65,12 +66,14 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    await requireAdmin();
+    const session = await requireAdmin();
+    await requireRole(session, 'sets', 'write');
     const body = await request.json();
     const validated = CreateSetSchema.parse(body);
     const set = await createSetWithItems(validated);
     return NextResponse.json(set, { status: 201 });
   } catch (err) {
+    if (err instanceof ForbiddenError) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: 'Validation error', details: err.issues }, { status: 400 });
     }

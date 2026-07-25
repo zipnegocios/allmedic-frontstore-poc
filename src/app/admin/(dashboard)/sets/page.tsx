@@ -19,6 +19,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { usePermissions } from '@/hooks/usePermissions';
 
 interface AdminSetItem {
   productId: string;
@@ -104,6 +105,8 @@ interface AdminSet {
 }
 
 export default function AdminSetsPage() {
+  const { canWrite } = usePermissions();
+  const canEdit = canWrite('sets');
   const [sets, setSets] = useState<AdminSet[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -198,12 +201,14 @@ export default function AdminSetsPage() {
             Conjuntos de productos para el catálogo de venta al mayor
           </p>
         </div>
-        <Link href="/admin/sets/nuevo" className="self-start sm:self-auto">
-          <Button className="bg-[#111111] hover:bg-black/90 h-11 px-6">
-            <Plus className="w-5 h-5 mr-2" />
-            Nuevo Set
-          </Button>
-        </Link>
+        {canEdit && (
+          <Link href="/admin/sets/nuevo" className="self-start sm:self-auto">
+            <Button className="bg-[#111111] hover:bg-black/90 h-11 px-6">
+              <Plus className="w-5 h-5 mr-2" />
+              Nuevo Set
+            </Button>
+          </Link>
+        )}
       </div>
       {loading ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
@@ -237,11 +242,13 @@ export default function AdminSetsPage() {
           <p className="text-sm text-gray-500 mt-1 max-w-sm">
             Comienza creando conjuntos de prendas para ventas corporativas.
           </p>
-          <Link href="/admin/sets/nuevo" className="mt-6">
-            <Button className="bg-[#111111] hover:bg-black/90">
-              Crear primer set
-            </Button>
-          </Link>
+          {canEdit && (
+            <Link href="/admin/sets/nuevo" className="mt-6">
+              <Button className="bg-[#111111] hover:bg-black/90">
+                Crear primer set
+              </Button>
+            </Link>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
@@ -319,12 +326,14 @@ export default function AdminSetsPage() {
                     <Switch
                       checked={set.isActive}
                       onCheckedChange={() => toggleActive(set.id, set.isActive)}
+                      disabled={!canEdit}
                       aria-label={`Cambiar estado de ${set.name}`}
                     />
                     <span className="text-[9px] text-gray-500 font-medium select-none hidden lg:inline">
                       {set.isActive ? 'Activo' : 'Inactivo'}
                     </span>
                   </div>
+                  {canEdit && (
                   <div className="flex items-center gap-1">
                     <Link href={`/admin/sets/${set.id}`}>
                       <Button
@@ -352,7 +361,7 @@ export default function AdminSetsPage() {
                         <AlertDialogHeader>
                           <AlertDialogTitle>¿Enviar a la papelera?</AlertDialogTitle>
                           <AlertDialogDescription className="text-gray-600">
-                            El set corporativo <span className="font-semibold text-gray-950">"{set.name}"</span> se enviará a la papelera general. 
+                            El set corporativo <span className="font-semibold text-gray-950">"{set.name}"</span> se enviará a la papelera general.
                             Podrás recuperarlo o eliminarlo de forma permanente desde allí.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
@@ -368,6 +377,7 @@ export default function AdminSetsPage() {
                       </AlertDialogContent>
                     </AlertDialog>
                   </div>
+                  )}
                 </div>
               </div>
             </Card>

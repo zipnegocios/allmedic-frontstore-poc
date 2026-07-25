@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
+import { requireRole, ForbiddenError } from '@/lib/permissions';
 import { getAdminProductById, updateProductWithRelations, softDeleteProduct } from '@/lib/admin-data-service';
 import { z } from 'zod';
 
@@ -80,13 +81,15 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAdmin();
+    const session = await requireAdmin();
+    await requireRole(session, 'productos', 'write');
     const { id } = await params;
     const body = await request.json();
     const validated = UpdateProductSchema.parse(body);
     const product = await updateProductWithRelations(id, validated);
     return NextResponse.json(product);
   } catch (err) {
+    if (err instanceof ForbiddenError) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: 'Validation error', details: err.issues }, { status: 400 });
     }
@@ -99,11 +102,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAdmin();
+    const session = await requireAdmin();
+    await requireRole(session, 'productos', 'write');
     const { id } = await params;
     await softDeleteProduct(id);
     return NextResponse.json({ success: true });
   } catch (err) {
+    if (err instanceof ForbiddenError) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     const error = err as Error & { usage?: { count: number; setNames: string[] } };
     if (error.usage) {
       return NextResponse.json({ error: 'Producto en uso', usage: error.usage }, { status: 409 });

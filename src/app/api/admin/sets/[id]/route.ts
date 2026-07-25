@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
+import { requireRole, ForbiddenError } from '@/lib/permissions';
 import { getAdminSetById, updateSetWithItems, softDeleteSet } from '@/lib/admin-data-service';
 import { findDuplicateSetProductIds } from '@/lib/set-validation';
 import { z } from 'zod';
@@ -67,13 +68,15 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAdmin();
+    const session = await requireAdmin();
+    await requireRole(session, 'sets', 'write');
     const { id } = await params;
     const body = await request.json();
     const validated = UpdateSetSchema.parse(body);
     const set = await updateSetWithItems(id, validated);
     return NextResponse.json(set);
   } catch (err) {
+    if (err instanceof ForbiddenError) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: 'Validation error', details: err.issues }, { status: 400 });
     }
@@ -86,11 +89,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAdmin();
+    const session = await requireAdmin();
+    await requireRole(session, 'sets', 'write');
     const { id } = await params;
     await softDeleteSet(id);
     return NextResponse.json({ success: true });
   } catch (err) {
+    if (err instanceof ForbiddenError) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     const message = err instanceof Error ? err.message : 'Unknown error';
     if (message === 'Unauthorized') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (message === 'Forbidden') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

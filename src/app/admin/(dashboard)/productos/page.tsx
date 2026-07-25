@@ -44,6 +44,7 @@ import { AdminListCard } from '@/components/admin/AdminListCard';
 import { ResponsiveDialog } from '@/components/admin/ResponsiveDialog';
 import { countActiveFilters } from '@/lib/admin-list-filters';
 import { GENDERS, VISIBILITY_OPTIONS } from '@/components/admin/product-form/schema';
+import { usePermissions } from '@/hooks/usePermissions';
 
 interface Product {
   id: string;
@@ -155,6 +156,8 @@ function ProductThumbnail({ url, name }: { url: string | null; name: string }) {
 }
 
 export default function AdminProductsPage() {
+  const { canWrite } = usePermissions();
+  const canEdit = canWrite('productos');
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -438,6 +441,7 @@ export default function AdminProductsPage() {
     <div className="p-4 md:p-8">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4">
         <h1 className="text-3xl font-bold text-[#111111]">Productos</h1>
+        {canEdit && (
         <div className="flex flex-col md:flex-row gap-3 md:gap-4">
           <Link href="/admin/productos/nuevo">
             <Button className="w-full md:w-auto min-h-11 md:h-9 md:min-h-0 bg-[#111111]">
@@ -452,6 +456,7 @@ export default function AdminProductsPage() {
             </Button>
           </Link>
         </div>
+        )}
       </div>
 
       <Card className="mb-6">
@@ -588,14 +593,20 @@ export default function AdminProductsPage() {
                     })}
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Link href={`/admin/productos/${product.id}`}>
-                          <Button size="sm" variant="ghost">
-                            <Pencil className="w-4 h-4" />
-                          </Button>
-                        </Link>
-                        <Button size="sm" variant="ghost" onClick={() => handleDelete(product.id, product.name)}>
-                          <Trash2 className="w-4 h-4 text-red-500" />
-                        </Button>
+                        {canEdit ? (
+                          <>
+                            <Link href={`/admin/productos/${product.id}`}>
+                              <Button size="sm" variant="ghost">
+                                <Pencil className="w-4 h-4" />
+                              </Button>
+                            </Link>
+                            <Button size="sm" variant="ghost" onClick={() => handleDelete(product.id, product.name)}>
+                              <Trash2 className="w-4 h-4 text-red-500" />
+                            </Button>
+                          </>
+                        ) : (
+                          <span className="text-gray-400 text-sm">Solo lectura</span>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -614,20 +625,22 @@ export default function AdminProductsPage() {
           <div className="text-center py-12 text-gray-500">
             <Package className="w-8 h-8 mx-auto mb-2 text-gray-300" />
             <p className="mb-4">No hay productos</p>
-            <Link href="/admin/productos/nuevo">
-              <Button className="gap-2 min-h-11 bg-[#111111]">
-                <Plus className="w-4 h-4" />
-                Nuevo Producto
-              </Button>
-            </Link>
+            {canEdit && (
+              <Link href="/admin/productos/nuevo">
+                <Button className="gap-2 min-h-11 bg-[#111111]">
+                  <Plus className="w-4 h-4" />
+                  Nuevo Producto
+                </Button>
+              </Link>
+            )}
           </div>
         ) : (
           <div className="flex flex-col gap-3">
             {products.map((product) => (
               <AdminListCard
                 key={product.id}
-                href={`/admin/productos/${product.id}`}
-                aria-label={`Editar producto ${product.name}`}
+                href={canEdit ? `/admin/productos/${product.id}` : undefined}
+                aria-label={canEdit ? `Editar producto ${product.name}` : product.name}
                 thumbnail={
                   visibleColumns.has('thumbnail')
                     ? <ProductThumbnail url={product.coverUrl} name={product.name} />
@@ -663,7 +676,7 @@ export default function AdminProductsPage() {
                     )}
                   </div>
                 }
-                actions={[
+                actions={canEdit ? [
                   {
                     key: 'delete',
                     label: 'Eliminar',
@@ -671,7 +684,7 @@ export default function AdminProductsPage() {
                     variant: 'destructive',
                     onSelect: () => handleDelete(product.id, product.name),
                   },
-                ]}
+                ] : []}
               />
             ))}
           </div>

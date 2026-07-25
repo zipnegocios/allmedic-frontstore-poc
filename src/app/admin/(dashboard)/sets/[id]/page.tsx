@@ -1,12 +1,23 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { getAdminSetById } from '@/lib/admin-data-service';
 import SetForm from '@/components/admin/SetForm';
+import { requireAdminPage } from '@/lib/admin-auth';
+import { requireRole } from '@/lib/permissions';
 
 interface EditSetPageProps {
   params: Promise<{ id: string }>;
 }
 
 export default async function EditSetPage({ params }: EditSetPageProps) {
+  const session = await requireAdminPage();
+  // El listado ya oculta el enlace de edición sin `sets:write` (Fase 6 del plan RBAC) —
+  // este guard es la defensa de respaldo si alguien pega la URL directamente.
+  try {
+    await requireRole(session, 'sets', 'write');
+  } catch {
+    redirect('/admin/sets');
+  }
+
   const { id } = await params;
   const set = await getAdminSetById(id);
 
