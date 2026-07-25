@@ -7,7 +7,11 @@ interface SessionUser {
 }
 
 /**
- * Verifica que el usuario tenga sesión admin activa.
+ * @deprecated Usar `requireRole(session, modulo, accion)` de `@/lib/permissions` en rutas
+ * nuevas o al migrar una ruta existente (ver Fase 2 del plan RBAC — Riesgos y advertencias:
+ * migración gradual pendiente, no se tocan las ~116 llamadas existentes en este plan).
+ * Se mantiene como alias de acceso amplio (cualquier rol con al menos un módulo admin
+ * concedido) únicamente para no romper las rutas que aún no se migren.
  * Lanza Error('Unauthorized') o Error('Forbidden') — NUNCA llama redirect() directamente,
  * para que funcione tanto en API Route Handlers (que capturan el error) como en
  * Server Components (el caller llama redirect() explícitamente si es necesario).
@@ -20,7 +24,7 @@ export async function requireAdmin() {
   }
 
   const role = (session.user as SessionUser).role;
-  if (role !== 'CATALOG_MANAGER' && role !== 'ADMIN') {
+  if (role !== 'CATALOG_MANAGER' && role !== 'ADMIN' && role !== 'SALES' && role !== 'DISPATCHER') {
     throw new Error('Forbidden');
   }
 

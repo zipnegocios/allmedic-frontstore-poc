@@ -1,5 +1,8 @@
-import { pgTable, text, timestamp, primaryKey, integer, uuid as pgUuid } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, primaryKey, integer, boolean, pgEnum, uuid as pgUuid } from "drizzle-orm/pg-core";
 import { uuid } from "@/lib/uuid";
+
+export const userRoleEnum = pgEnum("user_role", ["ADMIN", "SALES", "CATALOG_MANAGER", "DISPATCHER", "CORPORATE_CLIENT"]);
+export const scopeLevelEnum = pgEnum("scope_level", ["OWN", "ALL"]);
 
 export const users = pgTable("users", {
   id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
@@ -8,7 +11,12 @@ export const users = pgTable("users", {
   emailVerified: timestamp("email_verified", { withTimezone: true }),
   image: text("image"),
   password: text("password"),
-  role: text("role").notNull().default("CATALOG_MANAGER"),
+  role: userRoleEnum("role").notNull().default("CATALOG_MANAGER"),
+  scopeLevel: scopeLevelEnum("scope_level").notNull().default("OWN"),
+  isActive: boolean("is_active").notNull().default(true),
+  mustChangePassword: boolean("must_change_password").notNull().default(true),
+  isProtected: boolean("is_protected").notNull().default(false),
+  sessionVersion: integer("session_version").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 

@@ -3,6 +3,7 @@ export * from "./auth";
 export * from "./products";
 export * from "./commerce";
 export * from "./corporate";
+export * from "./rbac";
 export * from "./chats";
 export * from "./media";
 export * from "./settings";

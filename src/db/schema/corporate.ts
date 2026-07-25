@@ -178,6 +178,7 @@ export const corporateAccounts = pgTable("corporate_accounts", {
   status: text("status").notNull().default("PENDING"),
   approvedBy: pgUuid("approved_by").references(() => users.id),
   approvedAt: timestamp("approved_at", { withTimezone: true }),
+  salesAgentId: pgUuid("sales_agent_id").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 }, (table) => [
@@ -188,6 +189,7 @@ export const corporateAccounts = pgTable("corporate_accounts", {
 export const corporateAccountsRelations = relations(corporateAccounts, ({ one, many }) => ({
   user: one(users, { fields: [corporateAccounts.userId], references: [users.id] }),
   approver: one(users, { fields: [corporateAccounts.approvedBy], references: [users.id] }),
+  salesAgent: one(users, { fields: [corporateAccounts.salesAgentId], references: [users.id] }),
   carts: many(corporateCarts),
   quotes: many(quotes),
 }));
@@ -275,6 +277,7 @@ export const quotes = pgTable("quotes", {
   sentByEmailAt: timestamp("sent_by_email_at", { withTimezone: true }),
   publishedToPortalAt: timestamp("published_to_portal_at", { withTimezone: true }),
   createdBy: pgUuid("created_by").references(() => users.id),
+  salesAgentId: pgUuid("sales_agent_id").references(() => users.id),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
   deletedBy: pgUuid("deleted_by").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
@@ -286,6 +289,7 @@ export const quotes = pgTable("quotes", {
   index("idx_quotes_lead").on(table.leadId),
   index("idx_quotes_expires").on(table.expiresAt),
   index("idx_quotes_deleted").on(table.deletedAt),
+  index("idx_quotes_sales_agent").on(table.salesAgentId),
 ]);
 
 export const quotesRelations = relations(quotes, ({ one, many }) => ({
@@ -294,6 +298,7 @@ export const quotesRelations = relations(quotes, ({ one, many }) => ({
   taxPreset: one(taxPresets, { fields: [quotes.taxPresetId], references: [taxPresets.id] }),
   validityPreset: one(validityPresets, { fields: [quotes.validityPresetId], references: [validityPresets.id] }),
   creator: one(users, { fields: [quotes.createdBy], references: [users.id] }),
+  salesAgent: one(users, { fields: [quotes.salesAgentId], references: [users.id] }),
   items: many(quoteItems),
   documents: many(quoteDocuments),
 }));

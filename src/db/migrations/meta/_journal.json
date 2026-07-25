@@ -113,6 +113,13 @@
       "when": 1784961676551,
       "tag": "0015_freezing_penance",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1784996412278,
+      "tag": "0016_moaning_firebird",
+      "breakpoints": true
     }
   ]
 }
