@@ -5,6 +5,7 @@ const FOLDER_PREFIXES: Record<string, string> = {
   COLLECTIONS: "collections",
   BANNERS: "banners",
   SITE: "site",
+  SWATCHES: "swatches",
 };
 
 export type MediaFolder = keyof typeof FOLDER_PREFIXES;

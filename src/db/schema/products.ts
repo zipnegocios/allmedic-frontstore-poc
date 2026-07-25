@@ -16,6 +16,7 @@ export const brandsRelations = relations(brands, ({ many }) => ({
   products: many(products),
   collections: many(collections),
   productTypeActivations: many(brandProductTypes),
+  colorActivations: many(brandColors),
 }));
 
 // ─── Collections ───
@@ -148,10 +149,27 @@ export const colors = pgTable("colors", {
   name: text("name").notNull().unique(),
   code: text("code").notNull().unique(),
   hex: text("hex").notNull(),
+  kind: text("kind").notNull().default("SOLID"), // SOLID | PATTERN — PATTERN usa swatch de imagen (media_links, entityType='COLOR', role='SWATCH')
 });
 
 export const colorsRelations = relations(colors, ({ many }) => ({
   variants: many(productVariants),
+  brandActivations: many(brandColors),
+}));
+
+// ─── Brand ↔ Color (activación: qué colores del catálogo global usa cada marca) ───
+export const brandColors = pgTable("brand_colors", {
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
+  brandId: pgUuid("brand_id").notNull().references(() => brands.id, { onDelete: "cascade" }),
+  colorId: pgUuid("color_id").notNull().references(() => colors.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+}, (table) => [
+  unique("uq_brand_colors").on(table.brandId, table.colorId),
+]);
+
+export const brandColorsRelations = relations(brandColors, ({ one }) => ({
+  brand: one(brands, { fields: [brandColors.brandId], references: [brands.id] }),
+  color: one(colors, { fields: [brandColors.colorId], references: [colors.id] }),
 }));
 
 // ─── Products ───

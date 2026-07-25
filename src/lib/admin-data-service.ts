@@ -20,6 +20,7 @@ import {
   collections as collectionsTable,
   productTypes as productTypesTable,
   brandProductTypes as brandProductTypesTable,
+  brandColors as brandColorsTable,
   attributes as attributesTable,
   attributeValues as attributeValuesTable,
   productTypeAttributes as productTypeAttributesTable,
@@ -42,7 +43,7 @@ import {
 // ── Helpers de vínculos de un solo medio (marcas/banners/sets) ──
 
 async function replaceSingleLink(
-  entityType: 'BRAND' | 'BANNER' | 'SET' | 'COLLECTION',
+  entityType: 'BRAND' | 'BANNER' | 'SET' | 'COLLECTION' | 'COLOR',
   entityId: string,
   role: string,
   assetId: string | null | undefined,
@@ -58,7 +59,7 @@ async function replaceSingleLink(
   }
 }
 
-async function getSingleLinkUrl(entityType: 'BRAND' | 'BANNER' | 'SET' | 'PRODUCT' | 'COLLECTION', entityId: string, role: string): Promise<string | null> {
+async function getSingleLinkUrl(entityType: 'BRAND' | 'BANNER' | 'SET' | 'PRODUCT' | 'COLLECTION' | 'COLOR', entityId: string, role: string): Promise<string | null> {
   const [link] = await db
     .select({ storageKey: mediaAssetsTable.storageKey })
     .from(mediaLinksTable)
@@ -71,7 +72,7 @@ async function getSingleLinkUrl(entityType: 'BRAND' | 'BANNER' | 'SET' | 'PRODUC
   return link ? resolveMediaUrl(link.storageKey) : null;
 }
 
-async function getSingleLinksUrlMap(entityType: 'BRAND' | 'BANNER' | 'SET' | 'PRODUCT' | 'COLLECTION', entityIds: string[], role: string): Promise<Map<string, string>> {
+async function getSingleLinksUrlMap(entityType: 'BRAND' | 'BANNER' | 'SET' | 'PRODUCT' | 'COLLECTION' | 'COLOR', entityIds: string[], role: string): Promise<Map<string, string>> {
   if (entityIds.length === 0) return new Map();
   const links = await db
     .select({ entityId: mediaLinksTable.entityId, storageKey: mediaAssetsTable.storageKey })
@@ -922,22 +923,118 @@ export async function getAdminBrandById(id: string) {
 
 // ── Colors ──
 
+/** Catálogo maestro global de colores, con `swatchUrl` (imagen de muestra para colores
+ * PATTERN, `media_links` entityType='COLOR' role='SWATCH') y el resumen de marcas que
+ * lo tienen activado (`brand_colors`) — usado por `/admin/colores`. */
 export async function getAdminColors() {
-  return db.select().from(colorsTable).orderBy(asc(colorsTable.name));
+  const colors = await db.select().from(colorsTable).orderBy(asc(colorsTable.name));
+  const colorIds = colors.map((c) => c.id);
+  const swatchUrlMap = await getSingleLinksUrlMap('COLOR', colorIds, 'SWATCH');
+
+  const activations = colorIds.length === 0 ? [] : await db
+    .select({ colorId: brandColorsTable.colorId, brandName: brandsTable.name })
+    .from(brandColorsTable)
+    .innerJoin(brandsTable, eq(brandColorsTable.brandId, brandsTable.id))
+    .where(inArray(brandColorsTable.colorId, colorIds))
+    .orderBy(asc(brandsTable.name));
+  const brandNamesByColor = new Map<string, string[]>();
+  for (const a of activations) {
+    const list = brandNamesByColor.get(a.colorId) ?? [];
+    list.push(a.brandName);
+    brandNamesByColor.set(a.colorId, list);
+  }
+
+  return colors.map((c) => ({
+    ...c,
+    swatchUrl: swatchUrlMap.get(c.id) ?? null,
+    brandNames: brandNamesByColor.get(c.id) ?? [],
+  }));
 }
 
-export async function createColor(data: typeof colorsTable.$inferInsert) {
+/** Colores activados (`brand_colors`) para UNA marca puntual — usado por el picker de
+ * color del formulario de producto, que filtra estricto por la marca en edición. */
+export async function getAdminColorsForBrand(brandId: string) {
+  const rows = await db
+    .select({
+      id: colorsTable.id,
+      name: colorsTable.name,
+      code: colorsTable.code,
+      hex: colorsTable.hex,
+      kind: colorsTable.kind,
+    })
+    .from(brandColorsTable)
+    .innerJoin(colorsTable, eq(brandColorsTable.colorId, colorsTable.id))
+    .where(eq(brandColorsTable.brandId, brandId))
+    .orderBy(asc(colorsTable.name));
+  const colorIds = rows.map((c) => c.id);
+  const swatchUrlMap = await getSingleLinksUrlMap('COLOR', colorIds, 'SWATCH');
+  return rows.map((c) => ({ ...c, swatchUrl: swatchUrlMap.get(c.id) ?? null }));
+}
+
+export async function createColor(data: typeof colorsTable.$inferInsert, swatchAssetId?: string) {
   const [color] = await db.insert(colorsTable).values(data).returning();
+  if (swatchAssetId) await replaceSingleLink('COLOR', color.id, 'SWATCH', swatchAssetId);
   return color;
 }
 
-export async function updateColor(id: string, data: Partial<typeof colorsTable.$inferInsert>) {
-  const [color] = await db.update(colorsTable).set(data).where(eq(colorsTable.id, id)).returning();
+export async function updateColor(id: string, data: Partial<typeof colorsTable.$inferInsert>, swatchAssetId?: string | null) {
+  let color: typeof colorsTable.$inferSelect | undefined;
+  if (Object.keys(data).length > 0) {
+    [color] = await db.update(colorsTable).set(data).where(eq(colorsTable.id, id)).returning();
+  } else {
+    [color] = await db.select().from(colorsTable).where(eq(colorsTable.id, id)).limit(1);
+  }
+  if (swatchAssetId !== undefined) await replaceSingleLink('COLOR', id, 'SWATCH', swatchAssetId);
   return color;
 }
 
 export async function deleteColor(id: string) {
   await db.delete(colorsTable).where(eq(colorsTable.id, id));
+}
+
+// ── Color ↔ Brand (activación: qué marcas usan cada color del catálogo global) ──
+
+/** Todas las marcas con su estado de activación para UN color puntual (gestión invertida
+ * respecto a `brand_product_types`: aquí se elige, por color, qué marcas lo usan) —
+ * incluye `productCount` (variantes de esa marca ya usando el color) para advertir al
+ * desactivar, igual que `getBrandProductTypeActivations`. */
+export async function getColorBrandActivations(colorId: string) {
+  const allBrands = await db.select().from(brandsTable).orderBy(asc(brandsTable.name));
+  const activations = await db
+    .select({ brandId: brandColorsTable.brandId })
+    .from(brandColorsTable)
+    .where(eq(brandColorsTable.colorId, colorId));
+  const activatedIds = new Set(activations.map((a) => a.brandId));
+
+  const counts = await db
+    .select({ brandId: productsTable.brandId, count: sql<number>`count(distinct ${variantsTable.id})::int` })
+    .from(variantsTable)
+    .innerJoin(productsTable, eq(variantsTable.productId, productsTable.id))
+    .where(eq(variantsTable.colorId, colorId))
+    .groupBy(productsTable.brandId);
+  const countByBrand = new Map(counts.map((c) => [c.brandId, c.count]));
+
+  return allBrands.map((b) => ({
+    ...b,
+    isActivated: activatedIds.has(b.id),
+    productCount: countByBrand.get(b.id) ?? 0,
+  }));
+}
+
+export async function activateColorBrand(colorId: string, brandId: string) {
+  await db
+    .insert(brandColorsTable)
+    .values({ brandId, colorId })
+    .onConflictDoNothing({ target: [brandColorsTable.brandId, brandColorsTable.colorId] });
+}
+
+/** Desactivar no borra nada — solo impide usar el color en productos nuevos de esa
+ * marca. Variantes existentes con el color quedan intactas (igual que
+ * `deactivateBrandProductType`). */
+export async function deactivateColorBrand(colorId: string, brandId: string) {
+  await db
+    .delete(brandColorsTable)
+    .where(and(eq(brandColorsTable.brandId, brandId), eq(brandColorsTable.colorId, colorId)));
 }
 
 // ── Stores ──
