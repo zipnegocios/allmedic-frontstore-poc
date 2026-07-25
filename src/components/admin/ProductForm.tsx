@@ -606,6 +606,16 @@ export default function ProductForm({
   const pickerLinkedColorId = pickerTargetIndex === 'cover' || pickerTargetIndex === 'secondaryCover'
     ? null
     : (pickerColorId ?? undefined);
+  // Etiqueta dinámica de la carpeta enfocada: nombre del producto + color en
+  // edición (o "Portada" si el target es la dupla de portada).
+  const pickerColorName = pickerColorId ? colors.find((c) => c.id === pickerColorId)?.name : undefined;
+  const pickerFolderLabel = nameValue
+    ? (pickerTargetIndex === 'cover' || pickerTargetIndex === 'secondaryCover'
+        ? `Mostrando la carpeta de ${nameValue} (Portada).`
+        : pickerColorName
+          ? `Mostrando la carpeta de ${nameValue} (${pickerColorName}).`
+          : `Mostrando la carpeta de ${nameValue}.`)
+    : 'Mostrando la carpeta de este producto.';
 
   const mediaPickerDialog = (
     <MediaPicker
@@ -620,6 +630,7 @@ export default function ProductForm({
       linkedEntityType="PRODUCT"
       linkedEntityId={createdProductId ?? undefined}
       linkedColorId={pickerLinkedColorId}
+      folderLabel={pickerFolderLabel}
       multiple={pickerTargetIndex === 'append'}
       onConfirm={(assets) => {
         if (pickerTargetIndex === 'append') {

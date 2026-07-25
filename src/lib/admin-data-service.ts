@@ -1009,20 +1009,38 @@ export async function deleteBanner(id: string) {
   await db.delete(bannersTable).where(eq(bannersTable.id, id));
 }
 
-/** Listado liviano de productos activos (id/nombre/marca) — usado por el selector de ámbito
- * "Producto específico" del panel de reglas, que necesita elegir cualquier producto activo sin
- * cargar variantes/imágenes (a diferencia de `getAdminProducts`, pensado para el listado completo). */
+/** Listado liviano de productos activos (id/nombre/código/marca) — usado por el selector de
+ * ámbito "Producto específico" del panel de reglas y por el picker de medios (modo "Insertar
+ * desde otra ubicación", para resolver la carpeta física `products/{code}/...` del producto
+ * elegido), que necesitan elegir cualquier producto activo sin cargar variantes/imágenes (a
+ * diferencia de `getAdminProducts`, pensado para el listado completo). */
 export async function getAdminProductsLite() {
   return db
     .select({
       id: productsTable.id,
       name: productsTable.name,
+      code: productsTable.code,
       brandName: sql<string>`COALESCE(${brandsTable.name}, '')`,
     })
     .from(productsTable)
     .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
     .where(eq(productsTable.isActive, true))
     .orderBy(asc(productsTable.name));
+}
+
+/** Colores con variantes activas de UN producto puntual (id/nombre/código) — usado por el picker
+ * de medios (modo "Insertar desde otra ubicación") para poblar el segundo dropdown recién cuando
+ * el admin elige un producto en el primero, sin cargar colores de todo el catálogo de una vez.
+ * `code` viaja porque es lo que arma el segmento de carpeta física (`products/{code}/{color}/`),
+ * no el nombre. */
+export async function getProductColorsLite(productId: string) {
+  const rows = await db
+    .selectDistinct({ id: colorsTable.id, name: colorsTable.name, code: colorsTable.code })
+    .from(variantsTable)
+    .innerJoin(colorsTable, eq(variantsTable.colorId, colorsTable.id))
+    .where(and(eq(variantsTable.productId, productId), eq(variantsTable.status, 'AVAILABLE')))
+    .orderBy(asc(colorsTable.name));
+  return rows;
 }
 
 // ── Corporate Sets (Sets Corporativos) ──
