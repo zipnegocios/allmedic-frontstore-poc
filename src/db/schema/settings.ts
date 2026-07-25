@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid as pgUuid } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, uuid as pgUuid } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { uuid } from "@/lib/uuid";
 import { mediaAssets } from "./media";
@@ -20,3 +20,12 @@ export const companySettings = pgTable("company_settings", {
 export const companySettingsRelations = relations(companySettings, ({ one }) => ({
   logo: one(mediaAssets, { fields: [companySettings.logoMediaId], references: [mediaAssets.id] }),
 }));
+
+// ─── System Settings (interruptores globales — tabla singleton, una sola fila) ───
+// Nace con `payment_module_enabled` (plan tareas/pagos, 2026-07-25, decisión 10): apagado
+// por defecto, tiene precedencia sobre la matriz de permisos (ver Fase 7 del plan).
+export const systemSettings = pgTable("system_settings", {
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
+  paymentModuleEnabled: boolean("payment_module_enabled").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});

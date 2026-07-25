@@ -1,5 +1,6 @@
 import { pgTable, text, timestamp, primaryKey, integer, boolean, pgEnum, uuid as pgUuid } from "drizzle-orm/pg-core";
 import { uuid } from "@/lib/uuid";
+import { productivityRateTiers } from "./productivity-rate-tiers";
 
 export const userRoleEnum = pgEnum("user_role", ["ADMIN", "SALES", "CATALOG_MANAGER", "DISPATCHER", "CORPORATE_CLIENT"]);
 export const scopeLevelEnum = pgEnum("scope_level", ["OWN", "ALL"]);
@@ -17,6 +18,8 @@ export const users = pgTable("users", {
   mustChangePassword: boolean("must_change_password").notNull().default(true),
   isProtected: boolean("is_protected").notNull().default(false),
   sessionVersion: integer("session_version").notNull().default(0),
+  tierId: pgUuid("tier_id").references(() => productivityRateTiers.id),
+  requiresAssignedTaskForPayment: boolean("requires_assigned_task_for_payment").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 

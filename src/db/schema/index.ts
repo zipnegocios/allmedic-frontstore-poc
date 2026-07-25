@@ -7,6 +7,8 @@ export * from "./rbac";
 export * from "./chats";
 export * from "./media";
 export * from "./settings";
+export * from "./productivity-rate-tiers";
+export * from "./productivity-tasks";
 // NOTA TEMPORAL: rag.ts excluido de db:push porque el servidor Postgres
 // no tiene disponible la extensión pgvector (CREATE EXTENSION vector falla).
 // Ver .claude/scripts/enable-pgvector.mjs. Restaurar cuando el servidor

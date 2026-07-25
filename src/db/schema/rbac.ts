@@ -1,4 +1,4 @@
-import { pgTable, text, integer, timestamp, pgEnum, uuid as pgUuid, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, boolean, timestamp, jsonb, pgEnum, uuid as pgUuid, unique } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { uuid } from "@/lib/uuid";
 import { users, userRoleEnum } from "./auth";
@@ -44,6 +44,7 @@ export const permissionsVersion = pgTable("permissions_version", {
 // ─── Catalog Activity Log (tracking de productividad del Gestor del Catálogo) ───
 export const catalogEntityTypeEnum = pgEnum("catalog_entity_type", ["PRODUCT", "VARIANT", "SET", "MEDIA"]);
 export const catalogActivityActionEnum = pgEnum("catalog_activity_action", ["CREATE", "UPDATE"]);
+export const catalogActivityStatusEnum = pgEnum("catalog_activity_status", ["COMPLETED", "ABANDONED"]);
 
 export const catalogActivityLog = pgTable("catalog_activity_log", {
   id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
@@ -54,6 +55,14 @@ export const catalogActivityLog = pgTable("catalog_activity_log", {
   startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
   finishedAt: timestamp("finished_at", { withTimezone: true }),
   durationSeconds: integer("duration_seconds"),
+  // Extensión del plan de tareas/pagos (2026-07-25) — sin FK real a catalog_tasks: sería
+  // un ciclo de import ESM (productivity-tasks.ts ya importa catalogEntityTypeEnum de acá).
+  // Se resuelve a nivel de aplicación, igual criterio que `entityId` en esta misma tabla.
+  taskId: text("task_id"),
+  changedFields: jsonb("changed_fields"),
+  mediaCount: integer("media_count"),
+  status: catalogActivityStatusEnum("status").notNull().default("COMPLETED"),
+  voidedByRejection: boolean("voided_by_rejection").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
