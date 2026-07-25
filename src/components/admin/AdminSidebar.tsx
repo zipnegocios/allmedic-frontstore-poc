@@ -25,6 +25,7 @@ import {
   ListTree,
   Shirt,
   Users,
+  ShieldCheck,
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 
@@ -45,6 +46,7 @@ const navItems = [
   { href: '/admin/reglas', label: 'Motor de Reglas', icon: Settings2 },
   { href: '/admin/papelera', label: 'Papelera', icon: Trash2 },
   { href: '/admin/usuarios', label: 'Usuarios', icon: Users },
+  { href: '/admin/permisos', label: 'Permisos', icon: ShieldCheck },
   { href: '/admin/configuracion', label: 'Configuración', icon: Settings },
 ];
 

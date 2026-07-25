@@ -251,3 +251,88 @@ export function assertCanWriteOwnedRecord(ctx: ScopeContext, recordSalesAgentId:
     throw new OwnershipError();
   }
 }
+
+// ─── Matriz de permisos editable (Fase 4 del plan) ───
+//
+// `ADMIN` nunca aparece como fila editable — tiene bypass total en código (ver
+// `hasPermission`), no depende de `role_permissions`, así que no se puede auto-restringir
+// por error (decisión de Fase 4).
+export const EDITABLE_ROLES = ['SALES', 'CATALOG_MANAGER', 'DISPATCHER'] as const;
+export type EditableRole = (typeof EDITABLE_ROLES)[number];
+
+export interface PermissionsMatrix {
+  modules: string[];
+  /** grid[role][modulo] = { read, write } */
+  grid: Record<EditableRole, Record<string, { read: boolean; write: boolean }>>;
+}
+
+/** Snapshot completo de la matriz — catálogo de módulos + qué tiene concedido cada rol
+ * editable. Usado por `/admin/permisos` para pintar el grid inicial. */
+export async function getPermissionsMatrix(): Promise<PermissionsMatrix> {
+  const allPermissions = await db.select().from(permissions);
+  const modules = Array.from(new Set(allPermissions.map((p) => p.module))).sort();
+
+  const grantedRows = await db
+    .select({ role: rolePermissions.role, module: permissions.module, action: permissions.action })
+    .from(rolePermissions)
+    .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id));
+
+  const grid = Object.fromEntries(
+    EDITABLE_ROLES.map((role) => [
+      role,
+      Object.fromEntries(modules.map((module) => [module, { read: false, write: false }])),
+    ])
+  ) as PermissionsMatrix['grid'];
+
+  for (const row of grantedRows) {
+    if (!EDITABLE_ROLES.includes(row.role as EditableRole)) continue; // ignora ADMIN/CORPORATE_CLIENT si hubiera filas
+    const cell = grid[row.role as EditableRole]?.[row.module];
+    if (cell) cell[row.action as 'read' | 'write'] = true;
+  }
+
+  return { modules, grid };
+}
+
+/**
+ * Reemplaza por completo los permisos de un rol editable con el set recibido, dentro de
+ * una transacción, e incrementa `permissions_version` al final — los usuarios afectados
+ * ven el cambio aplicado de inmediato (la caché versionada lo detecta en su próxima
+ * request), sin necesidad de volver a iniciar sesión (decisión 3 del plan).
+ */
+export async function saveRolePermissions(
+  role: EditableRole,
+  grantedModuleActions: Array<{ module: string; action: PermissionAction }>
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    const allPermissions = await tx.select().from(permissions);
+    const permissionIdByKey = new Map(allPermissions.map((p) => [`${p.module}:${p.action}`, p.id]));
+
+    const wantedIds = new Set(
+      grantedModuleActions
+        .map((g) => permissionIdByKey.get(`${g.module}:${g.action}`))
+        .filter((id): id is string => !!id)
+    );
+
+    const existing = await tx.select().from(rolePermissions).where(eq(rolePermissions.role, role));
+    const existingIds = new Set(existing.map((r) => r.permissionId));
+
+    const toInsert = [...wantedIds].filter((id) => !existingIds.has(id));
+    const toDelete = existing.filter((r) => !wantedIds.has(r.permissionId));
+
+    if (toInsert.length > 0) {
+      await tx.insert(rolePermissions).values(toInsert.map((permissionId) => ({ role, permissionId })));
+    }
+    for (const row of toDelete) {
+      await tx.delete(rolePermissions).where(eq(rolePermissions.id, row.id));
+    }
+
+    const [versionRow] = await tx.select().from(permissionsVersion).limit(1);
+    if (versionRow) {
+      await tx.update(permissionsVersion).set({ version: versionRow.version + 1 }).where(eq(permissionsVersion.id, versionRow.id));
+    } else {
+      await tx.insert(permissionsVersion).values({ version: 2 });
+    }
+  });
+
+  invalidatePermissionsCache();
+}
