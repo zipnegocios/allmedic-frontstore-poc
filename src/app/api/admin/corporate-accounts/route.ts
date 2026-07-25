@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
 import { getAdminCorporateAccounts } from '@/lib/admin-data-service';
+import { getScopeContext, resolveReadScopeFilter } from '@/lib/permissions';
 
 export async function GET(request: NextRequest) {
   try {
-    await requireAdmin();
+    const session = await requireAdmin();
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') || undefined;
-    const accounts = await getAdminCorporateAccounts(status);
+
+    const sessionUserId = (session.user as { id?: string })?.id;
+    const scopeCtx = sessionUserId ? await getScopeContext(sessionUserId) : null;
+    const salesAgentId = scopeCtx ? resolveReadScopeFilter(scopeCtx) ?? undefined : undefined;
+
+    const accounts = await getAdminCorporateAccounts(status, salesAgentId);
     return NextResponse.json({ accounts });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';

@@ -1825,8 +1825,14 @@ export async function getSetEligibleProducts() {
 
 // ── Corporate Accounts (Cuentas Corporativas) ──
 
-export async function getAdminCorporateAccounts(status?: string) {
-  const where = status ? eq(corporateAccountsTable.status, status) : undefined;
+/** `salesAgentId`: scope de Ventas (decisión 4 del plan RBAC) — si viene, solo se listan
+ * cuentas asignadas a ese asesor. `undefined` = sin filtro (Admin, Catálogo, o SALES con
+ * scope ALL), resuelto en la capa de rutas vía `resolveReadScopeFilter`. */
+export async function getAdminCorporateAccounts(status?: string, salesAgentId?: string) {
+  const conditions: SQL<unknown>[] = [];
+  if (status) conditions.push(eq(corporateAccountsTable.status, status));
+  if (salesAgentId) conditions.push(eq(corporateAccountsTable.salesAgentId, salesAgentId));
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
   return db.select().from(corporateAccountsTable).where(where).orderBy(desc(corporateAccountsTable.createdAt));
 }
 

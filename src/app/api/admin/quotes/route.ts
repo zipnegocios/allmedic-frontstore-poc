@@ -2,19 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/admin-auth';
 import { listQuotes, createQuote } from '@/lib/quotes/service';
+import { getScopeContext, resolveReadScopeFilter } from '@/lib/permissions';
 
 export async function GET(request: NextRequest) {
   try {
-    await requireAdmin();
+    const session = await requireAdmin();
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
     const channel = searchParams.get('channel');
     const search = searchParams.get('search');
 
+    const sessionUserId = (session.user as { id?: string })?.id;
+    const scopeCtx = sessionUserId ? await getScopeContext(sessionUserId) : null;
+    const salesAgentId = scopeCtx ? resolveReadScopeFilter(scopeCtx) ?? undefined : undefined;
+
     const quotes = await listQuotes({
       status: status === 'DRAFT' || status === 'FINAL' ? status : undefined,
       channel: channel === 'CORPORATE' || channel === 'RETAIL' ? channel : undefined,
       search: search || undefined,
+      salesAgentId,
     });
     return NextResponse.json({ quotes });
   } catch (err) {
@@ -44,8 +50,12 @@ export async function POST(request: NextRequest) {
     const session = await requireAdmin();
     const body = CreateQuoteSchema.parse(await request.json());
     const adminUserId = (session.user as { id?: string })?.id ?? null;
+    const role = (session.user as { role?: string })?.role;
+    // El asesor de ventas que crea una cotización queda automáticamente asignado
+    // como su sales_agent_id (scope OWN/ALL, decisión 4 del plan RBAC).
+    const salesAgentId = role === 'SALES' ? adminUserId : null;
 
-    const quote = await createQuote({ ...body, createdBy: adminUserId });
+    const quote = await createQuote({ ...body, createdBy: adminUserId, salesAgentId });
     return NextResponse.json(quote, { status: 201 });
   } catch (err) {
     if (err instanceof z.ZodError) {

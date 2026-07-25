@@ -50,6 +50,9 @@ export interface CreateQuoteInput extends CustomerSnapshotInput {
   leadId?: string | null;
   notes?: string | null;
   createdBy?: string | null;
+  /** Asesor de ventas asignado (scope OWN/ALL, decisión 4 del plan RBAC) — se asigna
+   * automáticamente al creador cuando este tiene rol SALES (ver ruta API). */
+  salesAgentId?: string | null;
   items?: QuoteItemInput[];
 }
 
@@ -82,6 +85,10 @@ export interface ListQuotesFilters {
   status?: QuoteStatus;
   channel?: QuoteChannel;
   search?: string;
+  /** Scope de Ventas (decisión 4 del plan RBAC): si viene, solo se listan cotizaciones
+   * de este asesor (`sales_agent_id`). Se resuelve en la capa de rutas vía
+   * `resolveReadScopeFilter` — `null`/ausente = sin filtro (Admin, Catálogo, o SALES con scope ALL). */
+  salesAgentId?: string;
 }
 
 export async function listQuotes(filters: ListQuotesFilters = {}) {
@@ -92,6 +99,7 @@ export async function listQuotes(filters: ListQuotesFilters = {}) {
     const term = `%${filters.search}%`;
     conditions.push(or(ilike(quotes.customerName, term), ilike(quotes.quoteNumber, term)));
   }
+  if (filters.salesAgentId) conditions.push(eq(quotes.salesAgentId, filters.salesAgentId));
   return db
     .select()
     .from(quotes)
@@ -178,6 +186,9 @@ export async function createQuoteFromAccount(accountId: string) {
       customerPhone: account.phone,
       customerCity: account.city,
       status: "DRAFT",
+      // Hereda el asesor de la cuenta origen (scope OWN/ALL, decisión 4 del plan RBAC) —
+      // mantiene la cotización bajo el mismo dueño que la cuenta que la generó.
+      salesAgentId: account.salesAgentId,
     })
     .returning();
 

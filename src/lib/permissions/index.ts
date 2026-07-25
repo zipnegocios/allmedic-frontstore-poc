@@ -191,3 +191,63 @@ export function resolveModuleForPath(pathname: string): string | null {
   const match = sorted.find((entry) => pathname.startsWith(entry.prefix));
   return match?.module ?? null;
 }
+
+// ─── Scope de datos para rol SALES (decisión 4 del plan) ───
+//
+// `OWN`  = el usuario solo lee/edita sus propias cotizaciones/cuentas asignadas
+//          (`sales_agent_id = user.id`).
+// `ALL`  = el usuario lee todas, pero solo puede editar/eliminar las propias — el
+//          filtro de lectura NO aplica, pero sí el guard de escritura.
+// Roles distintos de SALES no tienen scope (ven/editan según su propio permiso de
+// módulo, sin relación con `sales_agent_id`).
+
+export interface ScopeContext {
+  userId: string;
+  role: string;
+  scopeLevel: 'OWN' | 'ALL';
+}
+
+/**
+ * Construye el `ScopeContext` de un usuario a partir de su id — el JWT de sesión solo
+ * lleva `role` (ver `auth-config.ts`), así que `scopeLevel` se resuelve consultando
+ * `users` directamente. Devuelve `null` si el usuario no existe (sesión obsoleta).
+ */
+export async function getScopeContext(userId: string): Promise<ScopeContext | null> {
+  const [user] = await db
+    .select({ role: users.role, scopeLevel: users.scopeLevel })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (!user) return null;
+  return { userId, role: user.role, scopeLevel: user.scopeLevel };
+}
+
+/**
+ * Devuelve el `sales_agent_id` por el que debe filtrarse una lectura (`listQuotes`,
+ * `getAdminCorporateAccounts`), o `null` si no debe filtrarse (todo otro rol, o
+ * SALES con `scopeLevel = ALL`).
+ */
+export function resolveReadScopeFilter(ctx: ScopeContext): string | null {
+  if (ctx.role !== 'SALES') return null;
+  return ctx.scopeLevel === 'OWN' ? ctx.userId : null;
+}
+
+export class OwnershipError extends Error {
+  constructor() {
+    super('Forbidden: no puedes modificar un registro asignado a otro asesor de ventas.');
+    this.name = 'OwnershipError';
+  }
+}
+
+/**
+ * Verifica que un SALES pueda escribir sobre un registro con este `salesAgentId` —
+ * aplica tanto en `OWN` como en `ALL` (la decisión 4 del plan es explícita: "ALL ve
+ * todas, pero solo edita las propias"). Otros roles no están sujetos a esta regla
+ * (su permiso de módulo ya decide si pueden escribir).
+ */
+export function assertCanWriteOwnedRecord(ctx: ScopeContext, recordSalesAgentId: string | null): void {
+  if (ctx.role !== 'SALES') return;
+  if (recordSalesAgentId !== ctx.userId) {
+    throw new OwnershipError();
+  }
+}

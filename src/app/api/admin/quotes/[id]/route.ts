@@ -5,6 +5,7 @@ import { getQuoteById, updateQuote, softDeleteQuote } from '@/lib/quotes/service
 import { computeQuoteTotals } from '@/lib/quotes/totals';
 import { regenerateQuotePdf } from '@/lib/quotes/finalize';
 import { PatchQuoteSchema } from '@/lib/quotes/validation';
+import { getScopeContext, assertCanWriteOwnedRecord, OwnershipError } from '@/lib/permissions';
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -23,12 +24,16 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAdmin();
+    const session = await requireAdmin();
     const { id } = await params;
     const body = PatchQuoteSchema.parse(await request.json());
 
     const current = await getQuoteById(id);
     if (!current) return NextResponse.json({ error: 'Cotización no encontrada' }, { status: 404 });
+
+    const sessionUserId = (session.user as { id?: string })?.id;
+    const scopeCtx = sessionUserId ? await getScopeContext(sessionUserId) : null;
+    if (scopeCtx) assertCanWriteOwnedRecord(scopeCtx, current.salesAgentId);
 
     const items = body.items ?? current.items.map((i) => ({
       id: i.id,
@@ -99,6 +104,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         { status: 400 }
       );
     }
+    if (err instanceof OwnershipError) return NextResponse.json({ error: err.message }, { status: 403 });
     const message = err instanceof Error ? err.message : 'Unknown error';
     if (message === 'Unauthorized') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (message === 'Forbidden') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -111,9 +117,17 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     const session = await requireAdmin();
     const { id } = await params;
     const adminUserId = (session.user as { id?: string })?.id ?? null;
+
+    const current = await getQuoteById(id);
+    if (!current) return NextResponse.json({ error: 'Cotización no encontrada' }, { status: 404 });
+
+    const scopeCtx = adminUserId ? await getScopeContext(adminUserId) : null;
+    if (scopeCtx) assertCanWriteOwnedRecord(scopeCtx, current.salesAgentId);
+
     await softDeleteQuote(id, adminUserId);
     return NextResponse.json({ ok: true });
   } catch (err) {
+    if (err instanceof OwnershipError) return NextResponse.json({ error: err.message }, { status: 403 });
     const message = err instanceof Error ? err.message : 'Unknown error';
     if (message === 'Unauthorized') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (message === 'Forbidden') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
