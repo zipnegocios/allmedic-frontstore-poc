@@ -53,6 +53,7 @@ export const ROUTE_MODULE_MAP: Array<{ prefix: string; module: string }> = [
   { prefix: '/api/admin/stores', module: 'sucursales' },
   { prefix: '/api/admin/trash', module: 'papelera' },
   { prefix: '/api/admin/activity', module: 'productividad' },
+  { prefix: '/api/admin/productivity', module: 'productividad' },
   { prefix: '/api/admin/users', module: 'usuarios' },
   { prefix: '/api/admin/permissions', module: 'permisos' },
 ];

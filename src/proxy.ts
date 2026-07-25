@@ -13,6 +13,11 @@ export default auth(async (req) => {
   const isApiAdminRoute = nextUrl.pathname.startsWith('/api/admin');
   const isChangePasswordRoute = nextUrl.pathname === CHANGE_PASSWORD_PATH
     || nextUrl.pathname === '/api/admin/change-password';
+  // Endpoint base del que depende `usePermissions()` (y por lo tanto todo el filtrado de
+  // navegación) — cualquier usuario autenticado debe poder consultar sus propios permisos,
+  // sin exigir un permiso de módulo previo (sería circular: necesita esto para saber qué
+  // puede ver). El propio handler ya solo devuelve los permisos de la sesión actual.
+  const isMyPermissionsRoute = nextUrl.pathname === '/api/admin/my-permissions';
 
   if (isAdminRoute || isApiAdminRoute) {
     if (!isLoggedIn) {
@@ -45,7 +50,7 @@ export default auth(async (req) => {
 
     // Pantalla obligatoria de cambio de contraseña en primer login (decisión 8 del plan) —
     // bloquea cualquier otra ruta admin hasta que la cambie, salvo la propia pantalla.
-    if (sessionUser?.mustChangePassword && !isChangePasswordRoute) {
+    if (sessionUser?.mustChangePassword && !isChangePasswordRoute && !isMyPermissionsRoute) {
       if (isApiAdminRoute) {
         return Response.json({ error: 'PasswordChangeRequired' }, { status: 403 });
       }
@@ -56,7 +61,7 @@ export default auth(async (req) => {
     const module = resolveModuleForPath(nextUrl.pathname);
     // Rutas sin módulo mapeado (ej. /admin/vision-*, todavía sin permiso propio) quedan
     // reservadas a ADMIN — mismo criterio conservador que el gate binario anterior.
-    const allowed = isChangePasswordRoute
+    const allowed = isChangePasswordRoute || isMyPermissionsRoute
       ? true
       : module && module !== '*'
         ? await hasPermission(role ?? '', module, 'read')
