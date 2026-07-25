@@ -137,60 +137,10 @@ export async function isSessionStillValid(userId: string, sessionVersion: number
   return true;
 }
 
-/** Mapa ruta (`/admin/...` o `/api/admin/...`) → módulo, usado por `proxy.ts` y por los guards
- * de rutas API. Calcado del inventario de Fase 0 (AdminSidebar/AdminBottomNav) + quote-config/
- * corporate-carts (endpoints activos sin ítem de menú). */
-export const ROUTE_MODULE_MAP: Array<{ prefix: string; module: string }> = [
-  { prefix: '/admin/usuarios', module: 'usuarios' },
-  { prefix: '/admin/permisos', module: 'permisos' },
-  { prefix: '/admin/productividad', module: 'productividad' },
-  { prefix: '/admin/productos', module: 'productos' },
-  { prefix: '/admin/biblioteca', module: 'biblioteca' },
-  { prefix: '/admin/prospectos', module: 'prospectos' },
-  { prefix: '/admin/banners', module: 'banners' },
-  { prefix: '/admin/marcas', module: 'marcas' },
-  { prefix: '/admin/tipos-producto', module: 'tipos-producto' },
-  { prefix: '/admin/atributos', module: 'atributos' },
-  { prefix: '/admin/colores', module: 'colores' },
-  { prefix: '/admin/sucursales', module: 'sucursales' },
-  { prefix: '/admin/sets', module: 'sets' },
-  { prefix: '/admin/cuentas-corporativas', module: 'cuentas-corporativas' },
-  { prefix: '/admin/cotizaciones', module: 'cotizaciones' },
-  { prefix: '/admin/reglas', module: 'reglas' },
-  { prefix: '/admin/papelera', module: 'papelera' },
-  { prefix: '/admin/configuracion', module: 'configuracion' },
-  { prefix: '/admin/vision-despacho', module: '*' }, // solo ADMIN (Fase 9, ver plan)
-  { prefix: '/admin/vision-marketing', module: '*' }, // solo ADMIN (Fase 9, ver plan)
-  { prefix: '/api/admin/attribute-values', module: 'atributos' },
-  { prefix: '/api/admin/attributes', module: 'atributos' },
-  { prefix: '/api/admin/sizes', module: 'atributos' },
-  { prefix: '/api/admin/banners', module: 'banners' },
-  { prefix: '/api/admin/brands', module: 'marcas' },
-  { prefix: '/api/admin/collections', module: 'marcas' },
-  { prefix: '/api/admin/colors', module: 'colores' },
-  { prefix: '/api/admin/corporate-accounts', module: 'cuentas-corporativas' },
-  { prefix: '/api/admin/leads', module: 'prospectos' },
-  { prefix: '/api/admin/media', module: 'biblioteca' },
-  { prefix: '/api/admin/product-types', module: 'tipos-producto' },
-  { prefix: '/api/admin/products', module: 'productos' },
-  { prefix: '/api/admin/quote-config', module: 'quote-config' },
-  { prefix: '/api/admin/quotes', module: 'cotizaciones' },
-  { prefix: '/api/admin/rules', module: 'reglas' },
-  { prefix: '/api/admin/sets', module: 'sets' },
-  { prefix: '/api/admin/stores', module: 'sucursales' },
-  { prefix: '/api/admin/trash', module: 'papelera' },
-  { prefix: '/api/admin/activity', module: 'productividad' },
-  { prefix: '/api/admin/users', module: 'usuarios' },
-  { prefix: '/api/admin/permissions', module: 'permisos' },
-];
-
-export function resolveModuleForPath(pathname: string): string | null {
-  // Más largo primero: evita que un prefijo corto (ej. /admin/sets) capture
-  // por error una ruta más específica que debería mapear a otro módulo.
-  const sorted = [...ROUTE_MODULE_MAP].sort((a, b) => b.prefix.length - a.prefix.length);
-  const match = sorted.find((entry) => pathname.startsWith(entry.prefix));
-  return match?.module ?? null;
-}
+// Mapa ruta → módulo, usado por `proxy.ts` y por los guards de rutas API. Vive en un
+// archivo separado, sin `@/db`, para poder reutilizarse también desde componentes
+// cliente (ver Fase 5: `usePermissions()`/`AdminSidebar`/`AdminBottomNav`).
+export { ROUTE_MODULE_MAP, resolveModuleForPath } from './route-map';
 
 // ─── Scope de datos para rol SALES (decisión 4 del plan) ───
 //

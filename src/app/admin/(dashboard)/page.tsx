@@ -1,15 +1,27 @@
 import { db } from '@/db';
-import { products, leads } from '@/db/schema';
-import { sql, eq } from 'drizzle-orm';
+import { products, leads, quotes } from '@/db/schema';
+import { sql, eq, and, isNull } from 'drizzle-orm';
 import { requireAdminPage } from '@/lib/admin-auth';
+import { getScopeContext, resolveReadScopeFilter } from '@/lib/permissions';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Package, ShoppingCart, TrendingUp } from 'lucide-react';
+import { Package, ShoppingCart, TrendingUp, FileText, Gauge } from 'lucide-react';
 import { LEAD_STATUS_LABELS } from '@/lib/lead-status';
 
 export default async function AdminDashboardPage() {
-  await requireAdminPage();
+  const session = await requireAdminPage();
+  const userId = (session.user as { id?: string })?.id;
+  const scopeCtx = userId ? await getScopeContext(userId) : null;
 
+  if (scopeCtx?.role === 'SALES') {
+    return <SalesDashboard scopeCtx={scopeCtx} />;
+  }
+  if (scopeCtx?.role === 'CATALOG_MANAGER') {
+    return <CatalogManagerDashboard />;
+  }
+  return <DefaultDashboard />;
+}
 
+async function DefaultDashboard() {
   const [productCount, leadCount] = await Promise.all([
     db.select({ count: sql<number>`count(*)` }).from(products).where(eq(products.isActive, true)),
     db.select({ count: sql<number>`count(*)` }).from(leads).where(eq(leads.status, 'SENT')),
@@ -75,6 +87,127 @@ export default async function AdminDashboardPage() {
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+/** Dashboard de Ventas (Fase 5 del plan RBAC): resumen de sus propias cotizaciones,
+ * respetando el scope OWN/ALL (decisión 4). */
+async function SalesDashboard({ scopeCtx }: { scopeCtx: NonNullable<Awaited<ReturnType<typeof getScopeContext>>> }) {
+  const salesAgentId = resolveReadScopeFilter(scopeCtx);
+  const conditions = [isNull(quotes.deletedAt)];
+  if (salesAgentId) conditions.push(eq(quotes.salesAgentId, salesAgentId));
+
+  const [draftCount, finalCount, recentQuotes] = await Promise.all([
+    db.select({ count: sql<number>`count(*)` }).from(quotes).where(and(...conditions, eq(quotes.status, 'DRAFT'))),
+    db.select({ count: sql<number>`count(*)` }).from(quotes).where(and(...conditions, eq(quotes.status, 'FINAL'))),
+    db.select().from(quotes).where(and(...conditions)).orderBy(sql`${quotes.createdAt} desc`).limit(5),
+  ]);
+
+  const stats = [
+    { label: 'Cotizaciones en borrador', value: draftCount[0]?.count ?? 0, icon: FileText, color: 'bg-blue-500' },
+    { label: 'Cotizaciones definitivas', value: finalCount[0]?.count ?? 0, icon: TrendingUp, color: 'bg-green-500' },
+  ];
+
+  return (
+    <div className="p-4 md:p-8">
+      <h1 className="text-3xl font-bold text-[#111111] mb-2">Panel de Ventas</h1>
+      <p className="text-sm text-gray-500 mb-8">
+        {scopeCtx.scopeLevel === 'OWN' ? 'Mostrando solo tus cotizaciones asignadas.' : 'Mostrando todas las cotizaciones (edición limitada a las propias).'}
+      </p>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        {stats.map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <Card key={stat.label}>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">{stat.label}</p>
+                    <p className="text-3xl font-bold mt-1">{stat.value}</p>
+                  </div>
+                  <div className={`${stat.color} p-3 rounded-lg`}>
+                    <Icon className="w-6 h-6 text-white" strokeWidth={1.5} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Cotizaciones recientes</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {recentQuotes.length === 0 ? (
+            <p className="text-gray-500 text-sm">No hay cotizaciones recientes</p>
+          ) : (
+            <div className="space-y-4">
+              {recentQuotes.map((quote) => (
+                <div key={quote.id} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
+                  <div>
+                    <p className="font-medium">{quote.customerName}</p>
+                    <p className="text-sm text-gray-500">{quote.quoteNumber || 'Sin número'}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium">${quote.total}</p>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                      {quote.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+/** Dashboard del Gestor del Catálogo (Fase 5 del plan RBAC): el semáforo de productividad
+ * completo (conteo, tiempos promedio, cumplimiento) es Fase 7-8, todavía no construido —
+ * aquí solo se diferencia el panel del rol para no mostrarle widgets irrelevantes de
+ * pedidos/ventas que no le corresponden. */
+async function CatalogManagerDashboard() {
+  const [productCount] = await db.select({ count: sql<number>`count(*)` }).from(products).where(eq(products.isActive, true));
+
+  return (
+    <div className="p-4 md:p-8">
+      <h1 className="text-3xl font-bold text-[#111111] mb-8">Panel del Catálogo</h1>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Productos activos</p>
+                <p className="text-3xl font-bold mt-1">{productCount?.count ?? 0}</p>
+              </div>
+              <div className="bg-blue-500 p-3 rounded-lg">
+                <Package className="w-6 h-6 text-white" strokeWidth={1.5} />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3">
+              <div className="bg-gray-200 p-3 rounded-lg">
+                <Gauge className="w-6 h-6 text-gray-500" strokeWidth={1.5} />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-700">Semáforo de productividad</p>
+                <p className="text-xs text-gray-500">Próximamente — conteo de ítems, tiempos promedio y cumplimiento contra tu meta.</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

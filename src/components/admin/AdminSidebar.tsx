@@ -28,6 +28,8 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
+import { usePermissions } from '@/hooks/usePermissions';
+import { resolveModuleForPath } from '@/lib/permissions/route-map';
 
 const navItems = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
@@ -53,6 +55,17 @@ const navItems = [
 export function AdminSidebar({ className }: { className?: string }) {
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const { loading, canRead } = usePermissions();
+
+  // Fase 5 del plan RBAC: los módulos sin permiso `read` se ocultan por completo (no se
+  // muestran deshabilitados). Mientras carga el permiso real, no se muestra nada para
+  // evitar un parpadeo de ítems que luego desaparecen.
+  const visibleNavItems = loading
+    ? []
+    : navItems.filter((item) => {
+        const module = resolveModuleForPath(item.href);
+        return module ? canRead(module) : false;
+      });
 
   // Carga el estado de colapsado desde localStorage
   useEffect(() => {
@@ -106,7 +119,7 @@ export function AdminSidebar({ className }: { className?: string }) {
 
       {/* Navigation menu */}
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto overflow-x-hidden">
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
           return (

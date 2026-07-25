@@ -33,6 +33,8 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
+import { usePermissions } from '@/hooks/usePermissions';
+import { resolveModuleForPath } from '@/lib/permissions/route-map';
 
 /**
  * Determina si una ruta de navegación está activa, usando el mismo criterio
@@ -84,8 +86,19 @@ const moreItems = [
 export function AdminBottomNav() {
   const pathname = usePathname();
   const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const { loading, canRead } = usePermissions();
 
-  const isMoreActive = moreItems.some((item) => isNavItemActiveInList(pathname, item.href));
+  // Fase 5 del plan RBAC: mismo criterio que AdminSidebar — ocultar por completo, no
+  // deshabilitar, los módulos sin permiso `read`.
+  const isVisible = (href: string) => {
+    if (loading) return false;
+    const module = resolveModuleForPath(href);
+    return module ? canRead(module) : false;
+  };
+  const visiblePrimaryItems = primaryItems.filter((item) => isVisible(item.href));
+  const visibleMoreItems = moreItems.filter((item) => isVisible(item.href));
+
+  const isMoreActive = visibleMoreItems.some((item) => isNavItemActiveInList(pathname, item.href));
 
   return (
     <>
@@ -93,8 +106,8 @@ export function AdminBottomNav() {
         className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#111111] border-t border-white/10 pb-[env(safe-area-inset-bottom)]"
         aria-label="Navegación principal"
       >
-        <div className="grid grid-cols-5">
-          {primaryItems.map((item) => {
+        <div className="grid" style={{ gridTemplateColumns: `repeat(${visiblePrimaryItems.length + 1}, minmax(0, 1fr))` }}>
+          {visiblePrimaryItems.map((item) => {
             const Icon = item.icon;
             const isActive = isNavItemActive(pathname, item.href);
             return (
@@ -134,7 +147,7 @@ export function AdminBottomNav() {
             <DrawerTitle className="text-white">Más módulos</DrawerTitle>
           </DrawerHeader>
           <div className="grid grid-cols-3 gap-2 p-4 pt-0">
-            {moreItems.map((item) => {
+            {visibleMoreItems.map((item) => {
               const Icon = item.icon;
               const isActive = isNavItemActiveInList(pathname, item.href);
               return (
