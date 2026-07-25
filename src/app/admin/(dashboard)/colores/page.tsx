@@ -346,42 +346,44 @@ export default function AdminColorsPage() {
         }
       >
         <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label>Nombre *</Label>
-            <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
-          </div>
-          <div className="space-y-2">
-            <Label>Código *</Label>
-            <Input value={formData.code} onChange={e => setFormData({ ...formData, code: e.target.value })} />
-          </div>
-          <div className="space-y-2">
-            <Label>Color HEX * (color dominante, usado siempre como respaldo)</Label>
-            <div className="flex gap-2">
-              <Input type="color" value={formData.hex} onChange={e => setFormData({ ...formData, hex: e.target.value })} className="w-16 p-1" />
-              <Input value={formData.hex} onChange={e => setFormData({ ...formData, hex: e.target.value })} />
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-2 flex-1 min-w-[140px]">
+              <Label>Nombre *</Label>
+              <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
             </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Tipo *</Label>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant={formData.kind === 'SOLID' ? 'default' : 'outline'}
-                className={formData.kind === 'SOLID' ? 'bg-[#111111]' : ''}
-                onClick={() => setFormData({ ...formData, kind: 'SOLID' })}
-              >
-                Sólido
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={formData.kind === 'PATTERN' ? 'default' : 'outline'}
-                className={formData.kind === 'PATTERN' ? 'bg-[#111111]' : ''}
-                onClick={() => setFormData({ ...formData, kind: 'PATTERN' })}
-              >
-                Estampado
-              </Button>
+            <div className="space-y-2 w-24">
+              <Label>Código *</Label>
+              <Input value={formData.code} onChange={e => setFormData({ ...formData, code: e.target.value })} maxLength={6} />
+            </div>
+            <div className="space-y-2">
+              <Label>Hex *</Label>
+              <div className="flex gap-1.5">
+                <Input type="color" value={formData.hex} onChange={e => setFormData({ ...formData, hex: e.target.value })} className="w-10 p-1" />
+                <Input value={formData.hex} onChange={e => setFormData({ ...formData, hex: e.target.value })} className="w-24" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Tipo *</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={formData.kind === 'SOLID' ? 'default' : 'outline'}
+                  className={formData.kind === 'SOLID' ? 'bg-[#111111]' : ''}
+                  onClick={() => setFormData({ ...formData, kind: 'SOLID' })}
+                >
+                  Sólido
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={formData.kind === 'PATTERN' ? 'default' : 'outline'}
+                  className={formData.kind === 'PATTERN' ? 'bg-[#111111]' : ''}
+                  onClick={() => setFormData({ ...formData, kind: 'PATTERN' })}
+                >
+                  Estampado
+                </Button>
+              </div>
             </div>
           </div>
 
