@@ -284,6 +284,8 @@ export default function ProductForm({
   // el generador de matriz (`ColorFormDialog`) — el id ya es la fuente de verdad para
   // filtrar/vincular, esto es puramente de despliegue.
   const brandNameValue = brands.find((b) => b.id === brandIdValue)?.name;
+  const collectionIdValue = watch('collectionId');
+  const collectionNameValue = collections.find((c) => c.id === collectionIdValue)?.name;
   useEffect(() => {
     if (!brandIdValue) {
       setCollections([]);
@@ -623,6 +625,14 @@ export default function ProductForm({
           : `Mostrando la carpeta de ${nameValue}.`)
     : 'Mostrando la carpeta de este producto.';
 
+  // Texto alternativo automático: Nombre - Marca - Colección - Color, omitiendo
+  // cualquier segmento sin valor (producto sin colección, o imagen de portada sin
+  // color específico) sin dejar separadores sueltos. Se regenera siempre que se
+  // vincula/reemplaza una imagen — pisa cualquier alt manual previo de esa fila.
+  function buildAutoAlt(colorName: string | undefined): string {
+    return [nameValue, brandNameValue, collectionNameValue, colorName].filter(Boolean).join(' - ');
+  }
+
   const mediaPickerDialog = (
     <MediaPicker
       open={pickerTargetIndex !== null}
@@ -647,7 +657,7 @@ export default function ProductForm({
               url: resolveMediaUrl(asset.storageKey),
               storageKey: asset.storageKey,
               mimeType: asset.mimeType,
-              alt: asset.altText ?? '',
+              alt: buildAutoAlt(pickerColorName),
               sortOrder: imageFields.length + i,
             });
           });
@@ -656,25 +666,19 @@ export default function ProductForm({
           setValue('cover.url', resolveMediaUrl(assets[0].storageKey));
           setValue('cover.storageKey', assets[0].storageKey);
           setValue('cover.mimeType', assets[0].mimeType);
-          if (!watch('cover.alt')) {
-            setValue('cover.alt', assets[0].altText ?? '');
-          }
+          setValue('cover.alt', buildAutoAlt(undefined));
         } else if (pickerTargetIndex === 'secondaryCover' && assets[0]) {
           setValue('secondaryCover.assetId', assets[0].id);
           setValue('secondaryCover.url', resolveMediaUrl(assets[0].storageKey));
           setValue('secondaryCover.storageKey', assets[0].storageKey);
           setValue('secondaryCover.mimeType', assets[0].mimeType);
-          if (!watch('secondaryCover.alt')) {
-            setValue('secondaryCover.alt', assets[0].altText ?? '');
-          }
+          setValue('secondaryCover.alt', buildAutoAlt(undefined));
         } else if (typeof pickerTargetIndex === 'number' && assets[0]) {
           setValue(`images.${pickerTargetIndex}.assetId`, assets[0].id);
           setValue(`images.${pickerTargetIndex}.url`, resolveMediaUrl(assets[0].storageKey));
           setValue(`images.${pickerTargetIndex}.storageKey`, assets[0].storageKey);
           setValue(`images.${pickerTargetIndex}.mimeType`, assets[0].mimeType);
-          if (!watch(`images.${pickerTargetIndex}.alt`)) {
-            setValue(`images.${pickerTargetIndex}.alt`, assets[0].altText ?? '');
-          }
+          setValue(`images.${pickerTargetIndex}.alt`, buildAutoAlt(pickerColorName));
         }
         setPickerTargetIndex(null);
         setPickerColorId(null);
