@@ -21,6 +21,12 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || undefined;
     const brandId = searchParams.get('brandId') || undefined;
+    // Filtros de `/admin/colores` (catálogo maestro) — distintos de `brandId`, que es
+    // el modo estricto del picker de producto (ver rama de abajo). `kind` filtra por
+    // tipo (SOLID/PATTERN); `brandFilterId` filtra por una marca activada en ese color,
+    // sin restringir la respuesta a los campos reducidos de `getAdminColorsForBrand`.
+    const kind = searchParams.get('kind') || undefined;
+    const brandFilterId = searchParams.get('brandFilterId') || undefined;
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
 
@@ -36,10 +42,16 @@ export async function GET(request: NextRequest) {
     let filtered = allColors;
     if (search) {
       const q = search.toLowerCase();
-      filtered = allColors.filter(c =>
+      filtered = filtered.filter(c =>
         c.name.toLowerCase().includes(q) ||
         c.code.toLowerCase().includes(q)
       );
+    }
+    if (kind) {
+      filtered = filtered.filter(c => c.kind === kind);
+    }
+    if (brandFilterId) {
+      filtered = filtered.filter(c => c.brandIds.includes(brandFilterId));
     }
 
     const total = filtered.length;

@@ -932,22 +932,27 @@ export async function getAdminColors() {
   const swatchUrlMap = await getSingleLinksUrlMap('COLOR', colorIds, 'SWATCH');
 
   const activations = colorIds.length === 0 ? [] : await db
-    .select({ colorId: brandColorsTable.colorId, brandName: brandsTable.name })
+    .select({ colorId: brandColorsTable.colorId, brandId: brandColorsTable.brandId, brandName: brandsTable.name })
     .from(brandColorsTable)
     .innerJoin(brandsTable, eq(brandColorsTable.brandId, brandsTable.id))
     .where(inArray(brandColorsTable.colorId, colorIds))
     .orderBy(asc(brandsTable.name));
   const brandNamesByColor = new Map<string, string[]>();
+  const brandIdsByColor = new Map<string, string[]>();
   for (const a of activations) {
-    const list = brandNamesByColor.get(a.colorId) ?? [];
-    list.push(a.brandName);
-    brandNamesByColor.set(a.colorId, list);
+    const names = brandNamesByColor.get(a.colorId) ?? [];
+    names.push(a.brandName);
+    brandNamesByColor.set(a.colorId, names);
+    const ids = brandIdsByColor.get(a.colorId) ?? [];
+    ids.push(a.brandId);
+    brandIdsByColor.set(a.colorId, ids);
   }
 
   return colors.map((c) => ({
     ...c,
     swatchUrl: swatchUrlMap.get(c.id) ?? null,
     brandNames: brandNamesByColor.get(c.id) ?? [],
+    brandIds: brandIdsByColor.get(c.id) ?? [],
   }));
 }
 

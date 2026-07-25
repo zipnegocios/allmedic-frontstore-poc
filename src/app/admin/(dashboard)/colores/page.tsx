@@ -7,6 +7,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Search, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Palette, ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
@@ -31,6 +34,11 @@ interface BrandActivation {
   name: string;
   isActivated: boolean;
   productCount: number;
+}
+
+interface BrandOption {
+  id: string;
+  name: string;
 }
 
 const MAX_BRAND_CHIPS = 3;
@@ -68,6 +76,9 @@ function BrandChips({ brandNames }: { brandNames: string[] }) {
 export default function AdminColorsPage() {
   const [colors, setColors] = useState<Color[]>([]);
   const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [brandFilter, setBrandFilter] = useState('all');
+  const [brandOptions, setBrandOptions] = useState<BrandOption[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -91,6 +102,8 @@ export default function AdminColorsPage() {
     try {
       const params = new URLSearchParams();
       if (search) params.set('search', search);
+      if (typeFilter !== 'all') params.set('kind', typeFilter);
+      if (brandFilter !== 'all') params.set('brandFilterId', brandFilter);
       params.set('page', String(page));
       params.set('limit', '20');
       const res = await fetch(`/api/admin/colors?${params}`);
@@ -103,11 +116,18 @@ export default function AdminColorsPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, page]);
+  }, [search, typeFilter, brandFilter, page]);
 
   useEffect(() => {
     fetchColors();
   }, [fetchColors]);
+
+  useEffect(() => {
+    fetch('/api/admin/brands?limit=1000')
+      .then((res) => res.json())
+      .then((data) => setBrandOptions(data.brands || []))
+      .catch(() => toast.error('Error al cargar marcas'));
+  }, []);
 
   const fetchBrandActivations = useCallback(async (colorId: string) => {
     setBrandsLoading(true);
@@ -224,14 +244,37 @@ export default function AdminColorsPage() {
 
       <Card className="mb-6">
         <CardContent className="p-4">
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input
-              placeholder="Buscar colores..."
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              className="pl-10"
-            />
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                placeholder="Buscar colores..."
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                className="pl-10"
+              />
+            </div>
+            <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); setPage(1); }}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los tipos</SelectItem>
+                <SelectItem value="SOLID">Sólido</SelectItem>
+                <SelectItem value="PATTERN">Estampado</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={brandFilter} onValueChange={(v) => { setBrandFilter(v); setPage(1); }}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Marca" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las marcas</SelectItem>
+                {brandOptions.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
