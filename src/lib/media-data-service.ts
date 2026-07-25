@@ -42,11 +42,19 @@ export async function listMediaAssets(opts: {
    * `keyPrefix` no viene. */
   linkedEntityType?: string;
   linkedEntityId?: string;
+  /** Acota el término "vinculado a esta entidad" del filtro de arriba a un
+   * color específico de PRODUCT — sin esto, ese término trae vínculos de
+   * TODOS los colores del producto (bug: mezcla galerías de distintos
+   * colores en el picker enfocado por color). `null` = portada del producto
+   * (`color_id IS NULL`, roles `COVER`/`COVER_SECONDARY`); `string` = galería
+   * de ese color (`color_id = X`, rol `GALLERY`); `undefined` = sin acotar,
+   * comportamiento anterior (usado por SET, que no tiene color). */
+  linkedColorId?: string | null;
   /** Filtro explícito de ids — usado por el árbol de biblioteca (Fase 5) para
    * restringir el listado a lo vinculado a un nodo Marca/Colección/Producto/Color. */
   assetIds?: string[];
 }) {
-  const { folder, tags, q, unused, mediaType, page = 1, limit = 30, keyPrefix, linkedEntityType, linkedEntityId, assetIds } = opts;
+  const { folder, tags, q, unused, mediaType, page = 1, limit = 30, keyPrefix, linkedEntityType, linkedEntityId, linkedColorId, assetIds } = opts;
   const conditions: SQL<unknown>[] = [];
 
   if (assetIds) {
@@ -59,9 +67,18 @@ export async function listMediaAssets(opts: {
   if (keyPrefix) {
     let scopeCondition: SQL<unknown> = ilike(mediaAssetsTable.storageKey, `${keyPrefix}%`);
     if (linkedEntityType && linkedEntityId) {
+      const linkConditions: SQL<unknown>[] = [
+        eq(mediaLinksTable.entityType, linkedEntityType),
+        eq(mediaLinksTable.entityId, linkedEntityId),
+      ];
+      if (linkedColorId === null) {
+        linkConditions.push(isNull(mediaLinksTable.colorId), inArray(mediaLinksTable.role, ['COVER', 'COVER_SECONDARY']));
+      } else if (typeof linkedColorId === 'string') {
+        linkConditions.push(eq(mediaLinksTable.colorId, linkedColorId), eq(mediaLinksTable.role, 'GALLERY'));
+      }
       const linkedRows = await db.selectDistinct({ assetId: mediaLinksTable.assetId })
         .from(mediaLinksTable)
-        .where(and(eq(mediaLinksTable.entityType, linkedEntityType), eq(mediaLinksTable.entityId, linkedEntityId)));
+        .where(and(...linkConditions));
       const linkedIds = linkedRows.map((r) => r.assetId);
       if (linkedIds.length > 0) {
         scopeCondition = or(scopeCondition, inArray(mediaAssetsTable.id, linkedIds))!;

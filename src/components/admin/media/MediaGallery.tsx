@@ -35,6 +35,11 @@ interface MediaGalleryProps {
   keyPrefix?: string;
   linkedEntityType?: string;
   linkedEntityId?: string;
+  /** Acota el término "vinculado" de `linkedEntityType`/`linkedEntityId` a un
+   * color puntual — sin esto, ese término trae vínculos de TODOS los colores
+   * del producto. `null` = portada del producto; string = galería de ese
+   * color; `undefined` (default) = sin acotar. Ver `listMediaAssets`. */
+  linkedColorId?: string | null;
   /** Nodo seleccionado del árbol de biblioteca (Fase 5) — filtra por lo
    * vinculado a esa marca/colección/producto/color en vez de por carpeta. */
   treeNode?: { type: 'brand' | 'collection' | 'product' | 'color'; id: string; productId?: string } | null;
@@ -72,6 +77,7 @@ export function MediaGallery({
   keyPrefix,
   linkedEntityType,
   linkedEntityId,
+  linkedColorId,
   treeNode,
   productIds,
   hideFilters = false,
@@ -119,6 +125,7 @@ export function MediaGallery({
         params.set('keyPrefix', keyPrefix);
         if (linkedEntityType) params.set('linkedEntityType', linkedEntityType);
         if (linkedEntityId) params.set('linkedEntityId', linkedEntityId);
+        if (linkedColorId !== undefined) params.set('linkedColorId', linkedColorId === null ? '__COVER__' : linkedColorId);
       }
       if (treeNode) {
         params.set('treeNodeType', treeNode.type);
@@ -142,7 +149,7 @@ export function MediaGallery({
     } finally {
       setLoading(false);
     }
-  }, [fixedFolder, folder, fixedMediaType, mediaType, q, unused, page, keyPrefix, linkedEntityType, linkedEntityId, treeNode, productIds]);
+  }, [fixedFolder, folder, fixedMediaType, mediaType, q, unused, page, keyPrefix, linkedEntityType, linkedEntityId, linkedColorId, treeNode, productIds]);
 
   useEffect(() => { fetchAssets(); }, [fetchAssets, refreshKey]);
   // Volver a la página 1 al cambiar de nodo del árbol o de filtros — evita

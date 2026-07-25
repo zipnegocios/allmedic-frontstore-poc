@@ -600,6 +600,12 @@ export default function ProductForm({
   const pickerSegments = pickerCodeSegment && pickerSecondSegment
     ? [pickerCodeSegment, pickerSecondSegment]
     : (slugValue ? [slugValue] : []);
+  // Acota lo "vinculado a este producto" del picker al color puntual que se
+  // está editando — sin esto, el picker enfocado por color mostraba galerías
+  // de TODOS los colores del producto mezcladas (bug). `null` = portada.
+  const pickerLinkedColorId = pickerTargetIndex === 'cover' || pickerTargetIndex === 'secondaryCover'
+    ? null
+    : (pickerColorId ?? undefined);
 
   const mediaPickerDialog = (
     <MediaPicker
@@ -613,6 +619,7 @@ export default function ProductForm({
       keyPrefix={pickerKeyPrefix}
       linkedEntityType="PRODUCT"
       linkedEntityId={createdProductId ?? undefined}
+      linkedColorId={pickerLinkedColorId}
       multiple={pickerTargetIndex === 'append'}
       onConfirm={(assets) => {
         if (pickerTargetIndex === 'append') {

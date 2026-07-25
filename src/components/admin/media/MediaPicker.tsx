@@ -36,6 +36,12 @@ interface MediaPickerProps {
   keyPrefix?: string;
   linkedEntityType?: string;
   linkedEntityId?: string;
+  /** Acota lo "vinculado a esta entidad" (`linkedEntityType`/`linkedEntityId`)
+   * a un color puntual de PRODUCT — sin esto, ese término trae vínculos de
+   * TODOS los colores del producto (bug de picker de galería mostrando otros
+   * colores mezclados). `null` = portada del producto; string = galería de
+   * ese color; omitido = sin acotar (comportamiento previo, ej. SET). */
+  linkedColorId?: string | null;
   /** Portadas de set en modo "Portadas del contenido": restringe la pestaña de
    * librería a lo vinculado a cualquiera de estos productos (galerías de las
    * piezas del set). Cuando viene, oculta el toggle "insertar desde otra
@@ -43,7 +49,7 @@ interface MediaPickerProps {
   productIds?: string[];
 }
 
-export function MediaPicker({ open, onClose, folder, segments = [], multiple = false, mediaType: fixedMediaType, onConfirm, keyPrefix, linkedEntityType, linkedEntityId, productIds }: MediaPickerProps) {
+export function MediaPicker({ open, onClose, folder, segments = [], multiple = false, mediaType: fixedMediaType, onConfirm, keyPrefix, linkedEntityType, linkedEntityId, linkedColorId, productIds }: MediaPickerProps) {
   const [selected, setSelected] = useState<MediaAssetSummary[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [tab, setTab] = useState('library');
@@ -190,6 +196,7 @@ export function MediaPicker({ open, onClose, folder, segments = [], multiple = f
             keyPrefix={browseAll || productIds ? undefined : keyPrefix}
             linkedEntityType={browseAll || productIds ? undefined : linkedEntityType}
             linkedEntityId={browseAll || productIds ? undefined : linkedEntityId}
+            linkedColorId={browseAll || productIds ? undefined : linkedColorId}
             productIds={productIds}
             hideFilters
             searchValue={q}
