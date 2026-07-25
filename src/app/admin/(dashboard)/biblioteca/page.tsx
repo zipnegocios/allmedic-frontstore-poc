@@ -9,6 +9,19 @@ import { MediaUploadPanel } from '@/components/admin/media/MediaUploadPanel';
 import { MediaDetailDialog } from '@/components/admin/media/MediaDetailDialog';
 import { MediaLibraryTree, type LibraryTreeNode } from '@/components/admin/media/MediaLibraryTree';
 import type { MediaAssetSummary } from '@/lib/media';
+import type { MediaUploadResult } from '@/hooks/useMediaUpload';
+import { trackMediaActivity } from '@/lib/media-activity-tracking';
+
+/**
+ * Registra la subida como actividad de productividad del Gestor del Catálogo (Fase 7 del
+ * plan RBAC, decisión 5: "subida y vinculación de medios en la biblioteca" cuenta como
+ * producción). `MediaUploadPanel` es un componente genérico reutilizado en marcas/colores/
+ * banners donde esta subida NO debe contar, por eso el tracking vive aquí y no ahí.
+ */
+function trackMediaUpload(assets: MediaUploadResult[]) {
+  if (assets.length === 0) return;
+  trackMediaActivity(assets[0].id);
+}
 
 export default function AdminMediaPage() {
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -94,7 +107,8 @@ export default function AdminMediaPage() {
           folder={uploadFolder}
           showFolderPicker
           onFolderChange={setUploadFolder}
-          onUploaded={() => {
+          onUploaded={(assets) => {
+            trackMediaUpload(assets);
             setRefreshKey((k) => k + 1);
             setUploadOpen(false);
           }}

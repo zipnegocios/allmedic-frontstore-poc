@@ -61,6 +61,7 @@ import { GeneralPrimarySection } from '@/components/admin/product-form/GeneralPr
 import { ClassificationSection } from '@/components/admin/product-form/ClassificationSection';
 import { PricingSection } from '@/components/admin/product-form/PricingSection';
 import { CollapsibleSection } from '@/components/admin/product-form/CollapsibleSection';
+import { useActivityTracking } from '@/hooks/useActivityTracking';
 
 
 // ─── Component ───
@@ -115,6 +116,10 @@ export default function ProductForm({
   // quedarse" pueda pasar de POST a PATCH en clics subsiguientes sin navegar ni
   // cambiar el título del formulario a "Editar Producto".
   const [createdProductId, setCreatedProductId] = useState<string | undefined>(productId);
+  // Fase 7 del plan RBAC: registro de productividad del Gestor del Catálogo — un producto
+  // cuenta como actividad completa (crear o editar), las variantes se instrumentan aparte
+  // en `VariantsMediaSection`.
+  const { finish: finishActivity } = useActivityTracking('PRODUCT', productId);
   const [featureInput, setFeatureInput] = useState('');
   const [careInput, setCareInput] = useState('');
   const [pickerTargetIndex, setPickerTargetIndex] = useState<number | 'append' | 'cover' | 'secondaryCover' | null>(null);
@@ -431,6 +436,7 @@ export default function ProductForm({
       }
       const saved = await res.json();
       if (!createdProductId) setCreatedProductId(saved.id);
+      finishActivity(saved.id);
       toast.success(createdProductId ? 'Producto actualizado' : 'Producto creado');
       if (embedded) {
         onSaved?.(saved);
@@ -468,6 +474,7 @@ export default function ProductForm({
       }
       const saved = await res.json();
       if (!createdProductId) setCreatedProductId(saved.id);
+      finishActivity(saved.id);
       toast.success('Cambios guardados');
       setSaveStayStatus('success');
       // Fija los valores recién guardados como nuevo "punto limpio" del form —

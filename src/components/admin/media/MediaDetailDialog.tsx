@@ -17,6 +17,7 @@ import { resolveMediaUrl, isVideoMime, MEDIA_ENTITY_TYPES } from '@/lib/media';
 import { VideoPreviewRangeEditor } from './VideoPreviewRangeEditor';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { trackMediaActivity } from '@/lib/media-activity-tracking';
 
 const ROLE_OPTIONS_BY_ENTITY: Record<string, { value: string; label: string }[]> = {
   PRODUCT: [
@@ -168,6 +169,7 @@ export function MediaDetailDialog({ assetId, onClose, onChanged }: MediaDetailDi
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'No se pudo asignar');
+      trackMediaActivity(assetId);
       toast.success('Medio asignado');
       setAssignOpen(false);
       setAssignEntityId('');

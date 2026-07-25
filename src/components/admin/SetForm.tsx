@@ -39,6 +39,7 @@ import { RecommendedItemsSection } from '@/components/admin/set-form/Recommended
 import { PriceSection } from '@/components/admin/set-form/PriceSection';
 import { RulesSection } from '@/components/admin/set-form/RulesSection';
 import { buildSetValidationSummary } from '@/components/admin/set-form/validation-summary';
+import { useActivityTracking } from '@/hooks/useActivityTracking';
 
 interface SetFormProps {
   setId?: string;
@@ -64,6 +65,8 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
   // (que sigue reflejando la URL/modo original) para que "Guardar y quedarse"
   // pueda pasar de POST a PATCH en clics subsiguientes sin navegar.
   const [createdSetId, setCreatedSetId] = useState<string | undefined>(setId);
+  // Fase 7 del plan RBAC: registro de productividad del Gestor del Catálogo.
+  const { finish: finishActivity } = useActivityTracking('SET', setId);
   const [showValidationBanner, setShowValidationBanner] = useState(false);
   const [pickerRequest, setPickerRequest] = useState<{ target: 'cover' | 'secondaryCover'; mode: 'special' | 'content' } | null>(null);
   // Snapshot de productIds vigentes al momento de elegir una portada en modo
@@ -268,6 +271,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
       }
       const saved = await res.json();
       if (!createdSetId) setCreatedSetId(saved.id);
+      finishActivity(saved.id);
       toast.success(createdSetId ? 'Set actualizado' : 'Set creado');
       router.push('/admin/sets');
       router.refresh();
@@ -299,6 +303,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
       }
       const saved = await res.json();
       if (!createdSetId) setCreatedSetId(saved.id);
+      finishActivity(saved.id);
       toast.success('Cambios guardados');
       setSaveStayStatus('success');
       await refreshSetRules();
