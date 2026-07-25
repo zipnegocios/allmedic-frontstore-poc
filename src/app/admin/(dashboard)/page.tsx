@@ -1,9 +1,13 @@
+import Link from 'next/link';
 import { db } from '@/db';
 import { products, leads, quotes } from '@/db/schema';
 import { sql, eq, and, isNull } from 'drizzle-orm';
 import { requireAdminPage } from '@/lib/admin-auth';
 import { getScopeContext, resolveReadScopeFilter } from '@/lib/permissions';
+import { getProductivityStatsForUser } from '@/lib/productivity-service';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { Package, ShoppingCart, TrendingUp, FileText, Gauge } from 'lucide-react';
 import { LEAD_STATUS_LABELS } from '@/lib/lead-status';
 
@@ -15,8 +19,8 @@ export default async function AdminDashboardPage() {
   if (scopeCtx?.role === 'SALES') {
     return <SalesDashboard scopeCtx={scopeCtx} />;
   }
-  if (scopeCtx?.role === 'CATALOG_MANAGER') {
-    return <CatalogManagerDashboard />;
+  if (scopeCtx?.role === 'CATALOG_MANAGER' && userId) {
+    return <CatalogManagerDashboard userId={userId} />;
   }
   return <DefaultDashboard />;
 }
@@ -168,12 +172,24 @@ async function SalesDashboard({ scopeCtx }: { scopeCtx: NonNullable<Awaited<Retu
   );
 }
 
-/** Dashboard del Gestor del Catálogo (Fase 5 del plan RBAC): el semáforo de productividad
- * completo (conteo, tiempos promedio, cumplimiento) es Fase 7-8, todavía no construido —
- * aquí solo se diferencia el panel del rol para no mostrarle widgets irrelevantes de
- * pedidos/ventas que no le corresponden. */
-async function CatalogManagerDashboard() {
+const CATALOG_MANAGER_STATUS_COLORS: Record<'green' | 'yellow' | 'red', string> = {
+  green: 'bg-emerald-500',
+  yellow: 'bg-amber-500',
+  red: 'bg-red-500',
+};
+
+const CATALOG_MANAGER_STATUS_LABELS: Record<'green' | 'yellow' | 'red', string> = {
+  green: 'Cumple la meta',
+  yellow: 'Por debajo de la meta',
+  red: 'Muy por debajo de la meta',
+};
+
+/** Dashboard del Gestor del Catálogo (Fase 5+8 del plan RBAC): resumen del catálogo +
+ * semáforo de productividad del día contra su meta (`productivity_targets.daily_target`).
+ * El visor completo con filtros día/semana/mes vive en `/admin/productividad`. */
+async function CatalogManagerDashboard({ userId }: { userId: string }) {
   const [productCount] = await db.select({ count: sql<number>`count(*)` }).from(products).where(eq(products.isActive, true));
+  const productivity = await getProductivityStatsForUser(userId, 'day');
 
   return (
     <div className="p-4 md:p-8">
@@ -195,16 +211,26 @@ async function CatalogManagerDashboard() {
         </Card>
 
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3">
-              <div className="bg-gray-200 p-3 rounded-lg">
-                <Gauge className="w-6 h-6 text-gray-500" strokeWidth={1.5} />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-700">Semáforo de productividad</p>
-                <p className="text-xs text-gray-500">Próximamente — conteo de ítems, tiempos promedio y cumplimiento contra tu meta.</p>
-              </div>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Productividad de hoy</CardTitle>
+              <Badge className={`${CATALOG_MANAGER_STATUS_COLORS[productivity.status]} text-white border-none`}>
+                {CATALOG_MANAGER_STATUS_LABELS[productivity.status]}
+              </Badge>
             </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div>
+              <div className="flex items-center justify-between text-sm mb-1.5">
+                <span className="text-gray-600">{productivity.totalItems} / {productivity.periodTarget} ítems</span>
+                <span className="font-semibold">{productivity.compliancePct}%</span>
+              </div>
+              <Progress value={Math.min(productivity.compliancePct, 100)} className="h-2.5" />
+            </div>
+            <Link href="/admin/productividad" className="text-sm text-blue-600 hover:underline inline-flex items-center gap-1">
+              <Gauge className="w-3.5 h-3.5" />
+              Ver detalle completo
+            </Link>
           </CardContent>
         </Card>
       </div>

@@ -31,6 +31,7 @@ import {
   Shirt,
   Users,
   ShieldCheck,
+  Gauge,
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -78,6 +79,7 @@ const moreItems = [
   { href: '/admin/sets', label: 'Sets Corporativos', icon: Boxes },
   { href: '/admin/reglas', label: 'Motor de Reglas', icon: Settings2 },
   { href: '/admin/papelera', label: 'Papelera', icon: Trash2 },
+  { href: '/admin/productividad', label: 'Productividad', icon: Gauge },
   { href: '/admin/usuarios', label: 'Usuarios', icon: Users },
   { href: '/admin/permisos', label: 'Permisos', icon: ShieldCheck },
   { href: '/admin/configuracion', label: 'Configuración', icon: Settings },
