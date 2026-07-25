@@ -45,7 +45,9 @@ function LoginForm() {
     }
   }
 
-  const displayError = error || (urlError === 'forbidden' ? 'Acceso denegado: permisos insuficientes' : '');
+  const displayError = error
+    || (urlError === 'forbidden' ? 'Acceso denegado: permisos insuficientes' : '')
+    || (urlError === 'session_expired' ? 'Tu sesión ya no es válida. Vuelve a iniciar sesión.' : '');
 
   return (
     <Card className="w-full max-w-md border-0 shadow-2xl">

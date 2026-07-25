@@ -29,6 +29,7 @@ import {
   Trash2,
   ListTree,
   Shirt,
+  Users,
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 
@@ -74,6 +75,7 @@ const moreItems = [
   { href: '/admin/sets', label: 'Sets Corporativos', icon: Boxes },
   { href: '/admin/reglas', label: 'Motor de Reglas', icon: Settings2 },
   { href: '/admin/papelera', label: 'Papelera', icon: Trash2 },
+  { href: '/admin/usuarios', label: 'Usuarios', icon: Users },
   { href: '/admin/configuracion', label: 'Configuración', icon: Settings },
 ];
 

@@ -21,6 +21,12 @@ export const authConfig: NextAuthConfig = {
     jwt({ token, user }: any) {
       if (user) {
         token.role = user.role;
+        // Fase 3 del plan RBAC (decisión 14): el JWT lleva el sessionVersion vigente al
+        // momento del login. `proxy.ts` lo compara contra el valor actual en BD (vía la
+        // caché versionada de `@/lib/permissions`) para forzar cierre de sesión casi
+        // inmediato si un Admin cambia el rol o desactiva a este usuario.
+        token.sessionVersion = user.sessionVersion;
+        token.mustChangePassword = user.mustChangePassword;
       }
       return token;
     },
@@ -30,6 +36,12 @@ export const authConfig: NextAuthConfig = {
       }
       if (token?.sub) {
         session.user.id = token.sub;
+      }
+      if (token?.sessionVersion !== undefined) {
+        session.user.sessionVersion = token.sessionVersion;
+      }
+      if (token?.mustChangePassword !== undefined) {
+        session.user.mustChangePassword = token.mustChangePassword;
       }
       return session;
     },
@@ -42,7 +54,7 @@ export const authConfig: NextAuthConfig = {
       if (isAdminRoute || isApiAdminRoute) {
         if (!isLoggedIn) return false;
         const role = auth?.user?.role;
-        if (role !== 'CATALOG_MANAGER' && role !== 'ADMIN') return false;
+        if (role !== 'CATALOG_MANAGER' && role !== 'ADMIN' && role !== 'SALES' && role !== 'DISPATCHER') return false;
       }
 
       return true;

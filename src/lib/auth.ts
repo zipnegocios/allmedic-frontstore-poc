@@ -67,11 +67,18 @@ export const {
         const valid = await compare(credentials.password as string, userResult[0].password);
         if (!valid) return null;
 
+        // Cuenta desactivada (is_active=false, Fase 3 del plan RBAC): login bloqueado sin
+        // filtrar detalles (mismo mensaje genérico que credenciales inválidas, para no
+        // revelar a un atacante si la cuenta existe pero está deshabilitada).
+        if (!userResult[0].isActive) return null;
+
         return {
           id: userResult[0].id,
           email: userResult[0].email,
           name: userResult[0].name,
           role: userResult[0].role,
+          sessionVersion: userResult[0].sessionVersion,
+          mustChangePassword: userResult[0].mustChangePassword,
         };
       },
     }),
