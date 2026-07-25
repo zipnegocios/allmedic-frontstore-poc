@@ -200,6 +200,8 @@ export default function ProductForm({
     remove: removeVariant,
   } = useFieldArray({ control, name: 'variants' });
 
+  const activeColorCount = new Set(variantFields.map((v) => v.colorId).filter(Boolean)).size;
+
   const {
     fields: imageFields,
     append: appendImage,
@@ -981,7 +983,7 @@ export default function ProductForm({
                   Variantes y Medios
                   {variantFields.length > 0 && (
                     <Badge variant="secondary" className="ml-2">
-                      {variantFields.length} var · {imageFields.length} med
+                      {activeColorCount} {activeColorCount === 1 ? 'color' : 'colores'} · {variantFields.length} var · {imageFields.length} med
                     </Badge>
                   )}
                 </TabsTrigger>
