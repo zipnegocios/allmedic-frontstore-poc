@@ -5,9 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
-import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +12,6 @@ import { Search, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Palette, Image
 import { toast } from 'sonner';
 import { ResponsiveDialog } from '@/components/admin/ResponsiveDialog';
 import { Label } from '@/components/ui/label';
-import { AdminListCard } from '@/components/admin/AdminListCard';
 import { MediaPicker } from '@/components/admin/media/MediaPicker';
 import { resolveMediaUrl } from '@/lib/media';
 
@@ -34,6 +30,7 @@ interface BrandActivation {
   name: string;
   isActivated: boolean;
   productCount: number;
+  logoUrl: string | null;
 }
 
 interface BrandOption {
@@ -41,7 +38,7 @@ interface BrandOption {
   name: string;
 }
 
-const MAX_BRAND_CHIPS = 3;
+const PAGE_SIZE_OPTIONS = [10, 50, 100, 1000];
 
 function ColorSwatchPreview({ hex, swatchUrl, className }: { hex: string; swatchUrl: string | null; className: string }) {
   return (
@@ -57,22 +54,6 @@ function ColorSwatchPreview({ hex, swatchUrl, className }: { hex: string; swatch
   );
 }
 
-function BrandChips({ brandNames }: { brandNames: string[] }) {
-  if (brandNames.length === 0) {
-    return <span className="text-xs text-gray-400">Sin marcas</span>;
-  }
-  const shown = brandNames.slice(0, MAX_BRAND_CHIPS);
-  const extra = brandNames.length - shown.length;
-  return (
-    <div className="flex flex-wrap gap-1">
-      {shown.map((name) => (
-        <Badge key={name} variant="outline" className="text-xs font-normal">{name}</Badge>
-      ))}
-      {extra > 0 && <Badge variant="outline" className="text-xs font-normal">+{extra} más</Badge>}
-    </div>
-  );
-}
-
 export default function AdminColorsPage() {
   const [colors, setColors] = useState<Color[]>([]);
   const [search, setSearch] = useState('');
@@ -80,6 +61,7 @@ export default function AdminColorsPage() {
   const [brandFilter, setBrandFilter] = useState('all');
   const [brandOptions, setBrandOptions] = useState<BrandOption[]>([]);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -105,7 +87,7 @@ export default function AdminColorsPage() {
       if (typeFilter !== 'all') params.set('kind', typeFilter);
       if (brandFilter !== 'all') params.set('brandFilterId', brandFilter);
       params.set('page', String(page));
-      params.set('limit', '20');
+      params.set('limit', String(pageSize));
       const res = await fetch(`/api/admin/colors?${params}`);
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
@@ -116,7 +98,7 @@ export default function AdminColorsPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, typeFilter, brandFilter, page]);
+  }, [search, typeFilter, brandFilter, page, pageSize]);
 
   useEffect(() => {
     fetchColors();
@@ -192,6 +174,11 @@ export default function AdminColorsPage() {
     if (!confirm('¿Estás seguro de eliminar este color?')) return;
     try {
       const res = await fetch(`/api/admin/colors/${id}`, { method: 'DELETE' });
+      if (res.status === 409) {
+        const data = await res.json().catch(() => null);
+        toast.error(`No se puede eliminar: este color está asociado a ${data?.productCount ?? 'varios'} producto(s).`);
+        return;
+      }
       if (!res.ok) throw new Error('Failed to delete');
       toast.success('Color eliminado');
       fetchColors();
@@ -275,115 +262,62 @@ export default function AdminColorsPage() {
                 ))}
               </SelectContent>
             </Select>
+            <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1); }}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Mostrar" />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZE_OPTIONS.map((n) => (
+                  <SelectItem key={n} value={String(n)}>{n} por página</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="hidden md:block">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Color</TableHead>
-                <TableHead>Código</TableHead>
-                <TableHead>Hex</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Marcas</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">Cargando...</TableCell>
-                </TableRow>
-              ) : colors.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-gray-500">
-                    <Palette className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                    No hay colores registrados
-                  </TableCell>
-                </TableRow>
-              ) : (
-                colors.map((color) => (
-                  <TableRow key={color.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <ColorSwatchPreview hex={color.hex} swatchUrl={color.swatchUrl} className="w-8 h-8 rounded-full border border-gray-200 flex-shrink-0" />
-                        <span className="font-medium">{color.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>{color.code}</TableCell>
-                    <TableCell>
-                      <code className="text-sm bg-gray-100 px-2 py-1 rounded">{color.hex}</code>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={color.kind === 'PATTERN' ? 'default' : 'outline'} className={color.kind === 'PATTERN' ? 'bg-[#111111]' : ''}>
-                        {color.kind === 'PATTERN' ? 'Estampado' : 'Sólido'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <BrandChips brandNames={color.brandNames} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button size="sm" variant="ghost" onClick={() => openEdit(color)}><Pencil className="w-4 h-4" /></Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleDelete(color.id)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {/* Vista tarjetas (mobile) — misma fuente de datos y handlers que la tabla */}
-      <div className="md:hidden">
-        {loading ? (
-          <p className="text-center py-8 text-gray-500">Cargando...</p>
-        ) : colors.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            <Palette className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-            <p className="mb-4">No hay colores registrados</p>
-            <Button className="gap-2 min-h-11 bg-[#111111]" onClick={openNew}>
-              <Plus className="w-4 h-4" />
-              Nuevo Color
-            </Button>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {colors.map((color) => (
-              <AdminListCard
-                key={color.id}
-                onNavigate={() => openEdit(color)}
-                aria-label={`Editar color ${color.name}`}
-                thumbnail={
+      {loading ? (
+        <p className="text-center py-12 text-gray-500">Cargando...</p>
+      ) : colors.length === 0 ? (
+        <div className="text-center py-12 text-gray-500">
+          <Palette className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+          <p className="mb-4">No hay colores registrados</p>
+          <Button className="gap-2 min-h-11 bg-[#111111]" onClick={openNew}>
+            <Plus className="w-4 h-4" />
+            Nuevo Color
+          </Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-12 gap-2">
+          {colors.map((color) => (
+            <Card key={color.id} className="group relative overflow-hidden">
+              <CardContent className="p-2 flex flex-col items-center gap-1.5 text-center">
+                <button
+                  type="button"
+                  onClick={() => openEdit(color)}
+                  className="w-full flex flex-col items-center gap-1.5"
+                  aria-label={`Editar color ${color.name}`}
+                >
                   <ColorSwatchPreview hex={color.hex} swatchUrl={color.swatchUrl} className="w-10 h-10 rounded-full border border-gray-200" />
-                }
-                title={color.name}
-                subtitle={color.code}
-                meta={
-                  <div className="flex flex-col gap-1 items-start">
-                    <code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">{color.hex}</code>
-                    <BrandChips brandNames={color.brandNames} />
-                  </div>
-                }
-                actions={[
-                  {
-                    key: 'delete',
-                    label: 'Eliminar',
-                    icon: <Trash2 className="w-4 h-4" />,
-                    variant: 'destructive',
-                    onSelect: () => handleDelete(color.id),
-                  },
-                ]}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+                  <p className="text-xs font-medium leading-tight truncate w-full">{color.name}</p>
+                  <p className="text-[10px] text-gray-400 truncate w-full">{color.code}</p>
+                  {color.kind === 'PATTERN' && (
+                    <Badge className="bg-[#111111] text-[9px] px-1.5 py-0 h-4">Estampado</Badge>
+                  )}
+                </button>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute top-1 right-1">
+                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => openEdit(color)}>
+                    <Pencil className="w-3 h-3" />
+                  </Button>
+                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleDelete(color.id)}>
+                    <Trash2 className="w-3 h-3 text-red-500" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 mt-6">
@@ -401,6 +335,7 @@ export default function AdminColorsPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         title={editingColor ? 'Editar Color' : 'Nuevo Color'}
+        contentClassName="sm:max-w-[90vw] sm:h-[90vh] sm:max-h-[90vh]"
         footer={
           <>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
@@ -477,19 +412,24 @@ export default function AdminColorsPage() {
               {brandsLoading ? (
                 <p className="text-sm text-gray-400 py-2">Cargando marcas...</p>
               ) : (
-                <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                   {brandActivations.map((b) => (
-                    <div key={b.id} className="flex items-center justify-between gap-2 border rounded px-3 py-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{b.name}</p>
-                        {b.productCount > 0 && (
-                          <span className="text-xs text-gray-500">{b.productCount} variante(s) en uso</span>
+                    <div key={b.id} className="flex flex-col items-center gap-1.5 border rounded-lg p-3 text-center">
+                      <div className="w-10 h-10 rounded bg-gray-50 flex items-center justify-center overflow-hidden flex-shrink-0">
+                        {b.logoUrl ? (
+                          <img src={b.logoUrl} alt="" className="w-full h-full object-contain" />
+                        ) : (
+                          <ImageIcon className="w-4 h-4 text-gray-300" />
                         )}
                       </div>
+                      <p className="text-xs font-medium leading-tight truncate w-full">{b.name}</p>
+                      {b.productCount > 0 && (
+                        <span className="text-[10px] text-gray-500">{b.productCount} en uso</span>
+                      )}
                       <Button
                         size="sm"
                         variant={b.isActivated ? 'outline' : 'default'}
-                        className={b.isActivated ? '' : 'bg-[#111111]'}
+                        className={`w-full h-7 text-xs ${b.isActivated ? '' : 'bg-[#111111]'}`}
                         disabled={pendingBrandId === b.id}
                         onClick={() => handleToggleBrand(b)}
                       >

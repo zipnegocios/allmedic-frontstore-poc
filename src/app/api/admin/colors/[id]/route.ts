@@ -38,6 +38,10 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     await deleteColor(id);
     return NextResponse.json({ success: true });
   } catch (err) {
+    const error = err as Error & { productCount?: number };
+    if (error.productCount) {
+      return NextResponse.json({ error: 'Color en uso', productCount: error.productCount }, { status: 409 });
+    }
     const message = err instanceof Error ? err.message : 'Unknown error';
     if (message === 'Unauthorized') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (message === 'Forbidden') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

@@ -993,7 +993,26 @@ export async function updateColor(id: string, data: Partial<typeof colorsTable.$
   return color;
 }
 
+/** Error lanzado cuando un color no se puede borrar porque todavía tiene productos
+ * (variantes) que lo referencian (`color_id` es `RESTRICT` en `product_variants` —
+ * sin este chequeo, Postgres rechaza el `DELETE` y el error crudo de FK se propaga
+ * como 500 sin explicación). Cuenta productos distintos, no variantes. */
+export class ColorInUseError extends Error {
+  productCount: number;
+  constructor(productCount: number) {
+    super(`Color en uso por ${productCount} producto(s)`);
+    this.name = 'ColorInUseError';
+    this.productCount = productCount;
+  }
+}
+
 export async function deleteColor(id: string) {
+  const [{ count: productCount }] = await db
+    .select({ count: sql<number>`count(distinct ${variantsTable.productId})::int` })
+    .from(variantsTable)
+    .where(eq(variantsTable.colorId, id));
+  if (productCount > 0) throw new ColorInUseError(productCount);
+
   await db.delete(colorsTable).where(eq(colorsTable.id, id));
 }
 
@@ -1019,10 +1038,13 @@ export async function getColorBrandActivations(colorId: string) {
     .groupBy(productsTable.brandId);
   const countByBrand = new Map(counts.map((c) => [c.brandId, c.count]));
 
+  const logoUrlMap = await getSingleLinksUrlMap('BRAND', allBrands.map((b) => b.id), 'LOGO');
+
   return allBrands.map((b) => ({
     ...b,
     isActivated: activatedIds.has(b.id),
     productCount: countByBrand.get(b.id) ?? 0,
+    logoUrl: logoUrlMap.get(b.id) ?? null,
   }));
 }
 
