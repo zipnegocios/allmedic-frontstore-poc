@@ -225,7 +225,8 @@ export function MediaGallery({
                 type="button"
                 onClick={() => (selectable ? onSelect?.(asset) : onAssetClick?.(asset))}
                 className={cn(
-                  'relative group aspect-square rounded-lg overflow-hidden border-2 bg-gray-50 transition-colors',
+                  'relative group rounded-lg overflow-hidden border-2 bg-gray-50 transition-colors',
+                  asset.folder === 'PRODUCTS' ? 'aspect-product' : 'aspect-square',
                   isSelected ? 'border-[#111111]' : 'border-transparent hover:border-gray-300'
                 )}
               >

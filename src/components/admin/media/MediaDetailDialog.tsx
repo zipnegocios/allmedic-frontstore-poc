@@ -15,6 +15,7 @@ import { Trash2, Save, AlertTriangle, Link2, Link2Off, Plus } from 'lucide-react
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { resolveMediaUrl, isVideoMime, MEDIA_ENTITY_TYPES } from '@/lib/media';
 import { VideoPreviewRangeEditor } from './VideoPreviewRangeEditor';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 const ROLE_OPTIONS_BY_ENTITY: Record<string, { value: string; label: string }[]> = {
@@ -255,7 +256,7 @@ export function MediaDetailDialog({ assetId, onClose, onChanged }: MediaDetailDi
 
   const previewBlock = detail && (
     <div>
-      <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-50 mb-4">
+      <div className={cn('relative rounded-lg overflow-hidden bg-gray-50 mb-4', detail.asset.folder === 'PRODUCTS' ? 'aspect-product' : 'aspect-square')}>
         {isVideoMime(detail.asset.mimeType) ? (
           <video
             src={resolveMediaUrl(detail.asset.storageKey)}
