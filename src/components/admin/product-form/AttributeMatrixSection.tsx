@@ -18,6 +18,9 @@ import { CollapsibleSection } from './CollapsibleSection';
 
 interface AttributeMatrixSectionProps {
   productTypeId: string | undefined;
+  /** Marca activa del producto en edición — se propaga a `AddColorDialog` para que
+   * el color recién creado se auto-vincule a ella (picker filtrado estricto por marca). */
+  brandId?: string;
   /** Valores de "Atributos (Estilos)" elegidos en General (attributeId -> valueId) —
    * se copian sin cambios a `attributeValueIds` de cada variante generada. */
   styleAttributes: Record<string, string>;
@@ -39,6 +42,7 @@ interface AttributeMatrixSectionProps {
 
 export function AttributeMatrixSection({
   productTypeId,
+  brandId,
   styleAttributes,
   colors,
   sizes,
@@ -145,7 +149,15 @@ export function AttributeMatrixSection({
                     selectedColorIds.includes(c.id) ? 'border-[#111111] bg-gray-100' : 'border-gray-200 bg-white'
                   }`}
                 >
-                  <span className="w-2.5 h-2.5 rounded-full border" style={{ backgroundColor: c.hex }} />
+                  <span
+                    className="w-2.5 h-2.5 rounded-full border"
+                    style={{
+                      backgroundColor: c.hex,
+                      backgroundImage: c.kind === 'PATTERN' && c.swatchUrl ? `url(${c.swatchUrl})` : undefined,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                    }}
+                  />
                   {c.name}
                 </button>
               ))}
@@ -178,7 +190,7 @@ export function AttributeMatrixSection({
         </>
       )}
 
-      <AddColorDialog open={addColorOpen} onOpenChange={setAddColorOpen} onCreated={handleColorCreated} />
+      <AddColorDialog open={addColorOpen} onOpenChange={setAddColorOpen} onCreated={handleColorCreated} brandId={brandId} />
     </CollapsibleSection>
   );
 }

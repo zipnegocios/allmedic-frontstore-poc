@@ -236,24 +236,21 @@ export default function ProductForm({
     }
   }, [productId, initialData, reset]);
 
-  // Fetch brands and colors
+  // Fetch brands and sizes — colores se cargan aparte, filtrados por marca (ver
+  // el efecto de `brandIdValue` más abajo: el picker de color es estricto por
+  // marca, así que no tiene sentido cargarlo sin saber cuál está activa).
   useEffect(() => {
 
     async function fetchData() {
       setLoading(true);
       try {
-        const [brandsRes, colorsRes, sizesRes] = await Promise.all([
+        const [brandsRes, sizesRes] = await Promise.all([
           fetch('/api/admin/brands?limit=1000'),
-          fetch('/api/admin/colors?limit=1000'),
           fetch('/api/admin/sizes'),
         ]);
         if (brandsRes.ok) {
           const b = await brandsRes.json();
           setBrands(b.brands || []);
-        }
-        if (colorsRes.ok) {
-          const c = await colorsRes.json();
-          setColors(c.colors || []);
         }
         if (sizesRes.ok) {
           const s = await sizesRes.json();
@@ -287,20 +284,23 @@ export default function ProductForm({
     if (!brandIdValue) {
       setCollections([]);
       setProductTypeOptions([]);
+      setColors([]);
       return;
     }
     let cancelled = false;
     (async () => {
       try {
-        const [colRes, ptRes] = await Promise.all([
+        const [colRes, ptRes, colorsRes] = await Promise.all([
           fetch(`/api/admin/collections?brandId=${brandIdValue}`),
           fetch(`/api/admin/product-types?brandId=${brandIdValue}`),
+          fetch(`/api/admin/colors?brandId=${brandIdValue}`),
         ]);
         if (cancelled) return;
         if (colRes.ok) setCollections((await colRes.json()).collections || []);
         if (ptRes.ok) setProductTypeOptions((await ptRes.json()).productTypes || []);
+        if (colorsRes.ok) setColors((await colorsRes.json()).colors || []);
       } catch {
-        if (!cancelled) toast.error('Error al cargar colecciones/tipos de producto de la marca');
+        if (!cancelled) toast.error('Error al cargar colecciones/tipos de producto/colores de la marca');
       }
     })();
     return () => {
@@ -885,6 +885,7 @@ export default function ProductForm({
                   sizes={sizes}
                   codeMissing={codeMissing}
                   productTypeId={productTypeIdValue}
+                  brandId={brandIdValue}
                   styleAttributes={styleAttributesValue}
                   variantFields={variantFields}
                   appendVariant={appendVariant}
@@ -1074,6 +1075,7 @@ export default function ProductForm({
                 sizes={sizes}
                 codeMissing={codeMissing}
                 productTypeId={productTypeIdValue}
+                brandId={brandIdValue}
                 styleAttributes={styleAttributesValue}
                 variantFields={variantFields}
                 appendVariant={appendVariant}

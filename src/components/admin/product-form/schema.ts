@@ -170,6 +170,8 @@ export interface Color {
   name: string;
   code: string;
   hex: string;
+  kind?: 'SOLID' | 'PATTERN';
+  swatchUrl?: string | null;
 }
 
 // ─── Tipos EAV (Fase 3.4) ───

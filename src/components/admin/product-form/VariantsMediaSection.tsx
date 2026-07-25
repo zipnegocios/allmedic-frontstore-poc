@@ -66,6 +66,9 @@ interface VariantsMediaSectionProps {
   /** Tipo de producto elegido en la pestaña General — impulsa qué atributos EAV
    * están disponibles para el generador de matriz. */
   productTypeId: string | undefined;
+  /** Marca elegida en la pestaña General — se propaga a `AttributeMatrixSection` →
+   * `AddColorDialog` para que un color creado ahí se auto-vincule a esa marca. */
+  brandId?: string;
   /** Valores de "Atributos (Estilos)" elegidos en General (`AttributeStyleSection`,
    * mapa attributeId -> valueId) — se propagan tal cual a `attributeValueIds` de
    * cada variante que genera la matriz color×talla (`AttributeMatrixSection`). */
@@ -140,6 +143,7 @@ export function VariantsMediaSection({
   colors,
   sizes,
   productTypeId,
+  brandId,
   styleAttributes,
   variantFields,
   appendVariant,
@@ -442,7 +446,15 @@ export function VariantsMediaSection({
                             {colors.map((c) => (
                               <SelectItem key={c.id} value={c.id}>
                                 <div className="flex items-center gap-2">
-                                  <div className="w-2.5 h-2.5 rounded-full border" style={{ backgroundColor: c.hex }} />
+                                  <div
+                                    className="w-2.5 h-2.5 rounded-full border"
+                                    style={{
+                                      backgroundColor: c.hex,
+                                      backgroundImage: c.kind === 'PATTERN' && c.swatchUrl ? `url(${c.swatchUrl})` : undefined,
+                                      backgroundSize: 'cover',
+                                      backgroundPosition: 'center',
+                                    }}
+                                  />
                                   {c.name}
                                 </div>
                               </SelectItem>
@@ -471,6 +483,7 @@ export function VariantsMediaSection({
       {/* ─── GENERADOR DE MATRIZ DE VARIANTES (Fase 3.4) ─── */}
       <AttributeMatrixSection
         productTypeId={productTypeId}
+        brandId={brandId}
         styleAttributes={styleAttributes}
         colors={colors}
         sizes={sizes}
@@ -496,7 +509,15 @@ export function VariantsMediaSection({
                   availableColorsToAdd.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full border" style={{ backgroundColor: c.hex }} />
+                        <div
+                          className="w-3 h-3 rounded-full border"
+                          style={{
+                            backgroundColor: c.hex,
+                            backgroundImage: c.kind === 'PATTERN' && c.swatchUrl ? `url(${c.swatchUrl})` : undefined,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center',
+                          }}
+                        />
                         {c.name}
                       </div>
                     </SelectItem>
@@ -897,7 +918,15 @@ export function VariantsMediaSection({
                   onClick={() => handleConfirmDeleteAndReassign(c.id)}
                   className="w-full text-xs justify-start"
                 >
-                  <span className="w-3 h-3 rounded-full border mr-2" style={{ backgroundColor: c.hex }} />
+                  <span
+                    className="w-3 h-3 rounded-full border mr-2"
+                    style={{
+                      backgroundColor: c.hex,
+                      backgroundImage: c.kind === 'PATTERN' && c.swatchUrl ? `url(${c.swatchUrl})` : undefined,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                    }}
+                  />
                   Reasignar medios al color: <strong className="ml-1">{c.name}</strong>
                 </Button>
               ))}

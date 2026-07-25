@@ -16,6 +16,10 @@ interface AddColorDialogProps {
   /** Se dispara con el color recién creado (`POST /api/admin/colors` ya devuelve la
    * fila completa) para que el llamador lo agregue a su lista sin recargar la página. */
   onCreated: (color: Color) => void;
+  /** Marca activa del producto en edición — el color recién creado se auto-vincula
+   * a ella (`brand_colors`) para que aparezca de inmediato en el picker, que ahora
+   * filtra estricto por marca. Sin marca elegida aún, el color queda sin vincular. */
+  brandId?: string;
 }
 
 /**
@@ -24,7 +28,7 @@ interface AddColorDialogProps {
  * pensado para cuando el generador de matriz de variantes necesita un color que
  * todavía no existe en el catálogo.
  */
-export function AddColorDialog({ open, onOpenChange, onCreated }: AddColorDialogProps) {
+export function AddColorDialog({ open, onOpenChange, onCreated, brandId }: AddColorDialogProps) {
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
 
@@ -43,7 +47,7 @@ export function AddColorDialog({ open, onOpenChange, onCreated }: AddColorDialog
       const res = await fetch('/api/admin/colors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(brandId ? { ...formData, brandId } : formData),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => null);
