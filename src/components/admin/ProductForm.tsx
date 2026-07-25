@@ -280,6 +280,10 @@ export default function ProductForm({
 
   // ─── Selects dependientes Marca → Colección/Tipo de Producto (Fase 3.4, brief A) ───
   const brandIdValue = watch('brandId');
+  // Solo para mostrar en el diálogo de confirmación de marca al crear un color desde
+  // el generador de matriz (`ColorFormDialog`) — el id ya es la fuente de verdad para
+  // filtrar/vincular, esto es puramente de despliegue.
+  const brandNameValue = brands.find((b) => b.id === brandIdValue)?.name;
   useEffect(() => {
     if (!brandIdValue) {
       setCollections([]);
@@ -309,7 +313,7 @@ export default function ProductForm({
   }, [brandIdValue]);
 
   // Alta rápida de color desde el generador de matriz (sin salir del formulario,
-  // ver `AttributeMatrixSection`/`AddColorDialog`) — se agrega a la lista de
+  // ver `AttributeMatrixSection`/`ColorFormDialog`) — se agrega a la lista de
   // colores disponibles en todo el formulario, no solo en ese componente.
   function handleColorCreated(color: Color) {
     setColors((prev) => [...prev, color].sort((a, b) => a.name.localeCompare(b.name)));
@@ -886,6 +890,7 @@ export default function ProductForm({
                   codeMissing={codeMissing}
                   productTypeId={productTypeIdValue}
                   brandId={brandIdValue}
+                  brandName={brandNameValue}
                   styleAttributes={styleAttributesValue}
                   variantFields={variantFields}
                   appendVariant={appendVariant}
@@ -1076,6 +1081,7 @@ export default function ProductForm({
                 codeMissing={codeMissing}
                 productTypeId={productTypeIdValue}
                 brandId={brandIdValue}
+                brandName={brandNameValue}
                 styleAttributes={styleAttributesValue}
                 variantFields={variantFields}
                 appendVariant={appendVariant}

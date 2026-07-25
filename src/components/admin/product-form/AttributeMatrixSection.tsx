@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Sparkles, Info, Plus } from 'lucide-react';
 import type { ProductFormData, Color } from './schema';
-import { AddColorDialog } from './AddColorDialog';
+import { ColorFormDialog, type ColorFormValue } from '@/components/admin/colors/ColorFormDialog';
 import { CollapsibleSection } from './CollapsibleSection';
 
 // ─── Decisión de diseño (revisión post-Fase 3.4) ───
@@ -18,9 +18,11 @@ import { CollapsibleSection } from './CollapsibleSection';
 
 interface AttributeMatrixSectionProps {
   productTypeId: string | undefined;
-  /** Marca activa del producto en edición — se propaga a `AddColorDialog` para que
-   * el color recién creado se auto-vincule a ella (picker filtrado estricto por marca). */
+  /** Marca activa del producto en edición — se propaga al modal de color para que el
+   * color recién creado se auto-vincule a ella (picker filtrado estricto por marca),
+   * previa confirmación del admin. */
   brandId?: string;
+  brandName?: string;
   /** Valores de "Atributos (Estilos)" elegidos en General (attributeId -> valueId) —
    * se copian sin cambios a `attributeValueIds` de cada variante generada. */
   styleAttributes: Record<string, string>;
@@ -43,6 +45,7 @@ interface AttributeMatrixSectionProps {
 export function AttributeMatrixSection({
   productTypeId,
   brandId,
+  brandName,
   styleAttributes,
   colors,
   sizes,
@@ -55,11 +58,13 @@ export function AttributeMatrixSection({
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [addColorOpen, setAddColorOpen] = useState(false);
 
-  function handleColorCreated(color: Color) {
-    onColorCreated?.(color);
+  function handleColorSaved(color: ColorFormValue) {
+    // Alta nueva o edición desde este atajo — en ambos casos se refleja en la lista
+    // de colores disponibles del formulario completo (`ProductForm`), no solo aquí.
+    onColorCreated?.(color as Color);
     // Autoseleccionarlo: el caso de uso típico de "+ Agregar color" es que el admin
     // lo necesita YA para la matriz que está armando, no solo para el catálogo general.
-    setSelectedColorIds((prev) => [...prev, color.id]);
+    setSelectedColorIds((prev) => (prev.includes(color.id) ? prev : [...prev, color.id]));
   }
 
   function toggle(list: string[], value: string): string[] {
@@ -190,7 +195,14 @@ export function AttributeMatrixSection({
         </>
       )}
 
-      <AddColorDialog open={addColorOpen} onOpenChange={setAddColorOpen} onCreated={handleColorCreated} brandId={brandId} />
+      <ColorFormDialog
+        open={addColorOpen}
+        onOpenChange={setAddColorOpen}
+        color={null}
+        onSaved={handleColorSaved}
+        originBrandId={brandId}
+        originBrandName={brandName}
+      />
     </CollapsibleSection>
   );
 }

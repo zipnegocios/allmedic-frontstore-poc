@@ -10,7 +10,7 @@ const CreateColorSchema = z.object({
   kind: z.enum(['SOLID', 'PATTERN']).default('SOLID'),
   swatchAssetId: z.string().optional(),
   /** Si viene, el color recién creado se auto-vincula a esta marca (alta rápida desde
-   * el formulario de producto — ver `AddColorDialog`) para que aparezca de inmediato
+   * el formulario de producto — ver `ColorFormDialog`) para que aparezca de inmediato
    * en el picker filtrado por marca de quien lo creó. */
   brandId: z.string().optional(),
 });

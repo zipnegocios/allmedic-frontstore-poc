@@ -67,8 +67,9 @@ interface VariantsMediaSectionProps {
    * están disponibles para el generador de matriz. */
   productTypeId: string | undefined;
   /** Marca elegida en la pestaña General — se propaga a `AttributeMatrixSection` →
-   * `AddColorDialog` para que un color creado ahí se auto-vincule a esa marca. */
+   * `ColorFormDialog` para que un color creado ahí se auto-vincule a esa marca. */
   brandId?: string;
+  brandName?: string;
   /** Valores de "Atributos (Estilos)" elegidos en General (`AttributeStyleSection`,
    * mapa attributeId -> valueId) — se propagan tal cual a `attributeValueIds` de
    * cada variante que genera la matriz color×talla (`AttributeMatrixSection`). */
@@ -144,6 +145,7 @@ export function VariantsMediaSection({
   sizes,
   productTypeId,
   brandId,
+  brandName,
   styleAttributes,
   variantFields,
   appendVariant,
@@ -484,6 +486,7 @@ export function VariantsMediaSection({
       <AttributeMatrixSection
         productTypeId={productTypeId}
         brandId={brandId}
+        brandName={brandName}
         styleAttributes={styleAttributes}
         colors={colors}
         sizes={sizes}
