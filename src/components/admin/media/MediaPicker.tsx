@@ -35,6 +35,7 @@ const FOLDER_LABELS: Record<string, string> = {
   BRANDS: 'Marcas',
   BANNERS: 'Banners',
   SITE: 'Sitio',
+  SWATCHES: 'Muestras',
 };
 
 interface MediaPickerProps {
