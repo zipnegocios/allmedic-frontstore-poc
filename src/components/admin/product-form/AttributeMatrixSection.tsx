@@ -4,9 +4,10 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Sparkles, Info, Plus } from 'lucide-react';
+import { Sparkles, Info, Link2 } from 'lucide-react';
 import type { ProductFormData, Color } from './schema';
-import { ColorFormDialog, type ColorFormValue } from '@/components/admin/colors/ColorFormDialog';
+import { AssociateColorDialog } from '@/components/admin/colors/AssociateColorDialog';
+import type { ColorFormValue } from '@/components/admin/colors/ColorFormDialog';
 import { CollapsibleSection } from './CollapsibleSection';
 
 // ─── Decisión de diseño (revisión post-Fase 3.4) ───
@@ -32,9 +33,9 @@ interface AttributeMatrixSectionProps {
   sizes: string[];
   variantFields: ProductFormData['variants'][number][];
   appendVariant: (value: Omit<ProductFormData['variants'][number], 'id'> & { id?: string }) => void;
-  /** Se dispara al crear un color desde el diálogo "+ Agregar color" — el llamador
-   * (`ProductForm`) lo agrega a la lista de colores disponibles en todo el formulario,
-   * no solo aquí. */
+  /** Se dispara al asociar (existente o recién creado) un color desde el diálogo
+   * "Asociar Color" — el llamador (`ProductForm`) lo agrega a la lista de colores
+   * disponibles en todo el formulario, no solo aquí. */
   onColorCreated?: (color: Color) => void;
   /** Se dispara al terminar de generar la matriz con al menos una variante nueva —
    * el llamador (`VariantsMediaSection`) lo usa para expandir automáticamente la
@@ -56,14 +57,15 @@ export function AttributeMatrixSection({
 }: AttributeMatrixSectionProps) {
   const [selectedColorIds, setSelectedColorIds] = useState<string[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
-  const [addColorOpen, setAddColorOpen] = useState(false);
+  const [associateColorOpen, setAssociateColorOpen] = useState(false);
 
-  function handleColorSaved(color: ColorFormValue) {
-    // Alta nueva o edición desde este atajo — en ambos casos se refleja en la lista
-    // de colores disponibles del formulario completo (`ProductForm`), no solo aquí.
+  function handleColorAssociated(color: ColorFormValue) {
+    // Asociación de un color existente o alta nueva (ambos flujos de
+    // `AssociateColorDialog`) — en ambos casos se refleja en la lista de colores
+    // disponibles del formulario completo (`ProductForm`), no solo aquí.
     onColorCreated?.(color as Color);
-    // Autoseleccionarlo: el caso de uso típico de "+ Agregar color" es que el admin
-    // lo necesita YA para la matriz que está armando, no solo para el catálogo general.
+    // Autoseleccionarlo: el caso de uso típico de "Asociar Color" es que el admin lo
+    // necesita YA para la matriz que está armando, no solo para el catálogo de la marca.
     setSelectedColorIds((prev) => (prev.includes(color.id) ? prev : [...prev, color.id]));
   }
 
@@ -137,11 +139,13 @@ export function AttributeMatrixSection({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => setAddColorOpen(true)}
+                onClick={() => setAssociateColorOpen(true)}
+                disabled={!brandId}
+                title={!brandId ? 'Selecciona una marca en General primero' : undefined}
                 className="h-6 text-[10px] px-2 bg-white"
               >
-                <Plus className="w-3 h-3 mr-1" />
-                Agregar color
+                <Link2 className="w-3 h-3 mr-1" />
+                Asociar color
               </Button>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -195,14 +199,15 @@ export function AttributeMatrixSection({
         </>
       )}
 
-      <ColorFormDialog
-        open={addColorOpen}
-        onOpenChange={setAddColorOpen}
-        color={null}
-        onSaved={handleColorSaved}
-        originBrandId={brandId}
-        originBrandName={brandName}
-      />
+      {brandId && (
+        <AssociateColorDialog
+          open={associateColorOpen}
+          onOpenChange={setAssociateColorOpen}
+          brandId={brandId}
+          brandName={brandName}
+          onAssociated={handleColorAssociated}
+        />
+      )}
     </CollapsibleSection>
   );
 }

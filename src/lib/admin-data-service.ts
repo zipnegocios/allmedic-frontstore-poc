@@ -27,7 +27,7 @@ import {
   variantAttributeValues as variantAttributeValuesTable,
   sizes as sizesTable,
 } from '@/db/schema';
-import { eq, and, or, ne, asc, desc, sql, like, inArray, isNull, isNotNull, type SQL } from 'drizzle-orm';
+import { eq, and, or, ne, asc, desc, sql, like, inArray, notInArray, isNull, isNotNull, type SQL } from 'drizzle-orm';
 import { resolveMediaUrl } from './media';
 import { reorganizeProductMedia, reorganizeSetMedia } from './media-reorganize-service';
 import { deleteObject } from '@/lib/r2';
@@ -970,6 +970,37 @@ export async function getAdminColorsForBrand(brandId: string) {
     .from(brandColorsTable)
     .innerJoin(colorsTable, eq(brandColorsTable.colorId, colorsTable.id))
     .where(eq(brandColorsTable.brandId, brandId))
+    .orderBy(asc(colorsTable.name));
+  const colorIds = rows.map((c) => c.id);
+  const swatchUrlMap = await getSingleLinksUrlMap('COLOR', colorIds, 'SWATCH');
+  return rows.map((c) => ({ ...c, swatchUrl: swatchUrlMap.get(c.id) ?? null }));
+}
+
+/** Inverso de `getAdminColorsForBrand` — colores del catálogo global que TODAVÍA no
+ * están activados para esta marca, usado por el botón "Asociar color" del generador
+ * de matriz de variantes (no tiene sentido reasociar un color ya vinculado). */
+export async function getAdminColorsNotInBrand(brandId: string, search?: string) {
+  const activatedIds = db
+    .select({ colorId: brandColorsTable.colorId })
+    .from(brandColorsTable)
+    .where(eq(brandColorsTable.brandId, brandId));
+
+  const conditions = [notInArray(colorsTable.id, activatedIds)];
+  if (search) {
+    const q = `%${search.toLowerCase()}%`;
+    conditions.push(or(sql`lower(${colorsTable.name}) like ${q}`, sql`lower(${colorsTable.code}) like ${q}`)!);
+  }
+
+  const rows = await db
+    .select({
+      id: colorsTable.id,
+      name: colorsTable.name,
+      code: colorsTable.code,
+      hex: colorsTable.hex,
+      kind: colorsTable.kind,
+    })
+    .from(colorsTable)
+    .where(and(...conditions))
     .orderBy(asc(colorsTable.name));
   const colorIds = rows.map((c) => c.id);
   const swatchUrlMap = await getSingleLinksUrlMap('COLOR', colorIds, 'SWATCH');

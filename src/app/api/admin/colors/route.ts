@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
-import { getAdminColors, getAdminColorsForBrand, createColor, activateColorBrand } from '@/lib/admin-data-service';
+import { getAdminColors, getAdminColorsForBrand, getAdminColorsNotInBrand, createColor, activateColorBrand } from '@/lib/admin-data-service';
 import { z } from 'zod';
 
 const CreateColorSchema = z.object({
@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || undefined;
     const brandId = searchParams.get('brandId') || undefined;
+    const excludeBrandId = searchParams.get('excludeBrandId') || undefined;
     // Filtros de `/admin/colores` (catálogo maestro) — distintos de `brandId`, que es
     // el modo estricto del picker de producto (ver rama de abajo). `kind` filtra por
     // tipo (SOLID/PATTERN); `brandFilterId` filtra por una marca activada en ese color,
@@ -34,6 +35,14 @@ export async function GET(request: NextRequest) {
     // estricto a los colores activados de esa marca — sin paginar, es una lista corta.
     if (brandId) {
       const colors = await getAdminColorsForBrand(brandId);
+      return NextResponse.json({ colors, total: colors.length, pages: 1 });
+    }
+
+    // El modal "Asociar color" del generador de matriz pide `?excludeBrandId=` para
+    // listar solo colores AÚN NO vinculados a esa marca (no tiene sentido reasociar
+    // uno que ya lo está) — sin paginar, con búsqueda opcional server-side.
+    if (excludeBrandId) {
+      const colors = await getAdminColorsNotInBrand(excludeBrandId, search);
       return NextResponse.json({ colors, total: colors.length, pages: 1 });
     }
 
