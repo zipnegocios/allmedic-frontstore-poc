@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
-import { getAdminColors, createColor } from '@/lib/admin-data-service';
+import { getAdminColors, getAdminColorsForBrand, createColor, activateColorBrand } from '@/lib/admin-data-service';
 import { z } from 'zod';
 
 const CreateColorSchema = z.object({
   name: z.string().min(1),
   code: z.string().min(1),
   hex: z.string().min(1),
+  kind: z.enum(['SOLID', 'PATTERN']).default('SOLID'),
+  swatchAssetId: z.string().optional(),
+  /** Si viene, el color recién creado se auto-vincula a esta marca (alta rápida desde
+   * el formulario de producto — ver `AddColorDialog`) para que aparezca de inmediato
+   * en el picker filtrado por marca de quien lo creó. */
+  brandId: z.string().optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -14,8 +20,16 @@ export async function GET(request: NextRequest) {
     await requireAdmin();
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || undefined;
+    const brandId = searchParams.get('brandId') || undefined;
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
+
+    // El picker de color del formulario de producto pide `?brandId=` para filtrar
+    // estricto a los colores activados de esa marca — sin paginar, es una lista corta.
+    if (brandId) {
+      const colors = await getAdminColorsForBrand(brandId);
+      return NextResponse.json({ colors, total: colors.length, pages: 1 });
+    }
 
     const allColors = await getAdminColors();
 
@@ -48,8 +62,9 @@ export async function POST(request: NextRequest) {
   try {
     await requireAdmin();
     const body = await request.json();
-    const validated = CreateColorSchema.parse(body);
-    const color = await createColor(validated as any);
+    const { swatchAssetId, brandId, ...validated } = CreateColorSchema.parse(body);
+    const color = await createColor(validated, swatchAssetId);
+    if (brandId) await activateColorBrand(color.id, brandId);
     return NextResponse.json(color, { status: 201 });
   } catch (err) {
     if (err instanceof z.ZodError) {

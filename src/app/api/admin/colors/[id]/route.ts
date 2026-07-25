@@ -7,6 +7,9 @@ const UpdateColorSchema = z.object({
   name: z.string().min(1).optional(),
   code: z.string().min(1).optional(),
   hex: z.string().min(1).optional(),
+  kind: z.enum(['SOLID', 'PATTERN']).optional(),
+  // string = reemplazar swatch; null = quitarlo; undefined (ausente) = no tocar.
+  swatchAssetId: z.string().nullable().optional(),
 });
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -14,8 +17,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     await requireAdmin();
     const { id } = await params;
     const body = await request.json();
-    const validated = UpdateColorSchema.parse(body);
-    const color = await updateColor(id, validated as any);
+    const { swatchAssetId, ...validated } = UpdateColorSchema.parse(body);
+    const color = await updateColor(id, validated, swatchAssetId);
     return NextResponse.json(color);
   } catch (err) {
     if (err instanceof z.ZodError) {
