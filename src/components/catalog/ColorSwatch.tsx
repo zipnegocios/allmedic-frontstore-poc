@@ -38,7 +38,12 @@ export function ColorSwatch({
           !isAvailable && 'opacity-50 cursor-not-allowed',
           color.hex === '#FFFFFF' && 'border-gray-300'
         )}
-        style={{ backgroundColor: color.hex }}
+        style={{
+          backgroundColor: color.hex,
+          backgroundImage: color.kind === 'PATTERN' && color.swatchUrl ? `url(${color.swatchUrl})` : undefined,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
         aria-label={`Color ${color.name}`}
       />
       

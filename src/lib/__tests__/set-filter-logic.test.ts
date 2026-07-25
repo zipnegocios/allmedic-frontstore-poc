@@ -25,7 +25,7 @@ function makeSet(overrides: Partial<CorporateSetSummary> = {}): CorporateSetSumm
     hasRecommendedItems: false,
     referencePrice: 100,
     hasMissingPrices: false,
-    colors: [{ id: 'c-navy', name: 'Navy', code: 'NVY', hex: '#1B2A4A' }],
+    colors: [{ id: 'c-navy', name: 'Navy', code: 'NVY', hex: '#1B2A4A', kind: 'SOLID', swatchUrl: null }],
     sizes: ['M'],
     genders: ['Unisex'],
     productTypes: ['Camisas'],
@@ -43,19 +43,19 @@ function filters(overrides: Partial<SetFilterState> = {}): SetFilterState {
 describe('matchesSetFilters', () => {
   it('matches a set when Navy comes from one piece and M comes from a different piece (aggregated, cross-piece AND)', () => {
     // colors=[Navy] aggregated from the shirt, sizes=[M] aggregated from the pants — same set object.
-    const set = makeSet({ colors: [{ id: 'c-navy', name: 'Navy', code: 'NVY', hex: '#1B2A4A' }], sizes: ['M'] });
+    const set = makeSet({ colors: [{ id: 'c-navy', name: 'Navy', code: 'NVY', hex: '#1B2A4A', kind: 'SOLID', swatchUrl: null }], sizes: ['M'] });
     const result = matchesSetFilters(set, filters({ colors: ['c-navy'], sizes: ['M'] }));
     expect(result).toBe(true);
   });
 
   it('excludes a set with no piece in Navy when filtering by Navy', () => {
-    const set = makeSet({ colors: [{ id: 'c-black', name: 'Black', code: 'BLK', hex: '#000000' }] });
+    const set = makeSet({ colors: [{ id: 'c-black', name: 'Black', code: 'BLK', hex: '#000000', kind: 'SOLID', swatchUrl: null }] });
     const result = matchesSetFilters(set, filters({ colors: ['c-navy'] }));
     expect(result).toBe(false);
   });
 
   it('applies OR within a group: Navy OR Black matches a set that only has Black', () => {
-    const set = makeSet({ colors: [{ id: 'c-black', name: 'Black', code: 'BLK', hex: '#000000' }] });
+    const set = makeSet({ colors: [{ id: 'c-black', name: 'Black', code: 'BLK', hex: '#000000', kind: 'SOLID', swatchUrl: null }] });
     const result = matchesSetFilters(set, filters({ colors: ['c-navy', 'c-black'] }));
     expect(result).toBe(true);
   });

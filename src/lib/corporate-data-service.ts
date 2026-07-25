@@ -27,6 +27,23 @@ import { effectiveManualPrice } from './set-pricing';
 import { genderFromDb, CORTE_ATTRIBUTE_SLUG } from './data-service';
 import type { AttributesPayload } from './attributes-payload/build-payload';
 
+/** Swatch de imagen (colores PATTERN) — `media_links` entityType='COLOR' role='SWATCH',
+ * resuelto en batch solo para los colores realmente presentes en el set/piezas. */
+async function getColorSwatchMap(colorIds: string[]): Promise<Map<string, string>> {
+  const uniqueIds = [...new Set(colorIds)];
+  if (uniqueIds.length === 0) return new Map();
+  const links = await db
+    .select({ colorId: mediaLinksTable.entityId, storageKey: mediaAssetsTable.storageKey })
+    .from(mediaLinksTable)
+    .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
+    .where(and(
+      eq(mediaLinksTable.entityType, 'COLOR'),
+      eq(mediaLinksTable.role, 'SWATCH'),
+      inArray(mediaLinksTable.entityId, uniqueIds)
+    ));
+  return new Map(links.map((l) => [l.colorId, resolveMediaUrl(l.storageKey)]));
+}
+
 /** Portadas primaria+secundaria de sets (paridad con productos) — mismo patrón
  * de `mapDbProductToProduct` en `data-service.ts`: `MediaItem` con `type`
  * derivado de `mimeType` para que el hover-swap público soporte video. */
@@ -184,12 +201,14 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
           colorName: colorsTable.name,
           colorCode: colorsTable.code,
           colorHex: colorsTable.hex,
+          colorKind: colorsTable.kind,
           attributesPayload: variantsTable.attributesPayload,
         })
         .from(variantsTable)
         .leftJoin(colorsTable, eq(variantsTable.colorId, colorsTable.id))
         .where(and(inArray(variantsTable.productId, productIds), eq(variantsTable.status, 'AVAILABLE')))
     : [];
+  const colorSwatchMap = await getColorSwatchMap(variants.map((v) => v.colorId).filter((id): id is string => !!id));
 
   const coverMedia = await getCoverMediaMap(setIds);
   const blocksBySet = new Map<string, typeof blocks>();
@@ -237,7 +256,10 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
     const stylesMap = new Map<string, Set<string>>();
     for (const v of setVariants) {
       if (v.colorId && !colorMap.has(v.colorId)) {
-        colorMap.set(v.colorId, { id: v.colorId, name: v.colorName || '', code: v.colorCode || '', hex: v.colorHex || '' });
+        colorMap.set(v.colorId, {
+          id: v.colorId, name: v.colorName || '', code: v.colorCode || '', hex: v.colorHex || '',
+          kind: v.colorKind === 'PATTERN' ? 'PATTERN' : 'SOLID', swatchUrl: colorSwatchMap.get(v.colorId) ?? null,
+        });
       }
       sizeSet.add(v.size);
       const payload = v.attributesPayload as AttributesPayload | null | undefined;
@@ -456,6 +478,7 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
           colorName: colorsTable.name,
           colorCode: colorsTable.code,
           colorHex: colorsTable.hex,
+          colorKind: colorsTable.kind,
           attributesPayload: variantsTable.attributesPayload,
         })
         .from(variantsTable)
@@ -489,6 +512,8 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
         .orderBy(asc(mediaLinksTable.sortOrder))
     : [];
 
+  const colorSwatchMap = await getColorSwatchMap(variants.map((v) => v.colorId).filter((id): id is string => !!id));
+
   const productTypesAgg = new Set<string>();
   const gendersAgg = new Set<Gender>();
   const colorMapAgg = new Map<string, ProductColor>();
@@ -503,7 +528,10 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
     for (const v of productVariants) {
       if (v.status !== 'AVAILABLE') continue;
       if (!colorMapAgg.has(v.colorId)) {
-        colorMapAgg.set(v.colorId, { id: v.colorId, name: v.colorName || '', code: v.colorCode || '', hex: v.colorHex || '' });
+        colorMapAgg.set(v.colorId, {
+          id: v.colorId, name: v.colorName || '', code: v.colorCode || '', hex: v.colorHex || '',
+          kind: v.colorKind === 'PATTERN' ? 'PATTERN' : 'SOLID', swatchUrl: colorSwatchMap.get(v.colorId) ?? null,
+        });
       }
       sizeSetAgg.add(v.size);
       const payload = v.attributesPayload as AttributesPayload | null | undefined;
@@ -519,7 +547,10 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
     const sizeSet = new Set<string>();
     for (const v of productVariants) {
       if (!colorMap.has(v.colorId)) {
-        colorMap.set(v.colorId, { id: v.colorId, name: v.colorName || '', code: v.colorCode || '', hex: v.colorHex || '' });
+        colorMap.set(v.colorId, {
+          id: v.colorId, name: v.colorName || '', code: v.colorCode || '', hex: v.colorHex || '',
+          kind: v.colorKind === 'PATTERN' ? 'PATTERN' : 'SOLID', swatchUrl: colorSwatchMap.get(v.colorId) ?? null,
+        });
       }
       sizeSet.add(v.size);
     }

@@ -17,6 +17,8 @@ export interface ProductColor {
   name: string;
   code: string;
   hex: string;
+  kind: 'SOLID' | 'PATTERN';
+  swatchUrl: string | null;
 }
 
 export interface ProductVariant {

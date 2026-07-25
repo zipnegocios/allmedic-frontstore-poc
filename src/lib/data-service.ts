@@ -102,6 +102,8 @@ function transformProduct(dbProduct: {
     colorName: string;
     colorCode: string;
     colorHex: string;
+    colorKind: string;
+    colorSwatchUrl: string | null;
     attributesPayload: unknown;
   }>;
   images: Array<{
@@ -120,7 +122,14 @@ function transformProduct(dbProduct: {
   const colorMap = new Map<string, ProductColor>();
   for (const v of dbProduct.variants) {
     if (!colorMap.has(v.colorId)) {
-      colorMap.set(v.colorId, { id: v.colorId, name: v.colorName, code: v.colorCode, hex: v.colorHex });
+      colorMap.set(v.colorId, {
+        id: v.colorId,
+        name: v.colorName,
+        code: v.colorCode,
+        hex: v.colorHex,
+        kind: v.colorKind === 'PATTERN' ? 'PATTERN' : 'SOLID',
+        swatchUrl: v.colorSwatchUrl,
+      });
     }
   }
 
@@ -288,12 +297,29 @@ async function fetchProductsWithJoins(whereCondition?: SQL<unknown>) {
           colorName: sql<string>`COALESCE(${colorsTable.name}, '')`,
           colorCode: sql<string>`COALESCE(${colorsTable.code}, '')`,
           colorHex: sql<string>`COALESCE(${colorsTable.hex}, '')`,
+          colorKind: sql<string>`COALESCE(${colorsTable.kind}, 'SOLID')`,
           attributesPayload: variantsTable.attributesPayload,
         })
         .from(variantsTable)
         .leftJoin(colorsTable, eq(variantsTable.colorId, colorsTable.id))
         .where(inArray(variantsTable.productId, productIds))
     : [];
+
+  // Swatch de imagen (colores PATTERN) — `media_links` entityType='COLOR' role='SWATCH',
+  // resuelto en batch solo para los colores realmente presentes en estos productos.
+  const colorIdsForSwatch = [...new Set(variants.map((v) => v.colorId))];
+  const swatchLinks = colorIdsForSwatch.length > 0
+    ? await db
+        .select({ colorId: mediaLinksTable.entityId, storageKey: mediaAssetsTable.storageKey })
+        .from(mediaLinksTable)
+        .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
+        .where(and(
+          eq(mediaLinksTable.entityType, 'COLOR'),
+          eq(mediaLinksTable.role, 'SWATCH'),
+          inArray(mediaLinksTable.entityId, colorIdsForSwatch)
+        ))
+    : [];
+  const swatchUrlByColorId = new Map(swatchLinks.map((l) => [l.colorId, resolveMediaUrl(l.storageKey)]));
 
   const imageLinks = productIds.length > 0
     ? await db
@@ -334,7 +360,9 @@ async function fetchProductsWithJoins(whereCondition?: SQL<unknown>) {
 
   // Group by product
   return rows.map(product => {
-    const productVariants = variants.filter(v => v.productId === product.id);
+    const productVariants = variants
+      .filter(v => v.productId === product.id)
+      .map(v => ({ ...v, colorSwatchUrl: swatchUrlByColorId.get(v.colorId) ?? null }));
     const productImages = images.filter(i => i.productId === product.id);
 
     return transformProduct({
@@ -476,7 +504,27 @@ export async function getBrandsForNav(): Promise<BrandNavItem[]> {
 export async function getColors(): Promise<ProductColor[]> {
   if (!await checkDbAvailable()) return [];
   const colors = await db.select().from(colorsTable);
-  return colors.map(c => ({ id: c.id, name: c.name, code: c.code, hex: c.hex }));
+  const colorIds = colors.map((c) => c.id);
+  const swatchLinks = colorIds.length > 0
+    ? await db
+        .select({ colorId: mediaLinksTable.entityId, storageKey: mediaAssetsTable.storageKey })
+        .from(mediaLinksTable)
+        .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
+        .where(and(
+          eq(mediaLinksTable.entityType, 'COLOR'),
+          eq(mediaLinksTable.role, 'SWATCH'),
+          inArray(mediaLinksTable.entityId, colorIds)
+        ))
+    : [];
+  const swatchUrlByColorId = new Map(swatchLinks.map((l) => [l.colorId, resolveMediaUrl(l.storageKey)]));
+  return colors.map(c => ({
+    id: c.id,
+    name: c.name,
+    code: c.code,
+    hex: c.hex,
+    kind: c.kind === 'PATTERN' ? 'PATTERN' : 'SOLID',
+    swatchUrl: swatchUrlByColorId.get(c.id) ?? null,
+  }));
 }
 
 export async function getStores(): Promise<Store[]> {

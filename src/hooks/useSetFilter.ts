@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import type { CorporateSetSummary } from '@/lib/corporate-types';
+import type { ProductColor } from '@/lib/types';
 import {
   EMPTY_SET_FILTERS,
   matchesSetFilters,
@@ -24,7 +25,7 @@ export interface SetFilterOptions {
   /** Nombres de `productTypes` (EAV) presentes entre los sets recibidos — dinámico, sin opción muerta. */
   productTypes: string[];
   brands: string[];
-  colors: { id: string; name: string; code: string; hex: string }[];
+  colors: ProductColor[];
   sizes: string[];
   styleOptions: SetStyleFilterOption[];
 }
@@ -40,7 +41,7 @@ export function useSetFilter(sets: CorporateSetSummary[]) {
   const filterOptions: SetFilterOptions = useMemo(() => {
     const productTypes = new Set<string>();
     const brands = new Set<string>();
-    const colorMap = new Map<string, { id: string; name: string; code: string; hex: string }>();
+    const colorMap = new Map<string, ProductColor>();
     const sizes = new Set<string>();
     const stylesMap = new Map<string, Set<string>>();
     for (const s of sets) {
