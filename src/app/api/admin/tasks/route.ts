@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAdmin, getSessionUserId } from '@/lib/admin-auth';
 import { requireRole, ForbiddenError } from '@/lib/permissions';
-import { createTask, listTasks } from '@/lib/task-service';
+import { createTask, listTasks, TaskGroupAssigneeMismatchError, TaskGroupCompletedError } from '@/lib/task-service';
 
 /** Fase 3 del plan tareas/comentarios/pagos. Admin lista/crea; el Gestor solo lista las
  * suyas (filtrado por `assignedTo` propio si no tiene permiso de escritura). */
@@ -38,6 +38,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
+const BlockSchema = z.object({ code: z.string(), url: z.string() });
+
 const CreateTaskSchema = z.object({
   type: z.enum(['CREATE_PRODUCT', 'CREATE_SET', 'UPLOAD_MEDIA', 'EDIT_PRODUCT', 'EDIT_SET', 'GENERIC']),
   title: z.string().min(1),
@@ -45,6 +47,11 @@ const CreateTaskSchema = z.object({
   targetCode: z.string().optional().nullable(),
   targetEntityType: z.enum(['PRODUCT', 'SET']).optional().nullable(),
   targetEntityId: z.string().optional().nullable(),
+  gender: z.string().optional().nullable(),
+  sourceUrl: z.string().optional().nullable(),
+  blockA: BlockSchema.optional().nullable(),
+  blockB: BlockSchema.optional().nullable(),
+  groupId: z.string().optional().nullable(),
   assignedTo: z.string().min(1),
 });
 
@@ -63,6 +70,9 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: 'Validation error', details: err.issues }, { status: 400 });
+    }
+    if (err instanceof TaskGroupAssigneeMismatchError || err instanceof TaskGroupCompletedError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
     }
     if (err instanceof ForbiddenError) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     const message = err instanceof Error ? err.message : 'Unknown error';

@@ -17,10 +17,13 @@
 import { db } from '@/db';
 import {
   catalogActivityLog,
+  catalogTasks,
+  catalogTaskGroups,
   productivityRates,
   productivityTargets,
   paymentPeriods,
   paymentPeriodItems,
+  paymentPeriodTaskGroupItems,
   users,
   systemSettings,
 } from '@/db/schema';
@@ -139,10 +142,85 @@ export async function calculatePeriodAmount(userId: string, periodId: string): P
   return { userId, computedAmount: Math.max(0, computedAmount), voidedItemsCount };
 }
 
+interface EligibleGroup {
+  id: string;
+  paymentAmount: string;
+}
+
+/** Grupos completados en el rango del período, del usuario dado, que aún no generaron su
+ * pago fijo en ESTE período — base compartida de `calculateFixedGroupAmount` (solo lectura,
+ * para desglose en UI) y `persistFixedGroupItems` (además escribe). */
+async function findEligibleGroupsForUser(userId: string, periodId: string): Promise<EligibleGroup[]> {
+  const [period] = await db.select().from(paymentPeriods).where(eq(paymentPeriods.id, periodId)).limit(1);
+  if (!period) throw new Error(`Período ${periodId} no encontrado.`);
+
+  const alreadyPaidGroupIds = new Set(
+    (await db
+      .select({ groupId: paymentPeriodTaskGroupItems.groupId })
+      .from(paymentPeriodTaskGroupItems)
+      .where(eq(paymentPeriodTaskGroupItems.periodId, periodId))
+    ).map((r) => r.groupId)
+  );
+
+  const groups = await db
+    .select({ id: catalogTaskGroups.id, paymentAmount: catalogTaskGroups.paymentAmount })
+    .from(catalogTaskGroups)
+    .where(and(
+      isNotNull(catalogTaskGroups.completedAt),
+      gte(catalogTaskGroups.completedAt, period.startDate),
+      lte(catalogTaskGroups.completedAt, period.endDate)
+    ));
+
+  const eligible: EligibleGroup[] = [];
+  for (const group of groups) {
+    if (alreadyPaidGroupIds.has(group.id)) continue;
+    const [anyTask] = await db
+      .select({ assignedTo: catalogTasks.assignedTo })
+      .from(catalogTasks)
+      .where(eq(catalogTasks.groupId, group.id))
+      .limit(1);
+    if (anyTask?.assignedTo === userId) eligible.push(group);
+  }
+  return eligible;
+}
+
 /**
- * Recorre todos los usuarios con actividad en el rango del período y regenera
- * `payment_period_items.computedAmount` — preserva `manualAdjustment` existente, recalcula
- * `finalAmount`. Solo permitido en períodos `OPEN` (decisión 9 del plan).
+ * Suma el monto fijo de todos los grupos de tareas completados dentro del rango del período,
+ * asignados al usuario, que todavía no generaron su pago fijo en ESTE período (invariante:
+ * un grupo tiene un único Gestor — todas sus tareas comparten `assignedTo`, validado al
+ * crear/agregar tareas al grupo). No escribe nada — `recalculatePeriod` persiste el upsert
+ * en `payment_period_task_group_items`. Modo independiente del cálculo por componente
+ * (`calculatePeriodAmount`); ambos se suman en el mismo período (decisión: conviven).
+ */
+export async function calculateFixedGroupAmount(userId: string, periodId: string): Promise<number> {
+  const groups = await findEligibleGroupsForUser(userId, periodId);
+  return groups.reduce((sum, g) => sum + Number(g.paymentAmount), 0);
+}
+
+/** Persiste (upsert) las filas de `payment_period_task_group_items` para los grupos
+ * elegibles del usuario en el período — llamado desde `recalculatePeriod`. */
+async function persistFixedGroupItems(userId: string, periodId: string): Promise<number> {
+  const groups = await findEligibleGroupsForUser(userId, periodId);
+  let total = 0;
+  for (const group of groups) {
+    await db.insert(paymentPeriodTaskGroupItems).values({
+      id: uuid(),
+      periodId,
+      groupId: group.id,
+      userId,
+      amount: group.paymentAmount,
+    });
+    total += Number(group.paymentAmount);
+  }
+  return total;
+}
+
+/**
+ * Recorre todos los usuarios con actividad (por componente O con grupos de tareas
+ * completados) en el rango del período y regenera `payment_period_items` — preserva
+ * `manualAdjustment` existente, recalcula `finalAmount` como la suma de ambos modos de pago
+ * (por componente + tabulador fijo por grupo) más el ajuste manual. Solo permitido en
+ * períodos `OPEN` (decisión 9 del plan).
  */
 export async function recalculatePeriod(periodId: string): Promise<void> {
   await assertPaymentModuleEnabled();
@@ -160,8 +238,23 @@ export async function recalculatePeriod(periodId: string): Promise<void> {
       isNotNull(catalogActivityLog.finishedAt)
     ));
 
-  for (const { userId } of activeUserRows) {
-    const result = await calculatePeriodAmount(userId, periodId);
+  // Usuarios con grupos completados en el rango (pueden no tener actividad por componente
+  // en absoluto — ej. un Gestor que solo trabaja bajo tabulador fijo).
+  const groupUserRows = await db
+    .selectDistinct({ userId: catalogTasks.assignedTo })
+    .from(catalogTasks)
+    .innerJoin(catalogTaskGroups, eq(catalogTasks.groupId, catalogTaskGroups.id))
+    .where(and(
+      isNotNull(catalogTaskGroups.completedAt),
+      gte(catalogTaskGroups.completedAt, period.startDate),
+      lte(catalogTaskGroups.completedAt, period.endDate)
+    ));
+
+  const userIds = new Set([...activeUserRows.map((r) => r.userId), ...groupUserRows.map((r) => r.userId)]);
+
+  for (const userId of userIds) {
+    const componentResult = await calculatePeriodAmount(userId, periodId);
+    const fixedGroupTotal = await persistFixedGroupItems(userId, periodId);
 
     const [existingItem] = await db
       .select()
@@ -170,15 +263,15 @@ export async function recalculatePeriod(periodId: string): Promise<void> {
       .limit(1);
 
     const manualAdjustment = existingItem ? Number(existingItem.manualAdjustment) : 0;
-    const finalAmount = result.computedAmount + manualAdjustment;
+    const finalAmount = componentResult.computedAmount + fixedGroupTotal + manualAdjustment;
 
     if (existingItem) {
       await db
         .update(paymentPeriodItems)
         .set({
-          computedAmount: result.computedAmount.toFixed(2),
+          computedAmount: componentResult.computedAmount.toFixed(2),
           finalAmount: finalAmount.toFixed(2),
-          voidedItemsCount: result.voidedItemsCount,
+          voidedItemsCount: componentResult.voidedItemsCount,
           computedAt: new Date(),
         })
         .where(eq(paymentPeriodItems.id, existingItem.id));
@@ -187,10 +280,10 @@ export async function recalculatePeriod(periodId: string): Promise<void> {
         id: uuid(),
         periodId,
         userId,
-        computedAmount: result.computedAmount.toFixed(2),
+        computedAmount: componentResult.computedAmount.toFixed(2),
         manualAdjustment: '0',
         finalAmount: finalAmount.toFixed(2),
-        voidedItemsCount: result.voidedItemsCount,
+        voidedItemsCount: componentResult.voidedItemsCount,
       });
     }
   }

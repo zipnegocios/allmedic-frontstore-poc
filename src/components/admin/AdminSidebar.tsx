@@ -32,6 +32,12 @@ function filterVisibleGroup(group: AdminNavGroup, canRead: (module: string) => b
   return { ...group, items, subGroups: subGroups.length > 0 ? subGroups : undefined };
 }
 
+/** Determina qué grupo (por id) debe abrirse por defecto en un nivel de navegación — el
+ * primero cuyo `collapsedByDefault` no esté marcado, o `null` si todos empiezan colapsados. */
+function defaultOpenId(groups: AdminNavGroup[]): string | null {
+  return groups.find((g) => !g.collapsedByDefault)?.id ?? null;
+}
+
 export function AdminSidebar({ className }: { className?: string }) {
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -44,6 +50,20 @@ export function AdminSidebar({ className }: { className?: string }) {
   const visibleGroups = loading
     ? []
     : ADMIN_NAV.map((g) => filterVisibleGroup(g, canRead)).filter((g): g is AdminNavGroup => g !== null);
+
+  // Acordeón: solo un grupo de nivel raíz puede estar expandido a la vez — al abrir uno se
+  // cierran los demás. Persistido en localStorage para recordar la sección abierta.
+  const [openGroupId, setOpenGroupId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return defaultOpenId(visibleGroups);
+    const stored = window.localStorage.getItem('admin_nav_open_group');
+    return stored !== null ? (stored || null) : defaultOpenId(visibleGroups);
+  });
+
+  function handleGroupOpenChange(groupId: string, open: boolean) {
+    const next = open ? groupId : null;
+    setOpenGroupId(next);
+    localStorage.setItem('admin_nav_open_group', next ?? '');
+  }
 
   const toggleCollapse = () => {
     const next = !isCollapsed;
@@ -105,7 +125,15 @@ export function AdminSidebar({ className }: { className?: string }) {
       );
     }
 
-    return <NavSection key={group.id} group={group} renderItem={renderItem} />;
+    return (
+      <NavSection
+        key={group.id}
+        group={group}
+        renderItem={renderItem}
+        open={openGroupId === group.id}
+        onOpenChange={(open) => handleGroupOpenChange(group.id, open)}
+      />
+    );
   }
 
   return (
@@ -180,9 +208,36 @@ export function AdminSidebar({ className }: { className?: string }) {
   );
 }
 
-/** Sección con separador + label + toggle colapsable, persistido en localStorage por grupo.
- * Soporta un nivel de subGroups anidados (ej. "Propiedades Catálogo" dentro de "Catálogo"). */
-function NavSection({ group, renderItem }: {
+/** Sección con separador + label + toggle colapsable. El nivel raíz recibe `open`/
+ * `onOpenChange` controlados desde `AdminSidebar` (acordeón: solo un grupo raíz abierto a la
+ * vez). Los subgrupos anidados (ej. "Propiedades Catálogo" dentro de "Catálogo") mantienen su
+ * propio estado independiente, persistido en localStorage — no forman acordeón entre sí
+ * porque hoy ningún grupo tiene más de un subgrupo. */
+function NavSection({ group, renderItem, open, onOpenChange }: {
+  group: AdminNavGroup;
+  renderItem: (item: AdminNavItem, index: number) => React.ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Collapsible open={open} onOpenChange={onOpenChange} className="pt-2">
+      <CollapsibleTrigger className="flex w-full items-center justify-between px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500 hover:text-gray-300 transition-colors">
+        <span>{group.label}</span>
+        <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', open ? '' : '-rotate-90')} />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-1 mt-1">
+        {group.items.map(renderItem)}
+        {group.subGroups?.map((sg) => (
+          <NavSubSection key={sg.id} group={sg} renderItem={renderItem} />
+        ))}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+/** Subgrupo anidado (ej. "Propiedades Catálogo") — estado propio, persistido en localStorage,
+ * independiente del acordeón de nivel raíz. */
+function NavSubSection({ group, renderItem }: {
   group: AdminNavGroup;
   renderItem: (item: AdminNavItem, index: number) => React.ReactNode;
 }) {
@@ -206,9 +261,6 @@ function NavSection({ group, renderItem }: {
       </CollapsibleTrigger>
       <CollapsibleContent className="space-y-1 mt-1">
         {group.items.map(renderItem)}
-        {group.subGroups?.map((sg) => (
-          <NavSection key={sg.id} group={sg} renderItem={renderItem} />
-        ))}
       </CollapsibleContent>
     </Collapsible>
   );

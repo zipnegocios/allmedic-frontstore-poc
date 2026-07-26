@@ -107,6 +107,18 @@ export class PaymentModuleOffError extends Error {
  * propio endpoint que prende/apaga el interruptor (`/api/admin/payment-settings`) debe
  * pasarlo en `true`, o apagar el módulo dejaría sin forma de volver a encenderlo desde la API.
  */
+/**
+ * Un `CATALOG_MANAGER` con `isTaskCoordinator = true` obtiene `tareas:write` (crear/asignar
+ * tareas y grupos a otros Gestores, mismas capacidades que Admin dentro del módulo) sin
+ * necesitar un rol RBAC nuevo (2026-07-26). Se consulta a BD, no se agrega al JWT — mismo
+ * criterio que `scopeLevel` de SALES (`getScopeContext`), evita inflar el JWT con un flag de
+ * baja frecuencia de cambio.
+ */
+async function isTaskCoordinator(userId: string): Promise<boolean> {
+  const [user] = await db.select({ isTaskCoordinator: users.isTaskCoordinator }).from(users).where(eq(users.id, userId)).limit(1);
+  return user?.isTaskCoordinator ?? false;
+}
+
 export async function requireRole(
   session: { user?: SessionUser | null } | null,
   module: string,
@@ -120,7 +132,10 @@ export async function requireRole(
   if (!role) {
     throw new ForbiddenError();
   }
-  const allowed = await hasPermission(role, module, action);
+  let allowed = await hasPermission(role, module, action);
+  if (!allowed && module === 'tareas' && action === 'write' && role === 'CATALOG_MANAGER' && session.user.id) {
+    allowed = await isTaskCoordinator(session.user.id);
+  }
   if (!allowed) {
     throw new ForbiddenError();
   }

@@ -20,6 +20,10 @@ export const users = pgTable("users", {
   sessionVersion: integer("session_version").notNull().default(0),
   tierId: pgUuid("tier_id").references(() => productivityRateTiers.id),
   requiresAssignedTaskForPayment: boolean("requires_assigned_task_for_payment").notNull().default(false),
+  // Habilita el permiso `tareas:write` para un CATALOG_MANAGER sin necesitar un rol RBAC
+  // nuevo — puede crear/asignar tareas y grupos a otros Gestores, mismas capacidades que
+  // Admin dentro del módulo de tareas (2026-07-26).
+  isTaskCoordinator: boolean("is_task_coordinator").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 

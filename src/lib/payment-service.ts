@@ -8,6 +8,8 @@ import {
   productivityRates,
   paymentPeriods,
   paymentPeriodItems,
+  paymentPeriodTaskGroupItems,
+  catalogTaskGroups,
   systemSettings,
   users,
 } from '@/db/schema';
@@ -104,7 +106,7 @@ export async function createPeriod(startDate: Date, endDate: Date, notes?: strin
 }
 
 export async function getPeriodBreakdown(periodId: string) {
-  return db
+  const componentItems = await db
     .select({
       id: paymentPeriodItems.id,
       userId: paymentPeriodItems.userId,
@@ -120,6 +122,31 @@ export async function getPeriodBreakdown(periodId: string) {
     .leftJoin(users, eq(paymentPeriodItems.userId, users.id))
     .where(eq(paymentPeriodItems.periodId, periodId))
     .orderBy(asc(users.name));
+
+  // Desglose del tabulador fijo por grupo, agrupado por usuario — modo independiente del
+  // cálculo por componente, se muestra junto pero no se mezcla en las mismas columnas.
+  const fixedGroupRows = await db
+    .select({
+      userId: paymentPeriodTaskGroupItems.userId,
+      groupId: paymentPeriodTaskGroupItems.groupId,
+      groupName: catalogTaskGroups.name,
+      amount: paymentPeriodTaskGroupItems.amount,
+    })
+    .from(paymentPeriodTaskGroupItems)
+    .leftJoin(catalogTaskGroups, eq(paymentPeriodTaskGroupItems.groupId, catalogTaskGroups.id))
+    .where(eq(paymentPeriodTaskGroupItems.periodId, periodId));
+
+  const fixedGroupsByUser = new Map<string, typeof fixedGroupRows>();
+  for (const row of fixedGroupRows) {
+    const list = fixedGroupsByUser.get(row.userId) ?? [];
+    list.push(row);
+    fixedGroupsByUser.set(row.userId, list);
+  }
+
+  return componentItems.map((item) => ({
+    ...item,
+    fixedGroups: fixedGroupsByUser.get(item.userId) ?? [],
+  }));
 }
 
 export class PeriodStatusError extends Error {

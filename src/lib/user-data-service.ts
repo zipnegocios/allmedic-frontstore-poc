@@ -30,6 +30,7 @@ export async function getAdminUsers() {
       isActive: users.isActive,
       isProtected: users.isProtected,
       mustChangePassword: users.mustChangePassword,
+      isTaskCoordinator: users.isTaskCoordinator,
       createdAt: users.createdAt,
     })
     .from(users)
@@ -51,6 +52,7 @@ export async function getAdminUserById(id: string) {
       isActive: users.isActive,
       isProtected: users.isProtected,
       mustChangePassword: users.mustChangePassword,
+      isTaskCoordinator: users.isTaskCoordinator,
       createdAt: users.createdAt,
     })
     .from(users)
@@ -103,6 +105,7 @@ export interface UpdateUserInput {
   role?: UserRole;
   scopeLevel?: 'OWN' | 'ALL';
   isActive?: boolean;
+  isTaskCoordinator?: boolean;
 }
 
 /**
@@ -127,6 +130,7 @@ export async function updateAdminUser(id: string, input: UpdateUserInput) {
   if (input.role !== undefined) patch.role = input.role;
   if (input.scopeLevel !== undefined) patch.scopeLevel = input.scopeLevel;
   if (input.isActive !== undefined) patch.isActive = input.isActive;
+  if (input.isTaskCoordinator !== undefined) patch.isTaskCoordinator = input.isTaskCoordinator;
   if (changesRole || changesActive) {
     patch.sessionVersion = sql`${users.sessionVersion} + 1`;
   }
@@ -138,6 +142,7 @@ export async function updateAdminUser(id: string, input: UpdateUserInput) {
     .returning({
       id: users.id, name: users.name, email: users.email, role: users.role,
       scopeLevel: users.scopeLevel, isActive: users.isActive, isProtected: users.isProtected,
+      isTaskCoordinator: users.isTaskCoordinator,
     });
 
   // Si el rol nuevo es CATALOG_MANAGER y todavía no tiene meta de productividad, se la asigna.

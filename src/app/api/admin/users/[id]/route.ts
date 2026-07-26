@@ -9,6 +9,7 @@ const UpdateUserSchema = z.object({
   role: z.enum(['ADMIN', 'SALES', 'CATALOG_MANAGER', 'DISPATCHER']).optional(),
   scopeLevel: z.enum(['OWN', 'ALL']).optional(),
   isActive: z.boolean().optional(),
+  isTaskCoordinator: z.boolean().optional(),
 });
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

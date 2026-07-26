@@ -29,6 +29,7 @@ interface AdminUser {
   isActive: boolean;
   isProtected: boolean;
   mustChangePassword: boolean;
+  isTaskCoordinator: boolean;
   createdAt: string;
 }
 
@@ -51,7 +52,7 @@ export default function AdminUsersPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [formData, setFormData] = useState({
-    name: '', email: '', role: 'CATALOG_MANAGER' as UserRole, scopeLevel: 'OWN' as ScopeLevel, isActive: true,
+    name: '', email: '', role: 'CATALOG_MANAGER' as UserRole, scopeLevel: 'OWN' as ScopeLevel, isActive: true, isTaskCoordinator: false,
   });
   const [saving, setSaving] = useState(false);
 
@@ -75,7 +76,7 @@ export default function AdminUsersPage() {
 
   function openNew() {
     setEditingUser(null);
-    setFormData({ name: '', email: '', role: 'CATALOG_MANAGER', scopeLevel: 'OWN', isActive: true });
+    setFormData({ name: '', email: '', role: 'CATALOG_MANAGER', scopeLevel: 'OWN', isActive: true, isTaskCoordinator: false });
     setDialogOpen(true);
   }
 
@@ -87,6 +88,7 @@ export default function AdminUsersPage() {
       role: user.role,
       scopeLevel: user.scopeLevel,
       isActive: user.isActive,
+      isTaskCoordinator: user.isTaskCoordinator,
     });
     setDialogOpen(true);
   }
@@ -103,6 +105,7 @@ export default function AdminUsersPage() {
             role: formData.role,
             scopeLevel: formData.scopeLevel,
             isActive: formData.isActive,
+            isTaskCoordinator: formData.role === 'CATALOG_MANAGER' ? formData.isTaskCoordinator : false,
           }),
         });
         if (!res.ok) {
@@ -399,6 +402,21 @@ export default function AdminUsersPage() {
                 onChange={e => setFormData({ ...formData, isActive: e.target.checked })}
               />
               <Label>Activo</Label>
+            </div>
+          )}
+          {editingUser && formData.role === 'CATALOG_MANAGER' && (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={formData.isTaskCoordinator}
+                  onChange={e => setFormData({ ...formData, isTaskCoordinator: e.target.checked })}
+                />
+                <Label>Coordinador de tareas</Label>
+              </div>
+              <p className="text-xs text-gray-500">
+                Puede crear/asignar tareas y grupos a otros Gestores, igual que Admin dentro del módulo de Tareas.
+              </p>
             </div>
           )}
           {editingUser?.isProtected && (

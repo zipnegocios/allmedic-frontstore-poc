@@ -3,8 +3,8 @@
 // COMPLETED → APPROVED, con rama REJECTED que regresa a IN_PROGRESS, decisión 3 del plan).
 
 import { db } from '@/db';
-import { catalogTasks, catalogNotifications, catalogActivityLog, users } from '@/db/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { catalogTasks, catalogTaskGroups, catalogNotifications, catalogActivityLog, users } from '@/db/schema';
+import { eq, and, ne, desc, sql } from 'drizzle-orm';
 import { uuid } from '@/lib/uuid';
 import { sendEmail } from '@/lib/email';
 import { taskAssignedEmail, taskCompletedEmail, taskRejectedEmail } from '@/lib/email/templates';
@@ -19,6 +19,20 @@ export class InvalidTaskTransitionError extends Error {
   }
 }
 
+export class TaskGroupAssigneeMismatchError extends Error {
+  constructor() {
+    super('Todas las tareas de un grupo deben asignarse al mismo Gestor.');
+    this.name = 'TaskGroupAssigneeMismatchError';
+  }
+}
+
+export class TaskGroupCompletedError extends Error {
+  constructor() {
+    super('No se pueden agregar tareas a un grupo ya completado.');
+    this.name = 'TaskGroupCompletedError';
+  }
+}
+
 export interface CreateTaskInput {
   type: CatalogTaskType;
   title: string;
@@ -26,12 +40,31 @@ export interface CreateTaskInput {
   targetCode?: string | null;
   targetEntityType?: 'PRODUCT' | 'SET' | null;
   targetEntityId?: string | null;
+  gender?: string | null;
+  sourceUrl?: string | null;
+  blockA?: { code: string; url: string } | null;
+  blockB?: { code: string; url: string } | null;
+  groupId?: string | null;
   assignedTo: string;
   assignedBy: string;
 }
 
-/** Crea una tarea (tipada o genérica, decisión 4 del plan) y notifica al Gestor asignado. */
+/** Crea una tarea (tipada o genérica, decisión 4 del plan) y notifica al Gestor asignado.
+ * Si `groupId` viene informado, valida el invariante "un grupo = un solo Gestor" (todas las
+ * tareas de un grupo deben compartir `assignedTo`) y que el grupo no esté ya completado. */
 export async function createTask(input: CreateTaskInput) {
+  if (input.groupId) {
+    const [group] = await db.select().from(catalogTaskGroups).where(eq(catalogTaskGroups.id, input.groupId)).limit(1);
+    if (group?.completedAt) throw new TaskGroupCompletedError();
+
+    const [mismatched] = await db
+      .select({ id: catalogTasks.id })
+      .from(catalogTasks)
+      .where(and(eq(catalogTasks.groupId, input.groupId), ne(catalogTasks.assignedTo, input.assignedTo)))
+      .limit(1);
+    if (mismatched) throw new TaskGroupAssigneeMismatchError();
+  }
+
   const [task] = await db
     .insert(catalogTasks)
     .values({
@@ -42,6 +75,11 @@ export async function createTask(input: CreateTaskInput) {
       targetCode: input.targetCode ?? null,
       targetEntityType: input.targetEntityType ?? null,
       targetEntityId: input.targetEntityId ?? null,
+      gender: input.gender ?? null,
+      sourceUrl: input.sourceUrl ?? null,
+      blockA: input.blockA ?? null,
+      blockB: input.blockB ?? null,
+      groupId: input.groupId ?? null,
       assignedTo: input.assignedTo,
       assignedBy: input.assignedBy,
       status: 'PENDING',
@@ -71,6 +109,7 @@ export interface TaskListFilters {
   status?: CatalogTaskStatus;
   assignedTo?: string;
   type?: CatalogTaskType;
+  groupId?: string;
 }
 
 /** Listado con filtros — usado por `/admin/tareas` (Admin ve todas, filtra por Gestor). */
@@ -79,6 +118,7 @@ export async function listTasks(filters: TaskListFilters = {}) {
   if (filters.status) conditions.push(eq(catalogTasks.status, filters.status));
   if (filters.assignedTo) conditions.push(eq(catalogTasks.assignedTo, filters.assignedTo));
   if (filters.type) conditions.push(eq(catalogTasks.type, filters.type));
+  if (filters.groupId) conditions.push(eq(catalogTasks.groupId, filters.groupId));
 
   return db
     .select({
@@ -89,6 +129,11 @@ export async function listTasks(filters: TaskListFilters = {}) {
       targetCode: catalogTasks.targetCode,
       targetEntityType: catalogTasks.targetEntityType,
       targetEntityId: catalogTasks.targetEntityId,
+      gender: catalogTasks.gender,
+      sourceUrl: catalogTasks.sourceUrl,
+      blockA: catalogTasks.blockA,
+      blockB: catalogTasks.blockB,
+      groupId: catalogTasks.groupId,
       status: catalogTasks.status,
       rejectionReason: catalogTasks.rejectionReason,
       createdAt: catalogTasks.createdAt,
@@ -154,7 +199,10 @@ export async function advanceTaskStatus(taskId: string, toStatus: CatalogTaskSta
   return updated;
 }
 
-/** Aprobación del Admin (solo sobre tareas COMPLETED) — cierra el ciclo de vida. */
+/** Aprobación del Admin (solo sobre tareas COMPLETED) — cierra el ciclo de vida. Si la tarea
+ * pertenece a un grupo y esta aprobación deja TODAS sus tareas en APPROVED, marca el grupo
+ * como completado (`completedAt`) — esto es lo que activa la elegibilidad del grupo para el
+ * tabulador fijo en el próximo recálculo de período (ver `calculateFixedGroupAmount`). */
 export async function approveTask(taskId: string) {
   const task = await getTaskById(taskId);
   if (!task) throw new Error('Tarea no encontrada.');
@@ -174,6 +222,14 @@ export async function approveTask(taskId: string) {
     type: 'TASK_STATUS_CHANGED',
     relatedTaskId: taskId,
   });
+
+  if (task.groupId) {
+    const groupTasks = await db.select({ status: catalogTasks.status }).from(catalogTasks).where(eq(catalogTasks.groupId, task.groupId));
+    const allApproved = groupTasks.length > 0 && groupTasks.every((t) => t.status === 'APPROVED');
+    if (allApproved) {
+      await db.update(catalogTaskGroups).set({ completedAt: new Date() }).where(eq(catalogTaskGroups.id, task.groupId));
+    }
+  }
 
   return updated;
 }
