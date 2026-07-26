@@ -127,6 +127,13 @@
       "when": 1785018389803,
       "tag": "0017_careless_hellcat",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1785034340840,
+      "tag": "0018_sparkling_leech",
+      "breakpoints": true
     }
   ]
 }

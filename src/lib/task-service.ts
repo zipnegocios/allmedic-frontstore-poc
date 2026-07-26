@@ -7,7 +7,7 @@ import { catalogTasks, catalogNotifications, catalogActivityLog, users } from '@
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { uuid } from '@/lib/uuid';
 import { sendEmail } from '@/lib/email';
-import { taskAssignedEmail, taskRejectedEmail } from '@/lib/email/templates';
+import { taskAssignedEmail, taskCompletedEmail, taskRejectedEmail } from '@/lib/email/templates';
 
 export type CatalogTaskType = 'CREATE_PRODUCT' | 'CREATE_SET' | 'UPLOAD_MEDIA' | 'EDIT_PRODUCT' | 'EDIT_SET' | 'GENERIC';
 export type CatalogTaskStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'APPROVED' | 'REJECTED';
@@ -55,12 +55,13 @@ export async function createTask(input: CreateTaskInput) {
     relatedTaskId: task.id,
   });
 
-  // Correo solo en los dos eventos críticos (decisión 11 del plan) — asignación y rechazo.
-  // `sendEmail` ya hace fallback silencioso si RESEND_API_KEY no está configurado.
+  // Correo controlable individualmente desde el panel de correos (`/admin/configuracion`).
+  // `sendEmail` ya hace fallback silencioso si RESEND_API_KEY no está configurado o si el
+  // evento fue desactivado.
   const [assignee] = await db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, input.assignedTo)).limit(1);
   if (assignee) {
     const { subject, html } = taskAssignedEmail({ assigneeName: assignee.name ?? assignee.email, title: task.title, description: task.description });
-    await sendEmail({ to: assignee.email, subject, html });
+    await sendEmail({ to: assignee.email, subject, html, eventKey: 'TASK_ASSIGNED' });
   }
 
   return task;
@@ -116,7 +117,8 @@ const ALLOWED_TRANSITIONS: Record<CatalogTaskStatus, CatalogTaskStatus[]> = {
   REJECTED: ['IN_PROGRESS'],
 };
 
-/** Avance del Gestor: PENDING→IN_PROGRESS, IN_PROGRESS→COMPLETED. */
+/** Avance del Gestor: PENDING→IN_PROGRESS, IN_PROGRESS→COMPLETED. Al completar, notifica por
+ * correo al Admin que asignó la tarea (evento `TASK_COMPLETED`, controlable individualmente). */
 export async function advanceTaskStatus(taskId: string, toStatus: CatalogTaskStatus) {
   const task = await getTaskById(taskId);
   if (!task) throw new Error('Tarea no encontrada.');
@@ -135,6 +137,19 @@ export async function advanceTaskStatus(taskId: string, toStatus: CatalogTaskSta
     type: 'TASK_STATUS_CHANGED',
     relatedTaskId: taskId,
   });
+
+  if (toStatus === 'COMPLETED') {
+    const [reviewer] = await db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, task.assignedBy)).limit(1);
+    const [assignee] = await db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, task.assignedTo)).limit(1);
+    if (reviewer && assignee) {
+      const { subject, html } = taskCompletedEmail({
+        reviewerName: reviewer.name ?? reviewer.email,
+        assigneeName: assignee.name ?? assignee.email,
+        title: task.title,
+      });
+      await sendEmail({ to: reviewer.email, subject, html, eventKey: 'TASK_COMPLETED' });
+    }
+  }
 
   return updated;
 }
@@ -194,7 +209,7 @@ export async function rejectTask(taskId: string, reason: string) {
   const [assignee] = await db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, task.assignedTo)).limit(1);
   if (assignee) {
     const { subject, html } = taskRejectedEmail({ assigneeName: assignee.name ?? assignee.email, title: task.title, reason });
-    await sendEmail({ to: assignee.email, subject, html });
+    await sendEmail({ to: assignee.email, subject, html, eventKey: 'TASK_REJECTED' });
   }
 
   return updated;

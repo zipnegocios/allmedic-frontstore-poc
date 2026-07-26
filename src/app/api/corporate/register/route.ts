@@ -81,6 +81,7 @@ export async function POST(request: NextRequest) {
         ruc: validated.ruc,
         email: validated.email,
       }),
+      eventKey: 'CORPORATE_REGISTRATION_NEW',
     }).catch(() => {});
 
     return NextResponse.json({ id: account.id, status: account.status }, { status: 201 });

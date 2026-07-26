@@ -48,11 +48,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       sendEmail({
         to: account.email,
         ...accountApprovedEmail({ contactName: account.contactName, razonSocial: account.razonSocial }),
+        eventKey: 'CORPORATE_ACCOUNT_APPROVED',
       }).catch(() => {});
     } else if (status === 'REJECTED') {
       sendEmail({
         to: account.email,
         ...accountRejectedEmail({ contactName: account.contactName, razonSocial: account.razonSocial }),
+        eventKey: 'CORPORATE_ACCOUNT_REJECTED',
       }).catch(() => {});
     }
 

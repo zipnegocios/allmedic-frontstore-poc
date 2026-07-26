@@ -63,6 +63,10 @@ export const ROUTE_MODULE_MAP: Array<{ prefix: string; module: string }> = [
   { prefix: '/api/admin/payment-settings', module: 'pagos' },
   { prefix: '/api/admin/payment-tiers', module: 'pagos' },
   { prefix: '/api/admin/payment-periods', module: 'pagos' },
+  { prefix: '/api/admin/email-events', module: 'configuracion' },
+  { prefix: '/admin/correos', module: 'correos' },
+  { prefix: '/api/admin/email-log', module: 'correos' },
+  { prefix: '/api/admin/email-webhook-events', module: 'correos' },
   // Nota: /api/admin/users/[id]/payment-tier queda cubierto por el prefijo /api/admin/users
   // (módulo `usuarios`, línea de arriba) — el handler exige `pagos:write` explícito además,
   // mismo criterio de doble capa que /api/admin/tasks/[id]/comments (Fase 4).

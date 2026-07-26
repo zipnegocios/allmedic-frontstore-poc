@@ -147,8 +147,10 @@ export function quoteStatusChangedEmail(params: { contactName: string; code: str
 }
 
 // ─── Notificaciones de tareas del Gestor del Catálogo (Fase 8 del plan
-// tareas/comentarios/pagos) — decisión 11: correo solo en los dos eventos críticos
-// (asignación y rechazo), el resto de eventos queda solo como badge en el panel. ───
+// tareas/comentarios/pagos) — decisión 11: correo en los eventos críticos (asignación,
+// completada/en revisión, rechazo); el resto de eventos (aprobación, comentarios) queda
+// solo como badge en el panel. Cada uno controlable individualmente desde el panel de
+// correos (`/admin/configuracion`, 2026-07-25). ───
 
 export function taskAssignedEmail(params: { assigneeName: string; title: string; description: string | null }): {
   subject: string;
@@ -165,6 +167,25 @@ export function taskAssignedEmail(params: { assigneeName: string; title: string;
         <p style="margin:16px 0;"><strong>${title}</strong></p>
         ${description ? `<p style="color:#666;">${description}</p>` : ''}
         <p>Puedes verla en la sección "Tareas" del panel.</p>
+      `
+    ),
+  };
+}
+
+export function taskCompletedEmail(params: { reviewerName: string; assigneeName: string; title: string }): {
+  subject: string;
+  html: string;
+} {
+  const { reviewerName, assigneeName, title } = params;
+  return {
+    subject: `Tarea lista para revisión — ${title}`,
+    html: wrap(
+      'Tarea Completada',
+      `
+        <p>Hola ${reviewerName},</p>
+        <p><strong>${assigneeName}</strong> marcó como completada la tarea que le asignaste:</p>
+        <p style="margin:16px 0;"><strong>${title}</strong></p>
+        <p>Puedes revisarla y aprobarla o rechazarla desde la sección "Tareas" del panel.</p>
       `
     ),
   };

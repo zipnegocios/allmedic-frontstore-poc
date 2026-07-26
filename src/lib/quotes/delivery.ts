@@ -45,6 +45,7 @@ export async function sendQuoteByEmail(id: string) {
     subject,
     html,
     attachments: [{ filename: `${quote.quoteNumber}.pdf`, content: buffer }],
+    eventKey: 'QUOTE_SENT',
   });
 
   await db.update(quotes).set({ sentByEmailAt: new Date() }).where(eq(quotes.id, id));

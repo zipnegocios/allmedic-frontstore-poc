@@ -34,6 +34,7 @@ import {
   Gauge,
   ClipboardList,
   Wallet,
+  Mail,
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -87,6 +88,7 @@ const moreItems = [
   { href: '/admin/pagos', label: 'Pagos', icon: Wallet },
   { href: '/admin/usuarios', label: 'Usuarios', icon: Users },
   { href: '/admin/permisos', label: 'Permisos', icon: ShieldCheck },
+  { href: '/admin/correos', label: 'Correos', icon: Mail },
   { href: '/admin/configuracion', label: 'Configuración', icon: Settings },
 ];
 

@@ -12,6 +12,8 @@ import {
   getVariantAvailabilityByProductIds,
 } from '@/lib/corporate-data-service';
 import { validateCorporateCart, computeCartPricing, type SetMeta } from '@/lib/rules-engine';
+import { nextRequestNumber } from '@/lib/quotes/numbering';
+import { sendEmail, newQuoteRequestEmail, SALES_TEAM_EMAIL } from '@/lib/email';
 
 /** Prioridad de disponibilidad cuando varias variantes coinciden con una combinación pedida (ej.
  * el cliente no eligió color): la más disponible gana, igual criterio que usa el armador
@@ -210,6 +212,7 @@ export async function POST(request: NextRequest) {
     const notes = noteBlocks.length > 0 ? noteBlocks.join('\n\n') : null;
 
     const totalDiscount = pricing.volumeDiscountAmount + pricing.promoDiscountAmount;
+    const requestCode = await nextRequestNumber(db);
 
     const [quote] = await db
       .insert(quotes)
@@ -217,6 +220,7 @@ export async function POST(request: NextRequest) {
         status: 'DRAFT',
         channel: 'CORPORATE',
         accountId,
+        requestCode,
         customerName: customerData.razonSocial,
         customerIdNumber: customerData.ruc,
         customerContactName: customerData.contactName,
@@ -255,10 +259,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const totalSets = cart.items.reduce(
+      (sum, item) => sum + item.lines.reduce((lineSum, line) => lineSum + line.quantity, 0),
+      0
+    );
+    sendEmail({
+      to: SALES_TEAM_EMAIL,
+      ...newQuoteRequestEmail({
+        code: requestCode,
+        razonSocial: customerData.razonSocial,
+        contactName: customerData.contactName,
+        totalSets,
+        referenceTotal: pricing.total,
+      }),
+      eventKey: 'QUOTE_REQUEST_NEW',
+    }).catch(() => {});
+
     return NextResponse.json(
       {
         id: quote.id,
         quoteNumber: null,
+        requestCode,
         referenceSubtotal: pricing.total,
         warnings: informativeIssues.map((i) => i.message),
         promoNotes: pricing.promoNotes,

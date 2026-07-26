@@ -9,12 +9,14 @@ import { Compass, ChevronRight } from 'lucide-react';
 import { CompanySettingsForm } from '@/components/admin/quotes/CompanySettingsForm';
 import { TaxPresetsPanel } from '@/components/admin/quotes/TaxPresetsPanel';
 import { ValidityPresetsPanel } from '@/components/admin/quotes/ValidityPresetsPanel';
+import { EmailEventsPanel } from '@/components/admin/email/EmailEventsPanel';
 import { usePermissions } from '@/hooks/usePermissions';
 
 const SECTIONS = [
   { value: 'empresa', label: 'Datos de empresa' },
   { value: 'impuestos', label: 'Presets de impuestos' },
   { value: 'vigencia', label: 'Presets de vigencia' },
+  { value: 'correos', label: 'Correos' },
 ] as const;
 
 export default function AdminConfiguracionPage() {
@@ -57,6 +59,9 @@ export default function AdminConfiguracionPage() {
         </TabsContent>
         <TabsContent value="vigencia" className="mt-6">
           <ValidityPresetsPanel />
+        </TabsContent>
+        <TabsContent value="correos" className="mt-6">
+          <EmailEventsPanel />
         </TabsContent>
       </Tabs>
 

@@ -239,6 +239,10 @@ export const quotes = pgTable("quotes", {
   id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
   // Asignado solo al pasar a FINAL, formato COT-YYYY-NNNNN
   quoteNumber: text("quote_number").unique(),
+  // Asignado al crear la solicitud (antes de existir quoteNumber), formato SOL-YYYY-NNNNN —
+  // permite identificar/rastrear la solicitud en el correo de "nueva solicitud" (panel de
+  // correos, 2026-07-25) sin depender de la numeración formal de cotización.
+  requestCode: text("request_code").unique(),
   // Status: DRAFT | FINAL
   status: text("status").notNull().default("DRAFT"),
   // Outcome: ACCEPTED | REJECTED | null
@@ -363,6 +367,15 @@ export const quoteDocumentsRelations = relations(quoteDocuments, ({ one }) => ({
 
 // ─── Quote Number Counters (Contador atómico de numeración por año) ───
 export const quoteNumberCounters = pgTable("quote_number_counters", {
+  year: integer("year").primaryKey(),
+  lastNumber: integer("last_number").notNull().default(0),
+});
+
+// ─── Request Number Counters (Contador atómico de solicitudes, SOL-YYYY-NNNNN) ───
+// Separado de quoteNumberCounters a propósito: la numeración de solicitud (al crear) y la
+// de cotización formal (solo al finalizar) son secuencias independientes (panel de correos,
+// 2026-07-25) — mismo patrón atómico UPSERT...RETURNING, ver src/lib/quotes/numbering.ts.
+export const requestNumberCounters = pgTable("request_number_counters", {
   year: integer("year").primaryKey(),
   lastNumber: integer("last_number").notNull().default(0),
 });
