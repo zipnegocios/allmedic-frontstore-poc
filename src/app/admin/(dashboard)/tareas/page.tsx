@@ -424,7 +424,7 @@ function GroupDetailDialog({ group, allGroups, onClose, onChanged }: {
 
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="w-[80vw] max-w-none h-[80vh] flex flex-col">
+      <DialogContent className="w-[80vw] max-w-[80vw] sm:max-w-[80vw] h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{group.name}</DialogTitle>
         </DialogHeader>
@@ -598,7 +598,7 @@ function CreateTaskDialog({ groups, onCreated, fixedGroupId }: {
       <DialogTrigger asChild>
         <Button><Plus className="w-4 h-4 mr-1.5" />Asignar tarea</Button>
       </DialogTrigger>
-      <DialogContent className="w-[80vw] max-w-none h-[80vh] flex flex-col">
+      <DialogContent className="w-[80vw] max-w-[80vw] sm:max-w-[80vw] h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Asignar nueva tarea</DialogTitle>
         </DialogHeader>
