@@ -21,12 +21,17 @@ export async function GET() {
 
 const CreateTaskGroupSchema = z.object({
   name: z.string().min(1),
-  paymentAmount: z.string().min(1),
-  paymentCadence: z.enum(['DAY', 'WEEK', 'MONTH']),
+  dueDate: z.string().optional().nullable(),
+  hasPayment: z.boolean(),
+  paymentAmount: z.string().optional().nullable(),
+}).refine((data) => !data.hasPayment || !!data.paymentAmount, {
+  message: 'El monto es obligatorio cuando el grupo tiene pago asignado.',
+  path: ['paymentAmount'],
 });
 
-/** Crea un grupo de tareas con su tabulador fijo (nombre + monto + cadencia) — Admin o
- * Coordinador (mismo permiso `tareas:write` que crear tareas individuales). */
+/** Crea un grupo de tareas con plazo opcional (`dueDate`) y pago opcional (`hasPayment` +
+ * `paymentAmount`) — Admin o Coordinador (mismo permiso `tareas:write` que crear tareas
+ * individuales). */
 export async function POST(request: NextRequest) {
   try {
     const session = await requireAdmin();
@@ -36,7 +41,13 @@ export async function POST(request: NextRequest) {
     if (!createdBy) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = CreateTaskGroupSchema.parse(await request.json());
-    const group = await createTaskGroup({ ...body, createdBy });
+    const group = await createTaskGroup({
+      name: body.name,
+      dueDate: body.dueDate ? new Date(body.dueDate) : null,
+      hasPayment: body.hasPayment,
+      paymentAmount: body.paymentAmount,
+      createdBy,
+    });
     return NextResponse.json({ group }, { status: 201 });
   } catch (err) {
     if (err instanceof z.ZodError) {

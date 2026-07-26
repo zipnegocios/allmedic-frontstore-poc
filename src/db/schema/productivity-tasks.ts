@@ -1,4 +1,4 @@
-import { pgTable, text, integer, decimal, timestamp, jsonb, pgEnum, uuid as pgUuid, index, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, decimal, boolean, timestamp, jsonb, pgEnum, uuid as pgUuid, index, unique } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { uuid } from "@/lib/uuid";
 import { users } from "./auth";
@@ -18,24 +18,25 @@ export const catalogTaskStatusEnum = pgEnum("catalog_task_status", [
 // las tareas de medios no apuntan a una entidad ya existente, ver decisión 4 del plan).
 export const catalogTaskTargetEntityEnum = pgEnum("catalog_task_target_entity", ["PRODUCT", "SET"]);
 
-// ─── Grupos de tareas + tabulador fijo por metas (2026-07-26) ───
-// Un grupo agrupa varias tareas (ej. "Cargar Colección XYZ - Fase 1") y paga un monto fijo,
-// una sola vez, cuando TODAS sus tareas llegan a APPROVED (ver `completedAt` abajo y el
-// trigger en task-service.ts). Convive con el modelo de pago por componente existente —
-// ambos se suman en el mismo período (ver payment_period_task_group_items más abajo).
-export const paymentCadenceEnum = pgEnum("payment_cadence", ["DAY", "WEEK", "MONTH"]);
-
+// ─── Grupos de tareas (2026-07-26, redefinido tras feedback del usuario) ───
+// Un grupo agrupa varias tareas (ej. "Cargar Colección XYZ - Fase 1") con un plazo de
+// cumplimiento opcional (`dueDate`, fecha límite exacta — NO frecuencia de pago) y, también
+// de forma opcional, un pago fijo (`hasPayment` + `paymentAmount`) que se acredita una sola
+// vez cuando TODAS sus tareas llegan a APPROVED (ver `completedAt` abajo y el trigger en
+// task-service.ts). Un grupo sin `hasPayment` es puramente organizativo — nunca genera fila
+// en `payment_period_task_group_items` (ver el filtro en productivity-rates/index.ts). Los
+// grupos son siempre editables, incluso después de `completedAt` (sin excepción de
+// inmutabilidad, a diferencia de un `payment_period` en estado PAID).
 export const catalogTaskGroups = pgTable("catalog_task_groups", {
   id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
   name: text("name").notNull(),
-  paymentAmount: decimal("payment_amount", { precision: 10, scale: 2 }).notNull(),
-  paymentCadence: paymentCadenceEnum("payment_cadence").notNull(),
+  dueDate: timestamp("due_date", { withTimezone: true }),
+  hasPayment: boolean("has_payment").notNull().default(false),
+  paymentAmount: decimal("payment_amount", { precision: 10, scale: 2 }),
   createdBy: pgUuid("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   // Se setea cuando la última tarea del grupo pasa a APPROVED (task-service.ts) — dispara la
-  // elegibilidad del grupo para el cálculo de pago fijo. Antes de esto, name/paymentAmount/
-  // paymentCadence son editables; después, el grupo queda inmutable (mismo criterio que un
-  // payment_period en estado PAID).
+  // elegibilidad del grupo para el cálculo de pago fijo (solo si hasPayment = true).
   completedAt: timestamp("completed_at", { withTimezone: true }),
 });
 
@@ -61,11 +62,12 @@ export const catalogTasks = pgTable("catalog_tasks", {
   gender: text("gender"),
   // URL fuente de referencia para CREATE_PRODUCT.
   sourceUrl: text("source_url"),
-  // Los dos "bloques" de CREATE_SET (código de estilo + URL cada uno) — jsonb en vez de 4
+  // Los dos "bloques" de CREATE_SET — cada uno relaciona 2 productos (2 pares código+URL),
+  // ya que normalmente el Bloque A y el Bloque B agrupan 2 piezas cada uno. jsonb en vez de
   // columnas planas porque solo aplican a un tipo de tarea, mismo patrón que
   // quoteItems.pricingBreakdown (ver corporate.ts).
-  blockA: jsonb("block_a").$type<{ code: string; url: string }>(),
-  blockB: jsonb("block_b").$type<{ code: string; url: string }>(),
+  blockA: jsonb("block_a").$type<Array<{ code: string; url: string }>>(),
+  blockB: jsonb("block_b").$type<Array<{ code: string; url: string }>>(),
   groupId: pgUuid("group_id").references(() => catalogTaskGroups.id, { onDelete: "set null" }),
   assignedTo: pgUuid("assigned_to").notNull().references(() => users.id, { onDelete: "cascade" }),
   assignedBy: pgUuid("assigned_by").notNull().references(() => users.id, { onDelete: "cascade" }),

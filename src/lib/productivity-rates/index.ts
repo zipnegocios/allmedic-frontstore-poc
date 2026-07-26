@@ -147,9 +147,10 @@ interface EligibleGroup {
   paymentAmount: string;
 }
 
-/** Grupos completados en el rango del período, del usuario dado, que aún no generaron su
- * pago fijo en ESTE período — base compartida de `calculateFixedGroupAmount` (solo lectura,
- * para desglose en UI) y `persistFixedGroupItems` (además escribe). */
+/** Grupos con pago asignado (`hasPayment = true`), completados en el rango del período, del
+ * usuario dado, que aún no generaron su pago fijo en ESTE período — base compartida de
+ * `calculateFixedGroupAmount` (solo lectura, para desglose en UI) y `persistFixedGroupItems`
+ * (además escribe). Un grupo sin `hasPayment` (puramente organizativo) nunca entra aquí. */
 async function findEligibleGroupsForUser(userId: string, periodId: string): Promise<EligibleGroup[]> {
   const [period] = await db.select().from(paymentPeriods).where(eq(paymentPeriods.id, periodId)).limit(1);
   if (!period) throw new Error(`Período ${periodId} no encontrado.`);
@@ -166,6 +167,7 @@ async function findEligibleGroupsForUser(userId: string, periodId: string): Prom
     .select({ id: catalogTaskGroups.id, paymentAmount: catalogTaskGroups.paymentAmount })
     .from(catalogTaskGroups)
     .where(and(
+      eq(catalogTaskGroups.hasPayment, true),
       isNotNull(catalogTaskGroups.completedAt),
       gte(catalogTaskGroups.completedAt, period.startDate),
       lte(catalogTaskGroups.completedAt, period.endDate)
@@ -173,13 +175,14 @@ async function findEligibleGroupsForUser(userId: string, periodId: string): Prom
 
   const eligible: EligibleGroup[] = [];
   for (const group of groups) {
+    if (!group.paymentAmount) continue;
     if (alreadyPaidGroupIds.has(group.id)) continue;
     const [anyTask] = await db
       .select({ assignedTo: catalogTasks.assignedTo })
       .from(catalogTasks)
       .where(eq(catalogTasks.groupId, group.id))
       .limit(1);
-    if (anyTask?.assignedTo === userId) eligible.push(group);
+    if (anyTask?.assignedTo === userId) eligible.push({ id: group.id, paymentAmount: group.paymentAmount });
   }
   return eligible;
 }

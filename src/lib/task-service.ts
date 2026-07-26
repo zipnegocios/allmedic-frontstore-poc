@@ -42,8 +42,8 @@ export interface CreateTaskInput {
   targetEntityId?: string | null;
   gender?: string | null;
   sourceUrl?: string | null;
-  blockA?: { code: string; url: string } | null;
-  blockB?: { code: string; url: string } | null;
+  blockA?: Array<{ code: string; url: string }> | null;
+  blockB?: Array<{ code: string; url: string }> | null;
   groupId?: string | null;
   assignedTo: string;
   assignedBy: string;

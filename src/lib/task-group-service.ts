@@ -1,26 +1,19 @@
-// ─── Grupos de tareas + tabulador fijo por metas (2026-07-26) ───
-// Capa de servicio: CRUD de `catalog_task_groups`. El cálculo/pago vive en
-// `@/lib/productivity-rates` (calculateFixedGroupAmount) — este archivo solo gestiona el
-// grupo en sí (crear, listar, editar mientras no esté completado).
+// ─── Grupos de tareas (2026-07-26) ───
+// Capa de servicio: CRUD de `catalog_task_groups`. El cálculo/pago (solo si `hasPayment`)
+// vive en `@/lib/productivity-rates` (calculateFixedGroupAmount) — este archivo solo
+// gestiona el grupo en sí (crear, listar, editar). Los grupos son siempre editables, incluso
+// después de completarse.
 
 import { db } from '@/db';
 import { catalogTaskGroups, catalogTasks, users } from '@/db/schema';
 import { eq, desc, sql } from 'drizzle-orm';
 import { uuid } from '@/lib/uuid';
 
-export type PaymentCadence = 'DAY' | 'WEEK' | 'MONTH';
-
-export class TaskGroupCompletedError extends Error {
-  constructor() {
-    super('No se puede editar un grupo ya completado.');
-    this.name = 'TaskGroupCompletedError';
-  }
-}
-
 export interface CreateTaskGroupInput {
   name: string;
-  paymentAmount: string;
-  paymentCadence: PaymentCadence;
+  dueDate?: Date | null;
+  hasPayment: boolean;
+  paymentAmount?: string | null;
   createdBy: string;
 }
 
@@ -30,8 +23,9 @@ export async function createTaskGroup(input: CreateTaskGroupInput) {
     .values({
       id: uuid(),
       name: input.name,
-      paymentAmount: input.paymentAmount,
-      paymentCadence: input.paymentCadence,
+      dueDate: input.dueDate ?? null,
+      hasPayment: input.hasPayment,
+      paymentAmount: input.hasPayment ? (input.paymentAmount ?? null) : null,
       createdBy: input.createdBy,
     })
     .returning();
@@ -44,8 +38,9 @@ export async function listTaskGroups() {
     .select({
       id: catalogTaskGroups.id,
       name: catalogTaskGroups.name,
+      dueDate: catalogTaskGroups.dueDate,
+      hasPayment: catalogTaskGroups.hasPayment,
       paymentAmount: catalogTaskGroups.paymentAmount,
-      paymentCadence: catalogTaskGroups.paymentCadence,
       createdAt: catalogTaskGroups.createdAt,
       completedAt: catalogTaskGroups.completedAt,
       createdByName: users.name,
@@ -79,17 +74,21 @@ export async function getTaskGroupById(id: string) {
 
 export interface UpdateTaskGroupInput {
   name?: string;
-  paymentAmount?: string;
-  paymentCadence?: PaymentCadence;
+  dueDate?: Date | null;
+  hasPayment?: boolean;
+  paymentAmount?: string | null;
 }
 
-/** Edita nombre/monto/cadencia — solo permitido mientras el grupo no esté completado
- * (invariante: un grupo completado es inmutable, mismo criterio que un payment_period PAID). */
+/** Edita nombre/plazo/pago — siempre permitido, sin importar si el grupo ya está completado
+ * (decisión del usuario: los grupos quedan siempre editables). */
 export async function updateTaskGroup(id: string, input: UpdateTaskGroupInput) {
   const group = await getTaskGroupById(id);
   if (!group) return null;
-  if (group.completedAt) throw new TaskGroupCompletedError();
 
-  const [updated] = await db.update(catalogTaskGroups).set(input).where(eq(catalogTaskGroups.id, id)).returning();
+  const patch: Record<string, unknown> = { ...input };
+  // Si se desactiva el pago, limpia el monto para no dejar un valor huérfano.
+  if (input.hasPayment === false) patch.paymentAmount = null;
+
+  const [updated] = await db.update(catalogTaskGroups).set(patch).where(eq(catalogTaskGroups.id, id)).returning();
   return updated;
 }

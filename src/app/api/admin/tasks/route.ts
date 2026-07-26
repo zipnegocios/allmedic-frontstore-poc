@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-const BlockSchema = z.object({ code: z.string(), url: z.string() });
+const BlockSchema = z.array(z.object({ code: z.string(), url: z.string() })).length(2);
 
 const CreateTaskSchema = z.object({
   type: z.enum(['CREATE_PRODUCT', 'CREATE_SET', 'UPLOAD_MEDIA', 'EDIT_PRODUCT', 'EDIT_SET', 'GENERIC']),

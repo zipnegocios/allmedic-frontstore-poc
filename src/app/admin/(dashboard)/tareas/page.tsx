@@ -7,21 +7,21 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { Plus, ClipboardList, MessageSquare, Users2 } from 'lucide-react';
+import { Plus, ClipboardList, MessageSquare, Users2, Pencil } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
 import { CommentThread } from '@/components/admin/CommentThread';
 import { EntityPicker, type EntityPickerOption } from '@/components/admin/EntityPicker';
 
 type TaskType = 'CREATE_PRODUCT' | 'CREATE_SET' | 'UPLOAD_MEDIA' | 'EDIT_PRODUCT' | 'EDIT_SET' | 'GENERIC';
 type TaskStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'APPROVED' | 'REJECTED';
-type PaymentCadence = 'DAY' | 'WEEK' | 'MONTH';
 
-interface TaskBlock {
+interface BlockLine {
   code: string;
   url: string;
 }
@@ -36,8 +36,8 @@ interface Task {
   targetEntityId: string | null;
   gender: string | null;
   sourceUrl: string | null;
-  blockA: TaskBlock | null;
-  blockB: TaskBlock | null;
+  blockA: BlockLine[] | null;
+  blockB: BlockLine[] | null;
   groupId: string | null;
   status: TaskStatus;
   rejectionReason: string | null;
@@ -55,8 +55,9 @@ interface Assignee {
 interface TaskGroup {
   id: string;
   name: string;
-  paymentAmount: string;
-  paymentCadence: PaymentCadence;
+  dueDate: string | null;
+  hasPayment: boolean;
+  paymentAmount: string | null;
   createdAt: string;
   completedAt: string | null;
   createdByName: string | null;
@@ -89,13 +90,19 @@ const STATUS_COLORS: Record<TaskStatus, string> = {
   REJECTED: 'bg-red-100 text-red-700',
 };
 
-const CADENCE_LABELS: Record<PaymentCadence, string> = {
-  DAY: 'Por día',
-  WEEK: 'Por semana',
-  MONTH: 'Por mes',
-};
-
 const GENDER_OPTIONS = ['Hombre', 'Mujer', 'Unisex'];
+
+const EMPTY_BLOCK: BlockLine[] = [{ code: '', url: '' }, { code: '', url: '' }];
+
+function formatDate(iso: string | null): string {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('es-EC', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function isOverdue(dueDate: string | null, completedAt: string | null): boolean {
+  if (!dueDate || completedAt) return false;
+  return new Date(dueDate).getTime() < Date.now();
+}
 
 export default function TareasPage() {
   const { data: session } = useSession();
@@ -105,6 +112,7 @@ export default function TareasPage() {
   const [groups, setGroups] = useState<TaskGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [detailGroup, setDetailGroup] = useState<TaskGroup | null>(null);
 
   const loadTasks = useCallback(async () => {
     setLoading(true);
@@ -130,10 +138,14 @@ export default function TareasPage() {
   }, [loadTasks]);
 
   useEffect(() => {
-    if (tab === 'grupos') loadGroups();
-  }, [tab, loadGroups]);
+    loadGroups();
+  }, [loadGroups]);
 
   const userId = (session?.user as { id?: string } | undefined)?.id;
+
+  async function refreshAll() {
+    await Promise.all([loadTasks(), loadGroups()]);
+  }
 
   return (
     <div className="p-4 md:p-8 max-w-5xl">
@@ -144,8 +156,8 @@ export default function TareasPage() {
             {isAdmin ? 'Asignación y seguimiento de trabajo del Gestor del Catálogo' : 'Tus tareas asignadas'}
           </p>
         </div>
-        {isAdmin && tab === 'tareas' && <CreateTaskDialog groups={groups} onCreated={loadTasks} />}
-        {isAdmin && tab === 'grupos' && <CreateGroupDialog onCreated={loadGroups} />}
+        {isAdmin && tab === 'tareas' && <CreateTaskDialog groups={groups} onCreated={refreshAll} />}
+        {isAdmin && tab === 'grupos' && <CreateGroupDialog onSaved={loadGroups} />}
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
@@ -181,7 +193,7 @@ export default function TareasPage() {
           ) : (
             <div className="space-y-3">
               {tasks.map((task) => (
-                <TaskCard key={task.id} task={task} isAdmin={isAdmin} currentUserId={userId} onChanged={loadTasks} />
+                <TaskCard key={task.id} task={task} isAdmin={isAdmin} currentUserId={userId} onChanged={refreshAll} />
               ))}
             </div>
           )}
@@ -198,34 +210,50 @@ export default function TareasPage() {
           ) : (
             <div className="space-y-3">
               {groups.map((group) => (
-                <GroupCard key={group.id} group={group} />
+                <GroupCard key={group.id} group={group} onOpenDetail={() => setDetailGroup(group)} onSaved={loadGroups} />
               ))}
             </div>
           )}
         </TabsContent>
       </Tabs>
+
+      {detailGroup && (
+        <GroupDetailDialog
+          group={groups.find((g) => g.id === detailGroup.id) ?? detailGroup}
+          allGroups={groups}
+          onClose={() => setDetailGroup(null)}
+          onChanged={refreshAll}
+        />
+      )}
     </div>
   );
 }
 
-function GroupCard({ group }: { group: TaskGroup }) {
+function GroupCard({ group, onOpenDetail, onSaved }: { group: TaskGroup; onOpenDetail: () => void; onSaved: () => void }) {
   const pct = group.totalTasks > 0 ? Math.round((group.approvedTasks / group.totalTasks) * 100) : 0;
+  const overdue = isOverdue(group.dueDate, group.completedAt);
+
   return (
-    <Card>
+    <Card className="cursor-pointer hover:border-gray-300 transition-colors" onClick={onOpenDetail}>
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-4 mb-2">
-          <div>
+          <div className="min-w-0">
             <p className="font-medium text-[#111111]">{group.name}</p>
             <p className="text-xs text-gray-400 mt-0.5">
-              ${Number(group.paymentAmount).toFixed(2)} · {CADENCE_LABELS[group.paymentCadence]}
+              {group.dueDate && <span className={overdue ? 'text-red-600 font-medium' : ''}>Plazo: {formatDate(group.dueDate)}</span>}
+              {group.hasPayment && group.paymentAmount && ` · $${Number(group.paymentAmount).toFixed(2)}`}
               {group.createdByName && ` · Creado por ${group.createdByName}`}
             </p>
           </div>
-          {group.completedAt ? (
-            <Badge className="bg-emerald-100 text-emerald-700 border-none">Completado</Badge>
-          ) : (
-            <Badge variant="outline">En progreso</Badge>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {overdue && <Badge variant="destructive">Vencido</Badge>}
+            {group.completedAt ? (
+              <Badge className="bg-emerald-100 text-emerald-700 border-none">Completado</Badge>
+            ) : (
+              <Badge variant="outline">En progreso</Badge>
+            )}
+            <EditGroupTrigger group={group} onSaved={onSaved} />
+          </div>
         </div>
         <Progress value={pct} className="h-1.5" />
         <p className="text-xs text-gray-500 mt-1.5">{group.approvedTasks}/{group.totalTasks} tareas aprobadas</p>
@@ -234,34 +262,76 @@ function GroupCard({ group }: { group: TaskGroup }) {
   );
 }
 
-function CreateGroupDialog({ onCreated }: { onCreated: () => void }) {
+function EditGroupTrigger({ group, onSaved }: { group: TaskGroup; onSaved: () => void }) {
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState('');
-  const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentCadence, setPaymentCadence] = useState<PaymentCadence>('WEEK');
+  return (
+    <div onClick={(e) => e.stopPropagation()}>
+      <Button size="icon" variant="ghost" onClick={() => setOpen(true)}>
+        <Pencil className="w-4 h-4" />
+      </Button>
+      <CreateGroupDialog group={group} onSaved={onSaved} controlledOpen={open} onControlledOpenChange={setOpen} hideTrigger />
+    </div>
+  );
+}
+
+function CreateGroupDialog({
+  group, onSaved, controlledOpen, onControlledOpenChange, hideTrigger,
+}: {
+  group?: TaskGroup;
+  onSaved: () => void;
+  controlledOpen?: boolean;
+  onControlledOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
+}) {
+  const isEditing = !!group;
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = onControlledOpenChange ?? setUncontrolledOpen;
+
+  const [name, setName] = useState(group?.name ?? '');
+  const [dueDate, setDueDate] = useState(group?.dueDate ? group.dueDate.slice(0, 10) : '');
+  const [hasPayment, setHasPayment] = useState(group?.hasPayment ?? false);
+  const [paymentAmount, setPaymentAmount] = useState(group?.paymentAmount ?? '');
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    if (!open) return;
+    setName(group?.name ?? '');
+    setDueDate(group?.dueDate ? group.dueDate.slice(0, 10) : '');
+    setHasPayment(group?.hasPayment ?? false);
+    setPaymentAmount(group?.paymentAmount ?? '');
+  }, [open, group]);
+
   async function handleSubmit() {
-    if (!name.trim() || !paymentAmount.trim()) {
-      toast.error('Nombre y monto son obligatorios');
+    if (!name.trim()) {
+      toast.error('El nombre del grupo es obligatorio');
+      return;
+    }
+    if (hasPayment && !paymentAmount.trim()) {
+      toast.error('El monto es obligatorio si el grupo tiene pago asignado');
       return;
     }
     setSaving(true);
     try {
-      const res = await fetch('/api/admin/task-groups', {
-        method: 'POST',
+      const body = {
+        name,
+        dueDate: dueDate || null,
+        hasPayment,
+        paymentAmount: hasPayment ? paymentAmount : null,
+      };
+      const res = await fetch(isEditing ? `/api/admin/task-groups/${group.id}` : '/api/admin/task-groups', {
+        method: isEditing ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, paymentAmount, paymentCadence }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        toast.error(data.error ?? 'No se pudo crear el grupo');
+        toast.error(data.error ?? 'No se pudo guardar el grupo');
         return;
       }
-      toast.success('Grupo creado');
+      toast.success(isEditing ? 'Grupo actualizado' : 'Grupo creado');
       setOpen(false);
-      setName(''); setPaymentAmount(''); setPaymentCadence('WEEK');
-      onCreated();
+      onSaved();
     } finally {
       setSaving(false);
     }
@@ -269,49 +339,135 @@ function CreateGroupDialog({ onCreated }: { onCreated: () => void }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button><Plus className="w-4 h-4 mr-1.5" />Nuevo grupo</Button>
-      </DialogTrigger>
+      {!hideTrigger && (
+        <DialogTrigger asChild>
+          <Button><Plus className="w-4 h-4 mr-1.5" />Nuevo grupo</Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Nuevo grupo de tareas</DialogTitle>
+          <DialogTitle>{isEditing ? 'Editar grupo de tareas' : 'Nuevo grupo de tareas'}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div>
             <label className="text-sm font-medium mb-1.5 block">Nombre del grupo</label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder='Ej. "Cargar Colección XYZ - Fase 1"' />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">Plazo límite (opcional)</label>
+            <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            <p className="text-xs text-gray-500 mt-1">Fecha límite para terminar las tareas de este grupo — no está relacionada con el pago.</p>
+          </div>
+          <div className="flex items-center justify-between rounded-lg border border-gray-100 px-4 py-3">
+            <div>
+              <p className="text-sm font-medium text-gray-700">Asignar pago a este grupo</p>
+              <p className="text-xs text-gray-500">Se acredita una sola vez, cuando todas las tareas queden aprobadas.</p>
+            </div>
+            <Switch checked={hasPayment} onCheckedChange={setHasPayment} />
+          </div>
+          {hasPayment && (
             <div>
               <label className="text-sm font-medium mb-1.5 block">Monto fijo ($)</label>
               <Input type="number" step="0.01" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} />
             </div>
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Cadencia</label>
-              <Select value={paymentCadence} onValueChange={(v) => setPaymentCadence(v as PaymentCadence)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(CADENCE_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <p className="text-xs text-gray-500">
-            El monto se acredita una sola vez, cuando todas las tareas del grupo queden aprobadas.
-          </p>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-          <Button onClick={handleSubmit} disabled={saving}>{saving ? 'Guardando...' : 'Crear grupo'}</Button>
+          <Button onClick={handleSubmit} disabled={saving}>{saving ? 'Guardando...' : isEditing ? 'Guardar cambios' : 'Crear grupo'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
-function CreateTaskDialog({ groups, onCreated }: { groups: TaskGroup[]; onCreated: () => void }) {
+function GroupDetailDialog({ group, allGroups, onClose, onChanged }: {
+  group: TaskGroup; allGroups: TaskGroup[]; onClose: () => void; onChanged: () => void;
+}) {
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { isAdmin } = usePermissions();
+  const { data: session } = useSession();
+  const userId = (session?.user as { id?: string } | undefined)?.id;
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/task-groups/${group.id}`);
+      if (res.ok) setTasks((await res.json()).tasks);
+    } finally {
+      setLoading(false);
+    }
+  }, [group.id]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function handleTaskChanged() {
+    await Promise.all([load(), onChanged()]);
+  }
+
+  return (
+    <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="w-[80vw] max-w-none h-[80vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>{group.name}</DialogTitle>
+        </DialogHeader>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-sm text-gray-500">
+            {tasks.filter((t) => t.status === 'APPROVED').length}/{tasks.length} tareas aprobadas
+          </p>
+          {isAdmin && (
+            <CreateTaskDialog
+              groups={allGroups}
+              onCreated={handleTaskChanged}
+              fixedGroupId={group.id}
+            />
+          )}
+        </div>
+        <div className="flex-1 overflow-y-auto space-y-3">
+          {loading ? (
+            <p className="text-sm text-gray-500">Cargando...</p>
+          ) : tasks.length === 0 ? (
+            <Card>
+              <CardContent className="p-8 text-center text-gray-500">
+                Sin tareas en este grupo todavía.
+              </CardContent>
+            </Card>
+          ) : (
+            tasks.map((task) => (
+              <TaskCard key={task.id} task={task} isAdmin={isAdmin} currentUserId={userId} onChanged={handleTaskChanged} />
+            ))
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function BlockFieldPair({ label, line, onChange }: {
+  label: string;
+  line: BlockLine;
+  onChange: (next: BlockLine) => void;
+}) {
+  return (
+    <div className="grid grid-cols-4 gap-3">
+      <div className="col-span-1">
+        <label className="text-xs text-gray-500 mb-1 block">{label} — Código</label>
+        <Input value={line.code} onChange={(e) => onChange({ ...line, code: e.target.value })} placeholder="Código" />
+      </div>
+      <div className="col-span-3">
+        <label className="text-xs text-gray-500 mb-1 block">{label} — URL del producto</label>
+        <Input value={line.url} onChange={(e) => onChange({ ...line, url: e.target.value })} placeholder="URL del producto" />
+      </div>
+    </div>
+  );
+}
+
+function CreateTaskDialog({ groups, onCreated, fixedGroupId }: {
+  groups: TaskGroup[]; onCreated: () => void; fixedGroupId?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [assignees, setAssignees] = useState<Assignee[]>([]);
   const [products, setProducts] = useState<EntityPickerOption[]>([]);
@@ -322,12 +478,10 @@ function CreateTaskDialog({ groups, onCreated }: { groups: TaskGroup[]; onCreate
   const [targetCode, setTargetCode] = useState('');
   const [gender, setGender] = useState('');
   const [sourceUrl, setSourceUrl] = useState('');
-  const [blockACode, setBlockACode] = useState('');
-  const [blockAUrl, setBlockAUrl] = useState('');
-  const [blockBCode, setBlockBCode] = useState('');
-  const [blockBUrl, setBlockBUrl] = useState('');
+  const [blockA, setBlockA] = useState<BlockLine[]>(EMPTY_BLOCK);
+  const [blockB, setBlockB] = useState<BlockLine[]>(EMPTY_BLOCK);
   const [targetEntityId, setTargetEntityId] = useState<string | null>(null);
-  const [groupId, setGroupId] = useState<string>('none');
+  const [groupId, setGroupId] = useState<string>(fixedGroupId ?? 'none');
   const [assignedTo, setAssignedTo] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -370,8 +524,8 @@ function CreateTaskDialog({ groups, onCreated }: { groups: TaskGroup[]; onCreate
 
   function resetForm() {
     setTitle(''); setDescription(''); setTargetCode(''); setGender(''); setSourceUrl('');
-    setBlockACode(''); setBlockAUrl(''); setBlockBCode(''); setBlockBUrl('');
-    setTargetEntityId(null); setGroupId('none'); setAssignedTo(''); setType('GENERIC');
+    setBlockA(EMPTY_BLOCK); setBlockB(EMPTY_BLOCK);
+    setTargetEntityId(null); setGroupId(fixedGroupId ?? 'none'); setAssignedTo(''); setType('GENERIC');
   }
 
   async function handleSubmit() {
@@ -395,8 +549,9 @@ function CreateTaskDialog({ groups, onCreated }: { groups: TaskGroup[]; onCreate
       } else if (type === 'CREATE_SET') {
         body.targetCode = targetCode || null;
         body.gender = gender || null;
-        body.blockA = blockACode || blockAUrl ? { code: blockACode, url: blockAUrl } : null;
-        body.blockB = blockBCode || blockBUrl ? { code: blockBCode, url: blockBUrl } : null;
+        const cleanBlock = (b: BlockLine[]) => (b.some((l) => l.code || l.url) ? b : null);
+        body.blockA = cleanBlock(blockA);
+        body.blockB = cleanBlock(blockB);
       } else if (type === 'EDIT_PRODUCT') {
         body.targetEntityType = 'PRODUCT';
         body.targetEntityId = targetEntityId;
@@ -429,11 +584,11 @@ function CreateTaskDialog({ groups, onCreated }: { groups: TaskGroup[]; onCreate
       <DialogTrigger asChild>
         <Button><Plus className="w-4 h-4 mr-1.5" />Asignar tarea</Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="w-[80vw] max-w-none h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Asignar nueva tarea</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="space-y-4 flex-1 overflow-y-auto pr-1">
           <div>
             <label className="text-sm font-medium mb-1.5 block">Tipo</label>
             <Select value={type} onValueChange={(v) => { setType(v as TaskType); setTargetEntityId(null); }}>
@@ -475,7 +630,7 @@ function CreateTaskDialog({ groups, onCreated }: { groups: TaskGroup[]; onCreate
             </>
           )}
 
-          {/* CREATE_SET: Título (1/2) + Género (1/4), luego Bloque A y Bloque B */}
+          {/* CREATE_SET: Título (1/2) + Género (1/4), luego Bloque A (2 líneas) y Bloque B (2 líneas) */}
           {type === 'CREATE_SET' && (
             <>
               <div className="grid grid-cols-4 gap-3">
@@ -497,19 +652,15 @@ function CreateTaskDialog({ groups, onCreated }: { groups: TaskGroup[]; onCreate
                   </Select>
                 </div>
               </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Bloque A</p>
-                <div className="grid grid-cols-4 gap-3">
-                  <Input value={blockACode} onChange={(e) => setBlockACode(e.target.value)} placeholder="Código" />
-                  <Input className="col-span-3" value={blockAUrl} onChange={(e) => setBlockAUrl(e.target.value)} placeholder="URL del producto" />
-                </div>
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Bloque A (2 productos)</p>
+                <BlockFieldPair label="Producto 1" line={blockA[0]} onChange={(l) => setBlockA([l, blockA[1]])} />
+                <BlockFieldPair label="Producto 2" line={blockA[1]} onChange={(l) => setBlockA([blockA[0], l])} />
               </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Bloque B</p>
-                <div className="grid grid-cols-4 gap-3">
-                  <Input value={blockBCode} onChange={(e) => setBlockBCode(e.target.value)} placeholder="Código" />
-                  <Input className="col-span-3" value={blockBUrl} onChange={(e) => setBlockBUrl(e.target.value)} placeholder="URL del producto" />
-                </div>
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Bloque B (2 productos)</p>
+                <BlockFieldPair label="Producto 1" line={blockB[0]} onChange={(l) => setBlockB([l, blockB[1]])} />
+                <BlockFieldPair label="Producto 2" line={blockB[1]} onChange={(l) => setBlockB([blockB[0], l])} />
               </div>
             </>
           )}
@@ -540,7 +691,7 @@ function CreateTaskDialog({ groups, onCreated }: { groups: TaskGroup[]; onCreate
             <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
           </div>
 
-          {openGroups.length > 0 && (
+          {!fixedGroupId && openGroups.length > 0 && (
             <div>
               <label className="text-sm font-medium mb-1.5 block">Grupo de tareas (opcional)</label>
               <Select value={groupId} onValueChange={setGroupId}>
@@ -647,15 +798,23 @@ function TaskCard({ task, isAdmin, currentUserId, onChanged }: {
                 URL fuente: <a href={task.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline">{task.sourceUrl}</a>
               </p>
             )}
-            {task.blockA && (task.blockA.code || task.blockA.url) && (
-              <p className="text-xs text-gray-400 mt-1">
-                Bloque A: {task.blockA.code} {task.blockA.url && (<a href={task.blockA.url} target="_blank" rel="noopener noreferrer" className="underline">enlace</a>)}
-              </p>
+            {task.blockA && task.blockA.some((l) => l.code || l.url) && (
+              <div className="text-xs text-gray-400 mt-1">
+                Bloque A: {task.blockA.map((l, i) => (
+                  <span key={i} className="mr-2">
+                    {l.code}{l.url && <> (<a href={l.url} target="_blank" rel="noopener noreferrer" className="underline">enlace</a>)</>}
+                  </span>
+                ))}
+              </div>
             )}
-            {task.blockB && (task.blockB.code || task.blockB.url) && (
-              <p className="text-xs text-gray-400 mt-1">
-                Bloque B: {task.blockB.code} {task.blockB.url && (<a href={task.blockB.url} target="_blank" rel="noopener noreferrer" className="underline">enlace</a>)}
-              </p>
+            {task.blockB && task.blockB.some((l) => l.code || l.url) && (
+              <div className="text-xs text-gray-400 mt-1">
+                Bloque B: {task.blockB.map((l, i) => (
+                  <span key={i} className="mr-2">
+                    {l.code}{l.url && <> (<a href={l.url} target="_blank" rel="noopener noreferrer" className="underline">enlace</a>)</>}
+                  </span>
+                ))}
+              </div>
             )}
             {isAdmin && <p className="text-xs text-gray-400 mt-1">Asignada a: {task.assignedToName ?? '—'}</p>}
             {task.status === 'REJECTED' && task.rejectionReason && (
