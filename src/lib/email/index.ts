@@ -4,7 +4,13 @@ import { emailLog } from '@/db/schema';
 import { uuid } from '@/lib/uuid';
 import { isEventEnabled } from './event-settings';
 
-const FROM_ADDRESS = 'AllMedic Uniforms <notificaciones@allmedicuniforms.com>';
+// Dominio raíz `allmedicuniforms.com` NO está verificado en Resend — solo el subdominio
+// `notificaciones.allmedicuniforms.com` lo está (confirmado vía `resend.domains.list()`).
+// Usar el dominio raíz como remitente causaba un 403 silencioso: el SDK no lanza excepción,
+// solo responde `{ data: null, error }`, así que el bug pasaba desapercibido hasta revisar
+// `resend.com/emails` (2026-07-26). Configurable por env para no repetir esto si se verifica
+// otro dominio a futuro.
+const FROM_ADDRESS = process.env.EMAIL_FROM_ADDRESS || 'AllMedic Uniforms <no-reply@notificaciones.allmedicuniforms.com>';
 const SALES_TEAM_EMAIL = process.env.SALES_TEAM_EMAIL || 'allmedicuniforms@gmail.com';
 
 let _resend: Resend | null = null;
