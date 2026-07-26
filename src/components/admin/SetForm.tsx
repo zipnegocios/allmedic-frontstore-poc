@@ -40,6 +40,7 @@ import { PriceSection } from '@/components/admin/set-form/PriceSection';
 import { RulesSection } from '@/components/admin/set-form/RulesSection';
 import { buildSetValidationSummary } from '@/components/admin/set-form/validation-summary';
 import { useActivityTracking } from '@/hooks/useActivityTracking';
+import { useAnchoredTask } from '@/contexts/AnchoredTaskContext';
 
 interface SetFormProps {
   setId?: string;
@@ -67,6 +68,9 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
   const [createdSetId, setCreatedSetId] = useState<string | undefined>(setId);
   // Fase 7 del plan RBAC: registro de productividad del Gestor del Catálogo.
   const { finish: finishActivity } = useActivityTracking('SET', setId, initialData as Record<string, unknown> | undefined);
+  // Anclaje de tareas (2026-07-26): ver equivalente en ProductForm.tsx.
+  const { anchoredTask, clearAnchoredTask } = useAnchoredTask();
+  const [savingAnchored, setSavingAnchored] = useState<'progress' | 'complete' | null>(null);
   const [showValidationBanner, setShowValidationBanner] = useState(false);
   const [pickerRequest, setPickerRequest] = useState<{ target: 'cover' | 'secondaryCover'; mode: 'special' | 'content' } | null>(null);
   // Snapshot de productIds vigentes al momento de elegir una portada en modo
@@ -106,7 +110,9 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
     handleSubmit,
     watch,
     setValue,
+    getValues,
     trigger,
+    reset,
     formState: { errors },
   } = useForm<SetFormData>({
     resolver: zodResolver(SetFormSchema) as never,
@@ -271,7 +277,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
       }
       const saved = await res.json();
       if (!createdSetId) setCreatedSetId(saved.id);
-      finishActivity(saved.id, payload as unknown as Record<string, unknown>);
+      finishActivity(saved.id, payload as unknown as Record<string, unknown>, anchoredTask?.id);
       toast.success(createdSetId ? 'Set actualizado' : 'Set creado');
       router.push('/admin/sets');
       router.refresh();
@@ -279,6 +285,65 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
       toast.error(err instanceof Error ? err.message : 'Error al guardar');
     } finally {
       setSaving(false);
+    }
+  }
+
+  /** Guarda con la tarea/subtarea anclada como destino — ver equivalente en ProductForm.tsx. */
+  async function saveWithAnchoredTask(mode: 'progress' | 'complete') {
+    if (!anchoredTask) return;
+    const rawData = getValues();
+    const valid = await trigger();
+    if (!valid) {
+      setShowValidationBanner(true);
+      toast.error('Revisa los campos obligatorios antes de guardar');
+      return;
+    }
+    const payload = buildSetPayload(rawData);
+    if (mode === 'progress') payload.isActive = false;
+
+    setSavingAnchored(mode);
+    setShowValidationBanner(false);
+    try {
+      const url = createdSetId ? `/api/admin/sets/${createdSetId}` : '/api/admin/sets';
+      const method = createdSetId ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Error al guardar');
+      }
+      const saved = await res.json();
+      if (!createdSetId) setCreatedSetId(saved.id);
+      finishActivity(saved.id, payload as unknown as Record<string, unknown>, anchoredTask.id);
+
+      const advanceRes = await fetch(`/api/admin/tasks/${anchoredTask.id}/advance`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          mode === 'progress'
+            ? { toStatus: 'IN_PROGRESS' }
+            : { toStatus: 'COMPLETED', targetEntityId: saved.id }
+        ),
+      }).catch(() => null);
+      if (!advanceRes?.ok) {
+        toast.error('El set se guardó, pero no se pudo actualizar el estado de la tarea anclada.');
+      }
+
+      if (mode === 'complete') {
+        clearAnchoredTask();
+        toast.success('Set guardado y tarea completada');
+      } else {
+        toast.success('Set guardado — tarea en progreso');
+      }
+      reset(payload as unknown as SetFormData, { keepDirty: false });
+      await refreshSetRules();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al guardar');
+    } finally {
+      setSavingAnchored(null);
     }
   }
 
@@ -303,7 +368,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
       }
       const saved = await res.json();
       if (!createdSetId) setCreatedSetId(saved.id);
-      finishActivity(saved.id, payload as unknown as Record<string, unknown>);
+      finishActivity(saved.id, payload as unknown as Record<string, unknown>, anchoredTask?.id);
       toast.success('Cambios guardados');
       setSaveStayStatus('success');
       await refreshSetRules();
@@ -438,6 +503,34 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
           {saving ? 'Guardando...' : 'Guardar'}
         </Button>
       </div>
+
+      {anchoredTask && (
+        <Alert className="mb-4 border-emerald-200 bg-emerald-50">
+          <AlertTitle className="text-emerald-800">Tarea anclada: {anchoredTask.title}</AlertTitle>
+          <AlertDescription>
+            <div className="flex flex-col sm:flex-row gap-2 mt-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={savingAnchored !== null}
+                onClick={() => saveWithAnchoredTask('progress')}
+              >
+                {savingAnchored === 'progress' ? 'Guardando...' : 'Guardar y continuar después'}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700"
+                disabled={savingAnchored !== null}
+                onClick={() => saveWithAnchoredTask('complete')}
+              >
+                {savingAnchored === 'complete' ? 'Guardando...' : 'Guardar y completar tarea'}
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <form onSubmit={(e) => { e.preventDefault(); handleSubmit(onSubmit, onInvalid)(); }}>
         {showValidationBanner && validationSummary.length > 0 && (

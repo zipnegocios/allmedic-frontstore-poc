@@ -18,7 +18,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { CommentThread } from '@/components/admin/CommentThread';
 import { EntityPicker, type EntityPickerOption } from '@/components/admin/EntityPicker';
 
-type TaskType = 'CREATE_PRODUCT' | 'CREATE_SET' | 'UPLOAD_MEDIA' | 'EDIT_PRODUCT' | 'EDIT_SET' | 'GENERIC';
+type TaskType = 'CREATE_PRODUCT' | 'CREATE_SET' | 'UPLOAD_MEDIA' | 'EDIT_PRODUCT' | 'EDIT_SET' | 'GENERIC' | 'SET_PRODUCT_SLOT';
 type TaskStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'APPROVED' | 'REJECTED';
 
 interface BlockLine {
@@ -39,6 +39,7 @@ interface Task {
   blockA: BlockLine[] | null;
   blockB: BlockLine[] | null;
   groupId: string | null;
+  parentTaskId: string | null;
   status: TaskStatus;
   rejectionReason: string | null;
   createdAt: string;
@@ -65,6 +66,9 @@ interface TaskGroup {
   approvedTasks: number;
 }
 
+// SET_PRODUCT_SLOT deliberadamente fuera de TYPE_LABELS de creación manual — solo se genera
+// automáticamente (createTask en task-service.ts), nunca aparece como opción en el Select
+// "Tipo" del formulario de creación de tareas.
 const TYPE_LABELS: Record<TaskType, string> = {
   CREATE_PRODUCT: 'Crear producto',
   CREATE_SET: 'Crear set',
@@ -72,7 +76,10 @@ const TYPE_LABELS: Record<TaskType, string> = {
   EDIT_PRODUCT: 'Editar producto',
   EDIT_SET: 'Editar set',
   GENERIC: 'Genérica',
+  SET_PRODUCT_SLOT: 'Producto del set',
 };
+
+const MANUAL_TASK_TYPES: TaskType[] = ['CREATE_PRODUCT', 'CREATE_SET', 'UPLOAD_MEDIA', 'EDIT_PRODUCT', 'EDIT_SET', 'GENERIC'];
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
   PENDING: 'Pendiente',
@@ -183,7 +190,7 @@ export default function TareasPage() {
 
           {loading ? (
             <p className="text-sm text-gray-500">Cargando...</p>
-          ) : tasks.length === 0 ? (
+          ) : tasks.filter((t) => !t.parentTaskId).length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center text-gray-500">
                 <ClipboardList className="w-8 h-8 mx-auto mb-2 text-gray-300" />
@@ -192,8 +199,15 @@ export default function TareasPage() {
             </Card>
           ) : (
             <div className="space-y-3">
-              {tasks.map((task) => (
-                <TaskCard key={task.id} task={task} isAdmin={isAdmin} currentUserId={userId} onChanged={refreshAll} />
+              {tasks.filter((t) => !t.parentTaskId).map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  isAdmin={isAdmin}
+                  currentUserId={userId}
+                  onChanged={refreshAll}
+                  subtasks={tasks.filter((t) => t.parentTaskId === task.id)}
+                />
               ))}
             </div>
           )}
@@ -594,8 +608,8 @@ function CreateTaskDialog({ groups, onCreated, fixedGroupId }: {
             <Select value={type} onValueChange={(v) => { setType(v as TaskType); setTargetEntityId(null); }}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {Object.entries(TYPE_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                {MANUAL_TASK_TYPES.map((value) => (
+                  <SelectItem key={value} value={value}>{TYPE_LABELS[value]}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -725,8 +739,8 @@ function CreateTaskDialog({ groups, onCreated, fixedGroupId }: {
   );
 }
 
-function TaskCard({ task, isAdmin, currentUserId, onChanged }: {
-  task: Task; isAdmin: boolean; currentUserId: string | undefined; onChanged: () => void;
+function TaskCard({ task, isAdmin, currentUserId, onChanged, subtasks }: {
+  task: Task; isAdmin: boolean; currentUserId: string | undefined; onChanged: () => void; subtasks?: Task[];
 }) {
   const [busy, setBusy] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
@@ -861,6 +875,20 @@ function TaskCard({ task, isAdmin, currentUserId, onChanged }: {
         {showComments && (
           <div className="mt-4 pt-4 border-t border-gray-100">
             <CommentThread mode="task" taskId={task.id} />
+          </div>
+        )}
+
+        {subtasks && subtasks.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-gray-100 space-y-1.5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+              Productos del set ({subtasks.filter((s) => s.status === 'APPROVED').length}/{subtasks.length})
+            </p>
+            {subtasks.map((sub) => (
+              <div key={sub.id} className="flex items-center justify-between gap-2 text-sm">
+                <span className="text-gray-700 truncate">{sub.title}</span>
+                <Badge className={`${STATUS_COLORS[sub.status]} border-none text-xs shrink-0`}>{STATUS_LABELS[sub.status]}</Badge>
+              </div>
+            ))}
           </div>
         )}
       </CardContent>

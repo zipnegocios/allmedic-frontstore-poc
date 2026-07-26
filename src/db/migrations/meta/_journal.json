@@ -148,6 +148,20 @@
       "when": 1785142000000,
       "tag": "0020_task_groups_deadline_optional_payment",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1785200000000,
+      "tag": "0021_add_set_product_slot_type",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1785200100000,
+      "tag": "0022_task_parent_id",
+      "breakpoints": true
     }
   ]
 }

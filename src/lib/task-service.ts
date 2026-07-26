@@ -9,7 +9,7 @@ import { uuid } from '@/lib/uuid';
 import { sendEmail } from '@/lib/email';
 import { taskAssignedEmail, taskCompletedEmail, taskRejectedEmail } from '@/lib/email/templates';
 
-export type CatalogTaskType = 'CREATE_PRODUCT' | 'CREATE_SET' | 'UPLOAD_MEDIA' | 'EDIT_PRODUCT' | 'EDIT_SET' | 'GENERIC';
+export type CatalogTaskType = 'CREATE_PRODUCT' | 'CREATE_SET' | 'UPLOAD_MEDIA' | 'EDIT_PRODUCT' | 'EDIT_SET' | 'GENERIC' | 'SET_PRODUCT_SLOT';
 export type CatalogTaskStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'APPROVED' | 'REJECTED';
 
 export class InvalidTaskTransitionError extends Error {
@@ -45,13 +45,28 @@ export interface CreateTaskInput {
   blockA?: Array<{ code: string; url: string }> | null;
   blockB?: Array<{ code: string; url: string }> | null;
   groupId?: string | null;
+  /** Tarea CREATE_SET que generó esta subtarea SET_PRODUCT_SLOT (2026-07-26) — solo aplica
+   * a ese tipo, generado automáticamente por `createTask`, nunca pasado manualmente desde UI. */
+  parentTaskId?: string | null;
   assignedTo: string;
   assignedBy: string;
 }
 
+/** Nombre de cada línea de bloque, en el orden fijo en que se generan las subtareas
+ * SET_PRODUCT_SLOT — Bloque A tiene 2 líneas, Bloque B tiene 2 líneas (decisión del plan de
+ * mejoras al panel de tareas: cada bloque relaciona 2 productos). */
+const SLOT_LABELS = ['Bloque A, producto 1', 'Bloque A, producto 2', 'Bloque B, producto 1', 'Bloque B, producto 2'] as const;
+
 /** Crea una tarea (tipada o genérica, decisión 4 del plan) y notifica al Gestor asignado.
  * Si `groupId` viene informado, valida el invariante "un grupo = un solo Gestor" (todas las
- * tareas de un grupo deben compartir `assignedTo`) y que el grupo no esté ya completado. */
+ * tareas de un grupo deben compartir `assignedTo`) y que el grupo no esté ya completado.
+ *
+ * Si `type === 'CREATE_SET'` y vienen líneas de Bloque A/B, genera automáticamente 4
+ * subtareas `SET_PRODUCT_SLOT` (una por línea) dentro de la misma transacción —
+ * `parentTaskId` apunta a esta tarea, mismo `assignedTo`/`assignedBy`, sin notificación ni
+ * correo propios (evita spam: el Gestor ya recibe la notificación de la tarea padre). No
+ * cuentan como CREATE_PRODUCT real — son un medio para trabajar el armado del set pieza por
+ * pieza (feature de anclaje de tareas, 2026-07-26). */
 export async function createTask(input: CreateTaskInput) {
   if (input.groupId) {
     const [group] = await db.select().from(catalogTaskGroups).where(eq(catalogTaskGroups.id, input.groupId)).limit(1);
@@ -65,26 +80,49 @@ export async function createTask(input: CreateTaskInput) {
     if (mismatched) throw new TaskGroupAssigneeMismatchError();
   }
 
-  const [task] = await db
-    .insert(catalogTasks)
-    .values({
-      id: uuid(),
-      type: input.type,
-      title: input.title,
-      description: input.description ?? null,
-      targetCode: input.targetCode ?? null,
-      targetEntityType: input.targetEntityType ?? null,
-      targetEntityId: input.targetEntityId ?? null,
-      gender: input.gender ?? null,
-      sourceUrl: input.sourceUrl ?? null,
-      blockA: input.blockA ?? null,
-      blockB: input.blockB ?? null,
-      groupId: input.groupId ?? null,
-      assignedTo: input.assignedTo,
-      assignedBy: input.assignedBy,
-      status: 'PENDING',
-    })
-    .returning();
+  const task = await db.transaction(async (tx) => {
+    const [inserted] = await tx
+      .insert(catalogTasks)
+      .values({
+        id: uuid(),
+        type: input.type,
+        title: input.title,
+        description: input.description ?? null,
+        targetCode: input.targetCode ?? null,
+        targetEntityType: input.targetEntityType ?? null,
+        targetEntityId: input.targetEntityId ?? null,
+        gender: input.gender ?? null,
+        sourceUrl: input.sourceUrl ?? null,
+        blockA: input.blockA ?? null,
+        blockB: input.blockB ?? null,
+        groupId: input.groupId ?? null,
+        assignedTo: input.assignedTo,
+        assignedBy: input.assignedBy,
+        status: 'PENDING',
+      })
+      .returning();
+
+    if (input.type === 'CREATE_SET') {
+      const lines = [...(input.blockA ?? []), ...(input.blockB ?? [])].filter((l) => l.code || l.url);
+      if (lines.length > 0) {
+        await tx.insert(catalogTasks).values(
+          lines.map((line, index) => ({
+            id: uuid(),
+            type: 'SET_PRODUCT_SLOT' as const,
+            title: `${inserted.title} — ${SLOT_LABELS[index] ?? `Producto ${index + 1}`}`,
+            targetCode: line.code || null,
+            sourceUrl: line.url || null,
+            parentTaskId: inserted.id,
+            assignedTo: input.assignedTo,
+            assignedBy: input.assignedBy,
+            status: 'PENDING' as const,
+          }))
+        );
+      }
+    }
+
+    return inserted;
+  });
 
   await db.insert(catalogNotifications).values({
     id: uuid(),
@@ -103,6 +141,22 @@ export async function createTask(input: CreateTaskInput) {
   }
 
   return task;
+}
+
+/** Subtareas SET_PRODUCT_SLOT de una tarea CREATE_SET — usado para anidarlas visualmente
+ * bajo la tarjeta de la tarea padre en `/admin/tareas`. */
+export async function listSubtasks(parentTaskId: string) {
+  return db
+    .select({
+      id: catalogTasks.id,
+      title: catalogTasks.title,
+      status: catalogTasks.status,
+      targetCode: catalogTasks.targetCode,
+      sourceUrl: catalogTasks.sourceUrl,
+      targetEntityId: catalogTasks.targetEntityId,
+    })
+    .from(catalogTasks)
+    .where(eq(catalogTasks.parentTaskId, parentTaskId));
 }
 
 export interface TaskListFilters {
@@ -134,6 +188,7 @@ export async function listTasks(filters: TaskListFilters = {}) {
       blockA: catalogTasks.blockA,
       blockB: catalogTasks.blockB,
       groupId: catalogTasks.groupId,
+      parentTaskId: catalogTasks.parentTaskId,
       status: catalogTasks.status,
       rejectionReason: catalogTasks.rejectionReason,
       createdAt: catalogTasks.createdAt,
@@ -163,8 +218,11 @@ const ALLOWED_TRANSITIONS: Record<CatalogTaskStatus, CatalogTaskStatus[]> = {
 };
 
 /** Avance del Gestor: PENDING→IN_PROGRESS, IN_PROGRESS→COMPLETED. Al completar, notifica por
- * correo al Admin que asignó la tarea (evento `TASK_COMPLETED`, controlable individualmente). */
-export async function advanceTaskStatus(taskId: string, toStatus: CatalogTaskStatus) {
+ * correo al Admin que asignó la tarea (evento `TASK_COMPLETED`, controlable individualmente).
+ * `targetEntityId` opcional (feature de anclaje de tareas, 2026-07-26): cuando el Gestor
+ * completa una tarea/subtarea anclada desde el formulario de Producto/Set, se guarda en el
+ * mismo request el id de la entidad recién creada/editada — evita una segunda llamada. */
+export async function advanceTaskStatus(taskId: string, toStatus: CatalogTaskStatus, targetEntityId?: string | null) {
   const task = await getTaskById(taskId);
   if (!task) throw new Error('Tarea no encontrada.');
   if (!ALLOWED_TRANSITIONS[task.status as CatalogTaskStatus].includes(toStatus)) {
@@ -173,6 +231,7 @@ export async function advanceTaskStatus(taskId: string, toStatus: CatalogTaskSta
 
   const patch: Record<string, unknown> = { status: toStatus, updatedAt: new Date() };
   if (toStatus === 'COMPLETED') patch.completedAt = new Date();
+  if (targetEntityId) patch.targetEntityId = targetEntityId;
 
   const [updated] = await db.update(catalogTasks).set(patch).where(eq(catalogTasks.id, taskId)).returning();
 

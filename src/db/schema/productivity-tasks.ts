@@ -8,8 +8,11 @@ import { productivityRateTiers } from "./productivity-rate-tiers";
 export { productivityRateTiers, productivityRateComponentEnum, productivityRates, productivityRatesRelations } from "./productivity-rate-tiers";
 
 // ─── Catalog Tasks (asignación de trabajo Admin → Gestor del Catálogo) ───
+// SET_PRODUCT_SLOT (2026-07-26): subtarea transitoria generada automáticamente al crear una
+// tarea CREATE_SET (una por línea de Bloque A/B) — ver `parentTaskId` abajo. No es un encargo
+// de producto real, es un medio para trabajar el armado del set pieza por pieza.
 export const catalogTaskTypeEnum = pgEnum("catalog_task_type", [
-  "CREATE_PRODUCT", "CREATE_SET", "UPLOAD_MEDIA", "EDIT_PRODUCT", "EDIT_SET", "GENERIC",
+  "CREATE_PRODUCT", "CREATE_SET", "UPLOAD_MEDIA", "EDIT_PRODUCT", "EDIT_SET", "GENERIC", "SET_PRODUCT_SLOT",
 ]);
 export const catalogTaskStatusEnum = pgEnum("catalog_task_status", [
   "PENDING", "IN_PROGRESS", "COMPLETED", "APPROVED", "REJECTED",
@@ -69,6 +72,13 @@ export const catalogTasks = pgTable("catalog_tasks", {
   blockA: jsonb("block_a").$type<Array<{ code: string; url: string }>>(),
   blockB: jsonb("block_b").$type<Array<{ code: string; url: string }>>(),
   groupId: pgUuid("group_id").references(() => catalogTaskGroups.id, { onDelete: "set null" }),
+  // Tarea CREATE_SET que generó esta subtarea SET_PRODUCT_SLOT (2026-07-26) — separado de
+  // `groupId` (que es el agrupador de pago/plazo, no de subtareas). Sin FK real: es una
+  // auto-referencia dentro de la misma tabla, mismo criterio ya usado en `targetEntityId`
+  // para no complicar el tipado circular de Drizzle — se resuelve a nivel de aplicación
+  // (borrar la tarea padre no borra las subtareas en cascada automáticamente; el servicio
+  // debe limpiarlas explícitamente si llega a implementarse borrado de tareas).
+  parentTaskId: pgUuid("parent_task_id"),
   assignedTo: pgUuid("assigned_to").notNull().references(() => users.id, { onDelete: "cascade" }),
   assignedBy: pgUuid("assigned_by").notNull().references(() => users.id, { onDelete: "cascade" }),
   status: catalogTaskStatusEnum("status").notNull().default("PENDING"),
@@ -81,6 +91,7 @@ export const catalogTasks = pgTable("catalog_tasks", {
   index("idx_catalog_tasks_assigned_to").on(table.assignedTo),
   index("idx_catalog_tasks_status").on(table.status),
   index("idx_catalog_tasks_group").on(table.groupId),
+  index("idx_catalog_tasks_parent").on(table.parentTaskId),
 ]);
 
 export const catalogTasksRelations = relations(catalogTasks, ({ one, many }) => ({

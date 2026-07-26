@@ -6,6 +6,9 @@ import { getTaskById, advanceTaskStatus, InvalidTaskTransitionError } from '@/li
 
 const AdvanceSchema = z.object({
   toStatus: z.enum(['IN_PROGRESS', 'COMPLETED']),
+  // Anclaje de tareas (2026-07-26): id del producto/set recién creado/editado desde el
+  // formulario correspondiente, cuando la tarea/subtarea estaba anclada ahí.
+  targetEntityId: z.string().optional().nullable(),
 });
 
 /**
@@ -31,7 +34,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const body = AdvanceSchema.parse(await request.json());
-    const updated = await advanceTaskStatus(id, body.toStatus);
+    const updated = await advanceTaskStatus(id, body.toStatus, body.targetEntityId);
     return NextResponse.json({ task: updated });
   } catch (err) {
     if (err instanceof z.ZodError) {
