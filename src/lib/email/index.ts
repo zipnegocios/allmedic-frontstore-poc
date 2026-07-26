@@ -51,6 +51,26 @@ export async function sendEmail({ to, subject, html, attachments, eventKey }: Se
 
   try {
     const result = await resend.emails.send({ from: FROM_ADDRESS, to, subject, html, attachments });
+
+    // El SDK de Resend NO lanza excepción cuando la API rechaza el envío (dominio no
+    // verificado, remitente inválido, etc.) — responde `{ data: null, error: {...} }` con
+    // 200 OK a nivel de fetch. Ignorar `result.error` acá era el bug: se registraba en
+    // `email_log` como si el correo hubiera salido, aunque Resend nunca lo aceptara.
+    if (result.error) {
+      console.error('[email] Resend rechazó el envío:', result.error);
+      if (eventKey) {
+        await db.insert(emailLog).values({
+          id: uuid(),
+          eventKey,
+          resendId: null,
+          to: Array.isArray(to) ? to.join(', ') : to,
+          subject,
+          status: 'FAILED',
+        });
+      }
+      return;
+    }
+
     if (eventKey) {
       await db.insert(emailLog).values({
         id: uuid(),
@@ -62,6 +82,16 @@ export async function sendEmail({ to, subject, html, attachments, eventKey }: Se
     }
   } catch (err) {
     console.error('[email] Error enviando correo:', err);
+    if (eventKey) {
+      await db.insert(emailLog).values({
+        id: uuid(),
+        eventKey,
+        resendId: null,
+        to: Array.isArray(to) ? to.join(', ') : to,
+        subject,
+        status: 'FAILED',
+      });
+    }
   }
 }
 
