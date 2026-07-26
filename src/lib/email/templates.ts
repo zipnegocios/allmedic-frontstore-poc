@@ -145,3 +145,46 @@ export function quoteStatusChangedEmail(params: { contactName: string; code: str
     ),
   };
 }
+
+// ─── Notificaciones de tareas del Gestor del Catálogo (Fase 8 del plan
+// tareas/comentarios/pagos) — decisión 11: correo solo en los dos eventos críticos
+// (asignación y rechazo), el resto de eventos queda solo como badge en el panel. ───
+
+export function taskAssignedEmail(params: { assigneeName: string; title: string; description: string | null }): {
+  subject: string;
+  html: string;
+} {
+  const { assigneeName, title, description } = params;
+  return {
+    subject: `Nueva tarea asignada — ${title}`,
+    html: wrap(
+      'Nueva Tarea Asignada',
+      `
+        <p>Hola ${assigneeName},</p>
+        <p>Se te asignó una nueva tarea en el panel de administración:</p>
+        <p style="margin:16px 0;"><strong>${title}</strong></p>
+        ${description ? `<p style="color:#666;">${description}</p>` : ''}
+        <p>Puedes verla en la sección "Tareas" del panel.</p>
+      `
+    ),
+  };
+}
+
+export function taskRejectedEmail(params: { assigneeName: string; title: string; reason: string }): {
+  subject: string;
+  html: string;
+} {
+  const { assigneeName, title, reason } = params;
+  return {
+    subject: `Tarea rechazada — ${title}`,
+    html: wrap(
+      'Tarea Rechazada',
+      `
+        <p>Hola ${assigneeName},</p>
+        <p>Tu tarea <strong>${title}</strong> fue revisada y rechazada. Motivo:</p>
+        <p style="margin:16px 0;color:#666;">${reason}</p>
+        <p>La tarea volvió a estado "En progreso" para que la ajustes y la marques como completada de nuevo.</p>
+      `
+    ),
+  };
+}

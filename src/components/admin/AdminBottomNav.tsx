@@ -32,9 +32,12 @@ import {
   Users,
   ShieldCheck,
   Gauge,
+  ClipboardList,
+  Wallet,
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useNotifications } from '@/hooks/useNotifications';
 import { resolveModuleForPath } from '@/lib/permissions/route-map';
 
 /**
@@ -79,7 +82,9 @@ const moreItems = [
   { href: '/admin/sets', label: 'Sets Corporativos', icon: Boxes },
   { href: '/admin/reglas', label: 'Motor de Reglas', icon: Settings2 },
   { href: '/admin/papelera', label: 'Papelera', icon: Trash2 },
+  { href: '/admin/tareas', label: 'Tareas', icon: ClipboardList },
   { href: '/admin/productividad', label: 'Productividad', icon: Gauge },
+  { href: '/admin/pagos', label: 'Pagos', icon: Wallet },
   { href: '/admin/usuarios', label: 'Usuarios', icon: Users },
   { href: '/admin/permisos', label: 'Permisos', icon: ShieldCheck },
   { href: '/admin/configuracion', label: 'Configuración', icon: Settings },
@@ -89,6 +94,7 @@ export function AdminBottomNav() {
   const pathname = usePathname();
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const { loading, canRead } = usePermissions();
+  const { unreadCount } = useNotifications();
 
   // Fase 5 del plan RBAC: mismo criterio que AdminSidebar — ocultar por completo, no
   // deshabilitar, los módulos sin permiso `read`.
@@ -165,7 +171,14 @@ export function AdminBottomNav() {
                   )}
                   aria-current={isActive ? 'page' : undefined}
                 >
-                  <Icon className="w-5 h-5" strokeWidth={1.5} />
+                  <span className="relative">
+                    <Icon className="w-5 h-5" strokeWidth={1.5} />
+                    {item.href === '/admin/tareas' && unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1.5 flex items-center justify-center bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[14px] h-[14px] px-0.5">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
+                  </span>
                   {item.label}
                 </Link>
               );

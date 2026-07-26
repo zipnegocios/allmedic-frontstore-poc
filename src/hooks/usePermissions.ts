@@ -24,12 +24,27 @@ async function fetchPermissions(): Promise<Set<string>> {
   return new Set(data.permissions as string[]);
 }
 
+// Interruptor maestro de pagos (decisión 10 del plan tareas/comentarios/pagos) — tiene
+// precedencia sobre la matriz de permisos: si está apagado, el ítem se oculta del sidebar
+// aunque el usuario tenga `pagos:read`. Cacheado igual que los permisos, invalidado solo
+// al cambiar de usuario (no hay versión — es un flag de baja frecuencia de cambio).
+let cachedPaymentModuleEnabled: boolean | null = null;
+let paymentModuleInFlight: Promise<boolean> | null = null;
+
+async function fetchPaymentModuleEnabled(): Promise<boolean> {
+  const res = await fetch('/api/admin/payment-settings');
+  if (!res.ok) return false;
+  const data = await res.json();
+  return Boolean(data.enabled);
+}
+
 export function usePermissions() {
   const { data: session, status } = useSession();
   const userId = (session?.user as { id?: string } | undefined)?.id ?? null;
   const [permissions, setPermissions] = useState<Set<string> | null>(
     cachedForUserId === userId ? cachedPermissions : null
   );
+  const [paymentModuleEnabled, setPaymentModuleEnabled] = useState<boolean | null>(cachedPaymentModuleEnabled);
 
   useEffect(() => {
     if (status !== 'authenticated' || !userId) return;
@@ -52,14 +67,40 @@ export function usePermissions() {
     return () => { cancelled = true; };
   }, [status, userId]);
 
+  useEffect(() => {
+    if (status !== 'authenticated' || !userId) return;
+    if (cachedPaymentModuleEnabled !== null) return;
+    if (!permissions) return;
+    // Solo tiene sentido consultarlo si el usuario podría llegar a ver `pagos` — evita un
+    // 403 ruidoso en la consola para roles sin ningún permiso relacionado. Incluye a Admin
+    // (bypass total) porque el interruptor maestro aplica también para él (decisión 10).
+    const isAdmin = permissions.has('*:*');
+    if (!isAdmin && !permissions.has('pagos:read')) return;
+
+    let cancelled = false;
+    if (!paymentModuleInFlight) {
+      paymentModuleInFlight = fetchPaymentModuleEnabled();
+    }
+    paymentModuleInFlight.then((enabled) => {
+      if (cancelled) return;
+      cachedPaymentModuleEnabled = enabled;
+      paymentModuleInFlight = null;
+      setPaymentModuleEnabled(enabled);
+    });
+
+    return () => { cancelled = true; };
+  }, [status, userId, permissions]);
+
   const isAdmin = permissions?.has('*:*') ?? false;
 
   function canRead(module: string): boolean {
+    if (module === 'pagos' && !paymentModuleEnabled) return false;
     if (isAdmin) return true;
     return permissions?.has(`${module}:read`) ?? false;
   }
 
   function canWrite(module: string): boolean {
+    if (module === 'pagos' && !paymentModuleEnabled) return false;
     if (isAdmin) return true;
     return permissions?.has(`${module}:write`) ?? false;
   }

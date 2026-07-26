@@ -52,6 +52,9 @@ const MODULE_LABELS: Record<string, string> = {
   'usuarios': 'Usuarios',
   'permisos': 'Permisos',
   'productividad': 'Productividad',
+  'tareas': 'Tareas',
+  'comentarios': 'Comentarios',
+  'pagos': 'Pagos por Productividad',
 };
 
 export default function AdminPermissionsPage() {

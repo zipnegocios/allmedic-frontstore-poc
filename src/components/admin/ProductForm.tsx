@@ -119,7 +119,7 @@ export default function ProductForm({
   // Fase 7 del plan RBAC: registro de productividad del Gestor del Catálogo — un producto
   // cuenta como actividad completa (crear o editar), las variantes se instrumentan aparte
   // en `VariantsMediaSection`.
-  const { finish: finishActivity } = useActivityTracking('PRODUCT', productId);
+  const { finish: finishActivity } = useActivityTracking('PRODUCT', productId, initialData as Record<string, unknown> | undefined);
   const [featureInput, setFeatureInput] = useState('');
   const [careInput, setCareInput] = useState('');
   const [pickerTargetIndex, setPickerTargetIndex] = useState<number | 'append' | 'cover' | 'secondaryCover' | null>(null);
@@ -436,7 +436,7 @@ export default function ProductForm({
       }
       const saved = await res.json();
       if (!createdProductId) setCreatedProductId(saved.id);
-      finishActivity(saved.id);
+      finishActivity(saved.id, data as unknown as Record<string, unknown>);
       toast.success(createdProductId ? 'Producto actualizado' : 'Producto creado');
       if (embedded) {
         onSaved?.(saved);
@@ -474,7 +474,7 @@ export default function ProductForm({
       }
       const saved = await res.json();
       if (!createdProductId) setCreatedProductId(saved.id);
-      finishActivity(saved.id);
+      finishActivity(saved.id, data as unknown as Record<string, unknown>);
       toast.success('Cambios guardados');
       setSaveStayStatus('success');
       // Fija los valores recién guardados como nuevo "punto limpio" del form —

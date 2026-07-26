@@ -27,9 +27,12 @@ import {
   Users,
   ShieldCheck,
   Gauge,
+  ClipboardList,
+  Wallet,
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useNotifications } from '@/hooks/useNotifications';
 import { resolveModuleForPath } from '@/lib/permissions/route-map';
 
 const navItems = [
@@ -48,7 +51,9 @@ const navItems = [
   { href: '/admin/cotizaciones', label: 'Cotizaciones', icon: FileText },
   { href: '/admin/reglas', label: 'Motor de Reglas', icon: Settings2 },
   { href: '/admin/papelera', label: 'Papelera', icon: Trash2 },
+  { href: '/admin/tareas', label: 'Tareas', icon: ClipboardList },
   { href: '/admin/productividad', label: 'Productividad', icon: Gauge },
+  { href: '/admin/pagos', label: 'Pagos', icon: Wallet },
   { href: '/admin/usuarios', label: 'Usuarios', icon: Users },
   { href: '/admin/permisos', label: 'Permisos', icon: ShieldCheck },
   { href: '/admin/configuracion', label: 'Configuración', icon: Settings },
@@ -58,6 +63,7 @@ export function AdminSidebar({ className }: { className?: string }) {
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { loading, canRead } = usePermissions();
+  const { unreadCount } = useNotifications();
 
   // Fase 5 del plan RBAC: los módulos sin permiso `read` se ocultan por completo (no se
   // muestran deshabilitados). Mientras carga el permiso real, no se muestra nada para
@@ -138,6 +144,14 @@ export function AdminSidebar({ className }: { className?: string }) {
               >
                 <Icon className="w-5 h-5 shrink-0" strokeWidth={1.5} />
                 {!isCollapsed && <span className="truncate">{item.label}</span>}
+                {item.href === '/admin/tareas' && unreadCount > 0 && (
+                  <span className={cn(
+                    'flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1',
+                    isCollapsed ? 'absolute top-1 right-1' : 'ml-auto'
+                  )}>
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
               </Link>
 
               {/* Tooltip when collapsed */}

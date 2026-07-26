@@ -56,6 +56,16 @@ export const ROUTE_MODULE_MAP: Array<{ prefix: string; module: string }> = [
   { prefix: '/api/admin/productivity', module: 'productividad' },
   { prefix: '/api/admin/users', module: 'usuarios' },
   { prefix: '/api/admin/permissions', module: 'permisos' },
+  { prefix: '/admin/tareas', module: 'tareas' },
+  { prefix: '/api/admin/tasks', module: 'tareas' },
+  { prefix: '/api/admin/entity-comments', module: 'comentarios' },
+  { prefix: '/admin/pagos', module: 'pagos' },
+  { prefix: '/api/admin/payment-settings', module: 'pagos' },
+  { prefix: '/api/admin/payment-tiers', module: 'pagos' },
+  { prefix: '/api/admin/payment-periods', module: 'pagos' },
+  // Nota: /api/admin/users/[id]/payment-tier queda cubierto por el prefijo /api/admin/users
+  // (módulo `usuarios`, línea de arriba) — el handler exige `pagos:write` explícito además,
+  // mismo criterio de doble capa que /api/admin/tasks/[id]/comments (Fase 4).
 ];
 
 export function resolveModuleForPath(pathname: string): string | null {

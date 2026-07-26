@@ -5,6 +5,12 @@ import { finishActivity } from '@/lib/activity-tracking';
 
 const FinishActivitySchema = z.object({
   entityId: z.string().optional().nullable(),
+  // Diff de campos modificados (Fase 5 del plan tareas/comentarios/pagos) — solo aplica en
+  // UPDATE, calculado en el cliente por `useActivityTracking` comparando snapshots.
+  changedFields: z.record(z.string(), z.object({ before: z.unknown(), after: z.unknown() })).optional(),
+  // Si el formulario se abrió desde una tarea asignada, enlaza esta actividad con ella
+  // (Fase 6 del plan: permite anular por rechazo y contar para elegibilidad de pago).
+  taskId: z.string().optional().nullable(),
 });
 
 /** Fase 7 del plan RBAC: evento de "fin" del hook `useActivityTracking`, disparado al
@@ -19,7 +25,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const { id } = await params;
     const body = FinishActivitySchema.parse(await request.json().catch(() => ({})));
-    const result = await finishActivity(id, userId, body.entityId);
+    const result = await finishActivity(id, userId, {
+      entityId: body.entityId,
+      changedFields: body.changedFields,
+      taskId: body.taskId,
+    });
     if (!result) return NextResponse.json({ error: 'Actividad no encontrada' }, { status: 404 });
     return NextResponse.json({ ok: true });
   } catch (err) {

@@ -66,7 +66,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
   // pueda pasar de POST a PATCH en clics subsiguientes sin navegar.
   const [createdSetId, setCreatedSetId] = useState<string | undefined>(setId);
   // Fase 7 del plan RBAC: registro de productividad del Gestor del Catálogo.
-  const { finish: finishActivity } = useActivityTracking('SET', setId);
+  const { finish: finishActivity } = useActivityTracking('SET', setId, initialData as Record<string, unknown> | undefined);
   const [showValidationBanner, setShowValidationBanner] = useState(false);
   const [pickerRequest, setPickerRequest] = useState<{ target: 'cover' | 'secondaryCover'; mode: 'special' | 'content' } | null>(null);
   // Snapshot de productIds vigentes al momento de elegir una portada en modo
@@ -271,7 +271,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
       }
       const saved = await res.json();
       if (!createdSetId) setCreatedSetId(saved.id);
-      finishActivity(saved.id);
+      finishActivity(saved.id, payload as unknown as Record<string, unknown>);
       toast.success(createdSetId ? 'Set actualizado' : 'Set creado');
       router.push('/admin/sets');
       router.refresh();
@@ -303,7 +303,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
       }
       const saved = await res.json();
       if (!createdSetId) setCreatedSetId(saved.id);
-      finishActivity(saved.id);
+      finishActivity(saved.id, payload as unknown as Record<string, unknown>);
       toast.success('Cambios guardados');
       setSaveStayStatus('success');
       await refreshSetRules();
