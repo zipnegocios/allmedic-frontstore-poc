@@ -54,7 +54,7 @@ const MODULE_LABELS: Record<string, string> = {
   'productividad': 'Productividad',
   'tareas': 'Tareas',
   'comentarios': 'Comentarios',
-  'pagos': 'Pagos por Productividad',
+  'honorarios-staff': 'Honorarios Staff',
 };
 
 export default function AdminPermissionsPage() {

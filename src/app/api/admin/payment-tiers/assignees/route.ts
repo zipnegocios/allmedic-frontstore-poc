@@ -6,11 +6,11 @@ import { users } from '@/db/schema';
 import { eq, and, asc } from 'drizzle-orm';
 
 /** Listado de Gestores del Catálogo activos con su tier actual — para la tabla de
- * asignación de tier en `/admin/pagos`. */
+ * asignación de tier en `/admin/honorarios-staff`. */
 export async function GET() {
   try {
     const session = await requireAdmin();
-    await requireRole(session, 'pagos', 'read');
+    await requireRole(session, 'honorarios-staff', 'read');
 
     const rows = await db
       .select({

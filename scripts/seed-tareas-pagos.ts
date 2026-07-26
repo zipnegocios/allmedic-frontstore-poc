@@ -4,9 +4,13 @@
  * Uso: npx tsx scripts/seed-tareas-pagos.ts
  *
  * Cubre:
- * - Módulos nuevos (`tareas`, `comentarios`, `pagos`) en el catálogo maestro de permissions.
+ * - Módulos nuevos (`tareas`, `comentarios`, `honorarios-staff`) en el catálogo maestro de
+ *   permissions. El módulo de pagos por productividad se renombró de `pagos` a
+ *   `honorarios-staff` el 2026-07-26 (ver scripts/rename-pagos-to-honorarios-staff.ts) para
+ *   dejar "Pagos" libre para la futura integración con pasarela de pagos — este seed ya
+ *   siembra directamente con el nombre nuevo, útil para levantar un entorno desde cero.
  * - `role_permissions` iniciales para CATALOG_MANAGER (tareas:read, comentarios:read/write,
- *   pagos:read) según decisión de Fase 1 del plan.
+ *   honorarios-staff:read) según decisión de Fase 1 del plan.
  * - Incrementa `permissions_version` para que la matriz nueva aplique sin relogin.
  * - Singleton `system_settings` (payment_module_enabled=false por defecto — decisión 10).
  */
@@ -16,18 +20,18 @@ import { permissions, rolePermissions, permissionsVersion, systemSettings } from
 import { eq } from 'drizzle-orm';
 import { uuid } from '@/lib/uuid';
 
-const NEW_MODULES = ['tareas', 'comentarios', 'pagos'] as const;
+const NEW_MODULES = ['tareas', 'comentarios', 'honorarios-staff'] as const;
 const ACTIONS = ['read', 'write'] as const;
 
 const CATALOG_MANAGER_NEW_PERMISSIONS: Array<[string, string]> = [
   ['tareas', 'read'],
   ['comentarios', 'read'],
   ['comentarios', 'write'],
-  ['pagos', 'read'],
+  ['honorarios-staff', 'read'],
 ];
 
 async function seedNewModules() {
-  console.log('[1/3] Sembrando módulos nuevos (tareas, comentarios, pagos)...');
+  console.log('[1/3] Sembrando módulos nuevos (tareas, comentarios, honorarios-staff)...');
   const existing = await db.select().from(permissions);
   const existingSet = new Set(existing.map((p) => `${p.module}:${p.action}`));
 

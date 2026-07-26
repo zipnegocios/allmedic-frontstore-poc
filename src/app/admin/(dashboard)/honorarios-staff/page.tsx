@@ -53,7 +53,7 @@ const COMPONENT_LABELS: Record<RateRow['componentType'], string> = {
   TIME_BONUS: 'Bono/penalización por tiempo',
 };
 
-export default function PagosPage() {
+export default function HonorariosStaffPage() {
   const { isAdmin } = usePermissions();
   const [moduleEnabled, setModuleEnabled] = useState(false);
   const [loadingSettings, setLoadingSettings] = useState(true);
@@ -77,14 +77,14 @@ export default function PagosPage() {
       toast.error('No se pudo actualizar el interruptor');
       return;
     }
-    toast.success(enabled ? 'Módulo de pagos activado' : 'Módulo de pagos desactivado');
+    toast.success(enabled ? 'Módulo de Honorarios Staff activado' : 'Módulo de Honorarios Staff desactivado');
   }
 
   return (
     <div className="p-4 md:p-8 max-w-5xl">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-[#111111]">Pagos por productividad</h1>
+          <h1 className="text-3xl font-bold text-[#111111]">Honorarios Staff</h1>
           <p className="text-sm text-gray-500 mt-1">Tarifas, tiers y períodos de pago del Gestor del Catálogo</p>
         </div>
         {isAdmin && !loadingSettings && (
@@ -98,8 +98,9 @@ export default function PagosPage() {
       {!moduleEnabled && !loadingSettings && (
         <Card className="mb-6 border-amber-200 bg-amber-50">
           <CardContent className="p-4 text-sm text-amber-800">
-            El módulo de pagos está desactivado — los cálculos y el desglose no se pueden ejecutar
-            hasta activarlo. Los datos de configuración (tiers, tarifas) sí se pueden editar mientras tanto.
+            El módulo de Honorarios Staff está desactivado — los cálculos y el desglose no se
+            pueden ejecutar hasta activarlo. Los datos de configuración (tiers, tarifas) sí se
+            pueden editar mientras tanto.
           </CardContent>
         </Card>
       )}

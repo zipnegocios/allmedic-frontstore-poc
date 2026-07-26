@@ -9,7 +9,7 @@ import { listPeriods, createPeriod, getPeriodBreakdown } from '@/lib/payment-ser
 export async function GET() {
   try {
     const session = await requireAdmin();
-    await requireRole(session, 'pagos', 'read');
+    await requireRole(session, 'honorarios-staff', 'read');
 
     const role = (session.user as { role?: string })?.role;
     const periods = await listPeriods();
@@ -47,7 +47,7 @@ const CreatePeriodSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const session = await requireAdmin();
-    await requireRole(session, 'pagos', 'write');
+    await requireRole(session, 'honorarios-staff', 'write');
     const body = CreatePeriodSchema.parse(await request.json());
     const period = await createPeriod(new Date(body.startDate), new Date(body.endDate), body.notes);
     return NextResponse.json({ period }, { status: 201 });

@@ -85,7 +85,7 @@ const moreItems = [
   { href: '/admin/papelera', label: 'Papelera', icon: Trash2 },
   { href: '/admin/tareas', label: 'Tareas', icon: ClipboardList },
   { href: '/admin/productividad', label: 'Productividad', icon: Gauge },
-  { href: '/admin/pagos', label: 'Pagos', icon: Wallet },
+  { href: '/admin/honorarios-staff', label: 'Honorarios Staff', icon: Wallet },
   { href: '/admin/usuarios', label: 'Usuarios', icon: Users },
   { href: '/admin/permisos', label: 'Permisos', icon: ShieldCheck },
   { href: '/admin/correos', label: 'Correos', icon: Mail },

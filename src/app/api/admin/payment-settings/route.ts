@@ -10,7 +10,7 @@ import { getPaymentModuleEnabled, setPaymentModuleEnabled } from '@/lib/payment-
 export async function GET() {
   try {
     const session = await requireAdmin();
-    await requireRole(session, 'pagos', 'read');
+    await requireRole(session, 'honorarios-staff', 'read');
     const enabled = await getPaymentModuleEnabled();
     return NextResponse.json({ enabled });
   } catch (err) {
@@ -29,7 +29,7 @@ export async function PATCH(request: NextRequest) {
     const session = await requireAdmin();
     // skipPaymentModuleGate: este es el único endpoint que debe seguir funcionando con el
     // módulo apagado — es el que lo vuelve a encender.
-    await requireRole(session, 'pagos', 'write', { skipPaymentModuleGate: true });
+    await requireRole(session, 'honorarios-staff', 'write', { skipPaymentModuleGate: true });
     const body = SetEnabledSchema.parse(await request.json());
     await setPaymentModuleEnabled(body.enabled);
     return NextResponse.json({ ok: true });

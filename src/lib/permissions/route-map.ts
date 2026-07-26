@@ -59,17 +59,20 @@ export const ROUTE_MODULE_MAP: Array<{ prefix: string; module: string }> = [
   { prefix: '/admin/tareas', module: 'tareas' },
   { prefix: '/api/admin/tasks', module: 'tareas' },
   { prefix: '/api/admin/entity-comments', module: 'comentarios' },
-  { prefix: '/admin/pagos', module: 'pagos' },
-  { prefix: '/api/admin/payment-settings', module: 'pagos' },
-  { prefix: '/api/admin/payment-tiers', module: 'pagos' },
-  { prefix: '/api/admin/payment-periods', module: 'pagos' },
+  // Módulo renombrado de 'pagos' a 'honorarios-staff' (2026-07-26) — se dejó "Pagos" libre
+  // para la futura integración con pasarela de pagos, evitando confundir ambos conceptos.
+  // Las tablas de BD (payment_periods, payment_tiers, etc.) NO se renombraron.
+  { prefix: '/admin/honorarios-staff', module: 'honorarios-staff' },
+  { prefix: '/api/admin/payment-settings', module: 'honorarios-staff' },
+  { prefix: '/api/admin/payment-tiers', module: 'honorarios-staff' },
+  { prefix: '/api/admin/payment-periods', module: 'honorarios-staff' },
   { prefix: '/api/admin/email-events', module: 'configuracion' },
   { prefix: '/admin/correos', module: 'correos' },
   { prefix: '/api/admin/email-log', module: 'correos' },
   { prefix: '/api/admin/email-webhook-events', module: 'correos' },
   // Nota: /api/admin/users/[id]/payment-tier queda cubierto por el prefijo /api/admin/users
-  // (módulo `usuarios`, línea de arriba) — el handler exige `pagos:write` explícito además,
-  // mismo criterio de doble capa que /api/admin/tasks/[id]/comments (Fase 4).
+  // (módulo `usuarios`, línea de arriba) — el handler exige `honorarios-staff:write`
+  // explícito además, mismo criterio de doble capa que /api/admin/tasks/[id]/comments (Fase 4).
 ];
 
 export function resolveModuleForPath(pathname: string): string | null {

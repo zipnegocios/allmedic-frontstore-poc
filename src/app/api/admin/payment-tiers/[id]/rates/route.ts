@@ -17,7 +17,7 @@ const UpdateRateSchema = z.object({
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireAdmin();
-    await requireRole(session, 'pagos', 'write');
+    await requireRole(session, 'honorarios-staff', 'write');
 
     const { id: tierId } = await params;
     const body = UpdateRateSchema.parse(await request.json());

@@ -15,7 +15,7 @@ const AssignTierSchema = z.object({
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireAdmin();
-    await requireRole(session, 'pagos', 'write');
+    await requireRole(session, 'honorarios-staff', 'write');
 
     const { id } = await params;
     const body = AssignTierSchema.parse(await request.json());

@@ -71,11 +71,11 @@ export function usePermissions() {
     if (status !== 'authenticated' || !userId) return;
     if (cachedPaymentModuleEnabled !== null) return;
     if (!permissions) return;
-    // Solo tiene sentido consultarlo si el usuario podría llegar a ver `pagos` — evita un
-    // 403 ruidoso en la consola para roles sin ningún permiso relacionado. Incluye a Admin
-    // (bypass total) porque el interruptor maestro aplica también para él (decisión 10).
+    // Solo tiene sentido consultarlo si el usuario podría llegar a ver `honorarios-staff` —
+    // evita un 403 ruidoso en la consola para roles sin ningún permiso relacionado. Incluye
+    // a Admin (bypass total) porque el interruptor maestro aplica también para él (decisión 10).
     const isAdmin = permissions.has('*:*');
-    if (!isAdmin && !permissions.has('pagos:read')) return;
+    if (!isAdmin && !permissions.has('honorarios-staff:read')) return;
 
     let cancelled = false;
     if (!paymentModuleInFlight) {
@@ -94,13 +94,13 @@ export function usePermissions() {
   const isAdmin = permissions?.has('*:*') ?? false;
 
   function canRead(module: string): boolean {
-    if (module === 'pagos' && !paymentModuleEnabled) return false;
+    if (module === 'honorarios-staff' && !paymentModuleEnabled) return false;
     if (isAdmin) return true;
     return permissions?.has(`${module}:read`) ?? false;
   }
 
   function canWrite(module: string): boolean {
-    if (module === 'pagos' && !paymentModuleEnabled) return false;
+    if (module === 'honorarios-staff' && !paymentModuleEnabled) return false;
     if (isAdmin) return true;
     return permissions?.has(`${module}:write`) ?? false;
   }

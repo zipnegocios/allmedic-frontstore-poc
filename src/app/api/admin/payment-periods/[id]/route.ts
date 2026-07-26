@@ -8,7 +8,7 @@ import { getPeriodBreakdown } from '@/lib/payment-service';
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireAdmin();
-    await requireRole(session, 'pagos', 'read');
+    await requireRole(session, 'honorarios-staff', 'read');
 
     const { id } = await params;
     const breakdown = await getPeriodBreakdown(id);

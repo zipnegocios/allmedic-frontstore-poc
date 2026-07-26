@@ -15,7 +15,7 @@ const AdjustmentSchema = z.object({
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireAdmin();
-    await requireRole(session, 'pagos', 'write');
+    await requireRole(session, 'honorarios-staff', 'write');
 
     const { id } = await params;
     const body = AdjustmentSchema.parse(await request.json());

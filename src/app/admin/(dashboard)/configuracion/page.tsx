@@ -18,7 +18,7 @@ const SECTIONS = [
   { value: 'impuestos', label: 'Presets de impuestos' },
   { value: 'vigencia', label: 'Presets de vigencia' },
   { value: 'correos', label: 'Correos' },
-  { value: 'pagos', label: 'Pagos' },
+  { value: 'honorarios-staff', label: 'Honorarios Staff' },
 ] as const;
 
 export default function AdminConfiguracionPage() {
@@ -65,7 +65,7 @@ export default function AdminConfiguracionPage() {
         <TabsContent value="correos" className="mt-6">
           <EmailEventsPanel />
         </TabsContent>
-        <TabsContent value="pagos" className="mt-6">
+        <TabsContent value="honorarios-staff" className="mt-6">
           <PaymentModuleToggle />
         </TabsContent>
       </Tabs>

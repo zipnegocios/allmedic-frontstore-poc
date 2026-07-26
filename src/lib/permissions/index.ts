@@ -88,7 +88,7 @@ export class ForbiddenError extends Error {
 
 export class PaymentModuleOffError extends Error {
   constructor() {
-    super('El módulo de pagos por productividad está desactivado.');
+    super('El módulo de Honorarios Staff está desactivado.');
     this.name = 'PaymentModuleOffError';
   }
 }
@@ -98,12 +98,14 @@ export class PaymentModuleOffError extends Error {
  * Lanza `Error('Unauthorized')`/`Error('Forbidden')` — mismo contrato que `requireAdmin()`
  * (nunca llama `redirect()`, el caller decide qué hacer con cada error).
  *
- * El módulo `pagos` tiene una capa extra: el interruptor maestro (`system_settings.
+ * El módulo `honorarios-staff` (pagos por productividad del Gestor del Catálogo — renombrado
+ * de 'pagos' el 2026-07-26 para no confundirlo con la futura integración de pasarela de
+ * pagos) tiene una capa extra: el interruptor maestro (`system_settings.
  * payment_module_enabled`) tiene precedencia sobre la matriz de permisos (decisión 10 del
  * plan tareas/comentarios/pagos) — con el módulo apagado, ninguna escritura pasa aunque el
- * rol tenga `pagos:write`. Excepción explícita vía `skipPaymentModuleGate`: el propio
- * endpoint que prende/apaga el interruptor (`/api/admin/payment-settings`) debe pasarlo en
- * `true`, o apagar el módulo dejaría sin forma de volver a encenderlo desde la API.
+ * rol tenga `honorarios-staff:write`. Excepción explícita vía `skipPaymentModuleGate`: el
+ * propio endpoint que prende/apaga el interruptor (`/api/admin/payment-settings`) debe
+ * pasarlo en `true`, o apagar el módulo dejaría sin forma de volver a encenderlo desde la API.
  */
 export async function requireRole(
   session: { user?: SessionUser | null } | null,
@@ -122,7 +124,7 @@ export async function requireRole(
   if (!allowed) {
     throw new ForbiddenError();
   }
-  if (module === 'pagos' && action === 'write' && !options?.skipPaymentModuleGate) {
+  if (module === 'honorarios-staff' && action === 'write' && !options?.skipPaymentModuleGate) {
     const { getPaymentModuleEnabled } = await import('@/lib/payment-service');
     if (!(await getPaymentModuleEnabled())) {
       throw new PaymentModuleOffError();

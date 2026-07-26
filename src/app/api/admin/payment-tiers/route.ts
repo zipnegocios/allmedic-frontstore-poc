@@ -7,7 +7,7 @@ import { listTiers, createTier } from '@/lib/payment-service';
 export async function GET() {
   try {
     const session = await requireAdmin();
-    await requireRole(session, 'pagos', 'read');
+    await requireRole(session, 'honorarios-staff', 'read');
     const tiers = await listTiers();
     return NextResponse.json({ tiers });
   } catch (err) {
@@ -24,7 +24,7 @@ const CreateTierSchema = z.object({ name: z.string().min(1) });
 export async function POST(request: NextRequest) {
   try {
     const session = await requireAdmin();
-    await requireRole(session, 'pagos', 'write');
+    await requireRole(session, 'honorarios-staff', 'write');
     const body = CreateTierSchema.parse(await request.json());
     const tier = await createTier(body.name);
     return NextResponse.json({ tier }, { status: 201 });
