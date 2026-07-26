@@ -10,59 +10,15 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer';
-import {
-  LayoutDashboard,
-  Package,
-  ShoppingCart,
-  ImageIcon,
-  Tag,
-  Palette,
-  Store,
-  LogOut,
-  Boxes,
-  Building2,
-  FileText,
-  Images,
-  Settings2,
-  Settings,
-  Menu,
-  Trash2,
-  ListTree,
-  Shirt,
-  Users,
-  ShieldCheck,
-  Gauge,
-  ClipboardList,
-  Wallet,
-  Mail,
-} from 'lucide-react';
+import { FileText, ShoppingCart, Package, Building2, LogOut, Menu } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useNotifications } from '@/hooks/useNotifications';
 import { resolveModuleForPath } from '@/lib/permissions/route-map';
+import { isNavItemActive, isNavItemActiveInList } from '@/lib/nav-active';
+import { ADMIN_NAV, type AdminNavItem } from '@/lib/admin-nav';
 
-/**
- * Determina si una ruta de navegación está activa, usando el mismo criterio
- * de coincidencia que `AdminSidebar`: coincidencia exacta o prefijo de segmento.
- */
-export function isNavItemActive(pathname: string, href: string): boolean {
-  return pathname === href || pathname.startsWith(href + '/');
-}
-
-/**
- * Variante de `isNavItemActive` para usar en listas de navegación que incluyen
- * la raíz del panel (`/admin`, Dashboard). A diferencia del resto de rutas,
- * `/admin` no debe coincidir por prefijo, ya que `/admin/` es prefijo de
- * absolutamente todas las demás rutas del admin (`/admin/productos`,
- * `/admin/cotizaciones`, etc.), lo que provocaría que el Dashboard (y por lo
- * tanto el tab "Más") se marque como activo en casi cualquier página.
- */
-export function isNavItemActiveInList(pathname: string, href: string): boolean {
-  if (href === '/admin') {
-    return pathname === '/admin';
-  }
-  return isNavItemActive(pathname, href);
-}
+export { isNavItemActive, isNavItemActiveInList };
 
 const primaryItems = [
   { href: '/admin/cotizaciones', label: 'Cotizaciones', icon: FileText },
@@ -71,26 +27,31 @@ const primaryItems = [
   { href: '/admin/cuentas-corporativas', label: 'Cuentas', icon: Building2 },
 ];
 
-const moreItems = [
-  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/admin/biblioteca', label: 'Biblioteca', icon: Images },
-  { href: '/admin/banners', label: 'Banners', icon: ImageIcon },
-  { href: '/admin/marcas', label: 'Marcas', icon: Tag },
-  { href: '/admin/tipos-producto', label: 'Tipos de Producto', icon: Shirt },
-  { href: '/admin/atributos', label: 'Atributos y Tallas', icon: ListTree },
-  { href: '/admin/colores', label: 'Colores', icon: Palette },
-  { href: '/admin/sucursales', label: 'Sucursales', icon: Store },
-  { href: '/admin/sets', label: 'Sets Corporativos', icon: Boxes },
-  { href: '/admin/reglas', label: 'Motor de Reglas', icon: Settings2 },
-  { href: '/admin/papelera', label: 'Papelera', icon: Trash2 },
-  { href: '/admin/tareas', label: 'Tareas', icon: ClipboardList },
-  { href: '/admin/productividad', label: 'Productividad', icon: Gauge },
-  { href: '/admin/honorarios-staff', label: 'Honorarios Staff', icon: Wallet },
-  { href: '/admin/usuarios', label: 'Usuarios', icon: Users },
-  { href: '/admin/permisos', label: 'Permisos', icon: ShieldCheck },
-  { href: '/admin/correos', label: 'Correos', icon: Mail },
-  { href: '/admin/configuracion', label: 'Configuración', icon: Settings },
-];
+function filterVisibleItems(items: AdminNavItem[], canRead: (module: string) => boolean): AdminNavItem[] {
+  return items.filter((item) => {
+    const module = resolveModuleForPath(item.href);
+    return module ? canRead(module) : false;
+  });
+}
+
+/** Grupos con sus ítems filtrados por permiso — mismo criterio recursivo que `AdminSidebar`,
+ * aplanando subGroups (el drawer "Más" no anida secciones, a diferencia del sidebar). */
+function getVisibleSections(canRead: (module: string) => boolean): Array<{ label: string; items: AdminNavItem[] }> {
+  const sections: Array<{ label: string; items: AdminNavItem[] }> = [];
+  for (const group of ADMIN_NAV) {
+    if (group.label === null) {
+      // Dashboard suelto — se muestra como su propia "sección" sin encabezado en el drawer.
+      const items = filterVisibleItems(group.items, canRead);
+      if (items.length > 0) sections.push({ label: '', items });
+      continue;
+    }
+    const items = filterVisibleItems(group.items, canRead);
+    const subItems = (group.subGroups ?? []).flatMap((sg) => filterVisibleItems(sg.items, canRead));
+    const allItems = [...items, ...subItems];
+    if (allItems.length > 0) sections.push({ label: group.label, items: allItems });
+  }
+  return sections;
+}
 
 export function AdminBottomNav() {
   const pathname = usePathname();
@@ -106,9 +67,10 @@ export function AdminBottomNav() {
     return module ? canRead(module) : false;
   };
   const visiblePrimaryItems = primaryItems.filter((item) => isVisible(item.href));
-  const visibleMoreItems = moreItems.filter((item) => isVisible(item.href));
+  const sections: Array<{ label: string; items: AdminNavItem[] }> = loading ? [] : getVisibleSections(canRead);
+  const allMoreItems = sections.flatMap((s) => s.items);
 
-  const isMoreActive = visibleMoreItems.some((item) => isNavItemActiveInList(pathname, item.href));
+  const isMoreActive = allMoreItems.some((item) => isNavItemActiveInList(pathname, item.href));
 
   return (
     <>
@@ -152,39 +114,48 @@ export function AdminBottomNav() {
       </nav>
 
       <Drawer open={isMoreOpen} onOpenChange={setIsMoreOpen}>
-        <DrawerContent className="md:hidden bg-[#111111] text-white border-white/10">
+        <DrawerContent className="md:hidden bg-[#111111] text-white border-white/10 max-h-[85vh]">
           <DrawerHeader>
             <DrawerTitle className="text-white">Más módulos</DrawerTitle>
           </DrawerHeader>
-          <div className="grid grid-cols-3 gap-2 p-4 pt-0">
-            {visibleMoreItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = isNavItemActiveInList(pathname, item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setIsMoreOpen(false)}
-                  className={cn(
-                    'flex flex-col items-center justify-center gap-2 min-h-[44px] rounded-lg p-3 text-center text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
-                    isActive
-                      ? 'bg-white text-[#111111]'
-                      : 'text-gray-300 hover:bg-white/10 hover:text-white'
-                  )}
-                  aria-current={isActive ? 'page' : undefined}
-                >
-                  <span className="relative">
-                    <Icon className="w-5 h-5" strokeWidth={1.5} />
-                    {item.href === '/admin/tareas' && unreadCount > 0 && (
-                      <span className="absolute -top-1 -right-1.5 flex items-center justify-center bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[14px] h-[14px] px-0.5">
-                        {unreadCount > 9 ? '9+' : unreadCount}
-                      </span>
-                    )}
-                  </span>
-                  {item.label}
-                </Link>
-              );
-            })}
+          <div className="overflow-y-auto p-4 pt-0 space-y-4">
+            {sections.map((section, sIndex) => (
+              <div key={`${section.label}-${sIndex}`}>
+                {section.label && (
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2 px-1">{section.label}</p>
+                )}
+                <div className="grid grid-cols-3 gap-2">
+                  {section.items.map((item, iIndex) => {
+                    const Icon = item.icon;
+                    const isActive = isNavItemActiveInList(pathname, item.href);
+                    return (
+                      <Link
+                        key={`${item.href}-${iIndex}`}
+                        href={item.href}
+                        onClick={() => setIsMoreOpen(false)}
+                        className={cn(
+                          'flex flex-col items-center justify-center gap-2 min-h-[44px] rounded-lg p-3 text-center text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
+                          isActive
+                            ? 'bg-white text-[#111111]'
+                            : 'text-gray-300 hover:bg-white/10 hover:text-white'
+                        )}
+                        aria-current={isActive ? 'page' : undefined}
+                      >
+                        <span className="relative">
+                          <Icon className="w-5 h-5" strokeWidth={1.5} />
+                          {item.href === '/admin/tareas' && unreadCount > 0 && (
+                            <span className="absolute -top-1 -right-1.5 flex items-center justify-center bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[14px] h-[14px] px-0.5">
+                              {unreadCount > 9 ? '9+' : unreadCount}
+                            </span>
+                          )}
+                        </span>
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
             <button
               type="button"
               onClick={async () => {
@@ -192,7 +163,7 @@ export function AdminBottomNav() {
                 await signOut({ redirect: false });
                 window.location.href = '/admin/login';
               }}
-              className="flex flex-col items-center justify-center gap-2 min-h-[44px] rounded-lg p-3 text-center text-xs font-medium text-gray-300 hover:bg-white/10 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              className="flex items-center justify-center gap-2 min-h-[44px] w-full rounded-lg p-3 text-center text-xs font-medium text-gray-300 hover:bg-white/10 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
               <LogOut className="w-5 h-5" strokeWidth={1.5} />
               Cerrar sesión

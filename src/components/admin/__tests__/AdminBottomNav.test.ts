@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isNavItemActive, isNavItemActiveInList } from '../AdminBottomNav';
+import { isNavItemActive, isNavItemActiveInList } from '@/lib/nav-active';
 
 describe('isNavItemActive', () => {
   it('marca activo en coincidencia exacta', () => {
