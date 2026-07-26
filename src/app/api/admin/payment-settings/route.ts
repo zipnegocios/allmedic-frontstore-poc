@@ -27,7 +27,9 @@ const SetEnabledSchema = z.object({ enabled: z.boolean() });
 export async function PATCH(request: NextRequest) {
   try {
     const session = await requireAdmin();
-    await requireRole(session, 'pagos', 'write');
+    // skipPaymentModuleGate: este es el único endpoint que debe seguir funcionando con el
+    // módulo apagado — es el que lo vuelve a encender.
+    await requireRole(session, 'pagos', 'write', { skipPaymentModuleGate: true });
     const body = SetEnabledSchema.parse(await request.json());
     await setPaymentModuleEnabled(body.enabled);
     return NextResponse.json({ ok: true });

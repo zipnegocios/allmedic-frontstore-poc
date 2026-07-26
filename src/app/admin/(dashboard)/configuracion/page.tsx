@@ -10,6 +10,7 @@ import { CompanySettingsForm } from '@/components/admin/quotes/CompanySettingsFo
 import { TaxPresetsPanel } from '@/components/admin/quotes/TaxPresetsPanel';
 import { ValidityPresetsPanel } from '@/components/admin/quotes/ValidityPresetsPanel';
 import { EmailEventsPanel } from '@/components/admin/email/EmailEventsPanel';
+import { PaymentModuleToggle } from '@/components/admin/payments/PaymentModuleToggle';
 import { usePermissions } from '@/hooks/usePermissions';
 
 const SECTIONS = [
@@ -17,6 +18,7 @@ const SECTIONS = [
   { value: 'impuestos', label: 'Presets de impuestos' },
   { value: 'vigencia', label: 'Presets de vigencia' },
   { value: 'correos', label: 'Correos' },
+  { value: 'pagos', label: 'Pagos' },
 ] as const;
 
 export default function AdminConfiguracionPage() {
@@ -62,6 +64,9 @@ export default function AdminConfiguracionPage() {
         </TabsContent>
         <TabsContent value="correos" className="mt-6">
           <EmailEventsPanel />
+        </TabsContent>
+        <TabsContent value="pagos" className="mt-6">
+          <PaymentModuleToggle />
         </TabsContent>
       </Tabs>
 

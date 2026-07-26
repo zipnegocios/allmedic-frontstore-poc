@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/admin-auth';
-import { requireRole, ForbiddenError } from '@/lib/permissions';
+import { requireRole, ForbiddenError, PaymentModuleOffError } from '@/lib/permissions';
 import { assignUserTier } from '@/lib/payment-service';
 
 const AssignTierSchema = z.object({
@@ -25,6 +25,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: 'Validation error', details: err.issues }, { status: 400 });
     }
+    if (err instanceof PaymentModuleOffError) return NextResponse.json({ error: err.message }, { status: 400 });
     if (err instanceof ForbiddenError) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     const message = err instanceof Error ? err.message : 'Unknown error';
     if (message === 'Unauthorized') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

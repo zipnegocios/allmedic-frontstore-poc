@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAdmin, getSessionUserId } from '@/lib/admin-auth';
-import { requireRole, ForbiddenError } from '@/lib/permissions';
+import { requireRole, ForbiddenError, PaymentModuleOffError } from '@/lib/permissions';
 import { listPeriods, createPeriod, getPeriodBreakdown } from '@/lib/payment-service';
 
 /** Admin ve todos los períodos; el propio Gestor solo su desglose (decisión 8 del plan:
@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: 'Validation error', details: err.issues }, { status: 400 });
     }
+    if (err instanceof PaymentModuleOffError) return NextResponse.json({ error: err.message }, { status: 400 });
     if (err instanceof ForbiddenError) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     const message = err instanceof Error ? err.message : 'Unknown error';
     if (message === 'Unauthorized') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
