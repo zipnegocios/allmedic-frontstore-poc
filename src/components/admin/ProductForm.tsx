@@ -128,7 +128,7 @@ export default function ProductForm({
   // Anclaje de tareas (2026-07-26): si el Gestor ancló una tarea/subtarea desde el FAB, se
   // propaga a `finishActivity` (ya soporta un tercer argumento `taskId`) y se avanza su
   // estado tras guardar — ver `saveWithAnchoredTask` más abajo.
-  const { anchoredTask, clearAnchoredTask } = useAnchoredTask();
+  const { anchoredTask, updateAnchoredStatus } = useAnchoredTask();
   const [savingAnchored, setSavingAnchored] = useState<'progress' | 'complete' | null>(null);
   const [featureInput, setFeatureInput] = useState('');
   const [careInput, setCareInput] = useState('');
@@ -472,8 +472,11 @@ export default function ProductForm({
    * Guarda con la tarea/subtarea anclada como destino (2026-07-26): `mode: 'progress'` fuerza
    * `isActive: false` en el payload (sin importar el toggle normal del form) y avanza la
    * tarea a `IN_PROGRESS` — el producto queda guardado pero sin publicar, para retomar
-   * después. `mode: 'complete'` respeta el toggle `isActive` normal, avanza la tarea a
-   * `COMPLETED` con `targetEntityId = saved.id`, y desancla la tarea (ya se completó).
+   * después. `mode: 'complete'` respeta el toggle `isActive` normal y avanza la tarea a
+   * `COMPLETED` con `targetEntityId = saved.id` — la tarea NO se desancla (feedback de
+   * Gustavo, 2026-07-27): sigue siendo re-editable/re-completable cuantas veces sea
+   * necesario mientras el Admin no la apruebe o rechace; el desanclado sigue siendo una
+   * acción manual explícita ("Desanclar" en `TaskAnchorControl`).
    */
   async function saveWithAnchoredTask(mode: 'progress' | 'complete') {
     if (!anchoredTask) return;
@@ -522,9 +525,10 @@ export default function ProductForm({
           { duration: 8000 }
         );
       } else if (mode === 'complete') {
-        clearAnchoredTask();
-        toast.success('Producto guardado y tarea completada');
+        updateAnchoredStatus('COMPLETED');
+        toast.success('Producto guardado — tarea por revisar');
       } else {
+        updateAnchoredStatus('IN_PROGRESS');
         toast.success('Producto guardado — tarea en progreso');
       }
       reset(data, { keepDirty: false });
@@ -631,18 +635,40 @@ export default function ProductForm({
   const currentStep = PRODUCT_FORM_WIZARD_STEPS[currentStepIndex];
   const isLastWizardStep = currentStepIndex === totalSteps - 1;
 
-  function goToStep(index: number) {
-    if (!canNavigateToStep(index, maxVisitedStepIndex)) return;
+  /**
+   * Navegación libre entre pasos: un paso ya visitado se puede reabrir sin
+   * revalidar (permite volver atrás a corregir). Para saltar hacia adelante a
+   * un paso no visitado, se validan en cascada todos los pasos intermedios
+   * (desde el actual hasta el destino) — si alguno falla, la navegación se
+   * detiene ahí y `trigger()` deja los errores visibles en pantalla.
+   */
+  async function goToStep(index: number) {
+    if (index === currentStepIndex) return;
+    if (canNavigateToStep(index, maxVisitedStepIndex)) {
+      setCurrentStepIndex(index);
+      return;
+    }
+    if (index < currentStepIndex) {
+      setCurrentStepIndex(index);
+      return;
+    }
+
+    for (let i = currentStepIndex; i < index; i++) {
+      const fields = PRODUCT_FORM_WIZARD_STEPS[i].fields;
+      const valid = fields.length === 0 ? true : await trigger(fields as (keyof ProductFormData)[]);
+      if (!valid) {
+        setCurrentStepIndex(i);
+        setMaxVisitedStepIndex((m) => nextMaxVisitedIndex(m, i));
+        return;
+      }
+    }
+
     setCurrentStepIndex(index);
+    setMaxVisitedStepIndex((m) => nextMaxVisitedIndex(m, index));
   }
 
   async function goToNextStep() {
-    const fields = currentStep.fields;
-    const valid = fields.length === 0 ? true : await trigger(fields as (keyof ProductFormData)[]);
-    if (!valid) return;
-    const next = Math.min(currentStepIndex + 1, totalSteps - 1);
-    setCurrentStepIndex(next);
-    setMaxVisitedStepIndex((m) => nextMaxVisitedIndex(m, next));
+    await goToStep(currentStepIndex + 1);
   }
 
   function goToPreviousStep() {
@@ -896,7 +922,6 @@ export default function ProductForm({
               </p>
               <div className="flex gap-2" role="tablist" aria-label="Pasos del formulario">
                 {PRODUCT_FORM_WIZARD_STEPS.map((step, index) => {
-                  const isVisited = canNavigateToStep(index, maxVisitedStepIndex);
                   const isCurrent = index === currentStepIndex;
                   const StepIcon = WIZARD_STEP_ICONS[step.id];
                   return (
@@ -906,14 +931,12 @@ export default function ProductForm({
                       role="tab"
                       aria-selected={isCurrent}
                       aria-label={`Paso ${index + 1}: ${step.label}`}
-                      disabled={!isVisited}
                       onClick={() => goToStep(index)}
                       className={cn(
                         'flex-1 min-h-11 rounded-full border-2 flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111111]',
                         isCurrent
                           ? 'bg-[#111111] border-[#111111] text-white'
-                          : 'bg-white border-[#111111] text-[#111111]',
-                        !isVisited && 'opacity-40 cursor-not-allowed'
+                          : 'bg-white border-[#111111] text-[#111111]'
                       )}
                     >
                       <StepIcon className="w-4 h-4" strokeWidth={2} aria-hidden="true" />

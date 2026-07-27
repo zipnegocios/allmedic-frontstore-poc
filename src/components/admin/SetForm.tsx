@@ -73,7 +73,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
   // Fase 7 del plan RBAC: registro de productividad del Gestor del Catálogo.
   const { finish: finishActivity } = useActivityTracking('SET', setId, initialData as Record<string, unknown> | undefined);
   // Anclaje de tareas (2026-07-26): ver equivalente en ProductForm.tsx.
-  const { anchoredTask, clearAnchoredTask } = useAnchoredTask();
+  const { anchoredTask, updateAnchoredStatus } = useAnchoredTask();
   const [savingAnchored, setSavingAnchored] = useState<'progress' | 'complete' | null>(null);
   const [showValidationBanner, setShowValidationBanner] = useState(false);
   const [pickerRequest, setPickerRequest] = useState<{ target: 'cover' | 'secondaryCover'; mode: 'special' | 'content' } | null>(null);
@@ -343,9 +343,10 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
           { duration: 8000 }
         );
       } else if (mode === 'complete') {
-        clearAnchoredTask();
-        toast.success('Set guardado y tarea completada');
+        updateAnchoredStatus('COMPLETED');
+        toast.success('Set guardado — tarea por revisar');
       } else {
+        updateAnchoredStatus('IN_PROGRESS');
         toast.success('Set guardado — tarea en progreso');
       }
       reset(payload as unknown as SetFormData, { keepDirty: false });
@@ -468,18 +469,40 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
   const currentStep = SET_FORM_WIZARD_STEPS[currentStepIndex];
   const isLastWizardStep = currentStepIndex === totalSteps - 1;
 
-  function goToStep(index: number) {
-    if (!canNavigateToStep(index, maxVisitedStepIndex)) return;
+  /**
+   * Navegación libre entre pasos: un paso ya visitado se puede reabrir sin
+   * revalidar (permite volver atrás a corregir). Para saltar hacia adelante a
+   * un paso no visitado, se validan en cascada todos los pasos intermedios
+   * (desde el actual hasta el destino) — si alguno falla, la navegación se
+   * detiene ahí y `trigger()` deja los errores visibles en pantalla.
+   */
+  async function goToStep(index: number) {
+    if (index === currentStepIndex) return;
+    if (canNavigateToStep(index, maxVisitedStepIndex)) {
+      setCurrentStepIndex(index);
+      return;
+    }
+    if (index < currentStepIndex) {
+      setCurrentStepIndex(index);
+      return;
+    }
+
+    for (let i = currentStepIndex; i < index; i++) {
+      const stepFields = SET_FORM_WIZARD_STEPS[i].fields;
+      const valid = stepFields.length === 0 ? true : await trigger(stepFields as (keyof SetFormData)[]);
+      if (!valid) {
+        setCurrentStepIndex(i);
+        setMaxVisitedStepIndex((m) => nextMaxVisitedIndex(m, i));
+        return;
+      }
+    }
+
     setCurrentStepIndex(index);
+    setMaxVisitedStepIndex((m) => nextMaxVisitedIndex(m, index));
   }
 
   async function goToNextStep() {
-    const stepFields = currentStep.fields;
-    const valid = stepFields.length === 0 ? true : await trigger(stepFields as (keyof SetFormData)[]);
-    if (!valid) return;
-    const next = Math.min(currentStepIndex + 1, totalSteps - 1);
-    setCurrentStepIndex(next);
-    setMaxVisitedStepIndex((m) => nextMaxVisitedIndex(m, next));
+    await goToStep(currentStepIndex + 1);
   }
 
   function goToPreviousStep() {
@@ -578,12 +601,10 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
                       role="tab"
                       aria-selected={isCurrent}
                       aria-label={`Paso ${index + 1}: ${step.label}`}
-                      disabled={!isVisited}
                       onClick={() => goToStep(index)}
                       className={cn(
                         'min-h-11 flex-1 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111111]',
-                        isCurrent ? 'bg-[#111111]' : isVisited ? 'bg-gray-400' : 'bg-gray-200',
-                        !isVisited && 'cursor-not-allowed'
+                        isCurrent ? 'bg-[#111111]' : isVisited ? 'bg-gray-400' : 'bg-gray-200'
                       )}
                     />
                   );
