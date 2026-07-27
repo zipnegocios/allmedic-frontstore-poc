@@ -255,7 +255,10 @@ export async function getTaskDetail(id: string, currentUserId: string) {
       targetCode: catalogTasks.targetCode,
       targetEntityType: catalogTasks.targetEntityType,
       targetEntityId: catalogTasks.targetEntityId,
+      gender: catalogTasks.gender,
       sourceUrl: catalogTasks.sourceUrl,
+      blockA: catalogTasks.blockA,
+      blockB: catalogTasks.blockB,
       groupId: catalogTasks.groupId,
       parentTaskId: catalogTasks.parentTaskId,
       status: catalogTasks.status,
@@ -297,7 +300,10 @@ export async function getTaskById(id: string) {
 }
 
 const ALLOWED_TRANSITIONS: Record<CatalogTaskStatus, CatalogTaskStatus[]> = {
-  PENDING: ['IN_PROGRESS'],
+  // PENDING→COMPLETED directo (sin pasar por IN_PROGRESS) ocurre cuando el Gestor ancla una
+  // tarea recién creada y usa "Guardar y completar tarea" en el primer guardado — el flujo
+  // normal del formulario, no un caso excepcional.
+  PENDING: ['IN_PROGRESS', 'COMPLETED'],
   IN_PROGRESS: ['COMPLETED'],
   COMPLETED: ['APPROVED', 'REJECTED'],
   APPROVED: [],

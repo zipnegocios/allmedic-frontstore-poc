@@ -514,11 +514,14 @@ export default function ProductForm({
             : { toStatus: 'COMPLETED', targetEntityId: saved.id }
         ),
       }).catch(() => null);
-      if (!advanceRes?.ok) {
-        toast.error('El producto se guardó, pero no se pudo actualizar el estado de la tarea anclada.');
-      }
 
-      if (mode === 'complete') {
+      if (!advanceRes?.ok) {
+        const errData = await advanceRes?.json().catch(() => ({}));
+        toast.error(
+          `El producto se guardó, pero la tarea anclada NO se actualizó${errData?.error ? `: ${errData.error}` : ''}. Reintenta desde el panel de tareas.`,
+          { duration: 8000 }
+        );
+      } else if (mode === 'complete') {
         clearAnchoredTask();
         toast.success('Producto guardado y tarea completada');
       } else {

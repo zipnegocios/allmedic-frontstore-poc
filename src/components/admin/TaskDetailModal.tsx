@@ -9,12 +9,20 @@ import { TaskStatusBadge, type CatalogTaskStatus } from './TaskStatusBadge';
 import { SetTaskProgressViewer } from './SetTaskProgressViewer';
 import { CommentThread } from './CommentThread';
 
+interface BlockLine {
+  code: string;
+  url: string;
+}
+
 interface TaskDetail {
   id: string;
   type: string;
   title: string;
   description: string | null;
   targetCode: string | null;
+  sourceUrl: string | null;
+  blockA: BlockLine[] | null;
+  blockB: BlockLine[] | null;
   status: CatalogTaskStatus;
   rejectionReason: string | null;
   createdAt: string;
@@ -101,6 +109,39 @@ export function TaskDetailModal({ taskId, onClose, onChanged }: { taskId: string
             </div>
 
             {task.description && <p className="text-sm text-gray-600">{task.description}</p>}
+
+            {task.sourceUrl && (
+              <p className="text-sm text-gray-600">
+                URL fuente: <a href={task.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline break-all">{task.sourceUrl}</a>
+              </p>
+            )}
+
+            {(task.blockA || task.blockB) && (
+              <div className="grid grid-cols-2 gap-4">
+                {task.blockA && task.blockA.some((l) => l.code || l.url) && (
+                  <div className="space-y-1 rounded-lg border border-gray-100 bg-gray-50 p-2.5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Bloque A</p>
+                    {task.blockA.map((line, i) => (
+                      <div key={i} className="text-xs text-gray-600">
+                        <p>Código: <span className="text-gray-800">{line.code || '—'}</span></p>
+                        {line.url && <a href={line.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline break-all">{line.url}</a>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {task.blockB && task.blockB.some((l) => l.code || l.url) && (
+                  <div className="space-y-1 rounded-lg border border-gray-100 bg-gray-50 p-2.5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Bloque B</p>
+                    {task.blockB.map((line, i) => (
+                      <div key={i} className="text-xs text-gray-600">
+                        <p>Código: <span className="text-gray-800">{line.code || '—'}</span></p>
+                        {line.url && <a href={line.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline break-all">{line.url}</a>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3 text-xs text-gray-500">
               <p>Asignada a: <span className="text-gray-700">{task.assignedToName ?? '—'}</span></p>

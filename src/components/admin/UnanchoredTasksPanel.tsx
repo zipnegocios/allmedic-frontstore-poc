@@ -21,6 +21,7 @@ interface PanelTask {
   title: string;
   status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'APPROVED' | 'REJECTED';
   targetEntityId: string | null;
+  targetCode: string | null;
 }
 
 /**
@@ -100,6 +101,7 @@ export function UnanchoredTasksPanel() {
               {tasks.map((task) => (
                 <div key={task.id} className="px-2 py-2 rounded-lg hover:bg-gray-50 transition-colors">
                   <p className="text-sm text-gray-700 truncate">{task.title}</p>
+                  {task.targetCode && <p className="text-xs text-gray-400">Código: {task.targetCode}</p>}
                   <TaskStatusBadge status={task.status} className="text-xs mt-1" />
                 </div>
               ))}

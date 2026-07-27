@@ -4,10 +4,20 @@ import { createContext, useContext, useState, useCallback } from 'react';
 
 const STORAGE_KEY = 'admin_anchored_task';
 
+interface BlockLine {
+  code: string;
+  url: string;
+}
+
 interface AnchoredTask {
   id: string;
   title: string;
   type: string;
+  description: string | null;
+  targetCode: string | null;
+  sourceUrl: string | null;
+  blockA: BlockLine[] | null;
+  blockB: BlockLine[] | null;
 }
 
 interface AnchoredTaskContextValue {
