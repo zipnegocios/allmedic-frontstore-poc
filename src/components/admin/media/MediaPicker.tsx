@@ -461,7 +461,7 @@ export function MediaPicker({ open, onClose, folder, segments = [], multiple = f
         </div>
         <TabsContent value="library">
           <MediaGallery
-            folder={productIds ? undefined : folder}
+            folder={productIds ? undefined : (browseAll && otherProductId ? 'PRODUCTS' : folder)}
             mediaType={fixedMediaType}
             selectable
             multiple={multiple}
