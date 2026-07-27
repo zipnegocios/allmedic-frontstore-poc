@@ -220,6 +220,52 @@ function escapeHtml(value: string): string {
     .replace(/>/g, '&gt;');
 }
 
+// ─── Credenciales de acceso al panel de administración (usuarios internos) ───
+
+export function newUserWelcomeEmail(params: { name: string; email: string; temporaryPassword: string }): {
+  subject: string;
+  html: string;
+} {
+  const { name, email, temporaryPassword } = params;
+  return {
+    subject: 'Tu cuenta en el panel de administración — AllMedic Uniforms',
+    html: wrap(
+      'Bienvenido al Panel de Administración',
+      `
+        <p>Hola ${name},</p>
+        <p>Se creó una cuenta para ti en el panel de administración de AllMedic Uniforms. Estas son tus credenciales de acceso:</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+          <tr><td style="padding:4px 0;color:#666;">Usuario:</td><td style="padding:4px 0;font-weight:bold;">${email}</td></tr>
+          <tr><td style="padding:4px 0;color:#666;">Contraseña temporal:</td><td style="padding:4px 0;font-weight:bold;">${temporaryPassword}</td></tr>
+        </table>
+        <p>Por seguridad, se te pedirá definir una nueva contraseña la primera vez que ingreses.</p>
+      `
+    ),
+  };
+}
+
+export function passwordResetEmail(params: { name: string; email: string; temporaryPassword: string }): {
+  subject: string;
+  html: string;
+} {
+  const { name, email, temporaryPassword } = params;
+  return {
+    subject: 'Tu contraseña fue restablecida — AllMedic Uniforms',
+    html: wrap(
+      'Contraseña Restablecida',
+      `
+        <p>Hola ${name},</p>
+        <p>Se generó una nueva contraseña temporal para tu cuenta del panel de administración:</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+          <tr><td style="padding:4px 0;color:#666;">Usuario:</td><td style="padding:4px 0;font-weight:bold;">${email}</td></tr>
+          <tr><td style="padding:4px 0;color:#666;">Contraseña temporal:</td><td style="padding:4px 0;font-weight:bold;">${temporaryPassword}</td></tr>
+        </table>
+        <p>Por seguridad, se te pedirá definir una nueva contraseña la próxima vez que ingreses.</p>
+      `
+    ),
+  };
+}
+
 export function mentionEmail(params: {
   mentionedName: string;
   authorName: string;

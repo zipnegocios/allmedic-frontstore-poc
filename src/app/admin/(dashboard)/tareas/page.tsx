@@ -619,16 +619,49 @@ function CreateTaskDialog({ groups, onCreated, fixedGroupId }: {
           <DialogTitle>Asignar nueva tarea</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 flex-1 overflow-y-auto pr-1">
-          <div>
-            <label className="text-sm font-medium mb-1.5 block">Tipo</label>
-            <Select value={type} onValueChange={(v) => { setType(v as TaskType); setTargetEntityId(null); }}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {MANUAL_TASK_TYPES.map((value) => (
-                  <SelectItem key={value} value={value}>{TYPE_LABELS[value]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className={(type === 'CREATE_PRODUCT' || type === 'CREATE_SET') ? 'grid grid-cols-3 gap-3' : undefined}>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Tipo</label>
+              <Select value={type} onValueChange={(v) => { setType(v as TaskType); setTargetEntityId(null); }}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MANUAL_TASK_TYPES.map((value) => (
+                    <SelectItem key={value} value={value}>{TYPE_LABELS[value]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Grupo de tareas y Asignar a se agrupan junto al Tipo en esta misma fila
+                solo para CREATE_PRODUCT/CREATE_SET (pedido explícito) — el resto de
+                tipos de tarea conserva el layout original más abajo. */}
+            {(type === 'CREATE_PRODUCT' || type === 'CREATE_SET') && (
+              <>
+                {!fixedGroupId && openGroups.length > 0 ? (
+                  <div>
+                    <label className="text-sm font-medium mb-1.5 block">Grupo de tareas (opcional)</label>
+                    <Select value={groupId} onValueChange={setGroupId}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Sin grupo</SelectItem>
+                        {openGroups.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : <div />}
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block">Asignar a</label>
+                  <Select value={assignedTo} onValueChange={setAssignedTo}>
+                    <SelectTrigger><SelectValue placeholder="Selecciona un Gestor del Catálogo" /></SelectTrigger>
+                    <SelectContent>
+                      {assignees.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>{a.name ?? a.email}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
           </div>
 
           {/* CREATE_PRODUCT: Título (1/2) + Style code (1/4) + Género (1/4), luego URL fuente */}
@@ -682,15 +715,17 @@ function CreateTaskDialog({ groups, onCreated, fixedGroupId }: {
                   </Select>
                 </div>
               </div>
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Bloque A (2 productos)</p>
-                <BlockFieldPair label="Producto 1" line={blockA[0]} onChange={(l) => setBlockA([l, blockA[1]])} />
-                <BlockFieldPair label="Producto 2" line={blockA[1]} onChange={(l) => setBlockA([blockA[0], l])} />
-              </div>
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Bloque B (2 productos)</p>
-                <BlockFieldPair label="Producto 1" line={blockB[0]} onChange={(l) => setBlockB([l, blockB[1]])} />
-                <BlockFieldPair label="Producto 2" line={blockB[1]} onChange={(l) => setBlockB([blockB[0], l])} />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Bloque A (2 productos)</p>
+                  <BlockFieldPair label="Producto 1" line={blockA[0]} onChange={(l) => setBlockA([l, blockA[1]])} />
+                  <BlockFieldPair label="Producto 2" line={blockA[1]} onChange={(l) => setBlockA([blockA[0], l])} />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Bloque B (2 productos)</p>
+                  <BlockFieldPair label="Producto 1" line={blockB[0]} onChange={(l) => setBlockB([l, blockB[1]])} />
+                  <BlockFieldPair label="Producto 2" line={blockB[1]} onChange={(l) => setBlockB([blockB[0], l])} />
+                </div>
               </div>
             </>
           )}
@@ -721,30 +756,34 @@ function CreateTaskDialog({ groups, onCreated, fixedGroupId }: {
             <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
           </div>
 
-          {!fixedGroupId && openGroups.length > 0 && (
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Grupo de tareas (opcional)</label>
-              <Select value={groupId} onValueChange={setGroupId}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sin grupo</SelectItem>
-                  {openGroups.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          {type !== 'CREATE_PRODUCT' && type !== 'CREATE_SET' && (
+            <>
+              {!fixedGroupId && openGroups.length > 0 && (
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block">Grupo de tareas (opcional)</label>
+                  <Select value={groupId} onValueChange={setGroupId}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sin grupo</SelectItem>
+                      {openGroups.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
-          <div>
-            <label className="text-sm font-medium mb-1.5 block">Asignar a</label>
-            <Select value={assignedTo} onValueChange={setAssignedTo}>
-              <SelectTrigger><SelectValue placeholder="Selecciona un Gestor del Catálogo" /></SelectTrigger>
-              <SelectContent>
-                {assignees.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>{a.name ?? a.email}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Asignar a</label>
+                <Select value={assignedTo} onValueChange={setAssignedTo}>
+                  <SelectTrigger><SelectValue placeholder="Selecciona un Gestor del Catálogo" /></SelectTrigger>
+                  <SelectContent>
+                    {assignees.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>{a.name ?? a.email}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { signOut } from 'next-auth/react';
+import { signIn, signOut, useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,6 +13,7 @@ import Image from 'next/image';
 
 export default function ChangePasswordPage() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -46,10 +47,30 @@ export default function ChangePasswordPage() {
         return;
       }
 
-      // Fuerza un relogin: el JWT actual todavía lleva mustChangePassword=true y el
-      // proxy seguiría redirigiendo aquí hasta que se emita un token nuevo.
-      await signOut({ redirect: false });
-      router.push('/admin/login');
+      // El JWT actual todavía lleva mustChangePassword=true, así que reautenticamos en
+      // silencio con la nueva contraseña para emitir un token fresco (mustChangePassword=false)
+      // sin pedirle al usuario que vuelva a teclear nada en /admin/login.
+      const identifier = session?.user?.email || session?.user?.name;
+      if (!identifier) {
+        await signOut({ redirect: false });
+        router.push('/admin/login');
+        return;
+      }
+
+      const reloginResult = await signIn('credentials', {
+        email: identifier,
+        password: newPassword,
+        redirect: false,
+      });
+
+      if (reloginResult?.error) {
+        await signOut({ redirect: false });
+        router.push('/admin/login');
+        return;
+      }
+
+      router.push('/admin');
+      router.refresh();
     } catch {
       setError('Error de conexión. Intenta de nuevo.');
     } finally {

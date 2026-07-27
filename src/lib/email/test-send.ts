@@ -15,6 +15,8 @@ import {
   taskAssignedEmail,
   taskCompletedEmail,
   taskRejectedEmail,
+  newUserWelcomeEmail,
+  passwordResetEmail,
 } from '@/lib/email/templates';
 
 type TemplateResult = { subject: string; html: string };
@@ -60,6 +62,16 @@ const TEST_TEMPLATES: Record<string, () => TemplateResult> = {
     assigneeName: 'María Gómez',
     title: 'Tarea de ejemplo',
     reason: 'Motivo de ejemplo para la prueba de correo.',
+  }),
+  USER_CREATED: () => newUserWelcomeEmail({
+    name: 'María Gómez',
+    email: 'maria.gomez@ejemplo.com',
+    temporaryPassword: 'ab12cd34ef56',
+  }),
+  PASSWORD_RESET: () => passwordResetEmail({
+    name: 'María Gómez',
+    email: 'maria.gomez@ejemplo.com',
+    temporaryPassword: 'ab12cd34ef56',
   }),
 };
 

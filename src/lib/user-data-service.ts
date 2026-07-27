@@ -181,7 +181,7 @@ export async function resetUserPassword(id: string) {
     .update(users)
     .set({ password: hashedPassword, mustChangePassword: true })
     .where(eq(users.id, id))
-    .returning({ id: users.id, email: users.email });
+    .returning({ id: users.id, name: users.name, email: users.email });
 
   if (!updated) return null;
   return { user: updated, temporaryPassword };

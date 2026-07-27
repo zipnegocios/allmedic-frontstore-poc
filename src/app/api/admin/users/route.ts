@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireAdmin } from '@/lib/admin-auth';
 import { requireRole, ForbiddenError } from '@/lib/permissions';
 import { getAdminUsers, createAdminUser } from '@/lib/user-data-service';
+import { sendEmail, newUserWelcomeEmail } from '@/lib/email';
 
 export async function GET() {
   try {
@@ -33,6 +34,12 @@ export async function POST(request: NextRequest) {
     const body = CreateUserSchema.parse(await request.json());
 
     const { user, temporaryPassword } = await createAdminUser(body);
+
+    if (user.email) {
+      const { subject, html } = newUserWelcomeEmail({ name: user.name ?? user.email, email: user.email, temporaryPassword });
+      await sendEmail({ to: user.email, subject, html, eventKey: 'USER_CREATED' });
+    }
+
     return NextResponse.json({ user, temporaryPassword }, { status: 201 });
   } catch (err) {
     if (err instanceof z.ZodError) {
