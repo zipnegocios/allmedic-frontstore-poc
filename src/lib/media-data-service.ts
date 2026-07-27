@@ -488,8 +488,22 @@ export async function getMediaLibraryTree(): Promise<LibraryTreeBrand[]> {
  * color) — usado por el picker de portadas de set en modo "Portadas del
  * contenido" (galerías de los productos asociados al set, sin depender de que
  * el set ya esté guardado en la base: se le pasan los `productId` en memoria). */
-export async function getAssetIdsForProducts(productIds: string[]): Promise<string[]> {
-  return assetIdsLinkedToProducts(productIds);
+export async function getAssetIdsForProducts(productIds: string[], colorId?: string | null): Promise<string[]> {
+  if (colorId === undefined) return assetIdsLinkedToProducts(productIds);
+  // `colorId` puntual (o `null` = portada) solo tiene sentido acotando a UNA pieza — con varias
+  // piezas mezcladas no hay un único producto al que aplicarle "color X"/"portada".
+  if (productIds.length !== 1) return assetIdsLinkedToProducts(productIds);
+  if (colorId === null) {
+    const rows = await db.selectDistinct({ assetId: mediaLinksTable.assetId }).from(mediaLinksTable)
+      .where(and(
+        eq(mediaLinksTable.entityType, 'PRODUCT'),
+        eq(mediaLinksTable.entityId, productIds[0]),
+        isNull(mediaLinksTable.colorId),
+        inArray(mediaLinksTable.role, ['COVER', 'COVER_SECONDARY'])
+      ));
+    return rows.map((r) => r.assetId);
+  }
+  return assetIdsLinkedToProducts(productIds, colorId);
 }
 
 async function assetIdsLinkedToProducts(productIds: string[], colorId?: string): Promise<string[]> {

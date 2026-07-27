@@ -161,6 +161,17 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
     [blocks]
   );
 
+  // Piezas del set para el selector "ver por pieza" del picker de portadas en modo "Portadas del
+  // contenido" — reutiliza `products` (ya en memoria) en vez de pedirle a MediaPicker que traiga
+  // el catálogo completo + colores por producto (mecanismo genérico de "otra ubicación").
+  const scopedCoverProducts = useMemo(() => {
+    const ids = Array.from(new Set(allPieceItems.map((i) => i.productId).filter(Boolean)));
+    return ids
+      .map((id) => products.find((p) => p.id === id))
+      .filter((p): p is EligibleProduct => Boolean(p))
+      .map((p) => ({ id: p.id, name: p.name, code: p.code, brandName: p.brandName, colors: p.colors }));
+  }, [allPieceItems, products]);
+
   /** Quita una pieza recomendada y avisa si podría haber sido la fuente de alguna portada
    * elegida en modo "Portadas del contenido" (Fase 2.4). */
   function handleRemoveRecommended(index: number) {
@@ -756,6 +767,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
         linkedEntityType={pickerRequest?.mode === 'special' ? 'SET' : undefined}
         linkedEntityId={pickerRequest?.mode === 'special' ? createdSetId : undefined}
         productIds={pickerRequest?.mode === 'content' ? allPieceItems.map((i) => i.productId).filter(Boolean) : undefined}
+        scopedProducts={pickerRequest?.mode === 'content' ? scopedCoverProducts : undefined}
         onConfirm={(assets) => {
           if (assets[0] && pickerRequest) {
             const assetIdField = pickerRequest.target === 'cover' ? 'coverAssetId' : 'secondaryCoverAssetId';

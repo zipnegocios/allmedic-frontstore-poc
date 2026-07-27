@@ -23,14 +23,6 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Portadas de set en modo "Portadas del contenido": galerías de los productos
-    // asociados al set en memoria (funciona con el set todavía sin guardar, no
-    // depende de ninguna tabla de piezas en la base — ver PLAN-ajustes-admin-sets.md Fase 2).
-    const productIdsParam = searchParams.get('productIds');
-    if (productIdsParam) {
-      assetIds = await getAssetIdsForProducts(productIdsParam.split(',').filter(Boolean));
-    }
-
     // `linkedColorId` distingue tres casos por query string (que no puede llevar
     // `null` semántico): ausente → sin acotar (comportamiento previo, usado por
     // SET); literal `__COVER__` → portada del producto (`color_id IS NULL`);
@@ -39,6 +31,16 @@ export async function GET(request: NextRequest) {
     const linkedColorId = linkedColorIdParam === null
       ? undefined
       : (linkedColorIdParam === '__COVER__' ? null : linkedColorIdParam);
+
+    // Portadas de set en modo "Portadas del contenido": galerías de los productos
+    // asociados al set en memoria (funciona con el set todavía sin guardar, no
+    // depende de ninguna tabla de piezas en la base — ver PLAN-ajustes-admin-sets.md Fase 2).
+    // Con una sola pieza puntual, `linkedColorId` acota además a su portada/color
+    // (selector "ver por pieza" del picker).
+    const productIdsParam = searchParams.get('productIds');
+    if (productIdsParam) {
+      assetIds = await getAssetIdsForProducts(productIdsParam.split(',').filter(Boolean), linkedColorId);
+    }
 
     const result = await listMediaAssets({
       folder: searchParams.get('folder') || undefined,

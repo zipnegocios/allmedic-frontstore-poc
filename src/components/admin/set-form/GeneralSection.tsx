@@ -59,7 +59,7 @@ function CoverSlot({
             {imageUrl ? 'Cambiar (subir)' : 'Subir nueva'}
           </Button>
           <Button type="button" size="sm" variant="ghost" className="text-xs h-auto py-1" onClick={onOpenContent} disabled={!hasPieces}>
-            Elegir de las piezas
+            Elegir portada
           </Button>
         </div>
       </div>

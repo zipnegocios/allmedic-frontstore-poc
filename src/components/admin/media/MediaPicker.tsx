@@ -29,6 +29,18 @@ interface OtherColorOption {
   code: string;
 }
 
+/** Producto+colores ya conocidos por el consumidor (ej. piezas de un set) —
+ * evita el fetch de catálogo completo y de colores por producto que usa el
+ * modo "otra ubicación" genérico, porque `SetForm` ya tiene esta data en
+ * memoria (`EligibleProduct.colors`). */
+export interface ScopedProductOption {
+  id: string;
+  name: string;
+  code: string | null;
+  brandName: string | null;
+  colors: { id: string; name: string; code: string }[];
+}
+
 const FOLDER_LABELS: Record<string, string> = {
   PRODUCTS: 'Productos',
   SETS: 'Sets',
@@ -63,12 +75,19 @@ interface MediaPickerProps {
   folderLabel?: string;
   /** Portadas de set en modo "Portadas del contenido": restringe la pestaña de
    * librería a lo vinculado a cualquiera de estos productos (galerías de las
-   * piezas del set). Cuando viene, oculta el toggle "insertar desde otra
-   * ubicación" — es un scope fijo, no un punto de partida enfocado. */
+   * piezas del set). Punto de partida (como `keyPrefix` en el modo enfocado
+   * normal) — el toggle "ver por pieza" (ver `scopedProducts`) permite
+   * acotar a una pieza/color puntual sin salir del set. */
   productIds?: string[];
+  /** Piezas del set, para el selector "ver por pieza" cuando `productIds`
+   * viene informado — reemplaza el fetch de catálogo completo + colores por
+   * producto del modo "otra ubicación" genérico, porque el consumidor
+   * (`SetForm`) ya tiene esta data en memoria. Sin esto, `productIds` sigue
+   * funcionando pero sin selector (todas las piezas mezcladas, como antes). */
+  scopedProducts?: ScopedProductOption[];
 }
 
-export function MediaPicker({ open, onClose, folder, segments = [], multiple = false, mediaType: fixedMediaType, onConfirm, keyPrefix, linkedEntityType, linkedEntityId, linkedColorId, folderLabel, productIds }: MediaPickerProps) {
+export function MediaPicker({ open, onClose, folder, segments = [], multiple = false, mediaType: fixedMediaType, onConfirm, keyPrefix, linkedEntityType, linkedEntityId, linkedColorId, folderLabel, productIds, scopedProducts }: MediaPickerProps) {
   const [selected, setSelected] = useState<MediaAssetSummary[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [tab, setTab] = useState('library');
@@ -114,28 +133,30 @@ export function MediaPicker({ open, onClose, folder, segments = [], multiple = f
   }
 
   // Carga el catálogo liviano una sola vez al entrar a "otra ubicación" (no
-  // de entrada, para no pagar el fetch si el admin nunca lo usa).
+  // de entrada, para no pagar el fetch si el admin nunca lo usa). No aplica
+  // en modo `scopedProducts` (piezas del set) — esa lista ya viene en props.
   useEffect(() => {
-    if (!browseAll || otherProducts.length > 0) return;
+    if (scopedProducts || !browseAll || otherProducts.length > 0) return;
     fetch('/api/admin/products/lite')
       .then((res) => res.json())
       .then((data) => setOtherProducts(data.products ?? []))
       .catch(() => setOtherProducts([]));
-  }, [browseAll, otherProducts.length]);
+  }, [scopedProducts, browseAll, otherProducts.length]);
 
   // Colores del producto elegido en "otra ubicación" — bajo demanda, recién
   // al seleccionar producto (no de entrada, para no traer colores de todo el
   // catálogo). Solo dispara el fetch cuando hay id; limpiar la lista al
   // deseleccionar producto ocurre en `selectOtherProduct` (mismo evento que
   // cambia `otherProductId`), no acá, para evitar el set-state-in-effect que
-  // dispararía un render en cascada extra.
+  // dispararía un render en cascada extra. No aplica en modo `scopedProducts`
+  // — los colores de cada pieza ya vienen resueltos en props.
   useEffect(() => {
-    if (!otherProductId) return;
+    if (scopedProducts || !otherProductId) return;
     fetch(`/api/admin/products/${otherProductId}/colors`)
       .then((res) => res.json())
       .then((data) => setOtherColors(data.colors ?? []))
       .catch(() => setOtherColors([]));
-  }, [otherProductId]);
+  }, [scopedProducts, otherProductId]);
 
   function selectOtherProduct(id: string | null) {
     setOtherProductId(id);
@@ -144,10 +165,14 @@ export function MediaPicker({ open, onClose, folder, segments = [], multiple = f
     setOtherProductPopoverOpen(false);
   }
 
-  const otherProduct = otherProducts.find((p) => p.id === otherProductId);
+  const otherProduct = scopedProducts
+    ? scopedProducts.find((p) => p.id === otherProductId)
+    : otherProducts.find((p) => p.id === otherProductId);
+  const scopedColors = scopedProducts?.find((p) => p.id === otherProductId)?.colors ?? [];
+  const otherColorList = scopedProducts ? scopedColors : otherColors;
   const otherColorSegment = otherColorId === '__COVER__'
     ? COVER_SEGMENT
-    : (otherColorId ? sanitizeCodeSegment(otherColors.find((c) => c.id === otherColorId)?.code ?? '') : undefined);
+    : (otherColorId ? sanitizeCodeSegment(otherColorList.find((c) => c.id === otherColorId)?.code ?? '') : undefined);
   // Carpeta del OTRO producto elegido — mismo esquema que `pickerKeyPrefix` en
   // `ProductForm` (`products/{código-producto}/{código-color|portada}/`). Con
   // producto pero sin color ("Todos los colores"), el prefijo se acorta a la
@@ -155,7 +180,7 @@ export function MediaPicker({ open, onClose, folder, segments = [], multiple = f
   // por `linkedEntityType`/`linkedEntityId` en `listMediaAssets` solo corre
   // dentro de `if (keyPrefix)`, así que necesita algún prefijo no vacío para
   // activar el vínculo por entidad aunque no haya color puntual.
-  const otherKeyPrefix = otherProduct
+  const otherKeyPrefix = otherProduct?.code
     ? `products/${sanitizeCodeSegment(otherProduct.code)}/${otherColorSegment ?? ''}`
     : undefined;
   const otherLinkedColorId: string | null | undefined = otherColorId === '__COVER__'
@@ -207,6 +232,90 @@ export function MediaPicker({ open, onClose, folder, segments = [], multiple = f
               <TabsTrigger value="library">Elegir de la librería</TabsTrigger>
               <TabsTrigger value="upload">Subir nueva</TabsTrigger>
             </TabsList>
+            {tab === 'library' && scopedProducts && (
+              <div className="mt-2 text-xs">
+                <span className="text-gray-500">
+                  {otherProduct ? `Mostrando la galería de ${otherProduct.name}.` : 'Mostrando las galerías de todas las piezas del set.'}
+                </span>
+                <div className="flex items-center gap-2 mt-2">
+                  <Popover open={otherProductPopoverOpen} onOpenChange={setOtherProductPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <Button type="button" variant="outline" role="combobox" size="sm" className="flex-1 min-w-0 justify-between font-normal">
+                        <span className="truncate">{otherProduct ? otherProduct.name : 'Todos los productos del set'}</span>
+                        <ChevronsUpDown className="w-3.5 h-3.5 opacity-50 ml-2 flex-shrink-0" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[320px] max-w-[calc(100vw-2rem)] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Buscar pieza..." />
+                        <CommandList>
+                          <CommandEmpty>Sin resultados.</CommandEmpty>
+                          <CommandGroup>
+                            <CommandItem value="__ALL__" onSelect={() => selectOtherProduct(null)}>
+                              Todos los productos
+                            </CommandItem>
+                            {scopedProducts.map((p) => (
+                              <CommandItem
+                                key={p.id}
+                                value={`${p.name} ${p.code ?? ''} ${p.brandName ?? ''}`}
+                                onSelect={() => selectOtherProduct(p.id)}
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm truncate">{p.name}</p>
+                                  <p className="text-xs text-gray-400 truncate">{p.code}{p.brandName ? ` · ${p.brandName}` : ''}</p>
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  <Popover open={otherColorPopoverOpen} onOpenChange={setOtherColorPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        role="combobox"
+                        size="sm"
+                        disabled={!otherProductId}
+                        className="flex-1 min-w-0 justify-between font-normal"
+                      >
+                        <span className="truncate">
+                          {otherColorId === '__COVER__' ? 'Portada' : (scopedColors.find((c) => c.id === otherColorId)?.name ?? 'Todos los colores')}
+                        </span>
+                        <ChevronsUpDown className="w-3.5 h-3.5 opacity-50 ml-2 flex-shrink-0" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[240px] max-w-[calc(100vw-2rem)] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Buscar color..." />
+                        <CommandList>
+                          <CommandEmpty>Sin resultados.</CommandEmpty>
+                          <CommandGroup>
+                            <CommandItem value="__ALL__" onSelect={() => { setOtherColorId(null); setOtherColorPopoverOpen(false); }}>
+                              Todos los colores
+                            </CommandItem>
+                            <CommandItem value="Portada" onSelect={() => { setOtherColorId('__COVER__'); setOtherColorPopoverOpen(false); }}>
+                              Portada
+                            </CommandItem>
+                            {scopedColors.map((c) => (
+                              <CommandItem
+                                key={c.id}
+                                value={c.name}
+                                onSelect={() => { setOtherColorId(c.id); setOtherColorPopoverOpen(false); }}
+                              >
+                                {c.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+            )}
             {tab === 'library' && keyPrefix && !productIds && (
               <div className="mt-2 text-xs">
                 <div className="flex items-center justify-between gap-2">
@@ -362,8 +471,8 @@ export function MediaPicker({ open, onClose, folder, segments = [], multiple = f
             keyPrefix={productIds ? undefined : (browseAll ? otherKeyPrefix : keyPrefix)}
             linkedEntityType={productIds ? undefined : (browseAll ? (otherProductId ? 'PRODUCT' : undefined) : linkedEntityType)}
             linkedEntityId={productIds ? undefined : (browseAll ? (otherProductId ?? undefined) : linkedEntityId)}
-            linkedColorId={productIds ? undefined : (browseAll ? otherLinkedColorId : linkedColorId)}
-            productIds={productIds}
+            linkedColorId={productIds ? (otherProductId ? otherLinkedColorId : undefined) : (browseAll ? otherLinkedColorId : linkedColorId)}
+            productIds={productIds ? (otherProductId ? [otherProductId] : productIds) : undefined}
             hideFilters
             searchValue={q}
             onSearchChange={setQ}
