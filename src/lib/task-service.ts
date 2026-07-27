@@ -106,17 +106,21 @@ export async function createTask(input: CreateTaskInput) {
       const lines = [...(input.blockA ?? []), ...(input.blockB ?? [])].filter((l) => l.code || l.url);
       if (lines.length > 0) {
         await tx.insert(catalogTasks).values(
-          lines.map((line, index) => ({
-            id: uuid(),
-            type: 'SET_PRODUCT_SLOT' as const,
-            title: `${inserted.title} — ${SLOT_LABELS[index] ?? `Producto ${index + 1}`}`,
-            targetCode: line.code || null,
-            sourceUrl: line.url || null,
-            parentTaskId: inserted.id,
-            assignedTo: input.assignedTo,
-            assignedBy: input.assignedBy,
-            status: 'PENDING' as const,
-          }))
+          lines.map((line, index) => {
+            const slotLabel = SLOT_LABELS[index] ?? `Producto ${index + 1}`;
+            const codeSuffix = line.code ? ` (${line.code})` : '';
+            return {
+              id: uuid(),
+              type: 'SET_PRODUCT_SLOT' as const,
+              title: `${inserted.title} — ${slotLabel}${codeSuffix}`,
+              targetCode: line.code || null,
+              sourceUrl: line.url || null,
+              parentTaskId: inserted.id,
+              assignedTo: input.assignedTo,
+              assignedBy: input.assignedBy,
+              status: 'PENDING' as const,
+            };
+          })
         );
       }
     }
