@@ -59,6 +59,11 @@ export function AttributeMatrixSection({
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [associateColorOpen, setAssociateColorOpen] = useState(false);
 
+  // Orden alfabético en tiempo real (plan 2026-07-27, decisión 12) — el selector de chips se
+  // reordena a medida que se van marcando/agregando colores (ej. "Asociar color" inserta al
+  // final del array `colors` recibido por prop), sin esperar a la generación de variantes.
+  const sortedColors = [...colors].sort((a, b) => a.name.localeCompare(b.name));
+
   function handleColorAssociated(color: ColorFormValue) {
     // Asociación de un color existente o alta nueva (ambos flujos de
     // `AssociateColorDialog`) — en ambos casos se refleja en la lista de colores
@@ -149,7 +154,7 @@ export function AttributeMatrixSection({
               </Button>
             </div>
             <div className="flex flex-wrap gap-2">
-              {colors.map((c) => (
+              {sortedColors.map((c) => (
                 <button
                   key={c.id}
                   type="button"

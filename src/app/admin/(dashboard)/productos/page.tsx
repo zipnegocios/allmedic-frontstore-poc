@@ -45,6 +45,9 @@ import { ResponsiveDialog } from '@/components/admin/ResponsiveDialog';
 import { countActiveFilters } from '@/lib/admin-list-filters';
 import { GENDERS, VISIBILITY_OPTIONS } from '@/components/admin/product-form/schema';
 import { usePermissions } from '@/hooks/usePermissions';
+import { TaskStatusBadge, type CatalogTaskStatus } from '@/components/admin/TaskStatusBadge';
+import { TaskDetailModal } from '@/components/admin/TaskDetailModal';
+import { History } from 'lucide-react';
 
 interface Product {
   id: string;
@@ -67,6 +70,9 @@ interface Product {
   brandName: string | null;
   coverUrl: string | null;
   styles: Record<string, string[]>;
+  latestTaskId: string | null;
+  latestTaskStatus: CatalogTaskStatus | null;
+  taskHistoryCount: number;
 }
 
 interface OptionRef {
@@ -109,6 +115,7 @@ const COLUMN_DEFS = [
   { key: 'visibility', label: 'Visibilidad' },
   { key: 'price', label: 'Precio' },
   { key: 'status', label: 'Estado' },
+  { key: 'task', label: 'Tarea' },
 ] as const;
 
 type ColumnKey = (typeof COLUMN_DEFS)[number]['key'];
@@ -175,6 +182,7 @@ export default function AdminProductsPage() {
   const [activeFilter, setActiveFilter] = useState('ALL'); // 'ALL' | 'true' | 'false'
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [blockedDelete, setBlockedDelete] = useState<{ productName: string; setNames: string[] } | null>(null);
+  const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
 
   // ─── Columnas visibles (persistidas en localStorage) ───
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => new Set(DEFAULT_VISIBLE_COLUMNS));
@@ -587,6 +595,23 @@ export default function AdminProductsPage() {
                               </div>
                             </TableCell>
                           );
+                        case 'task':
+                          return (
+                            <TableCell key={col.key}>
+                              {product.latestTaskId && product.latestTaskStatus ? (
+                                <div className="flex items-center gap-1.5">
+                                  <button type="button" onClick={() => setDetailTaskId(product.latestTaskId)} className="cursor-pointer">
+                                    <TaskStatusBadge status={product.latestTaskStatus} className="text-xs" />
+                                  </button>
+                                  {product.taskHistoryCount > 1 && (
+                                    <History className="w-3.5 h-3.5 text-gray-400" aria-label="Tiene tareas históricas" />
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-gray-400">—</span>
+                              )}
+                            </TableCell>
+                          );
                         default:
                           return null;
                       }
@@ -728,6 +753,10 @@ export default function AdminProductsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {detailTaskId && (
+        <TaskDetailModal taskId={detailTaskId} onClose={() => setDetailTaskId(null)} onChanged={fetchProducts} />
+      )}
     </div>
   );
 }

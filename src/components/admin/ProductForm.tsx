@@ -63,6 +63,10 @@ import { PricingSection } from '@/components/admin/product-form/PricingSection';
 import { CollapsibleSection } from '@/components/admin/product-form/CollapsibleSection';
 import { useActivityTracking } from '@/hooks/useActivityTracking';
 import { useAnchoredTask } from '@/contexts/AnchoredTaskContext';
+import { TaskAnchorControl } from '@/components/admin/TaskAnchorControl';
+import { slugify } from '@/lib/slugify';
+
+const PRODUCT_ANCHOR_TYPES = ['CREATE_PRODUCT', 'EDIT_PRODUCT', 'SET_PRODUCT_SLOT'];
 
 
 // ─── Component ───
@@ -280,14 +284,21 @@ export default function ProductForm({
     fetchData();
   }, []);
 
-  // Auto-generate slug from name
+  // Slug derivado de `code` (plan 2026-07-27, decisión 11) — se recalcula tanto al crear como
+  // al editar, siempre que el código cambie; sin sufijo anti-colisión porque `code` ya tiene
+  // unicidad validada en vivo (ver `codeValue`/`codeStatus` más abajo), así que el slug la
+  // hereda. Sigue siendo editable manualmente después (confirmado con Gustavo) — este efecto
+  // solo actualiza el campo cuando el código cambia, no lo pisa en cada render.
   const nameValue = watch('name');
   const slugValue = watch('slug');
+  const codeValueForSlug = watch('code');
+  const lastSlugSourceRef = useRef<string | null>(codeValueForSlug?.trim() || null);
   useEffect(() => {
-    if (!productId && nameValue && !slugValue) {
-      setValue('slug', nameValue.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''));
-    }
-  }, [nameValue, slugValue, productId, setValue]);
+    const trimmedCode = codeValueForSlug?.trim();
+    if (!trimmedCode || trimmedCode === lastSlugSourceRef.current) return;
+    lastSlugSourceRef.current = trimmedCode;
+    setValue('slug', slugify(trimmedCode), { shouldDirty: true });
+  }, [codeValueForSlug, setValue]);
 
   // ─── Selects dependientes Marca → Colección/Tipo de Producto (Fase 3.4, brief A) ───
   const brandIdValue = watch('brandId');
@@ -809,33 +820,35 @@ export default function ProductForm({
         </div>
       </div>
 
-      {anchoredTask && (
-        <Alert className="mb-4 border-emerald-200 bg-emerald-50">
-          <AlertTitle className="text-emerald-800">Tarea anclada: {anchoredTask.title}</AlertTitle>
-          <AlertDescription>
-            <div className="flex flex-col sm:flex-row gap-2 mt-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={savingAnchored !== null}
-                onClick={() => saveWithAnchoredTask('progress')}
-              >
-                {savingAnchored === 'progress' ? 'Guardando...' : 'Guardar y continuar después'}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                className="bg-emerald-600 hover:bg-emerald-700"
-                disabled={savingAnchored !== null}
-                onClick={() => saveWithAnchoredTask('complete')}
-              >
-                {savingAnchored === 'complete' ? 'Guardando...' : 'Guardar y completar tarea'}
-              </Button>
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
+      <TaskAnchorControl panelTypes={PRODUCT_ANCHOR_TYPES}>
+        {anchoredTask && (
+          <Alert className="border-emerald-200 bg-emerald-50">
+            <AlertTitle className="text-emerald-800">Tarea anclada: {anchoredTask.title}</AlertTitle>
+            <AlertDescription>
+              <div className="flex flex-col sm:flex-row gap-2 mt-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={savingAnchored !== null}
+                  onClick={() => saveWithAnchoredTask('progress')}
+                >
+                  {savingAnchored === 'progress' ? 'Guardando...' : 'Guardar y continuar después'}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                  disabled={savingAnchored !== null}
+                  onClick={() => saveWithAnchoredTask('complete')}
+                >
+                  {savingAnchored === 'complete' ? 'Guardando...' : 'Guardar y completar tarea'}
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+      </TaskAnchorControl>
 
       <form onSubmit={(e) => { e.preventDefault(); handleSubmit(onSubmit, onInvalid)(); }}>
         {showValidationBanner && validationSummary.length > 0 && (

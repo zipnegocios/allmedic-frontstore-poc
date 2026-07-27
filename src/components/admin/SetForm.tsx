@@ -41,6 +41,10 @@ import { RulesSection } from '@/components/admin/set-form/RulesSection';
 import { buildSetValidationSummary } from '@/components/admin/set-form/validation-summary';
 import { useActivityTracking } from '@/hooks/useActivityTracking';
 import { useAnchoredTask } from '@/contexts/AnchoredTaskContext';
+import { TaskAnchorControl } from '@/components/admin/TaskAnchorControl';
+import { slugify } from '@/lib/slugify';
+
+const SET_ANCHOR_TYPES = ['CREATE_SET', 'EDIT_SET'];
 
 interface SetFormProps {
   setId?: string;
@@ -218,11 +222,14 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
     refreshSetRules();
   }, [refreshSetRules]);
 
+  // Los sets no tienen `code` (a diferencia de productos, plan 2026-07-27 decisión 11) — el
+  // slug sigue derivándose de `name`, solo migrado a la función `slugify()` compartida
+  // (antes regex inline duplicada, no normalizaba tildes/ñ igual que la de `src/lib/slugify.ts`).
   const nameValue = watch('name');
   const slugValue = watch('slug');
   useEffect(() => {
     if (!setId && nameValue && !slugValue) {
-      setValue('slug', nameValue.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''));
+      setValue('slug', slugify(nameValue));
     }
   }, [nameValue, slugValue, setId, setValue]);
 
@@ -504,33 +511,35 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
         </Button>
       </div>
 
-      {anchoredTask && (
-        <Alert className="mb-4 border-emerald-200 bg-emerald-50">
-          <AlertTitle className="text-emerald-800">Tarea anclada: {anchoredTask.title}</AlertTitle>
-          <AlertDescription>
-            <div className="flex flex-col sm:flex-row gap-2 mt-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={savingAnchored !== null}
-                onClick={() => saveWithAnchoredTask('progress')}
-              >
-                {savingAnchored === 'progress' ? 'Guardando...' : 'Guardar y continuar después'}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                className="bg-emerald-600 hover:bg-emerald-700"
-                disabled={savingAnchored !== null}
-                onClick={() => saveWithAnchoredTask('complete')}
-              >
-                {savingAnchored === 'complete' ? 'Guardando...' : 'Guardar y completar tarea'}
-              </Button>
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
+      <TaskAnchorControl panelTypes={SET_ANCHOR_TYPES}>
+        {anchoredTask && (
+          <Alert className="border-emerald-200 bg-emerald-50">
+            <AlertTitle className="text-emerald-800">Tarea anclada: {anchoredTask.title}</AlertTitle>
+            <AlertDescription>
+              <div className="flex flex-col sm:flex-row gap-2 mt-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={savingAnchored !== null}
+                  onClick={() => saveWithAnchoredTask('progress')}
+                >
+                  {savingAnchored === 'progress' ? 'Guardando...' : 'Guardar y continuar después'}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                  disabled={savingAnchored !== null}
+                  onClick={() => saveWithAnchoredTask('complete')}
+                >
+                  {savingAnchored === 'complete' ? 'Guardando...' : 'Guardar y completar tarea'}
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+      </TaskAnchorControl>
 
       <form onSubmit={(e) => { e.preventDefault(); handleSubmit(onSubmit, onInvalid)(); }}>
         {showValidationBanner && validationSummary.length > 0 && (

@@ -26,6 +26,7 @@ import {
   productTypeAttributes as productTypeAttributesTable,
   variantAttributeValues as variantAttributeValuesTable,
   sizes as sizesTable,
+  catalogTasks as catalogTasksTable,
 } from '@/db/schema';
 import { eq, and, or, ne, asc, desc, sql, like, inArray, notInArray, isNull, isNotNull, type SQL } from 'drizzle-orm';
 import { resolveMediaUrl } from './media';
@@ -239,15 +240,49 @@ export async function getAdminProducts(opts: {
     }
   }
 
+  // Quicklink de tarea vinculada (plan 2026-07-27, decisión 9) — trae, por producto, la tarea
+  // más reciente con `targetEntityType = 'PRODUCT'` y `targetEntityId` = ese producto, más un
+  // conteo de cuántas tareas históricas tiene (para el ícono de histórico). Batch por
+  // `productIds` visibles en la página, mismo patrón que `coversMap`/`variantStyles`.
+  const linkedTasks = productIds.length > 0
+    ? await db
+        .select({
+          id: catalogTasksTable.id,
+          targetEntityId: catalogTasksTable.targetEntityId,
+          status: catalogTasksTable.status,
+          createdAt: catalogTasksTable.createdAt,
+        })
+        .from(catalogTasksTable)
+        .where(and(
+          eq(catalogTasksTable.targetEntityType, 'PRODUCT'),
+          inArray(catalogTasksTable.targetEntityId, productIds)
+        ))
+        .orderBy(desc(catalogTasksTable.createdAt))
+    : [];
+  const taskInfoByProductId = new Map<string, { latestTaskId: string; latestStatus: string; historyCount: number }>();
+  for (const t of linkedTasks) {
+    if (!t.targetEntityId) continue;
+    const existing = taskInfoByProductId.get(t.targetEntityId);
+    if (existing) {
+      existing.historyCount += 1;
+    } else {
+      taskInfoByProductId.set(t.targetEntityId, { latestTaskId: t.id, latestStatus: t.status, historyCount: 1 });
+    }
+  }
+
   const productsWithCover = rows.map(r => {
     const stylesMap = stylesByProductId.get(r.id);
     const styles: Record<string, string[]> = stylesMap
       ? Object.fromEntries(Array.from(stylesMap.entries()).map(([slug, values]) => [slug, Array.from(values)]))
       : {};
+    const taskInfo = taskInfoByProductId.get(r.id);
     return {
       ...r,
       coverUrl: coverUrlByProductId.get(r.id) ?? null,
       styles,
+      latestTaskId: taskInfo?.latestTaskId ?? null,
+      latestTaskStatus: taskInfo?.latestStatus ?? null,
+      taskHistoryCount: taskInfo?.historyCount ?? 0,
     };
   });
 

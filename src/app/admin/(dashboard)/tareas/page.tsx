@@ -17,6 +17,10 @@ import { Plus, ClipboardList, MessageSquare, Users2, Pencil } from 'lucide-react
 import { usePermissions } from '@/hooks/usePermissions';
 import { CommentThread } from '@/components/admin/CommentThread';
 import { EntityPicker, type EntityPickerOption } from '@/components/admin/EntityPicker';
+import { TaskStatusBadge } from '@/components/admin/TaskStatusBadge';
+import { SetTaskProgressViewer } from '@/components/admin/SetTaskProgressViewer';
+import { TaskDetailModal } from '@/components/admin/TaskDetailModal';
+import { Search, Eye } from 'lucide-react';
 
 type TaskType = 'CREATE_PRODUCT' | 'CREATE_SET' | 'UPLOAD_MEDIA' | 'EDIT_PRODUCT' | 'EDIT_SET' | 'GENERIC' | 'SET_PRODUCT_SLOT';
 type TaskStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'APPROVED' | 'REJECTED';
@@ -45,6 +49,11 @@ interface Task {
   createdAt: string;
   assignedTo: string;
   assignedToName: string | null;
+  /** Presente solo en el detalle (`GET /api/admin/tasks/[id]`), no en el listado — si el
+   * usuario de la sesión puede aprobar/rechazar esta tarea puntual (`canReviewTask`, plan
+   * 2026-07-27, decisión 4). El listado usa `isAdmin` como aproximación rápida para no pedir
+   * el detalle de cada tarea; la API igual re-valida server-side en cada acción. */
+  canReview?: boolean;
 }
 
 interface Assignee {
@@ -89,14 +98,6 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
   REJECTED: 'Rechazada',
 };
 
-const STATUS_COLORS: Record<TaskStatus, string> = {
-  PENDING: 'bg-gray-200 text-gray-700',
-  IN_PROGRESS: 'bg-blue-100 text-blue-700',
-  COMPLETED: 'bg-amber-100 text-amber-700',
-  APPROVED: 'bg-emerald-100 text-emerald-700',
-  REJECTED: 'bg-red-100 text-red-700',
-};
-
 const GENDER_OPTIONS = ['Hombre', 'Mujer', 'Unisex'];
 
 const EMPTY_BLOCK: BlockLine[] = [{ code: '', url: '' }, { code: '', url: '' }];
@@ -119,12 +120,16 @@ export default function TareasPage() {
   const [groups, setGroups] = useState<TaskGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [search, setSearch] = useState('');
   const [detailGroup, setDetailGroup] = useState<TaskGroup | null>(null);
 
   const loadTasks = useCallback(async () => {
     setLoading(true);
     try {
-      const qs = statusFilter !== 'all' ? `?status=${statusFilter}` : '';
+      const params = new URLSearchParams();
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (search.trim()) params.set('search', search.trim());
+      const qs = params.toString() ? `?${params.toString()}` : '';
       const res = await fetch(`/api/admin/tasks${qs}`);
       if (res.ok) {
         const data = await res.json();
@@ -133,7 +138,7 @@ export default function TareasPage() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, search]);
 
   const loadGroups = useCallback(async () => {
     const res = await fetch('/api/admin/task-groups');
@@ -174,18 +179,29 @@ export default function TareasPage() {
         </TabsList>
 
         <TabsContent value="tareas">
-          <div className="mb-4 w-full max-w-xs">
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger aria-label="Filtrar por estado">
-                <SelectValue placeholder="Todos los estados" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los estados</SelectItem>
-                {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="mb-4 flex flex-col sm:flex-row gap-3">
+            <div className="w-full sm:max-w-xs">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger aria-label="Filtrar por estado">
+                  <SelectValue placeholder="Todos los estados" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los estados</SelectItem>
+                  {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="relative w-full sm:max-w-xs">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar por título o código..."
+                className="pl-9"
+              />
+            </div>
           </div>
 
           {loading ? (
@@ -746,7 +762,10 @@ function TaskCard({ task, isAdmin, currentUserId, onChanged, subtasks }: {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [showComments, setShowComments] = useState(false);
+  const [completedDialog, setCompletedDialog] = useState<{ open: boolean; assignedByName: string | null }>({ open: false, assignedByName: null });
+  const [showDetail, setShowDetail] = useState(false);
   const isOwner = task.assignedTo === currentUserId;
+  const isSetParent = task.type === 'CREATE_SET' && !!subtasks && subtasks.length > 0;
 
   async function advance(toStatus: 'IN_PROGRESS' | 'COMPLETED') {
     setBusy(true);
@@ -760,6 +779,12 @@ function TaskCard({ task, isAdmin, currentUserId, onChanged, subtasks }: {
         const data = await res.json().catch(() => ({}));
         toast.error(data.error ?? 'No se pudo actualizar la tarea');
         return;
+      }
+      // Diálogo informativo al completar (plan 2026-07-27, decisión 3) — no requiere una
+      // acción separada del Gestor para "enviar a revisión", ocurre en el mismo clic.
+      if (toStatus === 'COMPLETED') {
+        const data = await res.json().catch(() => ({}));
+        setCompletedDialog({ open: true, assignedByName: data.task?.assignedByName ?? null });
       }
       onChanged();
     } finally {
@@ -800,7 +825,7 @@ function TaskCard({ task, isAdmin, currentUserId, onChanged, subtasks }: {
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <Badge variant="outline" className="text-xs">{TYPE_LABELS[task.type]}</Badge>
-              <Badge className={`${STATUS_COLORS[task.status]} border-none text-xs`}>{STATUS_LABELS[task.status]}</Badge>
+              <TaskStatusBadge status={task.status} className="text-xs" />
               {task.groupId && <Badge variant="secondary" className="text-xs">En grupo</Badge>}
             </div>
             <p className="font-medium text-[#111111]">{task.title}</p>
@@ -840,10 +865,13 @@ function TaskCard({ task, isAdmin, currentUserId, onChanged, subtasks }: {
             {isOwner && task.status === 'PENDING' && (
               <Button size="sm" disabled={busy} onClick={() => advance('IN_PROGRESS')}>Iniciar</Button>
             )}
-            {isOwner && task.status === 'IN_PROGRESS' && (
+            {/* El padre CREATE_SET con piezas no se completa manualmente — se completa
+             * automáticamente cuando todas sus piezas están APPROVED (decisión 5 del plan
+             * 2026-07-27); su revisión ocurre por pieza en <SetTaskProgressViewer />. */}
+            {isOwner && task.status === 'IN_PROGRESS' && !isSetParent && (
               <Button size="sm" disabled={busy} onClick={() => advance('COMPLETED')}>Marcar completada</Button>
             )}
-            {isAdmin && task.status === 'COMPLETED' && (
+            {isAdmin && task.status === 'COMPLETED' && !isSetParent && (
               <>
                 <Button size="sm" variant="outline" disabled={busy} onClick={() => review('APPROVE')}>Aprobar</Button>
                 <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
@@ -869,6 +897,9 @@ function TaskCard({ task, isAdmin, currentUserId, onChanged, subtasks }: {
             <Button size="sm" variant="ghost" onClick={() => setShowComments((v) => !v)}>
               <MessageSquare className="w-4 h-4" />
             </Button>
+            <Button size="sm" variant="ghost" onClick={() => setShowDetail(true)}>
+              <Eye className="w-4 h-4" />
+            </Button>
           </div>
         </div>
 
@@ -879,19 +910,27 @@ function TaskCard({ task, isAdmin, currentUserId, onChanged, subtasks }: {
         )}
 
         {subtasks && subtasks.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-gray-100 space-y-1.5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
-              Productos del set ({subtasks.filter((s) => s.status === 'APPROVED').length}/{subtasks.length})
-            </p>
-            {subtasks.map((sub) => (
-              <div key={sub.id} className="flex items-center justify-between gap-2 text-sm">
-                <span className="text-gray-700 truncate">{sub.title}</span>
-                <Badge className={`${STATUS_COLORS[sub.status]} border-none text-xs shrink-0`}>{STATUS_LABELS[sub.status]}</Badge>
-              </div>
-            ))}
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <SetTaskProgressViewer parentTaskId={task.id} canReview={isAdmin} />
           </div>
         )}
       </CardContent>
+
+      <Dialog open={completedDialog.open} onOpenChange={(v) => { if (!v) setCompletedDialog({ open: false, assignedByName: null }); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Tarea enviada a revisión</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-600">
+            Tu tarea pasó a revisión de {completedDialog.assignedByName || 'quien te la asignó'}.
+          </p>
+          <DialogFooter>
+            <Button onClick={() => setCompletedDialog({ open: false, assignedByName: null })}>Entendido</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {showDetail && (
+        <TaskDetailModal taskId={task.id} onClose={() => setShowDetail(false)} onChanged={onChanged} />
+      )}
     </Card>
   );
 }

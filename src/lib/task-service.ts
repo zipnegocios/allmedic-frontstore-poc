@@ -3,8 +3,8 @@
 // COMPLETED → APPROVED, con rama REJECTED que regresa a IN_PROGRESS, decisión 3 del plan).
 
 import { db } from '@/db';
-import { catalogTasks, catalogTaskGroups, catalogNotifications, catalogActivityLog, users } from '@/db/schema';
-import { eq, and, ne, desc, sql } from 'drizzle-orm';
+import { catalogTasks, catalogTaskGroups, catalogNotifications, catalogActivityLog, users, corporateSets } from '@/db/schema';
+import { eq, and, ne, desc, sql, ilike, or } from 'drizzle-orm';
 import { uuid } from '@/lib/uuid';
 import { sendEmail } from '@/lib/email';
 import { taskAssignedEmail, taskCompletedEmail, taskRejectedEmail } from '@/lib/email/templates';
@@ -33,6 +33,13 @@ export class TaskGroupCompletedError extends Error {
   }
 }
 
+export class ForbiddenReviewError extends Error {
+  constructor() {
+    super('No tienes permiso para revisar esta tarea.');
+    this.name = 'ForbiddenReviewError';
+  }
+}
+
 export interface CreateTaskInput {
   type: CatalogTaskType;
   title: string;
@@ -50,6 +57,24 @@ export interface CreateTaskInput {
   parentTaskId?: string | null;
   assignedTo: string;
   assignedBy: string;
+}
+
+/**
+ * Autorización de finalización de una tarea (plan 2026-07-27, decisión 4) — función pura, sin
+ * acceso a BD, para poder testearla aislada y para que las API routes la llamen explícitamente
+ * antes de cualquier `update` (no basta con ocultar el botón en cliente):
+ * - Admin siempre puede revisar cualquier tarea, sin excepción.
+ * - Si quien asignó (`assignedBy`) es Admin, solo Admin puede revisar (ningún Coordinador).
+ * - Si quien asignó es un Coordinador, cualquier Coordinador puede revisar (no exclusivamente
+ *   quien la asignó) — igual capacidad que Admin dentro del módulo de Tareas.
+ */
+export function canReviewTask(
+  currentUser: { id: string; role: string; isTaskCoordinator: boolean },
+  assignerRole: string
+): boolean {
+  if (currentUser.role === 'ADMIN') return true;
+  if (assignerRole === 'ADMIN') return false;
+  return currentUser.isTaskCoordinator;
 }
 
 /** Nombre de cada línea de bloque, en el orden fijo en que se generan las subtareas
@@ -148,7 +173,7 @@ export async function createTask(input: CreateTaskInput) {
 }
 
 /** Subtareas SET_PRODUCT_SLOT de una tarea CREATE_SET — usado para anidarlas visualmente
- * bajo la tarjeta de la tarea padre en `/admin/tareas`. */
+ * bajo la tarjeta de la tarea padre en `/admin/tareas` y en `<SetTaskProgressViewer />`. */
 export async function listSubtasks(parentTaskId: string) {
   return db
     .select({
@@ -158,8 +183,10 @@ export async function listSubtasks(parentTaskId: string) {
       targetCode: catalogTasks.targetCode,
       sourceUrl: catalogTasks.sourceUrl,
       targetEntityId: catalogTasks.targetEntityId,
+      assignedToName: users.name,
     })
     .from(catalogTasks)
+    .leftJoin(users, eq(catalogTasks.assignedTo, users.id))
     .where(eq(catalogTasks.parentTaskId, parentTaskId));
 }
 
@@ -168,6 +195,9 @@ export interface TaskListFilters {
   assignedTo?: string;
   type?: CatalogTaskType;
   groupId?: string;
+  /** Buscador de texto libre (plan 2026-07-27, decisión 10) — solo sobre `title` y
+   * `targetCode`, sin nombre de Gestor asignado ("la protagonista es la tarea"). */
+  search?: string;
 }
 
 /** Listado con filtros — usado por `/admin/tareas` (Admin ve todas, filtra por Gestor). */
@@ -177,6 +207,10 @@ export async function listTasks(filters: TaskListFilters = {}) {
   if (filters.assignedTo) conditions.push(eq(catalogTasks.assignedTo, filters.assignedTo));
   if (filters.type) conditions.push(eq(catalogTasks.type, filters.type));
   if (filters.groupId) conditions.push(eq(catalogTasks.groupId, filters.groupId));
+  if (filters.search?.trim()) {
+    const term = `%${filters.search.trim()}%`;
+    conditions.push(or(ilike(catalogTasks.title, term), ilike(catalogTasks.targetCode, term)));
+  }
 
   return db
     .select({
@@ -206,6 +240,55 @@ export async function listTasks(filters: TaskListFilters = {}) {
     .leftJoin(users, eq(catalogTasks.assignedTo, users.id))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(catalogTasks.createdAt));
+}
+
+/** Detalle completo para `<TaskDetailModal />` (plan 2026-07-27, decisión 8) — incluye
+ * `assignedByName` (para el diálogo "pasó a revisión de X", decisión 3) y `canReview`
+ * (si el usuario que pide el detalle puede aprobar/rechazar esta tarea puntual, decisión 4). */
+export async function getTaskDetail(id: string, currentUserId: string) {
+  const [row] = await db
+    .select({
+      id: catalogTasks.id,
+      type: catalogTasks.type,
+      title: catalogTasks.title,
+      description: catalogTasks.description,
+      targetCode: catalogTasks.targetCode,
+      targetEntityType: catalogTasks.targetEntityType,
+      targetEntityId: catalogTasks.targetEntityId,
+      sourceUrl: catalogTasks.sourceUrl,
+      groupId: catalogTasks.groupId,
+      parentTaskId: catalogTasks.parentTaskId,
+      status: catalogTasks.status,
+      rejectionReason: catalogTasks.rejectionReason,
+      createdAt: catalogTasks.createdAt,
+      updatedAt: catalogTasks.updatedAt,
+      completedAt: catalogTasks.completedAt,
+      reviewedAt: catalogTasks.reviewedAt,
+      assignedTo: catalogTasks.assignedTo,
+      assignedBy: catalogTasks.assignedBy,
+    })
+    .from(catalogTasks)
+    .where(eq(catalogTasks.id, id))
+    .limit(1);
+  if (!row) return null;
+
+  const [assignee, assigner, currentUser] = await Promise.all([
+    db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, row.assignedTo)).limit(1),
+    db.select({ name: users.name, email: users.email, role: users.role }).from(users).where(eq(users.id, row.assignedBy)).limit(1),
+    getReviewIdentity(currentUserId),
+  ]);
+
+  const canReview = row.status === 'COMPLETED' && canReviewTask(
+    { id: currentUserId, role: currentUser.role, isTaskCoordinator: currentUser.isTaskCoordinator },
+    assigner[0]?.role ?? ''
+  );
+
+  return {
+    ...row,
+    assignedToName: assignee[0]?.name ?? assignee[0]?.email ?? null,
+    assignedByName: assigner[0]?.name ?? assigner[0]?.email ?? null,
+    canReview,
+  };
 }
 
 export async function getTaskById(id: string) {
@@ -246,9 +329,13 @@ export async function advanceTaskStatus(taskId: string, toStatus: CatalogTaskSta
     relatedTaskId: taskId,
   });
 
+  // `assignedByName` viaja en la respuesta cuando se completa (plan 2026-07-27, decisión 3) —
+  // el frontend arma el diálogo "Tu tarea pasó a revisión de [nombre]" sin una segunda llamada.
+  let assignedByName: string | null = null;
   if (toStatus === 'COMPLETED') {
     const [reviewer] = await db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, task.assignedBy)).limit(1);
     const [assignee] = await db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, task.assignedTo)).limit(1);
+    if (reviewer) assignedByName = reviewer.name ?? reviewer.email;
     if (reviewer && assignee) {
       const { subject, html } = taskCompletedEmail({
         reviewerName: reviewer.name ?? reviewer.email,
@@ -259,18 +346,63 @@ export async function advanceTaskStatus(taskId: string, toStatus: CatalogTaskSta
     }
   }
 
-  return updated;
+  return { ...updated, assignedByName };
 }
 
-/** Aprobación del Admin (solo sobre tareas COMPLETED) — cierra el ciclo de vida. Si la tarea
- * pertenece a un grupo y esta aprobación deja TODAS sus tareas en APPROVED, marca el grupo
- * como completado (`completedAt`) — esto es lo que activa la elegibilidad del grupo para el
- * tabulador fijo en el próximo recálculo de período (ver `calculateFixedGroupAmount`). */
-export async function approveTask(taskId: string) {
+/** Resuelve el rol y flag Coordinador de un usuario — usado para aplicar `canReviewTask`
+ * dentro del servicio (las API routes ya resuelven `currentUser` desde la sesión, pero
+ * `assignerRole` requiere una consulta aparte porque `assignedBy` no viaja en la sesión). */
+async function getReviewIdentity(userId: string) {
+  const [row] = await db.select({ role: users.role, isTaskCoordinator: users.isTaskCoordinator }).from(users).where(eq(users.id, userId)).limit(1);
+  return row ?? { role: '', isTaskCoordinator: false };
+}
+
+/**
+ * Si `taskId` es una subtarea `SET_PRODUCT_SLOT` (o la propia tarea `CREATE_SET`) y, tras esta
+ * aprobación, TODAS las piezas hijas de su padre están `APPROVED`, marca automáticamente el
+ * padre como `APPROVED` (decisión 5 del plan 2026-07-27 — sin paso de revisión adicional sobre
+ * el conjunto armado) y publica el set vinculado (`targetEntityId` del padre) pasando su
+ * `status` de `DRAFT` a `PUBLISHED` (decisión 6) — no toca sets que ya nacieron `PUBLISHED`
+ * (creados fuera del flujo de tareas).
+ */
+async function publishSetIfGroupApproved(approvedTask: { id: string; parentTaskId: string | null; type: string }) {
+  const parentId = approvedTask.type === 'SET_PRODUCT_SLOT' ? approvedTask.parentTaskId : approvedTask.id;
+  if (!parentId) return;
+
+  const siblings = await db.select({ status: catalogTasks.status }).from(catalogTasks).where(eq(catalogTasks.parentTaskId, parentId));
+  if (siblings.length === 0) return;
+  if (!siblings.every((s) => s.status === 'APPROVED')) return;
+
+  const [parent] = await db
+    .update(catalogTasks)
+    .set({ status: 'APPROVED', reviewedAt: new Date(), updatedAt: new Date() })
+    .where(and(eq(catalogTasks.id, parentId), eq(catalogTasks.status, 'COMPLETED')))
+    .returning();
+  if (!parent) return;
+
+  if (parent.targetEntityId) {
+    await db.update(corporateSets).set({ status: 'PUBLISHED', updatedAt: new Date() }).where(eq(corporateSets.id, parent.targetEntityId));
+  }
+}
+
+/** Aprobación (solo sobre tareas COMPLETED) — cierra el ciclo de vida. Requiere `reviewerId`
+ * (usuario de la sesión) para aplicar `canReviewTask` (plan 2026-07-27, decisión 4): Admin
+ * siempre puede; si `assignedBy` es Coordinador, cualquier Coordinador puede; si `assignedBy`
+ * es Admin, solo Admin puede. Si la tarea pertenece a un grupo y esta aprobación deja TODAS sus
+ * tareas en APPROVED, marca el grupo como completado (`completedAt`) — esto es lo que activa la
+ * elegibilidad del grupo para el tabulador fijo en el próximo recálculo de período. Si la tarea
+ * es una pieza de set (`SET_PRODUCT_SLOT`) o el propio `CREATE_SET`, además intenta publicar el
+ * set padre vía `publishSetIfGroupApproved`. */
+export async function approveTask(taskId: string, reviewerId: string) {
   const task = await getTaskById(taskId);
   if (!task) throw new Error('Tarea no encontrada.');
   if (task.status !== 'COMPLETED') {
     throw new InvalidTaskTransitionError(task.status as CatalogTaskStatus, 'APPROVED');
+  }
+
+  const [reviewer, assigner] = await Promise.all([getReviewIdentity(reviewerId), getReviewIdentity(task.assignedBy)]);
+  if (!canReviewTask({ id: reviewerId, role: reviewer.role, isTaskCoordinator: reviewer.isTaskCoordinator }, assigner.role)) {
+    throw new ForbiddenReviewError();
   }
 
   const [updated] = await db
@@ -294,20 +426,30 @@ export async function approveTask(taskId: string) {
     }
   }
 
+  await publishSetIfGroupApproved(updated);
+
   return updated;
 }
 
 /**
- * Rechazo del Admin (solo sobre tareas COMPLETED, motivo obligatorio) — regresa la tarea a
- * IN_PROGRESS (decisión 3 del plan) y anula (sin borrar) toda la actividad de
- * `catalog_activity_log` vinculada a esta tarea (decisión 7 del plan, Fase 6: un ítem
- * rechazado no cuenta para el cálculo de pagos, pero queda visible en el historial).
+ * Rechazo (solo sobre tareas COMPLETED, motivo obligatorio) — regresa la tarea a IN_PROGRESS
+ * (decisión 3 del plan) y anula (sin borrar) toda la actividad de `catalog_activity_log`
+ * vinculada a esta tarea (decisión 7 del plan, Fase 6: un ítem rechazado no cuenta para el
+ * cálculo de pagos, pero queda visible en el historial). Requiere `reviewerId` para aplicar
+ * `canReviewTask` (plan 2026-07-27, decisión 4) — misma regla que `approveTask`. Al rechazar
+ * una pieza de set (`SET_PRODUCT_SLOT`), las demás piezas y el padre no se alteran (decisión 5:
+ * "corregir" es por pieza).
  */
-export async function rejectTask(taskId: string, reason: string) {
+export async function rejectTask(taskId: string, reason: string, reviewerId: string) {
   const task = await getTaskById(taskId);
   if (!task) throw new Error('Tarea no encontrada.');
   if (task.status !== 'COMPLETED') {
     throw new InvalidTaskTransitionError(task.status as CatalogTaskStatus, 'REJECTED');
+  }
+
+  const [reviewer, assigner] = await Promise.all([getReviewIdentity(reviewerId), getReviewIdentity(task.assignedBy)]);
+  if (!canReviewTask({ id: reviewerId, role: reviewer.role, isTaskCoordinator: reviewer.isTaskCoordinator }, assigner.role)) {
+    throw new ForbiddenReviewError();
   }
 
   const [updated] = await db

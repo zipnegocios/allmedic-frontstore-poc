@@ -27,7 +27,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Plus, Trash2, AlertTriangle, GripVertical } from 'lucide-react';
+import { Plus, Trash2, AlertTriangle, GripVertical, ArrowDownAZ } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { MediaThumb } from '@/components/admin/media/MediaThumb';
@@ -355,6 +355,24 @@ export function VariantsMediaSection({
     });
   }
 
+  /** Botón "Ordenar alfabéticamente" (plan 2026-07-27, decisión 12) — recalcula
+   * `colorSortOrder` (0..n-1) de todas las variantes según el nombre del color (A→Z), mismo
+   * mecanismo que `handleColorDragEnd` (no persiste en BD hasta guardar el producto). El
+   * drag-and-drop sigue disponible después, ya que ambos solo escriben sobre `colorSortOrder`. */
+  function handleSortColorsAlphabetically() {
+    const colorNameById = new Map(colors.map((c) => [c.id, c.name]));
+    const sorted = [...activeColorIds].sort((a, b) =>
+      (colorNameById.get(a) ?? '').localeCompare(colorNameById.get(b) ?? '')
+    );
+    sorted.forEach((colorId, position) => {
+      variantsLive.forEach((v, idx) => {
+        if (v.colorId === colorId) {
+          setValue(`variants.${idx}.colorSortOrder`, position, { shouldDirty: true });
+        }
+      });
+    });
+  }
+
   /** Reordena las imágenes de un color al soltar un drag — recalcula `sortOrder`
    * (0..n-1) según la nueva posición dentro de ESE color; no toca imágenes de
    * otros colores. `orderedColorImages` ya viene ordenado por `sortOrder` actual. */
@@ -538,6 +556,18 @@ export function VariantsMediaSection({
               <Plus className="w-3.5 h-3.5 mr-1" />
               Agregar Color
             </Button>
+            {activeColorIds.length > 1 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleSortColorsAlphabetically}
+                className="h-8 text-xs bg-white"
+              >
+                <ArrowDownAZ className="w-3.5 h-3.5 mr-1" />
+                Ordenar alfabéticamente
+              </Button>
+            )}
           </div>
         </div>
 

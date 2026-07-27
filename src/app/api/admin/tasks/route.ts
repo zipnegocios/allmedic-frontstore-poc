@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') ?? undefined;
     const assignedToParam = searchParams.get('assignedTo') ?? undefined;
     const type = searchParams.get('type') ?? undefined;
+    const search = searchParams.get('search') ?? undefined;
 
     const role = (session.user as { role?: string })?.role;
     const userId = getSessionUserId(session);
@@ -27,6 +28,7 @@ export async function GET(request: NextRequest) {
       status: status as never,
       assignedTo,
       type: type as never,
+      search,
     });
     return NextResponse.json({ tasks });
   } catch (err) {

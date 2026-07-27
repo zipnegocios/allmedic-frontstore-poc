@@ -29,12 +29,12 @@ function readStored(): AnchoredTask | null {
 }
 
 /**
- * Anclaje de tareas (2026-07-26): el Gestor del Catálogo "ancla" una de sus tareas
- * PENDING/IN_PROGRESS asignadas mientras trabaja en `/admin/productos` o `/admin/sets`
- * (vía `TaskAnchorFab`), para que al guardar el formulario se cierre/avance esa tarea sin
- * salir de la página. Es un atajo efímero de sesión de navegador (`sessionStorage`) — no es
- * la fuente de verdad (esa sigue siendo `catalog_tasks` en BD); si se cierra la pestaña, se
- * pierde el anclaje pero no el trabajo real ya guardado.
+ * Anclaje de tareas (2026-07-26, FAB dividido en dos componentes el 2026-07-27 — ver
+ * `TaskAnchorControl`/`UnanchoredTasksPanel`): el Gestor del Catálogo "ancla" una de sus tareas
+ * PENDING/IN_PROGRESS asignadas mientras trabaja en el formulario de Producto/Set, para que al
+ * guardar se cierre/avance esa tarea sin salir de la página. Es un atajo efímero de sesión de
+ * navegador (`sessionStorage`) — no es la fuente de verdad (esa sigue siendo `catalog_tasks` en
+ * BD); si se cierra la pestaña, se pierde el anclaje pero no el trabajo real ya guardado.
  */
 export function AnchoredTaskProvider({ children }: { children: React.ReactNode }) {
   const [anchoredTask, setAnchoredTaskState] = useState<AnchoredTask | null>(readStored);

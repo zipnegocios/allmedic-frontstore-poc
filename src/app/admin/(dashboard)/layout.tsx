@@ -1,6 +1,6 @@
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { AdminBottomNav } from '@/components/admin/AdminBottomNav';
-import { TaskAnchorFab } from '@/components/admin/TaskAnchorFab';
+import { UnanchoredTasksPanel } from '@/components/admin/UnanchoredTasksPanel';
 import { AnchoredTaskProvider } from '@/contexts/AnchoredTaskContext';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -12,7 +12,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {children}
         </main>
         <AdminBottomNav />
-        <TaskAnchorFab />
+        <UnanchoredTasksPanel />
       </div>
     </AnchoredTaskProvider>
   );

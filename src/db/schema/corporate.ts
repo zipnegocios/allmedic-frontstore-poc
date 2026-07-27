@@ -25,6 +25,13 @@ export const corporateSets = pgTable("corporate_sets", {
   isActive: boolean("is_active").default(true),
   isFeatured: boolean("is_featured").default(false),
   sortOrder: integer("sort_order").default(0),
+  // Borrador/Publicado (plan 2026-07-27 ciclo de vida de tareas/sets): un set creado desde una
+  // tarea CREATE_SET nace 'DRAFT' y pasa a 'PUBLISHED' automáticamente cuando la tarea padre
+  // (y todas sus subtareas SET_PRODUCT_SLOT) llegan a APPROVED (ver publishSetIfGroupApproved
+  // en task-service.ts). Un set creado fuera del flujo de tareas nace 'PUBLISHED' (default) para
+  // no romper la creación manual existente. Un set en DRAFT no aparece en /corporativo aunque
+  // isActive sea true — es un filtro adicional, no un reemplazo de isActive.
+  status: text("status").notNull().default("PUBLISHED"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
@@ -32,6 +39,7 @@ export const corporateSets = pgTable("corporate_sets", {
   index("idx_corporate_sets_active").on(table.isActive),
   index("idx_corporate_sets_featured").on(table.isFeatured),
   index("idx_corporate_sets_deleted").on(table.deletedAt),
+  index("idx_corporate_sets_status").on(table.status),
 ]);
 
 export const corporateSetsRelations = relations(corporateSets, ({ one, many }) => ({

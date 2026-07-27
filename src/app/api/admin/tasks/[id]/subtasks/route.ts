@@ -1,27 +1,17 @@
 import { NextResponse } from 'next/server';
-import { requireAdmin, getSessionUserId } from '@/lib/admin-auth';
+import { requireAdmin } from '@/lib/admin-auth';
 import { requireRole, ForbiddenError } from '@/lib/permissions';
-import { getTaskById, getTaskDetail } from '@/lib/task-service';
+import { listSubtasks } from '@/lib/task-service';
 
-/** Detalle de una tarea — el Gestor solo puede ver la suya, Admin ve cualquiera. Incluye
- * `assignedByName`/`canReview` (`<TaskDetailModal />`, plan 2026-07-27). */
+/** Piezas SET_PRODUCT_SLOT de una tarea CREATE_SET — usado por `<SetTaskProgressViewer />`. */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireAdmin();
     await requireRole(session, 'tareas', 'read');
 
     const { id } = await params;
-    const task = await getTaskById(id);
-    if (!task) return NextResponse.json({ error: 'Tarea no encontrada' }, { status: 404 });
-
-    const role = (session.user as { role?: string })?.role;
-    const userId = getSessionUserId(session);
-    if (role !== 'ADMIN' && task.assignedTo !== userId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    const detail = await getTaskDetail(id, userId!);
-    return NextResponse.json({ task: detail });
+    const subtasks = await listSubtasks(id);
+    return NextResponse.json({ subtasks });
   } catch (err) {
     if (err instanceof ForbiddenError) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     const message = err instanceof Error ? err.message : 'Unknown error';
