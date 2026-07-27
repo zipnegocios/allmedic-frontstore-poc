@@ -20,6 +20,7 @@ const EVENTS: Array<{ eventKey: string; label: string }> = [
   { eventKey: 'CORPORATE_REGISTRATION_NEW', label: 'Nuevo registro corporativo' },
   { eventKey: 'QUOTE_SENT', label: 'Cotización enviada' },
   { eventKey: 'QUOTE_REQUEST_NEW', label: 'Nueva solicitud de cotización' },
+  { eventKey: 'COMMENT_MENTION', label: 'Mención en un comentario' },
 ];
 
 async function main() {

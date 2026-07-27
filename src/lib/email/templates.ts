@@ -209,3 +209,34 @@ export function taskRejectedEmail(params: { assigneeName: string; title: string;
     ),
   };
 }
+
+// El resto de plantillas del proyecto interpola texto de usuario sin escapar (riesgo
+// preexistente) — para esta plantilla nueva sí se escapa el extracto del comentario, ya que
+// es contenido libre escrito por otro usuario del panel, no solo el propio autor de la acción.
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+export function mentionEmail(params: {
+  mentionedName: string;
+  authorName: string;
+  commentExcerpt: string;
+  contextLabel: string;
+}): { subject: string; html: string } {
+  const { mentionedName, authorName, commentExcerpt, contextLabel } = params;
+  return {
+    subject: `${authorName} te mencionó en un comentario`,
+    html: wrap(
+      'Te Mencionaron',
+      `
+        <p>Hola ${mentionedName},</p>
+        <p><strong>${authorName}</strong> te mencionó en un comentario en ${contextLabel}:</p>
+        <p style="margin:16px 0;color:#666;">"${escapeHtml(commentExcerpt)}"</p>
+        <p>Puedes responder desde la sección correspondiente del panel.</p>
+      `
+    ),
+  };
+}

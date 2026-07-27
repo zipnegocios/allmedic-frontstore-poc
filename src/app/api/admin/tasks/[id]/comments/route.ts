@@ -35,7 +35,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   }
 }
 
-const CreateCommentSchema = z.object({ body: z.string().min(1) });
+const CreateCommentSchema = z.object({
+  body: z.string().min(1),
+  mentionedUserIds: z.array(z.string()).optional(),
+});
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -51,7 +54,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!authorId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = CreateCommentSchema.parse(await request.json());
-    const comment = await createTaskComment(id, authorId, body.body);
+    const comment = await createTaskComment(id, authorId, body.body, body.mentionedUserIds ?? []);
     return NextResponse.json({ comment }, { status: 201 });
   } catch (err) {
     if (err instanceof z.ZodError) {

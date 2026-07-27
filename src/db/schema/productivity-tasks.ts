@@ -136,8 +136,11 @@ export const catalogEntityCommentsRelations = relations(catalogEntityComments, (
 }));
 
 // ─── Notificaciones (badges + disparo de correo para eventos críticos) ───
+// MENTION (2026-07-27): distinto de TASK_COMMENT/ENTITY_COMMENT — se dispara cuando alguien
+// es mencionado con @ en un comentario, sin importar si ya era "el otro participante" del
+// hilo (son eventos conceptualmente distintos aunque lleguen a la misma persona).
 export const catalogNotificationTypeEnum = pgEnum("catalog_notification_type", [
-  "TASK_ASSIGNED", "TASK_REJECTED", "TASK_STATUS_CHANGED", "TASK_COMMENT", "ENTITY_COMMENT",
+  "TASK_ASSIGNED", "TASK_REJECTED", "TASK_STATUS_CHANGED", "TASK_COMMENT", "ENTITY_COMMENT", "MENTION",
 ]);
 
 export const catalogNotifications = pgTable("catalog_notifications", {

@@ -33,6 +33,7 @@ const CreateEntityCommentSchema = z.object({
   entityType: z.enum(ENTITY_TYPES),
   entityId: z.string().min(1),
   body: z.string().min(1),
+  mentionedUserIds: z.array(z.string()).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
     if (!authorId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = CreateEntityCommentSchema.parse(await request.json());
-    const comment = await createEntityComment(body.entityType, body.entityId, authorId, body.body);
+    const comment = await createEntityComment(body.entityType, body.entityId, authorId, body.body, body.mentionedUserIds ?? []);
     return NextResponse.json({ comment }, { status: 201 });
   } catch (err) {
     if (err instanceof z.ZodError) {

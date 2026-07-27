@@ -60,6 +60,7 @@ export const ROUTE_MODULE_MAP: Array<{ prefix: string; module: string }> = [
   { prefix: '/api/admin/tasks', module: 'tareas' },
   { prefix: '/api/admin/task-groups', module: 'tareas' },
   { prefix: '/api/admin/entity-comments', module: 'comentarios' },
+  { prefix: '/api/admin/mentions', module: 'comentarios' },
   // Módulo renombrado de 'pagos' a 'honorarios-staff' (2026-07-26) — se dejó "Pagos" libre
   // para la futura integración con pasarela de pagos, evitando confundir ambos conceptos.
   // Las tablas de BD (payment_periods, payment_tiers, etc.) NO se renombraron.

@@ -162,6 +162,13 @@
       "when": 1785200100000,
       "tag": "0022_task_parent_id",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1785300000000,
+      "tag": "0023_add_mention_notification_type",
+      "breakpoints": true
     }
   ]
 }
