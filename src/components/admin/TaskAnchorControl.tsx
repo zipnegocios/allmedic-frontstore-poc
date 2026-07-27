@@ -25,14 +25,22 @@ interface AnchorableTask {
 const STATUS_LABELS: Record<string, string> = {
   PENDING: 'Pendiente',
   IN_PROGRESS: 'En progreso',
+  COMPLETED: 'Por revisar',
 };
 
 /**
  * Anclaje de tareas — mitad "selector" del FAB original (`TaskAnchorFab.tsx`, dividido en dos
  * componentes en el plan 2026-07-27, decisión 7): se monta dentro del formulario de Producto/Set
  * (crear o editar, nunca en el listado). Sin tarea anclada, muestra el selector de tareas
- * PENDING/IN_PROGRESS asignadas al usuario, filtradas por el tipo de panel (`panelTypes`). Con
- * tarea anclada, muestra su detalle y un botón explícito "Cambiar tarea anclada" para volver al
+ * PENDING/IN_PROGRESS/COMPLETED asignadas al usuario, filtradas por el tipo de panel
+ * (`panelTypes`) — una tarea COMPLETED ("por revisar") sigue siendo re-anclable: el Gestor puede
+ * seguir ajustando y volviendo a guardar cuantas veces sea necesario mientras el Admin no la
+ * apruebe o rechace (2026-07-27, feedback de Gustavo — "dejar el registro de todas siempre
+ * allí"). Solo desaparece del selector al llegar a APPROVED/REJECTED: una vez aprobada queda
+ * cerrada e inmutable (si se necesita más trabajo, se crea una tarea EDIT_PRODUCT/EDIT_SET
+ * nueva apuntando a la misma entidad — eso ya es la reapertura, sin flujo de "solicitud"
+ * aparte); si fue rechazada, vuelve a IN_PROGRESS y reaparece aquí normalmente. Con tarea
+ * anclada, muestra su detalle y un botón explícito "Cambiar tarea anclada" para volver al
  * selector (permite corregir errores del operador) — el llamador (`ProductForm`/`SetForm`) sigue
  * siendo dueño de los botones "Guardar y continuar después"/"Guardar y completar tarea".
  */
@@ -49,7 +57,7 @@ export function TaskAnchorControl({ panelTypes, children }: { panelTypes: string
         panelTypes.map((type) => fetch(`/api/admin/tasks?type=${type}`).then((r) => (r.ok ? r.json() : { tasks: [] })))
       );
       const all: AnchorableTask[] = results.flatMap((r) => r.tasks ?? []);
-      setTasks(all.filter((t) => t.status === 'PENDING' || t.status === 'IN_PROGRESS'));
+      setTasks(all.filter((t) => t.status === 'PENDING' || t.status === 'IN_PROGRESS' || t.status === 'COMPLETED'));
     } finally {
       setLoading(false);
     }
@@ -92,6 +100,7 @@ export function TaskAnchorControl({ panelTypes, children }: { panelTypes: string
                     id: task.id,
                     title: task.title,
                     type: task.type,
+                    status: task.status as 'PENDING' | 'IN_PROGRESS' | 'COMPLETED',
                     description: task.description,
                     targetCode: task.targetCode,
                     sourceUrl: task.sourceUrl,
@@ -127,6 +136,12 @@ export function TaskAnchorControl({ panelTypes, children }: { panelTypes: string
             <Button type="button" size="sm" variant="ghost" onClick={clearAnchoredTask}>Desanclar</Button>
           </div>
         </div>
+
+        {task.status === 'COMPLETED' && (
+          <p className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+            Esta tarea está pendiente de aprobación del Admin — puedes seguir ajustando y guardando cuantas veces sea necesario mientras no se apruebe o rechace.
+          </p>
+        )}
 
         {/* Instrucciones de la tarea — sin esto el Gestor no ve qué debe ejecutar
             (código de producto, URL de referencia, bloques de un set). */}

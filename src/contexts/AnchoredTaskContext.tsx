@@ -9,10 +9,13 @@ interface BlockLine {
   url: string;
 }
 
+export type AnchoredTaskStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
+
 interface AnchoredTask {
   id: string;
   title: string;
   type: string;
+  status: AnchoredTaskStatus;
   description: string | null;
   targetCode: string | null;
   sourceUrl: string | null;
@@ -23,6 +26,7 @@ interface AnchoredTask {
 interface AnchoredTaskContextValue {
   anchoredTask: AnchoredTask | null;
   setAnchoredTask: (task: AnchoredTask) => void;
+  updateAnchoredStatus: (status: AnchoredTaskStatus) => void;
   clearAnchoredTask: () => void;
 }
 
@@ -59,8 +63,20 @@ export function AnchoredTaskProvider({ children }: { children: React.ReactNode }
     window.sessionStorage.removeItem(STORAGE_KEY);
   }, []);
 
+  // Refleja el nuevo estado tras "Guardar y continuar después"/"Guardar y completar tarea" sin
+  // desanclar — la tarea sigue pudiéndose reabrir/reeditar mientras esté PENDING/IN_PROGRESS/
+  // COMPLETED (por revisar); solo se desancla explícitamente o al ser aprobada/rechazada.
+  const updateAnchoredStatus = useCallback((status: AnchoredTaskStatus) => {
+    setAnchoredTaskState((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, status };
+      window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   return (
-    <AnchoredTaskContext.Provider value={{ anchoredTask, setAnchoredTask, clearAnchoredTask }}>
+    <AnchoredTaskContext.Provider value={{ anchoredTask, setAnchoredTask, updateAnchoredStatus, clearAnchoredTask }}>
       {children}
     </AnchoredTaskContext.Provider>
   );
