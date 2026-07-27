@@ -482,6 +482,34 @@ export async function rejectTask(taskId: string, reason: string, reviewerId: str
   return updated;
 }
 
+/**
+ * Elimina una tarea (2026-07-27, feedback de Gustavo: "solo el administrador y el
+ * coordinador pueda eliminar las tareas"). Reutiliza `canReviewTask` — mismo criterio ya
+ * usado para aprobar/rechazar (decisión 4 del plan 2026-07-27): Admin siempre puede; si
+ * `assignedBy` es Coordinador, cualquier Coordinador puede; si `assignedBy` es Admin, solo
+ * Admin puede. Si la tarea es `CREATE_SET`, borra en cascada sus subtareas `SET_PRODUCT_SLOT`
+ * (sin FK real hacia `parentTaskId` — ver comentario en el schema — así que no hay cascada
+ * automática de Postgres para limpiarlas). Comentarios/notificaciones de la tarea SÍ tienen
+ * `ON DELETE CASCADE` real, se limpian solos.
+ */
+export async function deleteTask(taskId: string, currentUserId: string) {
+  const task = await getTaskById(taskId);
+  if (!task) throw new Error('Tarea no encontrada.');
+
+  const [currentUser, assigner] = await Promise.all([
+    getReviewIdentity(currentUserId),
+    getReviewIdentity(task.assignedBy),
+  ]);
+  if (!canReviewTask({ id: currentUserId, role: currentUser.role, isTaskCoordinator: currentUser.isTaskCoordinator }, assigner.role)) {
+    throw new ForbiddenReviewError();
+  }
+
+  if (task.type === 'CREATE_SET') {
+    await db.delete(catalogTasks).where(eq(catalogTasks.parentTaskId, taskId));
+  }
+  await db.delete(catalogTasks).where(eq(catalogTasks.id, taskId));
+}
+
 /** Conteo de tareas por estado, para badges de la vista del Gestor. */
 export async function countTasksForUser(userId: string) {
   const rows = await db

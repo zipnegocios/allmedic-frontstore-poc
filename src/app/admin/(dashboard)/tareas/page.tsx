@@ -10,10 +10,21 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { Plus, ClipboardList, MessageSquare, Users2, Pencil } from 'lucide-react';
+import { Plus, ClipboardList, MessageSquare, Users2, Pencil, Trash2 } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
 import { CommentThread } from '@/components/admin/CommentThread';
 import { EntityPicker, type EntityPickerOption } from '@/components/admin/EntityPicker';
@@ -831,6 +842,22 @@ function TaskCard({ task, isAdmin, currentUserId, onChanged, subtasks }: {
     }
   }
 
+  async function handleDelete() {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/tasks/${task.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? 'No se pudo eliminar la tarea');
+        return;
+      }
+      toast.success('Tarea eliminada');
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function review(decision: 'APPROVE' | 'REJECT') {
     if (decision === 'REJECT' && !rejectReason.trim()) {
       toast.error('El motivo de rechazo es obligatorio');
@@ -939,6 +966,31 @@ function TaskCard({ task, isAdmin, currentUserId, onChanged, subtasks }: {
             <Button size="sm" variant="ghost" onClick={() => setShowDetail(true)}>
               <Eye className="w-4 h-4" />
             </Button>
+            {/* Eliminar tarea (2026-07-27, feedback de Gustavo): solo Admin/Coordinador —
+                `isAdmin` aquí es la misma aproximación de gate visual ya usada para
+                Aprobar/Rechazar (deuda conocida: no distingue Coordinador en cliente, ver
+                comentario al inicio del archivo); el backend aplica `canReviewTask` real. */}
+            {isAdmin && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button size="sm" variant="ghost" disabled={busy} className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Eliminar tarea</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Esta acción no se puede deshacer. Se eliminará la tarea &quot;{task.title}&quot;{isSetParent ? ' y todas sus piezas del set' : ''}, junto con sus comentarios y notificaciones.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Eliminar</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
           </div>
         </div>
 
