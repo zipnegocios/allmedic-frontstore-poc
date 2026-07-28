@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { X, ShoppingBag, Check, AlertCircle } from 'lucide-react';
-import type { Product, ProductColor, Size, Fit, VariantStatus } from '@/lib/types';
+import type { Product, ProductColor, Size, VariantStatus } from '@/lib/types';
 import { useCart } from '@/context/CartContext';
 import { useNotificationContext } from '@/context/NotificationContext';
 import { Modal } from '@/components/ui/Modal';
@@ -23,7 +23,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
   const showPrices = usePriceVisibility({ brandId: product?.brandId, productId: product?.id });
   const [selectedColor, setSelectedColor] = useState<ProductColor | null>(null);
   const [selectedSize, setSelectedSize] = useState<Size | null>(null);
-  const [selectedFit, setSelectedFit] = useState<Fit | null>(null);
+  const [selectedStyles, setSelectedStyles] = useState<Record<string, string>>({});
   const [quantity, setQuantity] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
   const [showSuccessState, setShowSuccessState] = useState(false);
@@ -40,7 +40,13 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
       const firstAvailable = colorVariants.find(v => v.status !== 'OUT_OF_STOCK');
       setSelectedSize(firstAvailable?.size || null);
       
-      setSelectedFit(product.availableFits?.[0] || null);
+      setSelectedStyles(
+        Object.fromEntries(
+          Object.entries(product.availableStyles ?? {})
+            .filter(([, values]) => values.length > 0)
+            .map(([slug, values]) => [slug, values[0]])
+        )
+      );
       setQuantity(1);
       setError(null);
       setShowSuccessState(false);
@@ -68,7 +74,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
 
   // Get selected variant
   const selectedVariant = colorVariants.find(
-    v => v.size === selectedSize && (!selectedFit || v.fit === selectedFit)
+    v => v.size === selectedSize && Object.entries(selectedStyles).every(([slug, value]) => v.styles[slug] === value)
   );
 
   const isOutOfStock = selectedVariant?.status === 'OUT_OF_STOCK';
@@ -100,7 +106,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
     setError(null);
 
     setTimeout(() => {
-      addItem(product, selectedVariant.id, selectedColor, selectedSize, selectedFit || undefined, quantity);
+      addItem(product, selectedVariant.id, selectedColor, selectedSize, selectedStyles, quantity);
       setIsAdding(false);
       
       // Show notification based on status
@@ -296,28 +302,30 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
             </div>
           </div>
 
-          {/* Fit Selector (if applicable) */}
-          {product.availableFits && product.availableFits.length > 0 && (
-            <div className="mb-4">
-              <p className="text-sm font-medium text-[#111111] mb-2">Corte</p>
-              <div className="flex flex-wrap gap-2">
-                {product.availableFits.map((fit) => (
-                  <button
-                    key={fit}
-                    onClick={() => setSelectedFit(fit)}
-                    className={cn(
-                      'px-4 h-9 text-sm font-medium rounded-full transition-all duration-200',
-                      selectedFit === fit
-                        ? 'bg-[#111111] text-white'
-                        : 'border border-[#E5E5E5] text-[#333333] hover:border-[#111111]'
-                    )}
-                  >
-                    {fit}
-                  </button>
-                ))}
+          {/* Selectores de atributos EAV en modo VARIANT (ej. Corte) */}
+          {Object.entries(product.availableStyles ?? {})
+            .filter(([, values]) => values.length > 0)
+            .map(([slug, values]) => (
+              <div key={slug} className="mb-4">
+                <p className="text-sm font-medium text-[#111111] mb-2">{product.styleLabels?.[slug] ?? slug}</p>
+                <div className="flex flex-wrap gap-2">
+                  {values.map((value) => (
+                    <button
+                      key={value}
+                      onClick={() => setSelectedStyles((prev) => ({ ...prev, [slug]: value }))}
+                      className={cn(
+                        'px-4 h-9 text-sm font-medium rounded-full transition-all duration-200',
+                        selectedStyles[slug] === value
+                          ? 'bg-[#111111] text-white'
+                          : 'border border-[#E5E5E5] text-[#333333] hover:border-[#111111]'
+                      )}
+                    >
+                      {value}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            ))}
 
           {/* Availability Status */}
           {selectedVariant && (

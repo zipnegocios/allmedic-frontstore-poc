@@ -37,6 +37,7 @@ interface ProductTypeAttributeLink {
   attributeId: string;
   isRequired: boolean | null;
   sortOrder: number | null;
+  usageMode: 'INFORMATIVE' | 'VARIANT';
   attributeName: string;
   attributeSlug: string;
   displayType: string;
@@ -59,6 +60,7 @@ export default function AdminProductTypesPage() {
   const [links, setLinks] = useState<ProductTypeAttributeLink[]>([]);
   const [selectedAttributeId, setSelectedAttributeId] = useState('');
   const [selectedRequired, setSelectedRequired] = useState(false);
+  const [selectedUsageMode, setSelectedUsageMode] = useState<'INFORMATIVE' | 'VARIANT'>('INFORMATIVE');
 
   const fetchProductTypes = useCallback(async () => {
     setLoading(true);
@@ -133,6 +135,7 @@ export default function AdminProductTypesPage() {
     setManagingType(pt);
     setSelectedAttributeId('');
     setSelectedRequired(false);
+    setSelectedUsageMode('INFORMATIVE');
     setAttrDialogOpen(true);
     const [attrsRes, linksRes] = await Promise.all([
       fetch('/api/admin/attributes'),
@@ -154,12 +157,18 @@ export default function AdminProductTypesPage() {
       const res = await fetch(`/api/admin/product-types/${managingType.id}/attributes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attributeId: selectedAttributeId, isRequired: selectedRequired, sortOrder: links.length }),
+        body: JSON.stringify({
+          attributeId: selectedAttributeId,
+          isRequired: selectedRequired,
+          sortOrder: links.length,
+          usageMode: selectedUsageMode,
+        }),
       });
       if (!res.ok) throw new Error('Failed to associate');
       toast.success('Estilo asociado');
       setSelectedAttributeId('');
       setSelectedRequired(false);
+      setSelectedUsageMode('INFORMATIVE');
       await refreshLinks();
     } catch {
       toast.error('Error al asociar el estilo');
@@ -335,7 +344,10 @@ export default function AdminProductTypesPage() {
                 <div key={l.id} className="flex items-center justify-between gap-2 border rounded px-3 py-2">
                   <div>
                     <p className="text-sm font-medium">{l.attributeName}</p>
-                    <p className="text-xs text-gray-500">{l.isRequired ? 'Obligatorio' : 'Opcional'} · orden {l.sortOrder}</p>
+                    <p className="text-xs text-gray-500">
+                      {l.isRequired ? 'Obligatorio' : 'Opcional'} · orden {l.sortOrder} ·{' '}
+                      {l.usageMode === 'VARIANT' ? 'Variante (seleccionable en compra)' : 'Informativo (ficha)'}
+                    </p>
                   </div>
                   <Button size="sm" variant="ghost" onClick={() => handleDissociate(l.attributeId)}>
                     <X className="w-4 h-4 text-red-500" />
@@ -361,6 +373,17 @@ export default function AdminProductTypesPage() {
               <div className="flex items-center gap-2">
                 <input type="checkbox" checked={selectedRequired} onChange={(e) => setSelectedRequired(e.target.checked)} />
                 <Label>Obligatorio</Label>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-gray-600">Comportamiento</Label>
+                <select
+                  className="w-full border rounded-md h-10 px-3 text-sm"
+                  value={selectedUsageMode}
+                  onChange={(e) => setSelectedUsageMode(e.target.value as 'INFORMATIVE' | 'VARIANT')}
+                >
+                  <option value="INFORMATIVE">Informativo — dato fijo de ficha, un solo valor por producto</option>
+                  <option value="VARIANT">Variante — el comprador elige un valor al armar el pedido</option>
+                </select>
               </div>
               <Button size="sm" className="bg-[#111111]" onClick={handleAssociate} disabled={!selectedAttributeId}>
                 Asociar

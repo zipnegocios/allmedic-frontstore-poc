@@ -16,6 +16,13 @@ export interface SetPiece {
   priceWholesaleSale: number | null;
   colors: ProductColor[];
   availableSizes: string[];
+  /** Agregado EAV de `variants[].styles` de esta pieza (slug de atributo → valores únicos
+   * presentes) — mismo patrón que `Product.availableStyles` en retail. Vacío `{}` si la
+   * pieza no tiene ningún atributo en modo VARIANT. */
+  availableStyles: Record<string, string[]>;
+  /** Nombre legible de cada atributo en `availableStyles` (slug → nombre) — evita mostrar
+   * el slug crudo en el selector de la PDP corporativa. */
+  styleLabels: Record<string, string>;
   variants: ProductVariant[];
 }
 

@@ -12,7 +12,7 @@ import { VolumeDiscountTable } from '@/components/product/VolumeDiscountTable';
 import { VariantSelector } from '@/components/product/VariantSelector';
 import { CrossSellCard } from '@/components/product/CrossSellCard';
 import { usePriceVisibility } from '@/context/PriceVisibilityContext';
-import type { Product as ProductType, ProductColor, Size, Fit, VariantStatus, MediaItem } from '@/lib/types';
+import type { Product as ProductType, ProductColor, Size, VariantStatus, MediaItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 // Accordion Component
@@ -106,7 +106,16 @@ export function Product({ product, complementaryProduct: complementaryProductPro
     const firstColorVariants = product.variants.filter(v => v.colorId === product.colors[0]?.id);
     return firstColorVariants.find(v => v.status !== 'OUT_OF_STOCK')?.size;
   });
-  const [selectedFit, setSelectedFit] = useState<Fit | undefined>(() => product?.availableFits?.[0]);
+  const [selectedStyles, setSelectedStyles] = useState<Record<string, string>>(() => {
+    if (!product?.availableStyles) return {};
+    // Preselecciona el primer valor disponible de cada eje VARIANT — mismo criterio que
+    // `selectedColor`/`selectedSize` ya usan (primera opción por defecto).
+    return Object.fromEntries(
+      Object.entries(product.availableStyles)
+        .filter(([, values]) => values.length > 0)
+        .map(([slug, values]) => [slug, values[0]])
+    );
+  });
   const [quantity, setQuantity] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
 
@@ -132,7 +141,7 @@ export function Product({ product, complementaryProduct: complementaryProductPro
     (v) =>
       v.colorId === selectedColor?.id &&
       v.size === selectedSize &&
-      (!selectedFit || v.fit === selectedFit)
+      Object.entries(selectedStyles).every(([slug, value]) => v.styles[slug] === value)
   );
 
   const variantStatus = selectedVariant?.status;
@@ -172,7 +181,7 @@ export function Product({ product, complementaryProduct: complementaryProductPro
 
     // Simulate adding to cart
     setTimeout(() => {
-      addItem(product, selectedVariant.id, selectedColor, selectedSize, selectedFit, quantity);
+      addItem(product, selectedVariant.id, selectedColor, selectedSize, selectedStyles, quantity);
       
       // Show notification based on status
       if (isBackorder) {
@@ -199,7 +208,7 @@ export function Product({ product, complementaryProduct: complementaryProductPro
     );
 
     if (variant) {
-      addItem(complementaryProduct, variant.id, selectedColor, size, undefined, 1);
+      addItem(complementaryProduct, variant.id, selectedColor, size, {}, 1);
       
       if (variant.status === 'BACKORDER') {
         showWarning(
@@ -274,10 +283,10 @@ export function Product({ product, complementaryProduct: complementaryProductPro
                 product={product}
                 selectedColor={selectedColor}
                 selectedSize={selectedSize}
-                selectedFit={selectedFit}
+                selectedStyles={selectedStyles}
                 onColorSelect={setSelectedColor}
                 onSizeSelect={setSelectedSize}
-                onFitSelect={product.availableFits ? setSelectedFit : undefined}
+                onStylesChange={(slug, value) => setSelectedStyles((prev) => ({ ...prev, [slug]: value }))}
               />
             </div>
           )}
@@ -404,10 +413,10 @@ export function Product({ product, complementaryProduct: complementaryProductPro
                   product={product}
                   selectedColor={selectedColor}
                   selectedSize={selectedSize}
-                  selectedFit={selectedFit}
+                  selectedStyles={selectedStyles}
                   onColorSelect={setSelectedColor}
                   onSizeSelect={setSelectedSize}
-                  onFitSelect={product.availableFits ? setSelectedFit : undefined}
+                  onStylesChange={(slug, value) => setSelectedStyles((prev) => ({ ...prev, [slug]: value }))}
                 />
               </div>
             )}

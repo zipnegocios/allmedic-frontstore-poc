@@ -1,0 +1,1 @@
+ALTER TABLE "product_type_attributes" ADD COLUMN "usage_mode" text DEFAULT 'INFORMATIVE' NOT NULL;

@@ -49,7 +49,7 @@ export function CartItemComponent({ item, onUpdateQuantity, onRemove }: CartItem
             <span>{item.color.name}</span>
           </div>
           <span>|</span>
-          <span>Talla: {item.size}{item.fit ? ` (${item.fit})` : ''}</span>
+          <span>Talla: {item.size}{Object.keys(item.styles ?? {}).length > 0 ? ` (${Object.values(item.styles).join(', ')})` : ''}</span>
         </div>
 
         {/* SKU */}

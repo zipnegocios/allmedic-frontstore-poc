@@ -2292,6 +2292,7 @@ export async function getProductTypeAttributes(productTypeId: string) {
       attributeId: productTypeAttributesTable.attributeId,
       isRequired: productTypeAttributesTable.isRequired,
       sortOrder: productTypeAttributesTable.sortOrder,
+      usageMode: productTypeAttributesTable.usageMode,
       attributeName: attributesTable.name,
       attributeSlug: attributesTable.slug,
       displayType: attributesTable.displayType,
@@ -2313,14 +2314,15 @@ export async function addProductTypeAttribute(
   productTypeId: string,
   attributeId: string,
   isRequired: boolean,
-  sortOrder: number
+  sortOrder: number,
+  usageMode: 'INFORMATIVE' | 'VARIANT' = 'INFORMATIVE'
 ) {
   const [link] = await db
     .insert(productTypeAttributesTable)
-    .values({ productTypeId, attributeId, isRequired, sortOrder })
+    .values({ productTypeId, attributeId, isRequired, sortOrder, usageMode })
     .onConflictDoUpdate({
       target: [productTypeAttributesTable.productTypeId, productTypeAttributesTable.attributeId],
-      set: { isRequired, sortOrder },
+      set: { isRequired, sortOrder, usageMode },
     })
     .returning();
   return link;

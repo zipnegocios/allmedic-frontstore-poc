@@ -139,7 +139,7 @@ export function CorporateCartDrawer({ isOpen, onClose }: CorporateCartDrawerProp
                               {line.pieceSelections.length > 0 ? (
                                 <span className="text-xs text-gray-600">
                                   {line.pieceSelections
-                                    .map((s) => [s.size, s.color].filter(Boolean).join(' / '))
+                                    .map((s) => [s.size, s.color, ...Object.values(s.styles ?? {})].filter(Boolean).join(' / '))
                                     .filter(Boolean)
                                     .join(' · ') || 'Set completo'}
                                 </span>

@@ -17,6 +17,7 @@ import {
   quoteDocuments as quoteDocumentsTable,
   mediaLinks as mediaLinksTable,
   mediaAssets as mediaAssetsTable,
+  attributes as attributesTable,
 } from '@/db/schema';
 import { eq, and, inArray, asc, desc, isNotNull, isNull } from 'drizzle-orm';
 import type { BusinessRule, SetPieceInfo } from './rules-engine';
@@ -514,6 +515,11 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
 
   const colorSwatchMap = await getColorSwatchMap(variants.map((v) => v.colorId).filter((id): id is string => !!id));
 
+  // Nombre legible de cada atributo EAV (slug → nombre) — mismo patrón que `data-service.ts`
+  // (retail), para no mostrar el slug crudo en el selector de estilos de la PDP corporativa.
+  const allAttributes = await db.select({ name: attributesTable.name, slug: attributesTable.slug }).from(attributesTable);
+  const attributeNameBySlug = new Map(allAttributes.map((a) => [a.slug, a.name]));
+
   const productTypesAgg = new Set<string>();
   const gendersAgg = new Set<Gender>();
   const colorMapAgg = new Map<string, ProductColor>();
@@ -545,6 +551,7 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
 
     const colorMap = new Map<string, ProductColor>();
     const sizeSet = new Set<string>();
+    const stylesMap = new Map<string, Set<string>>();
     for (const v of productVariants) {
       if (!colorMap.has(v.colorId)) {
         colorMap.set(v.colorId, {
@@ -553,7 +560,20 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
         });
       }
       sizeSet.add(v.size);
+      const stylesPayload = (v.attributesPayload as AttributesPayload | null | undefined)?.styles;
+      if (stylesPayload) {
+        for (const [slug, value] of Object.entries(stylesPayload)) {
+          if (!stylesMap.has(slug)) stylesMap.set(slug, new Set());
+          stylesMap.get(slug)!.add(value);
+        }
+      }
     }
+    const availableStyles: Record<string, string[]> = Object.fromEntries(
+      Array.from(stylesMap.entries(), ([slug, values]) => [slug, Array.from(values)])
+    );
+    const styleLabels: Record<string, string> = Object.fromEntries(
+      Array.from(stylesMap.keys(), (slug) => [slug, attributeNameBySlug?.get(slug) ?? slug])
+    );
 
     // Imágenes de esta pieza agrupadas por color — mismo criterio que retail: fallback a
     // imágenes sin color asignado ('_default') si el color no tiene imágenes propias.
@@ -598,6 +618,8 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
       priceWholesaleSale: item.priceWholesaleSale ? Number(item.priceWholesaleSale) : null,
       colors: Array.from(colorMap.values()),
       availableSizes: Array.from(sizeSet),
+      availableStyles,
+      styleLabels,
       variants: mappedVariants,
       blockId: item.blockId,
     };
@@ -837,26 +859,39 @@ export interface VariantAvailabilityRow {
   size: string;
   colorCode: string | null;
   status: string;
+  /** Estilos EAV en modo VARIANT de esta variante (slug → valor) — usado para resolver
+   * disponibilidad por combinación exacta cuando el pedido incluye un atributo VARIANT
+   * (ej. Modelo de corte), no solo talla/color. */
+  styles: Record<string, string>;
 }
 
 // ── Disponibilidad manual (status) de todas las variantes de los productos pedidos ──
 // Una sola consulta para todos los productos del carrito (sin N+1 por línea) — la resolución de
-// qué status aplica a cada combinación pedida (talla/color exactos, o agregada cuando el cliente
-// no eligió color) vive en el llamador (`POST /api/corporate/quotes`), que conoce la forma exacta
-// de cada `pieceSelection`.
+// qué status aplica a cada combinación pedida (talla/color/estilos exactos, o agregada cuando el
+// cliente no eligió alguno de esos campos) vive en el llamador (`POST /api/corporate/quotes`),
+// que conoce la forma exacta de cada `pieceSelection`.
 export async function getVariantAvailabilityByProductIds(productIds: string[]): Promise<VariantAvailabilityRow[]> {
   if (productIds.length === 0) return [];
 
-  return db
+  const rows = await db
     .select({
       productId: variantsTable.productId,
       size: variantsTable.size,
       colorCode: colorsTable.code,
       status: variantsTable.status,
+      attributesPayload: variantsTable.attributesPayload,
     })
     .from(variantsTable)
     .leftJoin(colorsTable, eq(variantsTable.colorId, colorsTable.id))
     .where(inArray(variantsTable.productId, productIds));
+
+  return rows.map((r) => ({
+    productId: r.productId,
+    size: r.size,
+    colorCode: r.colorCode,
+    status: r.status,
+    styles: (r.attributesPayload as AttributesPayload | null | undefined)?.styles ?? {},
+  }));
 }
 
 // ── Portal del cliente corporativo ──

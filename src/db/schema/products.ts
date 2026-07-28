@@ -118,6 +118,11 @@ export const productTypeAttributes = pgTable("product_type_attributes", {
   attributeId: pgUuid("attribute_id").notNull().references(() => attributes.id, { onDelete: "cascade" }),
   isRequired: boolean("is_required").default(false),
   sortOrder: integer("sort_order").default(0),
+  // 'INFORMATIVE' = valor único global al producto, mostrado como dato de ficha
+  // (comportamiento histórico). 'VARIANT' = eje más de la matriz de generación de
+  // variantes (junto a color/talla): cada valor activo genera su propia fila de
+  // product_variants, seleccionable por el comprador al armar el pedido.
+  usageMode: text("usage_mode").notNull().default("INFORMATIVE"),
 }, (table) => [
   unique("uq_product_type_attributes").on(table.productTypeId, table.attributeId),
 ]);

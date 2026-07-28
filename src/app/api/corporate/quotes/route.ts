@@ -32,6 +32,7 @@ const CartLineSchema = z.object({
     productId: z.string(),
     size: z.string().optional(),
     color: z.string().optional(),
+    styles: z.record(z.string(), z.string()).optional(),
   })).min(1),
   quantity: z.number().min(1),
 });
@@ -128,11 +129,12 @@ export async function POST(request: NextRequest) {
       Object.values(setPieces).flat().map((p) => [p.productId, p.productName])
     );
 
-    function resolveAvailability(productId: string, size?: string, color?: string): string | null {
+    function resolveAvailability(productId: string, size?: string, color?: string, styles?: Record<string, string>): string | null {
       const candidates = availabilityRows.filter((r) => {
         if (r.productId !== productId) return false;
         if (size && r.size !== size) return false;
         if (color && r.colorCode !== color) return false;
+        if (styles && Object.entries(styles).some(([slug, value]) => r.styles[slug] !== value)) return false;
         return true;
       });
       if (candidates.length === 0) return null;
@@ -145,9 +147,9 @@ export async function POST(request: NextRequest) {
     for (const item of cart.items) {
       for (const cartLine of item.lines) {
         for (const sel of cartLine.pieceSelections) {
-          const status = resolveAvailability(sel.productId, sel.size, sel.color);
+          const status = resolveAvailability(sel.productId, sel.size, sel.color, sel.styles);
           const productName = productNameById.get(sel.productId) ?? sel.productId;
-          const pieceLabel = [productName, sel.size, sel.color].filter(Boolean).join(' - ');
+          const pieceLabel = [productName, sel.size, sel.color, ...Object.values(sel.styles ?? {})].filter(Boolean).join(' - ');
           if (status === null) {
             availabilityIssues.push({
               severity: 'BLOCK',
@@ -241,9 +243,13 @@ export async function POST(request: NextRequest) {
       const unitPrice = line?.unitPrice ?? 0;
       for (const cartLine of item.lines) {
         const sizes = Array.from(new Set(cartLine.pieceSelections.map((p) => p.size).filter(Boolean)));
-        const description = sizes.length > 0
-          ? `${item.setName ?? 'Set'} — Talla ${sizes.join('/')}`
-          : (item.setName ?? 'Set');
+        const styleValues = Array.from(new Set(
+          cartLine.pieceSelections.flatMap((p) => Object.values(p.styles ?? {}))
+        ));
+        const descriptionParts = [item.setName ?? 'Set'];
+        if (sizes.length > 0) descriptionParts.push(`Talla ${sizes.join('/')}`);
+        if (styleValues.length > 0) descriptionParts.push(styleValues.join('/'));
+        const description = descriptionParts.join(' — ');
         await db.insert(quoteItems).values({
           quoteId: quote.id,
           kind: 'CATALOG',

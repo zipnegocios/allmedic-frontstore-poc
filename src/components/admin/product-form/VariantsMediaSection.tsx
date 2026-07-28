@@ -32,7 +32,7 @@ import { toast } from 'sonner';
 import Link from 'next/link';
 import { MediaThumb } from '@/components/admin/media/MediaThumb';
 import { cn } from '@/lib/utils';
-import type { ProductFormData, Color } from './schema';
+import type { ProductFormData, Color, ProductTypeAttributeLink, AttributeValueOption } from './schema';
 import { STATUSES, STATUS_META } from './schema';
 import { AttributeMatrixSection } from './AttributeMatrixSection';
 import { GalleryImageTile } from './GalleryImageTile';
@@ -74,6 +74,8 @@ interface VariantsMediaSectionProps {
    * mapa attributeId -> valueId) — se propagan tal cual a `attributeValueIds` de
    * cada variante que genera la matriz color×talla (`AttributeMatrixSection`). */
   styleAttributes: Record<string, string>;
+  attributeLinks: ProductTypeAttributeLink[];
+  valuesByAttribute: Record<string, AttributeValueOption[]>;
   variantFields: FieldArrayWithId<ProductFormData, 'variants', 'id'>[];
   appendVariant: (value: Omit<ProductFormData['variants'][number], 'id'> & { id?: string }) => void;
   removeVariant: (index: number) => void;
@@ -147,6 +149,8 @@ export function VariantsMediaSection({
   brandId,
   brandName,
   styleAttributes,
+  attributeLinks,
+  valuesByAttribute,
   variantFields,
   appendVariant,
   removeVariant,
@@ -506,6 +510,8 @@ export function VariantsMediaSection({
         brandId={brandId}
         brandName={brandName}
         styleAttributes={styleAttributes}
+        attributeLinks={attributeLinks}
+        valuesByAttribute={valuesByAttribute}
         colors={colors}
         sizes={sizes}
         variantFields={variantFields}

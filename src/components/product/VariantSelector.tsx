@@ -1,4 +1,4 @@
-import type { Product, ProductColor, Size, Fit, VariantStatus } from '@/lib/types';
+import type { Product, ProductColor, Size, VariantStatus } from '@/lib/types';
 import { ColorSwatchGroup } from '@/components/catalog/ColorSwatch';
 import { SizeSelector, FitSelector } from '@/components/catalog/SizeSelector';
 import { cn } from '@/lib/utils';
@@ -7,27 +7,27 @@ interface VariantSelectorProps {
   product: Product;
   selectedColor: ProductColor;
   selectedSize?: Size;
-  selectedFit?: Fit;
+  selectedStyles: Record<string, string>;
   onColorSelect: (color: ProductColor) => void;
   onSizeSelect: (size: Size) => void;
-  onFitSelect?: (fit: Fit) => void;
+  onStylesChange: (slug: string, value: string) => void;
 }
 
 export function VariantSelector({
   product,
   selectedColor,
   selectedSize,
-  selectedFit,
+  selectedStyles,
   onColorSelect,
   onSizeSelect,
-  onFitSelect,
+  onStylesChange,
 }: VariantSelectorProps) {
   // Get variants for selected color
   const colorVariants = product.variants.filter(v => v.colorId === selectedColor.id);
-  
+
   // Get available sizes for selected color
   const availableSizesForColor = [...new Set(colorVariants.map(v => v.size))];
-  
+
   // Get size statuses
   const sizeStatuses: Record<Size, VariantStatus> = {} as Record<Size, VariantStatus>;
   availableSizesForColor.forEach(size => {
@@ -42,7 +42,9 @@ export function VariantSelector({
   // Get availability status
   const getAvailabilityStatus = () => {
     if (!selectedSize) return null;
-    const variant = colorVariants.find(v => v.size === selectedSize && (!selectedFit || v.fit === selectedFit));
+    const variant = colorVariants.find(
+      v => v.size === selectedSize && Object.entries(selectedStyles).every(([slug, value]) => v.styles[slug] === value)
+    );
     return variant?.status;
   };
 
@@ -66,6 +68,8 @@ export function VariantSelector({
     },
   };
 
+  const styleAxes = Object.entries(product.availableStyles ?? {}).filter(([, values]) => values.length > 0);
+
   return (
     <div className="space-y-6">
       {/* Color Selector */}
@@ -82,20 +86,6 @@ export function VariantSelector({
           size="lg"
         />
       </div>
-
-      {/* Fit Selector (if applicable) */}
-      {product.availableFits && product.availableFits.length > 0 && onFitSelect && (
-        <div>
-          <h3 className="text-sm font-medium text-[#111111] mb-3">
-            Corte: <span className="text-gray-500">{selectedFit || 'Seleccionar'}</span>
-          </h3>
-          <FitSelector
-            fits={product.availableFits}
-            selectedFit={selectedFit}
-            onFitSelect={(fit) => onFitSelect?.(fit as Fit)}
-          />
-        </div>
-      )}
 
       {/* Size Selector */}
       <div>
@@ -114,6 +104,21 @@ export function VariantSelector({
           onSizeSelect={onSizeSelect}
         />
       </div>
+
+      {/* Selectores de atributos EAV en modo VARIANT (ej. Corte) — uno por cada eje
+          presente en availableStyles, debajo de la talla. */}
+      {styleAxes.map(([slug, values]) => (
+        <div key={slug}>
+          <h3 className="text-sm font-medium text-[#111111] mb-3">
+            {product.styleLabels?.[slug] ?? slug}: <span className="text-gray-500">{selectedStyles[slug] || 'Seleccionar'}</span>
+          </h3>
+          <FitSelector
+            fits={values}
+            selectedFit={selectedStyles[slug]}
+            onFitSelect={(value) => onStylesChange(slug, value)}
+          />
+        </div>
+      ))}
 
       {/* Availability Status */}
       {availabilityStatus && (

@@ -22,6 +22,7 @@ const CartItemSchema = z.object({
         productId: z.string(),
         size: z.string().optional(),
         color: z.string().optional(),
+        styles: z.record(z.string(), z.string()).optional(),
       })),
       quantity: z.number(),
     })

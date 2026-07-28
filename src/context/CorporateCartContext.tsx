@@ -17,8 +17,9 @@ import {
 export interface CorporateCartLine {
   id: string;
   quantity: number;
-  /** Una entrada por pieza del set — talla ausente en sets NO_SIZES, color siempre opcional. */
-  pieceSelections: Array<{ productId: string; size?: string; color?: string }>;
+  /** Una entrada por pieza del set — talla ausente en sets NO_SIZES, color siempre opcional,
+   * styles presente solo si la pieza tiene atributos EAV en modo VARIANT. */
+  pieceSelections: Array<{ productId: string; size?: string; color?: string; styles?: Record<string, string> }>;
 }
 
 export interface CorporateCartItem {
@@ -77,7 +78,7 @@ interface LegacyCorporateCartLine {
   id?: string;
   size?: string;
   color?: string;
-  pieceSelections?: Array<{ productId: string; size: string }>;
+  pieceSelections?: Array<{ productId: string; size: string; styles?: Record<string, string> }>;
   quantity: number;
 }
 
@@ -85,7 +86,9 @@ interface LegacyCorporateCartLine {
  * propaga el color de línea a cada pieza (formato PER_PIECE anterior); si no, la reconstruye
  * a partir de la composición del set guardada en el ítem (formato MATRIX/NO_SIZES anterior).
  * Si el ítem no tiene `pieces` (carritos muy antiguos, previos a esa metadata), la línea queda
- * sin piezas — no rompe la carga, pero no podrá enviarse hasta rehacerse en el armador. */
+ * sin piezas — no rompe la carga, pero no podrá enviarse hasta rehacerse en el armador.
+ * CRÍTICO: corre en CADA hidratación (localStorage y fetch de servidor), no solo para
+ * carritos legacy — cualquier campo no copiado explícitamente aquí se pierde en cada reload. */
 function migrateLine(item: { pieces?: SetPieceInfo[] }, raw: LegacyCorporateCartLine): CorporateCartLine {
   if (raw.pieceSelections && raw.pieceSelections.length > 0) {
     return {
@@ -95,6 +98,7 @@ function migrateLine(item: { pieces?: SetPieceInfo[] }, raw: LegacyCorporateCart
         productId: s.productId,
         size: s.size,
         color: raw.color,
+        styles: s.styles,
       })),
     };
   }
@@ -233,7 +237,8 @@ export function CorporateCartProvider({ children }: { children: React.ReactNode 
       }
 
       const existing = prev[existingSetIndex];
-      // Fusiona líneas idénticas (misma combinación de talla/color por pieza)
+      // Fusiona líneas idénticas (misma combinación de talla/color/estilos por pieza) — lineKey()
+      // serializa pieceSelections completo, así que un nuevo campo participa automáticamente.
       const matchIndex = existing.lines.findIndex((l) => lineKey(l) === lineKey(newLine));
 
       const updatedLines =

@@ -32,7 +32,7 @@ function newRowId(): string {
 interface CombinationRow {
   id: string;
   quantity: number;
-  pieceSelections: Array<{ productId: string; size?: string; color?: string }>;
+  pieceSelections: Array<{ productId: string; size?: string; color?: string; styles?: Record<string, string> }>;
 }
 
 function money(n: number): string {
@@ -93,6 +93,8 @@ export function SetDetailContent({
   const [selectedComboId, setSelectedComboId] = useState<string | undefined>(undefined);
   const [sizeA, setSizeA] = useState<string | undefined>(undefined);
   const [sizeB, setSizeB] = useState<string | undefined>(undefined);
+  const [stylesA, setStylesA] = useState<Record<string, string>>({});
+  const [stylesB, setStylesB] = useState<Record<string, string>>({});
   const [quantity, setQuantity] = useState<number>(Math.max(1, minQuantity));
   const [rows, setRows] = useState<CombinationRow[]>([]);
 
@@ -127,6 +129,7 @@ export function SetDetailContent({
   function selectPieceA(productId: string) {
     setChoiceAId(productId);
     setSizeA(undefined);
+    setStylesA({});
     setFocus({ side: 'A', index: 0 });
     setOffsetA(0);
     if (isPaired) {
@@ -147,6 +150,7 @@ export function SetDetailContent({
   function selectPieceB(productId: string) {
     setChoiceBId(productId);
     setSizeB(undefined);
+    setStylesB({});
     setFocus({ side: 'B', index: 0 });
     setOffsetB(0);
     if (isPaired) {
@@ -214,15 +218,23 @@ export function SetDetailContent({
 
   function currentSelectionsArray() {
     return [
-      { productId: pieceA.productId, size: sizeA, color: colorForPiece(pieceA.productId) },
-      { productId: pieceB.productId, size: sizeB, color: colorForPiece(pieceB.productId) },
+      { productId: pieceA.productId, size: sizeA, color: colorForPiece(pieceA.productId), styles: stylesA },
+      { productId: pieceB.productId, size: sizeB, color: colorForPiece(pieceB.productId), styles: stylesB },
     ];
+  }
+
+  /** Todo eje de `piece.availableStyles` debe tener un valor elegido en `styles` — misma
+   * exigencia que la talla, ver `comboReady`/`handleAddCombination`. */
+  function pieceStylesReady(piece: SetPiece, styles: Record<string, string>): boolean {
+    return Object.keys(piece.availableStyles).every((slug) => Boolean(styles[slug]));
   }
 
   const comboReady = Boolean(
     (!isPaired || pairedColorOptions.length === 0 || pairedColor) &&
     (!isMixed || set.colorCombos.length === 0 || selectedComboId) &&
-    (!showsSizes || (sizeA && sizeB))
+    (!showsSizes || (sizeA && sizeB)) &&
+    pieceStylesReady(pieceA, stylesA) &&
+    pieceStylesReady(pieceB, stylesB)
   );
 
   const comboUnitPrice = (pieceA.priceWholesaleSale ?? pieceA.priceWholesale ?? 0) + (pieceB.priceWholesaleSale ?? pieceB.priceWholesale ?? 0);
@@ -243,6 +255,10 @@ export function SetDetailContent({
     const pieceSelections = currentSelectionsArray();
     if (showsSizes && pieceSelections.some((s) => !s.size)) {
       toast.error('Selecciona la talla de cada pieza.');
+      return;
+    }
+    if (!pieceStylesReady(pieceA, stylesA) || !pieceStylesReady(pieceB, stylesB)) {
+      toast.error('Selecciona las opciones de estilo de cada pieza.');
       return;
     }
     setRows((prev) => [...prev, { id: newRowId(), quantity, pieceSelections }]);
@@ -416,6 +432,7 @@ export function SetDetailContent({
                 {showsSizes && (
                   <SizeRow piece={pieceA} size={sizeA} onSize={setSizeA} statuses={sizeStatusesFor(pieceA)} />
                 )}
+                <StyleAxisRow piece={pieceA} styles={stylesA} onStyleChange={(slug, value) => setStylesA((prev) => ({ ...prev, [slug]: value }))} />
               </div>
               <div className="flex-1 min-w-0 space-y-2">
                 <BlockStrip
@@ -427,6 +444,7 @@ export function SetDetailContent({
                 {showsSizes && (
                   <SizeRow piece={pieceB} size={sizeB} onSize={setSizeB} statuses={sizeStatusesFor(pieceB)} />
                 )}
+                <StyleAxisRow piece={pieceB} styles={stylesB} onStyleChange={(slug, value) => setStylesB((prev) => ({ ...prev, [slug]: value }))} />
               </div>
             </div>
           </div>
@@ -484,6 +502,7 @@ export function SetDetailContent({
               {showsSizes && (
                 <SizeRow piece={pieceA} size={sizeA} onSize={setSizeA} statuses={sizeStatusesFor(pieceA)} />
               )}
+              <StyleAxisRow piece={pieceA} styles={stylesA} onStyleChange={(slug, value) => setStylesA((prev) => ({ ...prev, [slug]: value }))} />
             </div>
             <div className="flex-1 min-w-0 space-y-2">
               <BlockStrip
@@ -495,6 +514,7 @@ export function SetDetailContent({
               {showsSizes && (
                 <SizeRow piece={pieceB} size={sizeB} onSize={setSizeB} statuses={sizeStatusesFor(pieceB)} />
               )}
+              <StyleAxisRow piece={pieceB} styles={stylesB} onStyleChange={(slug, value) => setStylesB((prev) => ({ ...prev, [slug]: value }))} />
             </div>
           </div>
         )}
@@ -526,9 +546,11 @@ export function SetDetailContent({
               pieceA={pieceA}
               qtyA={blockA.quantityPerSet}
               sizeA={sizeA}
+              stylesA={stylesA}
               pieceB={pieceB}
               qtyB={blockB.quantityPerSet}
               sizeB={sizeB}
+              stylesB={stylesB}
               showsSizes={showsSizes}
               showPrices={showPrices}
               colorName={isPaired ? pairedColorOptions.find((c) => c.code === pairedColor)?.name : undefined}
@@ -800,12 +822,56 @@ function SizeRow({
   );
 }
 
+/** Selector de atributos EAV en modo VARIANT (ej. Modelo de corte) de una pieza — un bloque
+ * por cada eje presente en `piece.availableStyles`, debajo de `SizeRow`. Retorna `null` si la
+ * pieza no tiene ningún eje VARIANT (sin envoltorio condicional necesario en el llamador). */
+function StyleAxisRow({
+  piece,
+  styles,
+  onStyleChange,
+}: {
+  piece: SetPiece;
+  styles: Record<string, string>;
+  onStyleChange: (slug: string, value: string) => void;
+}) {
+  const axes = Object.entries(piece.availableStyles).filter(([, values]) => values.length > 0);
+  if (axes.length === 0) return null;
+  return (
+    <div className="space-y-2">
+      {axes.map(([slug, values]) => (
+        <div key={slug} className="flex flex-wrap items-center gap-2">
+          <span className="font-sans text-body-sm text-gray-500 mr-1">
+            {piece.styleLabels[slug] ?? slug}:
+          </span>
+          {values.map((value) => {
+            const isSelected = styles[slug] === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => onStyleChange(slug, value)}
+                className={cn(
+                  'px-2.5 h-7 text-xs rounded-full border transition-colors',
+                  isSelected ? 'bg-[#111111] text-white border-[#111111]' : 'border-[#E5E5E5] text-[#111111] hover:border-[#111111] bg-white'
+                )}
+              >
+                {value}
+              </button>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Composición del set (dinámica) ──
 function CompositionLine({
   piece,
   quantityPerSet,
   size,
   colorName,
+  styles,
   showsSizes,
   showPrices,
 }: {
@@ -813,14 +879,17 @@ function CompositionLine({
   quantityPerSet: number;
   size: string | undefined;
   colorName: string | undefined;
+  styles: Record<string, string>;
   showsSizes: boolean;
   showPrices: boolean;
 }) {
   const price = piece.priceWholesaleSale ?? piece.priceWholesale;
+  const extraParts = [size, ...Object.values(styles)].filter(Boolean).join(', ');
+  const parts = [colorName, extraParts].filter(Boolean).join(', ');
   return (
     <div className="flex items-start justify-between gap-3 text-sm py-2">
       <span className="text-gray-700">
-        {quantityPerSet}× {piece.productName} {colorName ? `(${colorName}${size ? `, ${size}` : ''})` : ''}
+        {quantityPerSet}× {piece.productName} {parts ? `(${parts})` : ''}
         {showsSizes && !size && <span className="text-amber-600"> — elige talla</span>}
       </span>
       {showPrices && price !== null && <span className="font-medium flex-shrink-0">{money(price)}</span>}
@@ -832,9 +901,11 @@ function CompositionCard({
   pieceA,
   qtyA,
   sizeA,
+  stylesA,
   pieceB,
   qtyB,
   sizeB,
+  stylesB,
   showsSizes,
   showPrices,
   colorName,
@@ -842,9 +913,11 @@ function CompositionCard({
   pieceA: SetPiece;
   qtyA: number;
   sizeA: string | undefined;
+  stylesA: Record<string, string>;
   pieceB: SetPiece;
   qtyB: number;
   sizeB: string | undefined;
+  stylesB: Record<string, string>;
   showsSizes: boolean;
   showPrices: boolean;
   colorName: string | undefined;
@@ -853,8 +926,8 @@ function CompositionCard({
     <div className="border border-[#E5E5E5] rounded-lg p-4">
       <h3 className="font-sans font-semibold text-body-lg mb-1">Composición del set</h3>
       <div className="divide-y">
-        <CompositionLine piece={pieceA} quantityPerSet={qtyA} size={sizeA} colorName={colorName} showsSizes={showsSizes} showPrices={showPrices} />
-        <CompositionLine piece={pieceB} quantityPerSet={qtyB} size={sizeB} colorName={colorName} showsSizes={showsSizes} showPrices={showPrices} />
+        <CompositionLine piece={pieceA} quantityPerSet={qtyA} size={sizeA} colorName={colorName} styles={stylesA} showsSizes={showsSizes} showPrices={showPrices} />
+        <CompositionLine piece={pieceB} quantityPerSet={qtyB} size={sizeB} colorName={colorName} styles={stylesB} showsSizes={showsSizes} showPrices={showPrices} />
       </div>
     </div>
   );
@@ -927,7 +1000,8 @@ function CombinationBuilderCard({
                   <span className="text-gray-700 flex-1 min-w-0 truncate">
                     {row.pieceSelections
                       .map((s) => {
-                        const parts = [s.size, s.color].filter(Boolean).join(' / ');
+                        const styleValues = Object.values(s.styles ?? {});
+                        const parts = [s.size, s.color, ...styleValues].filter(Boolean).join(' / ');
                         return `${pieceLabelFor(s.productId)}${parts ? ` (${parts})` : ''}`;
                       })
                       .join(' + ')}

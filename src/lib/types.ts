@@ -77,6 +77,9 @@ export interface Product {
   /** Agregado EAV de `variants[].styles` a través de todas las variantes del producto: slug de atributo → valores únicos presentes.
    * Ej: `{ corte: ['Regular', 'Petite'] }`. `undefined` si ninguna variante tiene estilos. */
   availableStyles?: Record<string, string[]>;
+  /** Nombre legible de cada atributo EAV en `availableStyles` (slug → nombre), para no
+   * mostrar el slug crudo en el selector del PDP. Ej: `{ corte: 'Modelo de Corte' }`. */
+  styleLabels?: Record<string, string>;
   variants: ProductVariant[];
   cover?: MediaItem;
   /** Segunda imagen de Portada (nivel producto, no por color) — habilita el
@@ -101,7 +104,9 @@ export interface CartItem {
   slug: string;
   color: ProductColor;
   size: Size;
-  fit?: Fit;
+  /** Estilos EAV en modo VARIANT elegidos al agregar al carrito (slug de atributo → valor).
+   * Ej: `{ corte: 'Regular' }`. Vacío `{}` si el producto no tiene ejes VARIANT. */
+  styles: Record<string, string>;
   sku: string;
   price: number;
   quantity: number;

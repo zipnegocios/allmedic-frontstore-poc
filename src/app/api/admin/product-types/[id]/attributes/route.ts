@@ -13,6 +13,7 @@ const AssociateAttributeSchema = z.object({
   attributeId: z.string().min(1),
   isRequired: z.boolean().default(false),
   sortOrder: z.number().default(0),
+  usageMode: z.enum(['INFORMATIVE', 'VARIANT']).default('INFORMATIVE'),
 });
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -34,8 +35,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     await requireAdmin();
     const { id } = await params;
     const body = await request.json();
-    const { attributeId, isRequired, sortOrder } = AssociateAttributeSchema.parse(body);
-    const link = await addProductTypeAttribute(id, attributeId, isRequired, sortOrder);
+    const { attributeId, isRequired, sortOrder, usageMode } = AssociateAttributeSchema.parse(body);
+    const link = await addProductTypeAttribute(id, attributeId, isRequired, sortOrder, usageMode);
     return NextResponse.json(link, { status: 201 });
   } catch (err) {
     if (err instanceof z.ZodError) {

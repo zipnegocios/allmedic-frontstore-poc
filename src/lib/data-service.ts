@@ -9,6 +9,7 @@ import {
   productTypes as productTypesTable,
   mediaLinks as mediaLinksTable,
   mediaAssets as mediaAssetsTable,
+  attributes as attributesTable,
 } from '@/db/schema';
 import type { Product, ProductColor, ProductVariant, Store, Gender, Size, Fit, BrandNavItem } from './types';
 import { eq, and, or, asc, sql, inArray, gte, lte, ne, type SQL } from 'drizzle-orm';
@@ -117,7 +118,7 @@ function transformProduct(dbProduct: {
     previewStartSeconds: number | null;
     previewDurationSeconds: number | null;
   }>;
-}): Product {
+}, attributeNameBySlug?: Map<string, string>): Product {
   // Build color list from unique variant colors
   const colorMap = new Map<string, ProductColor>();
   for (const v of dbProduct.variants) {
@@ -190,6 +191,9 @@ function transformProduct(dbProduct: {
   const availableStyles: Record<string, string[]> | undefined = stylesMap.size > 0
     ? Object.fromEntries(Array.from(stylesMap.entries(), ([slug, values]) => [slug, Array.from(values)]))
     : undefined;
+  const styleLabels: Record<string, string> | undefined = stylesMap.size > 0
+    ? Object.fromEntries(Array.from(stylesMap.keys(), (slug) => [slug, attributeNameBySlug?.get(slug) ?? slug]))
+    : undefined;
 
   // Resolución central de portada dual: en modo 'FIRST_VARIANT' la portada NO se
   // guarda como vínculo COVER — es una referencia viva a las 2 primeras imágenes
@@ -239,6 +243,7 @@ function transformProduct(dbProduct: {
     availableSizes: Array.from(sizeSet) as Size[],
     availableFits: fitSet.size > 0 ? Array.from(fitSet) as Fit[] : undefined,
     availableStyles,
+    styleLabels,
     variants,
     cover,
     secondaryCover,
@@ -358,6 +363,12 @@ async function fetchProductsWithJoins(whereCondition?: SQL<unknown>) {
   }));
 
 
+  // Nombre legible de cada atributo EAV (slug → nombre) — se resuelve en batch, una sola
+  // query para todo el listado, y se le pasa a `transformProduct` para poblar `styleLabels`
+  // (evita mostrar el slug crudo, ej. "corte", en selectores de compra).
+  const allAttributes = await db.select({ name: attributesTable.name, slug: attributesTable.slug }).from(attributesTable);
+  const attributeNameBySlug = new Map(allAttributes.map((a) => [a.slug, a.name]));
+
   // Group by product
   return rows.map(product => {
     const productVariants = variants
@@ -369,7 +380,7 @@ async function fetchProductsWithJoins(whereCondition?: SQL<unknown>) {
       ...product,
       variants: productVariants,
       images: productImages,
-    });
+    }, attributeNameBySlug);
   });
 }
 

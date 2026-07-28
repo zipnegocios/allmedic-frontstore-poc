@@ -196,6 +196,9 @@ export interface ProductTypeAttributeLink {
   attributeId: string;
   isRequired: boolean | null;
   sortOrder: number | null;
+  /** 'INFORMATIVE' = valor único global al producto (ficha General). 'VARIANT' = eje
+   * de la matriz de generación de variantes, seleccionable por el comprador. */
+  usageMode: 'INFORMATIVE' | 'VARIANT';
   attributeName: string;
   attributeSlug: string;
   displayType: string;

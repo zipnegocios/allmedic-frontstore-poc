@@ -31,7 +31,8 @@ export function generateWhatsAppMessage(data: WhatsAppMessageData): string {
   
   items.forEach((item, index) => {
     message += `${index + 1}. *${item.name} (${item.sku})*\n`;
-    message += `   Color: ${item.color.name} | Talla: ${item.size}${item.fit ? ` (${item.fit})` : ''} | Cantidad: ${item.quantity}\n\n`;
+    const styleValues = Object.values(item.styles ?? {}).join(', ');
+    message += `   Color: ${item.color.name} | Talla: ${item.size}${styleValues ? ` (${styleValues})` : ''} | Cantidad: ${item.quantity}\n\n`;
   });
   
   message += `*Mis datos:*\n`;

@@ -369,6 +369,7 @@ export default function ProductForm({
     if (!sourceVariant) return;
     const derived: Record<string, string> = {};
     for (const link of attributeLinks) {
+      if (link.usageMode === 'VARIANT') continue; // su valor vive por-variante, no se colapsa a un único valor global
       const options = valuesByAttribute[link.attributeId] ?? [];
       const match = sourceVariant.attributeValueIds?.find((id) => options.some((o) => o.id === id));
       if (match) derived[link.attributeId] = match;
@@ -414,15 +415,40 @@ export default function ProductForm({
     return () => clearTimeout(handle);
   }, [codeValue, createdProductId]);
 
-  // Los "Atributos (Estilos)" se eligen una sola vez en General (`styleAttributes`)
-  // pero el backend sigue esperando `attributeValueIds` por variante — se copia el
-  // mismo conjunto de valores a todas las variantes justo antes de guardar, sin
-  // tocar el modelo de datos existente (`variant_attribute_values`).
+  // Los atributos "Estilo" en modo INFORMATIVE se eligen una sola vez en General
+  // (`styleAttributes`) y se copian a todas las variantes — comportamiento histórico
+  // sin cambios. Los atributos en modo VARIANT NO se copian aquí: su valor vive
+  // por-variante (`attributeValueIds` editado por fila en la matriz, ver
+  // `AttributeMatrixSection`), y copiarlos aquí los pisaría con un único valor
+  // global, perdiendo la distinción entre variantes que es el propósito de VARIANT.
   function withSyncedStyleAttributes(data: ProductFormData): ProductFormData {
-    const attributeValueIds = Object.values(data.styleAttributes ?? {}).filter(Boolean);
+    const informativeAttributeIds = new Set(
+      attributeLinks.filter((link) => link.usageMode !== 'VARIANT').map((link) => link.attributeId)
+    );
+    const informativeValueIds = Object.entries(data.styleAttributes ?? {})
+      .filter(([attributeId]) => informativeAttributeIds.has(attributeId))
+      .map(([, valueId]) => valueId)
+      .filter(Boolean);
+    // Mapa inverso valueId -> attributeId, para poder distinguir en cada fila qué
+    // valores existentes pertenecen a un atributo INFORMATIVE (se reemplazan por el
+    // vigente) vs. VARIANT (se conservan tal cual, asignados por la matriz).
+    const attributeIdByValueId = new Map<string, string>();
+    for (const [attributeId, options] of Object.entries(valuesByAttribute)) {
+      for (const option of options) attributeIdByValueId.set(option.id, attributeId);
+    }
+
     const synced: ProductFormData = {
       ...data,
-      variants: data.variants.map((v) => ({ ...v, attributeValueIds })),
+      variants: data.variants.map((v) => ({
+        ...v,
+        attributeValueIds: Array.from(new Set([
+          ...(v.attributeValueIds ?? []).filter((id) => {
+            const ownerAttributeId = attributeIdByValueId.get(id);
+            return ownerAttributeId === undefined || !informativeAttributeIds.has(ownerAttributeId);
+          }),
+          ...informativeValueIds,
+        ])),
+      })),
     };
     // Modo 'FIRST_VARIANT': la portada se hereda en vivo del primer color — no se
     // envían `cover`/`secondaryCover` (quedarían con `assetId: ''`, que el
@@ -1040,6 +1066,8 @@ export default function ProductForm({
                   brandId={brandIdValue}
                   brandName={brandNameValue}
                   styleAttributes={styleAttributesValue}
+                  attributeLinks={attributeLinks}
+                  valuesByAttribute={valuesByAttribute}
                   variantFields={variantFields}
                   appendVariant={appendVariant}
                   removeVariant={removeVariant}
@@ -1231,6 +1259,8 @@ export default function ProductForm({
                 brandId={brandIdValue}
                 brandName={brandNameValue}
                 styleAttributes={styleAttributesValue}
+                attributeLinks={attributeLinks}
+                valuesByAttribute={valuesByAttribute}
                 variantFields={variantFields}
                 appendVariant={appendVariant}
                 removeVariant={removeVariant}

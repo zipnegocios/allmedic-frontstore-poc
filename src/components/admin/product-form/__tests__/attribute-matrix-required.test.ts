@@ -9,6 +9,7 @@ function makeLink(overrides: Partial<ProductTypeAttributeLink> = {}): ProductTyp
     attributeId: 'attr-1',
     isRequired: true,
     sortOrder: 0,
+    usageMode: 'INFORMATIVE',
     attributeName: 'Corte',
     attributeSlug: 'corte',
     displayType: 'select',
@@ -47,5 +48,10 @@ describe('getMissingRequiredStyleAttributes', () => {
     ];
     const missing = getMissingRequiredStyleAttributes(links, { a2: 'val-cuello-v' });
     expect(missing.map((l) => l.attributeId)).toEqual(['a1']);
+  });
+
+  it('ignora atributos en modo VARIANT aunque estén marcados como requeridos', () => {
+    const links = [makeLink({ attributeId: 'a1', isRequired: true, usageMode: 'VARIANT' })];
+    expect(getMissingRequiredStyleAttributes(links, {})).toEqual([]);
   });
 });

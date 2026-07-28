@@ -16,7 +16,9 @@ export function getMissingRequiredStyleAttributes(
   links: ProductTypeAttributeLink[],
   styleAttributes: Record<string, string>
 ): ProductTypeAttributeLink[] {
-  return links.filter((link) => link.isRequired && !styleAttributes[link.attributeId]);
+  return links.filter(
+    (link) => link.usageMode !== 'VARIANT' && link.isRequired && !styleAttributes[link.attributeId]
+  );
 }
 
 interface AttributeStyleSectionProps {
@@ -35,10 +37,14 @@ interface AttributeStyleSectionProps {
 export function AttributeStyleSection({
   control,
   productTypeId,
-  links,
+  links: allLinks,
   valuesByAttribute,
   loading,
 }: AttributeStyleSectionProps) {
+  // Solo los atributos en modo INFORMATIVE se editan aquí como valor único global —
+  // los VARIANT se editan en AttributeMatrixSection (matriz cruzada por variante).
+  const links = allLinks.filter((link) => link.usageMode !== 'VARIANT');
+
   if (!productTypeId) {
     return (
       <Card className="border-dashed">

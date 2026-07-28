@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import type { Product, ProductColor, Size, Fit, CartItem, VolumeDiscount } from '@/lib/types';
+import type { Product, ProductColor, Size, CartItem, VolumeDiscount } from '@/lib/types';
 
 // Note: We validate cart items by structure check in CartProvider
 // since the schema types are strict literal types
@@ -11,7 +11,7 @@ interface CartContextType {
   totalItems: number;
   totalPrice: number;
   subtotal: number;
-  addItem: (product: Product, variantId: string, color: ProductColor, size: Size, fit: Fit | undefined, quantity: number) => void;
+  addItem: (product: Product, variantId: string, color: ProductColor, size: Size, styles: Record<string, string>, quantity: number) => void;
   removeItem: (itemId: string) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
   clearCart: () => void;
@@ -101,7 +101,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     variantId: string,
     color: ProductColor,
     size: Size,
-    fit: Fit | undefined,
+    styles: Record<string, string>,
     quantity: number
   ) => {
     const variant = product.variants.find(v => v.id === variantId);
@@ -109,7 +109,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     setItems(prev => {
       const existingItem = prev.find(
-        item => item.variantId === variantId && item.color.id === color.id && item.size === size
+        item => item.variantId === variantId && item.color.id === color.id && item.size === size &&
+          JSON.stringify(item.styles) === JSON.stringify(styles)
       );
 
       if (existingItem) {
@@ -130,7 +131,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         slug: product.slug,
         color,
         size,
-        fit,
+        styles,
         sku: variant.sku,
         price: product.priceSale || product.priceNormal,
         quantity,
