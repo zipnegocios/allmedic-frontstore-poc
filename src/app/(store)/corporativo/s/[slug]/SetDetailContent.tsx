@@ -116,10 +116,8 @@ export function SetDetailContent({
     hasMissingPrices: set.hasMissingPrices,
     piecesPerSet,
     pieces: [
-      { productId: blockA.options[0].productId, productName: blockA.options[0].productName, quantityPerSet: blockA.quantityPerSet },
-      { productId: blockA.options[1].productId, productName: blockA.options[1].productName, quantityPerSet: blockA.quantityPerSet },
-      { productId: blockB.options[0].productId, productName: blockB.options[0].productName, quantityPerSet: blockB.quantityPerSet },
-      { productId: blockB.options[1].productId, productName: blockB.options[1].productName, quantityPerSet: blockB.quantityPerSet },
+      ...blockA.options.map((o) => ({ productId: o.productId, productName: o.productName, quantityPerSet: blockA.quantityPerSet })),
+      ...blockB.options.map((o) => ({ productId: o.productId, productName: o.productName, quantityPerSet: blockB.quantityPerSet })),
     ],
   };
 
@@ -620,7 +618,7 @@ function BlockStrip({
   onSelect,
   colorForPieceOption,
 }: {
-  pieces: [SetPiece, SetPiece];
+  pieces: SetPiece[];
   selectedId: string;
   onSelect: (productId: string) => void;
   /** Resuelve el code de color activo para una opción de bloque dada (PAIRED: mismo code para

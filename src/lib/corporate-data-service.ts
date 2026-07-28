@@ -670,12 +670,11 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
 
   const blocks = blockRows.map((block): SetBlock => {
     const blockPieces = pieces.filter((p) => p.blockId === block.id);
-    const [opt1, opt2] = blockPieces;
     return {
       id: block.id,
       blockCode: block.blockCode as 'A' | 'B',
       quantityPerSet: block.quantityPerSet ?? 1,
-      options: [opt1, opt2],
+      options: blockPieces,
     };
   }) as [SetBlock, SetBlock];
   const recommendedPieces: SetPiece[] = pieces.filter((p) => p.blockId === null);

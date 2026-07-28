@@ -24,14 +24,18 @@ interface BlockSectionProps {
   setOptionComboOpen: (key: string | null) => void;
   onOpenProductDrawer: (target: { productId?: string; blockIndex: 0 | 1; optionIndex: 0 | 1 }) => void;
   selectedProductIds: string[]; // todos los productId ya usados en cualquier bloque, para evitar duplicados
-  optionProductIds: [string, string]; // productId de las 2 opciones de ESTE bloque
+  optionProductIds: string[]; // productId de la(s) opción(es) de ESTE bloque — 1 o 2
+  /** true si el bloque tiene 2 opciones cargadas — controla el toggle "¿Este bloque tiene 2
+   * opciones?". Al desactivarlo se quita la 2da opción; al activarlo se agrega vacía. */
+  hasSecondOption: boolean;
+  onToggleSecondOption: (enabled: boolean) => void;
 }
 
 /**
- * Un bloque de alternancia (A o B) — exactamente 2 piezas alternativas, cada una con atajos de
- * crear producto nuevo / editar producto, y un solo campo "Cantidad por set" en la cabecera
- * (compartido por sus 2 opciones, no por fila). Sin botón para agregar una tercera opción ni
- * para quitar las existentes — el bloque siempre tiene exactamente 2 (Decisión 1 del plan).
+ * Un bloque de alternancia (A o B) — 1 o 2 piezas alternativas, cada una con atajos de crear
+ * producto nuevo / editar producto, y un solo campo "Cantidad por set" en la cabecera
+ * (compartido por sus opciones, no por fila). Un toggle decide si el bloque tiene 1 sola pieza
+ * (sin alternativa que elegir) o 2 (el cliente elige 1 de las 2 en la ficha pública).
  */
 export function BlockSection({
   blockIndex,
@@ -45,6 +49,8 @@ export function BlockSection({
   onOpenProductDrawer,
   selectedProductIds,
   optionProductIds,
+  hasSecondOption,
+  onToggleSecondOption,
 }: BlockSectionProps) {
   const blockErrors = errors.blocks?.[blockIndex];
   const prices = optionProductIds.map((id) => productPrice(products.find((p) => p.id === id)));
@@ -60,19 +66,33 @@ export function BlockSection({
   return (
     <Card>
       <CardContent className="p-6 space-y-4">
-        <div>
-          <h3 className="font-semibold flex items-center gap-2">
-            Bloque {blockCode}
-            <Badge variant="outline" className="font-normal text-xs">2 / 2 piezas — fijo</Badge>
-          </h3>
-          <p className="text-xs text-gray-500 mt-1">
-            El cliente final elige 1 de estas 2 opciones en la ficha pública. Este bloque no admite agregar ni quitar
-            piezas — cada una puede editarse o reemplazarse por un producto nuevo con los íconos de la derecha.
-          </p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="font-semibold flex items-center gap-2">
+              Bloque {blockCode}
+              <Badge variant="outline" className="font-normal text-xs">
+                {hasSecondOption ? '2 opciones' : '1 opción'}
+              </Badge>
+            </h3>
+            <p className="text-xs text-gray-500 mt-1">
+              {hasSecondOption
+                ? 'El cliente final elige 1 de estas 2 opciones en la ficha pública.'
+                : 'Este bloque tiene una sola prenda — sin alternativa que elegir en la ficha pública.'}
+            </p>
+          </div>
+          <label className="flex items-center gap-2 text-xs text-gray-600 whitespace-nowrap flex-shrink-0 pt-1">
+            <input
+              type="checkbox"
+              checked={hasSecondOption}
+              onChange={(e) => onToggleSecondOption(e.target.checked)}
+            />
+            ¿Este bloque tiene 2 opciones?
+          </label>
         </div>
 
         <div className="space-y-3">
-          {([0, 1] as const).map((optionIndex) => {
+          {optionProductIds.map((_, idx) => {
+            const optionIndex = idx as 0 | 1;
             const productId = optionProductIds[optionIndex];
             const product = products.find((p) => p.id === productId);
             const price = productPrice(product);
@@ -250,7 +270,7 @@ export function BlockSection({
 
         <div className="flex items-center gap-3 pt-3 border-t">
           <Label className="text-xs text-gray-500 whitespace-nowrap">
-            Cantidad por set <span className="text-gray-400">(una sola, aplica sin importar cuál de las 2 elija el cliente)</span>
+            Cantidad por set <span className="text-gray-400">(una sola, aplica sin importar cuál opción elija el cliente)</span>
           </Label>
           <Input
             type="number"

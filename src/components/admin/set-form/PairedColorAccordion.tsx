@@ -6,7 +6,7 @@ import { computePairedColorWarnings } from './color-mode-utils';
 import type { EligibleProduct } from './schema';
 
 interface PairedColorAccordionProps {
-  /** Lista aplanada de las 4 opciones de bloque (2 bloques × 2 opciones) — nunca piezas recomendadas. */
+  /** Lista aplanada de las opciones de bloque (2 bloques, 1 o 2 opciones cada uno) — nunca piezas recomendadas. */
   items: Array<{ productId: string }>;
   products: EligibleProduct[];
 }

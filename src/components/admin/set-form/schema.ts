@@ -6,8 +6,9 @@ import type { RuleTypeKey } from '@/lib/rule-config-schemas';
 // esquema, misma fuente de verdad, reutilizado tanto por la vista desktop
 // (Cards secuenciales) como por el wizard mobile (Task 8, Fase 3).
 
-// ─── Bloques de alternancia: exactamente 2 bloques (A/B), exactamente 2 opciones cada uno ───
-// El límite "exactamente 2" se valida aquí en zod, no en constraint de DB (ver
+// ─── Bloques de alternancia: exactamente 2 bloques (A/B), entre 1 y 2 opciones cada uno ───
+// El bloque puede tener 1 sola prenda (sin alternativa que elegir) o 2 (el cliente elige 1 de
+// las 2). El mínimo "al menos 1" se valida aquí en zod, no en constraint de DB (ver
 // docs/superpowers/plans/2026-07-23-ensamblador-sets-bloques-alternancia.md, Fase 4).
 export const SetBlockOptionSchema = z.object({
   productId: z.string().min(1, 'Producto requerido'),
@@ -16,7 +17,7 @@ export const SetBlockOptionSchema = z.object({
 export const SetBlockSchema = z.object({
   blockCode: z.enum(['A', 'B']),
   quantityPerSet: z.coerce.number().min(1, 'Cantidad mínima 1'),
-  options: z.tuple([SetBlockOptionSchema, SetBlockOptionSchema]),
+  options: z.array(SetBlockOptionSchema).min(1, 'Al menos 1 opción por bloque').max(2, 'Máximo 2 opciones por bloque'),
 });
 
 export const SetRecommendedItemSchema = z.object({

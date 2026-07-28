@@ -26,13 +26,14 @@ export interface SetPiece {
   variants: ProductVariant[];
 }
 
-/** Un bloque de alternancia — el cliente elige 1 de las 2 `options`. `quantityPerSet` es
- * único por bloque (compartido entre sus 2 opciones), no por pieza individual. */
+/** Un bloque de alternancia — el cliente elige 1 de las `options` (1 o 2: si el bloque tiene
+ * una sola prenda configurada no hay alternativa que elegir). `quantityPerSet` es único por
+ * bloque (compartido entre sus opciones), no por pieza individual. */
 export interface SetBlock {
   id: string;
   blockCode: 'A' | 'B';
   quantityPerSet: number;
-  options: [SetPiece, SetPiece];
+  options: SetPiece[];
 }
 
 export interface CorporateSetSummary {
@@ -51,7 +52,7 @@ export interface CorporateSetSummary {
   productIds: string[];
   isFeatured: boolean;
   /** Número de bloques del set — siempre 2 (Bloque A / Bloque B), nunca la cantidad de
-   * opciones cargadas (que siempre son 2 por bloque = 4 piezas configurables). */
+   * opciones cargadas (cada bloque tiene 1 o 2 piezas configurables). */
   pieceCount: number;
   /** true si el set tiene al menos una pieza recomendada activa — usado por el grid para
    * mostrar el badge correspondiente sin traer `recommendedPieces` completo. */

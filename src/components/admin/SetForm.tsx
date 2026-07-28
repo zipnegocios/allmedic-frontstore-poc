@@ -131,8 +131,8 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
       isActive: true,
       isFeatured: false,
       blocks: [
-        { blockCode: 'A', quantityPerSet: 1, options: [{ productId: '' }, { productId: '' }] },
-        { blockCode: 'B', quantityPerSet: 1, options: [{ productId: '' }, { productId: '' }] },
+        { blockCode: 'A', quantityPerSet: 1, options: [{ productId: '' }] },
+        { blockCode: 'B', quantityPerSet: 1, options: [{ productId: '' }] },
       ],
       recommendedItems: [],
     },
@@ -431,6 +431,15 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
    * (Card secuencial) y en el paso 3 del wizard mobile. */
   function renderBlocksAndRecommended() {
     const usedProductIds = allPieceItems.map((i) => i.productId).filter(Boolean);
+    /** Activa/desactiva la 2da opción de un bloque — agrega un slot vacío o lo quita
+     * (junto con su productId), sin tocar la 1ra opción ni la cantidad del bloque. */
+    function toggleSecondOption(blockIndex: 0 | 1, enabled: boolean) {
+      const current = blocks[blockIndex]?.options ?? [{ productId: '' }];
+      const next = enabled
+        ? [current[0] ?? { productId: '' }, current[1] ?? { productId: '' }]
+        : [current[0] ?? { productId: '' }];
+      setValue(`blocks.${blockIndex}.options`, next, { shouldValidate: true });
+    }
     return (
       <div className="space-y-4">
         <BlockSection
@@ -444,7 +453,9 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
           setOptionComboOpen={setOptionComboOpen}
           onOpenProductDrawer={setProductDrawer}
           selectedProductIds={usedProductIds}
-          optionProductIds={[blocks[0]?.options[0]?.productId ?? '', blocks[0]?.options[1]?.productId ?? '']}
+          optionProductIds={(blocks[0]?.options ?? []).map((o) => o.productId ?? '')}
+          hasSecondOption={(blocks[0]?.options?.length ?? 0) >= 2}
+          onToggleSecondOption={(enabled) => toggleSecondOption(0, enabled)}
         />
         <BlockSection
           blockIndex={1}
@@ -457,7 +468,9 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
           setOptionComboOpen={setOptionComboOpen}
           onOpenProductDrawer={setProductDrawer}
           selectedProductIds={usedProductIds}
-          optionProductIds={[blocks[1]?.options[0]?.productId ?? '', blocks[1]?.options[1]?.productId ?? '']}
+          optionProductIds={(blocks[1]?.options ?? []).map((o) => o.productId ?? '')}
+          hasSecondOption={(blocks[1]?.options?.length ?? 0) >= 2}
+          onToggleSecondOption={(enabled) => toggleSecondOption(1, enabled)}
         />
         {colorMode === 'PAIRED' && <PairedColorAccordion items={blockOnlyItems} products={products} />}
         {colorMode === 'MIXED' && <MixedColorAccordion setId={createdSetId} items={blockOnlyItems} products={products} />}

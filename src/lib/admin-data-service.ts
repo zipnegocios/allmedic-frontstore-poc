@@ -1473,8 +1473,8 @@ interface SetBlockOptionInput {
 interface SetBlockInput {
   blockCode: 'A' | 'B';
   quantityPerSet: number;
-  /** Exactamente 2 opciones — validado en la API/zod, no en constraint de DB. */
-  options: [SetBlockOptionInput, SetBlockOptionInput];
+  /** Entre 1 y 2 opciones — validado en la API/zod, no en constraint de DB. */
+  options: SetBlockOptionInput[];
 }
 
 interface SetRecommendedItemInput {

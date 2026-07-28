@@ -12,7 +12,7 @@ const SetBlockOptionSchema = z.object({
 const SetBlockSchema = z.object({
   blockCode: z.enum(['A', 'B']),
   quantityPerSet: z.number().min(1).default(1),
-  options: z.tuple([SetBlockOptionSchema, SetBlockOptionSchema]),
+  options: z.array(SetBlockOptionSchema).min(1).max(2),
 });
 
 const SetRecommendedItemSchema = z.object({

@@ -10,8 +10,8 @@ export interface PairedColorWarning {
  * Para el modo "Piezas combinadas por color": calcula, para cada pieza del set, qué colores
  * tienen las DEMÁS piezas pero a ella le faltan — esos colores no tendrán paridad completa y por
  * lo tanto no se ofrecerán en el armador público (ver SetDetailContent.tsx). Puramente
- * informativo para el admin, nunca bloquea el guardado. `items` es la lista aplanada de las 4
- * opciones de bloque (2 bloques × 2 opciones) — nunca incluye piezas recomendadas.
+ * informativo para el admin, nunca bloquea el guardado. `items` es la lista aplanada de las
+ * opciones de bloque (2 bloques, 1 o 2 opciones cada uno) — nunca incluye piezas recomendadas.
  */
 export function computePairedColorWarnings(
   items: Array<{ productId: string }>,
