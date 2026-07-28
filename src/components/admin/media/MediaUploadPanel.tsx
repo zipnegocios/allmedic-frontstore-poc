@@ -102,7 +102,7 @@ export function MediaUploadPanel({ folder, segments = [], onUploaded, showFolder
       >
         <UploadCloud className="w-8 h-8 mx-auto mb-2 text-gray-400" />
         <p className="text-sm text-gray-500">Arrastra imágenes o videos aquí o haz clic para seleccionar</p>
-        <p className="text-xs text-gray-400 mt-1">JPEG, PNG, WebP, AVIF (máx. 10MB) o video MP4/WebM (máx. 100MB)</p>
+        <p className="text-xs text-gray-400 mt-1">JPEG, PNG, WebP, AVIF (máx. 100MB) o video MP4/WebM (máx. 100MB)</p>
         <input
           ref={inputRef}
           type="file"

@@ -139,7 +139,7 @@ export function isVideoMime(mimeType: string): boolean {
   return mimeType.startsWith("video/");
 }
 
-export const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+export const MAX_IMAGE_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB
 export const MAX_VIDEO_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB
 /** @deprecated usar maxSizeForMime(mimeType) — se mantiene por compatibilidad con el límite de imágenes. */
 export const MAX_MEDIA_SIZE_BYTES = MAX_IMAGE_SIZE_BYTES;
