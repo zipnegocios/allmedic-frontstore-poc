@@ -18,6 +18,7 @@ import {
   mediaLinks as mediaLinksTable,
   mediaAssets as mediaAssetsTable,
   attributes as attributesTable,
+  productTypeAttributes as productTypeAttributesTable,
 } from '@/db/schema';
 import { eq, and, inArray, asc, desc, isNotNull, isNull } from 'drizzle-orm';
 import type { BusinessRule, SetPieceInfo } from './rules-engine';
@@ -520,6 +521,30 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
   const allAttributes = await db.select({ name: attributesTable.name, slug: attributesTable.slug }).from(attributesTable);
   const attributeNameBySlug = new Map(allAttributes.map((a) => [a.slug, a.name]));
 
+  // Ejes VARIANT por Tipo de Producto (slugs de atributo cuyo `usageMode` = 'VARIANT' para
+  // ESE tipo, ver /admin/tipos-producto) — determina qué slugs de `attributesPayload.styles`
+  // se ofrecen como chip seleccionable en `SetPiece.availableStyles`. Los atributos en modo
+  // 'INFORMATIVE' (dato fijo de ficha) quedan fuera: no tiene sentido "elegir" un valor que es
+  // el mismo para todas las variantes de la pieza.
+  const productTypeIds = Array.from(new Set(items.map((i) => i.productTypeId).filter((id): id is string => !!id)));
+  const variantAxisRows = productTypeIds.length > 0
+    ? await db
+        .select({ productTypeId: productTypeAttributesTable.productTypeId, attributeSlug: attributesTable.slug })
+        .from(productTypeAttributesTable)
+        .innerJoin(attributesTable, eq(productTypeAttributesTable.attributeId, attributesTable.id))
+        .where(and(
+          inArray(productTypeAttributesTable.productTypeId, productTypeIds),
+          eq(productTypeAttributesTable.usageMode, 'VARIANT')
+        ))
+    : [];
+  const variantAxisSlugsByProductType = new Map<string, Set<string>>();
+  for (const row of variantAxisRows) {
+    if (!variantAxisSlugsByProductType.has(row.productTypeId)) {
+      variantAxisSlugsByProductType.set(row.productTypeId, new Set());
+    }
+    variantAxisSlugsByProductType.get(row.productTypeId)!.add(row.attributeSlug);
+  }
+
   const productTypesAgg = new Set<string>();
   const gendersAgg = new Set<Gender>();
   const colorMapAgg = new Map<string, ProductColor>();
@@ -552,6 +577,10 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
     const colorMap = new Map<string, ProductColor>();
     const sizeSet = new Set<string>();
     const stylesMap = new Map<string, Set<string>>();
+    // Solo los slugs en modo VARIANT para el Tipo de Producto de ESTA pieza se ofrecen como
+    // chip seleccionable — un atributo INFORMATIVE (dato fijo) no entra en `stylesMap`, así
+    // que nunca llega a `availableStyles` ni renderiza selector en la PDP corporativa.
+    const variantAxisSlugs = item.productTypeId ? variantAxisSlugsByProductType.get(item.productTypeId) : undefined;
     for (const v of productVariants) {
       if (!colorMap.has(v.colorId)) {
         colorMap.set(v.colorId, {
@@ -563,6 +592,7 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
       const stylesPayload = (v.attributesPayload as AttributesPayload | null | undefined)?.styles;
       if (stylesPayload) {
         for (const [slug, value] of Object.entries(stylesPayload)) {
+          if (!variantAxisSlugs?.has(slug)) continue;
           if (!stylesMap.has(slug)) stylesMap.set(slug, new Set());
           stylesMap.get(slug)!.add(value);
         }

@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import type { Control, FieldErrors, UseFormRegister, UseFormSetValue, UseFormWatch } from 'react-hook-form';
 import { Controller } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
@@ -39,7 +40,9 @@ export function GeneralPrimarySection({
   watch,
   setValue,
   errors,
-  embedded,
+  // `embedded` ya no se usa aquí desde que Visibilidad quedó congelada en "Ambos"
+  // (dejaba de mostrarse un aviso condicionado a este flag) — se mantiene en la
+  // interfaz de props para no tocar el call-site en `ProductForm.tsx`.
   colors,
   codeMissing,
   onPickTarget,
@@ -47,6 +50,17 @@ export function GeneralPrimarySection({
   const coverSource = watch('coverSource') ?? 'CUSTOM';
   const images = watch('images') ?? [];
   const variants = watch('variants') ?? [];
+
+  // ─── Visibilidad congelada en "Ambos" (a pedido, 2026-07-28) ───
+  // El select queda deshabilitado y fijo en 'BOTH' en todos los flujos (creación,
+  // edición, y el modo embebido del ensamblador de sets, que antes preseteaba
+  // 'GROUPS' vía `initialVisibility`). Se conserva `VISIBILITY_OPTIONS`/el select
+  // intactos para poder "descongelar" en el futuro quitando este efecto y el
+  // `disabled` de abajo, sin rehacer la UI.
+  const visibilityValue = watch('visibility');
+  useEffect(() => {
+    if (visibilityValue !== 'BOTH') setValue('visibility', 'BOTH', { shouldDirty: false });
+  }, [visibilityValue, setValue]);
   const firstColorId = variants[0]?.colorId;
   const firstColor = colors.find((c) => c.id === firstColorId);
   const firstColorImages = firstColorId
@@ -200,7 +214,7 @@ export function GeneralPrimarySection({
             name="visibility"
             control={control}
             render={({ field }) => (
-              <Select value={field.value} onValueChange={field.onChange}>
+              <Select value={field.value} onValueChange={field.onChange} disabled>
                 <SelectTrigger id="visibility">
                   <SelectValue placeholder="Seleccionar visibilidad" />
                 </SelectTrigger>
@@ -213,14 +227,8 @@ export function GeneralPrimarySection({
             )}
           />
           <p className="text-xs text-gray-500">
-            {VISIBILITY_OPTIONS.find((v) => v.value === watch('visibility'))?.description}
+            {VISIBILITY_OPTIONS.find((v) => v.value === watch('visibility'))?.description} — congelado por ahora.
           </p>
-          {embedded && watch('visibility') === 'INDIVIDUAL' && (
-            <p className="text-xs text-amber-600 bg-amber-50 rounded px-2 py-1.5">
-              Con visibilidad &quot;Solo Individual&quot; este producto no aparecerá como pieza elegible en
-              ningún set corporativo — cámbiala a &quot;Solo Grupos&quot; o &quot;Ambos&quot; si vas a usarlo aquí.
-            </p>
-          )}
         </div>
 
         <div className="flex gap-6 pt-2">

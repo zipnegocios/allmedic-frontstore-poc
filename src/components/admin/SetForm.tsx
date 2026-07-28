@@ -815,6 +815,10 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
             <ProductForm
               embedded
               productId={productDrawer.productId}
+              // Sin efecto mientras Visibilidad esté congelada en "Ambos" (a pedido,
+              // 2026-07-28, ver `GeneralPrimarySection.tsx`) — se deja declarado para
+              // que el flujo vuelva a preseleccionar "Solo Grupos" automáticamente en
+              // cuanto se descongele el select.
               initialVisibility="GROUPS"
               onCancel={() => setProductDrawer(null)}
               onSaved={async (saved) => {
