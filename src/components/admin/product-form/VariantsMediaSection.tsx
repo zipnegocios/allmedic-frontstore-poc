@@ -31,6 +31,9 @@ import { Plus, Trash2, AlertTriangle, GripVertical, ArrowDownAZ } from 'lucide-r
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { MediaThumb } from '@/components/admin/media/MediaThumb';
+import { MediaUploadPanel } from '@/components/admin/media/MediaUploadPanel';
+import { sanitizeCodeSegment } from '@/lib/media';
+import type { MediaUploadResult } from '@/hooks/useMediaUpload';
 import { cn } from '@/lib/utils';
 import type { ProductFormData, Color, ProductTypeAttributeLink, AttributeValueOption } from './schema';
 import { STATUSES, STATUS_META } from './schema';
@@ -82,6 +85,14 @@ interface VariantsMediaSectionProps {
   imageFields: FieldArrayWithId<ProductFormData, 'images', 'id'>[];
   removeImage: (index: number) => void;
   onPickTarget: (target: number | 'append', colorId?: string) => void;
+  /** Código de Estilo del producto (ficha General) — determina la carpeta física
+   * (`products/{codigo}/{colorCode}/`) donde suben los medios arrastrados
+   * directamente sobre la Galería del Color. Vacío/ausente si `codeMissing`. */
+  code: string;
+  /** Agrega medios recién subidos (drag-and-drop directo en "Galería del Color")
+   * a las imágenes del color indicado — mismo resultado que "Agregar Medios" +
+   * elegir en el picker, sin abrir el diálogo. */
+  onFilesUploaded: (assets: MediaUploadResult[], colorId: string) => void;
   /** Errores de validación por fila de variante (`errors.variants` de RHF) — sin esto,
    * una matriz con filas inválidas (ej. sin Color/Talla) no muestra ningún indicador
    * visual aquí, solo un toast genérico en el formulario padre. */
@@ -157,6 +168,8 @@ export function VariantsMediaSection({
   imageFields,
   removeImage,
   onPickTarget,
+  code,
+  onFilesUploaded,
   variantsErrors,
   formErrors,
   onColorCreated,
@@ -877,9 +890,26 @@ export function VariantsMediaSection({
                       )}
 
                       {colorImages.length === 0 ? (
-                        <div className="border border-dashed rounded-lg p-4 text-center text-gray-400 text-[11px]">
-                          No hay medios asociados a este color.
-                        </div>
+                        codeMissing ? (
+                          <div className="border border-dashed rounded-lg p-4 text-center text-gray-400 text-[11px]">
+                            No hay medios asociados a este color.
+                          </div>
+                        ) : (
+                          <div className="space-y-3 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                            <p className="text-base font-bold text-[#111111] text-center uppercase leading-snug">
+                              Asegúrate de subir las imágenes del producto{' '}
+                              <span className="text-red-600">{code}</span> para el color{' '}
+                              <span className="text-red-600">{colorName}</span>
+                            </p>
+                            <MediaUploadPanel
+                              folder="PRODUCTS"
+                              segments={[sanitizeCodeSegment(code), sanitizeCodeSegment(colorObj?.code || colorName)]}
+                              onUploaded={(assets) => {
+                                onFilesUploaded(assets, colorId);
+                              }}
+                            />
+                          </div>
+                        )
                       ) : (
                         <>
                           {colorImages.length === 1 && (

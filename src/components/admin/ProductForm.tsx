@@ -34,7 +34,7 @@ const WIZARD_STEP_ICONS: Record<WizardStepId, LucideIcon> = {
 };
 import Link from 'next/link';
 import { MediaPicker } from '@/components/admin/media/MediaPicker';
-import { resolveMediaUrl, sanitizeCodeSegment, COVER_SEGMENT } from '@/lib/media';
+import { resolveMediaUrl, sanitizeCodeSegment, COVER_SEGMENT, type MediaAssetSummary } from '@/lib/media';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import {
@@ -776,6 +776,24 @@ export default function ProductForm({
     return [nameValue, brandNameValue, collectionNameValue, colorName].filter(Boolean).join(' - ');
   }
 
+  // Drag-and-drop directo sobre "Galería del Color" (sin abrir el picker) — mismo
+  // resultado que "Agregar Medios" + elegir esos archivos en el picker (ver
+  // `mediaPickerDialog.onConfirm` más abajo, caso `'append'`).
+  function handleFilesUploadedForColor(assets: MediaAssetSummary[], colorId: string) {
+    const colorName = colors.find((c) => c.id === colorId)?.name;
+    assets.forEach((asset, i) => {
+      appendImage({
+        assetId: asset.id,
+        colorId,
+        url: resolveMediaUrl(asset.storageKey),
+        storageKey: asset.storageKey,
+        mimeType: asset.mimeType,
+        alt: buildAutoAlt(colorName),
+        sortOrder: imageFields.length + i,
+      });
+    });
+  }
+
   const mediaPickerDialog = (
     <MediaPicker
       open={pickerTargetIndex !== null}
@@ -1073,6 +1091,8 @@ export default function ProductForm({
                   removeVariant={removeVariant}
                   imageFields={imageFields}
                   removeImage={removeImage}
+                  code={codeValue ?? ''}
+                  onFilesUploaded={handleFilesUploadedForColor}
                   variantsErrors={errors.variants}
                   formErrors={errors}
                   onColorCreated={handleColorCreated}
@@ -1266,6 +1286,8 @@ export default function ProductForm({
                 removeVariant={removeVariant}
                 imageFields={imageFields}
                 removeImage={removeImage}
+                code={codeValue ?? ''}
+                onFilesUploaded={handleFilesUploadedForColor}
                 variantsErrors={errors.variants}
                 formErrors={errors}
                 onColorCreated={handleColorCreated}
