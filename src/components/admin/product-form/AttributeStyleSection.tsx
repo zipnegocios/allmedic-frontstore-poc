@@ -42,7 +42,8 @@ export function AttributeStyleSection({
   loading,
 }: AttributeStyleSectionProps) {
   // Solo los atributos en modo INFORMATIVE se editan aquí como valor único global —
-  // los VARIANT se editan en AttributeMatrixSection (matriz cruzada por variante).
+  // los VARIANT se editan en AttributeMatrixSection (matriz cruzada por variante, pestaña
+  // Variantes y Medios), así que no cuentan para decidir si hay "nada configurado" aquí.
   const links = allLinks.filter((link) => link.usageMode !== 'VARIANT');
 
   if (!productTypeId) {
@@ -64,6 +65,13 @@ export function AttributeStyleSection({
         </CardContent>
       </Card>
     );
+  }
+
+  // Si el Tipo de Producto tiene atributos, pero TODOS son modo Variante (se configuran en
+  // la pestaña "Variantes y Medios", no acá), esta sección no muestra nada — ni el selector
+  // ni la advertencia de "no configurado", que sería engañosa (sí están configurados).
+  if (links.length === 0 && allLinks.length > 0) {
+    return null;
   }
 
   if (links.length === 0) {
