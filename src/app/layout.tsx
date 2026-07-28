@@ -3,6 +3,7 @@ import { Anton, Inter } from 'next/font/google';
 import '@/index.css';
 import { SessionProvider } from '@/components/providers/SessionProvider';
 import { Toaster } from '@/components/ui/sonner';
+import { GlobalLoadingBar } from '@/components/layout/GlobalLoadingBar';
 
 // Fuente display (headings): Anton — peso único 400, impacto visual por mayúsculas + line-height 1
 const anton = Anton({
@@ -43,6 +44,7 @@ export default function RootLayout({
   return (
     <html lang="es" className={`${anton.variable} ${inter.variable}`}>
       <body>
+        <GlobalLoadingBar />
         <SessionProvider>{children}</SessionProvider>
         <Toaster />
       </body>
