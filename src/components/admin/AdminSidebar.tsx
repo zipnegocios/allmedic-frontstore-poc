@@ -4,8 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { LogOut, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
-import { signOut } from 'next-auth/react';
+import { LogOut, ChevronLeft, ChevronRight, ChevronDown, ExternalLink } from 'lucide-react';
+import { signOut, useSession } from 'next-auth/react';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useNotifications } from '@/hooks/useNotifications';
 import { resolveModuleForPath } from '@/lib/permissions/route-map';
@@ -46,6 +46,8 @@ export function AdminSidebar({ className }: { className?: string }) {
   });
   const { loading, canRead } = usePermissions();
   const { unreadCount } = useNotifications();
+  const { data: session } = useSession();
+  const userName = session?.user?.name || session?.user?.email || '';
 
   const visibleGroups = loading
     ? []
@@ -158,8 +160,8 @@ export function AdminSidebar({ className }: { className?: string }) {
               alt="AllMedic"
               className="h-6 object-contain self-start"
             />
-            <p className="text-[10px] text-gray-400 mt-0.5 whitespace-nowrap">
-              Panel de administración
+            <p className="text-[10px] text-gray-400 mt-0.5 truncate">
+              {userName ? `Hola, ${userName}` : 'Panel de administración'}
             </p>
           </div>
         )}
@@ -178,7 +180,31 @@ export function AdminSidebar({ className }: { className?: string }) {
       </nav>
 
       {/* Logout section */}
-      <div className="p-3 border-t border-white/10 shrink-0">
+      <div className="p-3 border-t border-white/10 shrink-0 space-y-1">
+        <div className="relative group">
+          <Link
+            href="/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn(
+              'flex items-center rounded-lg text-sm font-medium text-gray-300 hover:bg-white/10 hover:text-white transition-colors w-full',
+              isCollapsed ? 'justify-center p-3' : 'gap-3 px-4 py-3'
+            )}
+          >
+            <ExternalLink className="w-5 h-5 shrink-0" strokeWidth={1.5} />
+            {!isCollapsed && <span className="truncate">Visitar sitio</span>}
+          </Link>
+
+          {/* Tooltip when collapsed */}
+          {isCollapsed && (
+            <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2.5 py-1.5 bg-black text-white text-xs font-semibold rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 delay-75 whitespace-nowrap z-50 shadow-md border border-white/10 flex items-center">
+              Visitar sitio
+              {/* Tooltip arrow */}
+              <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-black" />
+            </div>
+          )}
+        </div>
+
         <div className="relative group">
           <button
             onClick={async () => {
