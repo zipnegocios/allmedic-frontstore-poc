@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/admin-auth';
+import { requireAdmin, getSessionUserId } from '@/lib/admin-auth';
 import { requireRole, ForbiddenError } from '@/lib/permissions';
 import { getAdminProductById, updateProductWithRelations, softDeleteProduct } from '@/lib/admin-data-service';
 import { z } from 'zod';
@@ -86,7 +86,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { id } = await params;
     const body = await request.json();
     const validated = UpdateProductSchema.parse(body);
-    const product = await updateProductWithRelations(id, validated);
+    const product = await updateProductWithRelations(id, validated, getSessionUserId(session));
     return NextResponse.json(product);
   } catch (err) {
     if (err instanceof ForbiddenError) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

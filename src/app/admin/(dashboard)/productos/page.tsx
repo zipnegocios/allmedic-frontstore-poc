@@ -73,6 +73,8 @@ interface Product {
   latestTaskId: string | null;
   latestTaskStatus: CatalogTaskStatus | null;
   taskHistoryCount: number;
+  createdByName: string | null;
+  updatedByName: string | null;
 }
 
 interface OptionRef {
@@ -103,10 +105,11 @@ const VISIBILITY_LABELS: Record<string, string> = Object.fromEntries(
 const GENDER_LABELS: Record<string, string> = Object.fromEntries(GENDERS.map((g) => [g.value, g.label]));
 
 // ─── Columnas activables/desactivables ───
-// "Producto" (nombre + código) y "Acciones" quedan siempre visibles como identidad
-// mínima de la fila; el resto se puede ocultar para enfocar el listado.
+// "Producto" (nombre) y "Acciones" quedan siempre visibles como identidad mínima
+// de la fila; el resto (incluyendo "Código") se puede ocultar para enfocar el listado.
 const COLUMN_DEFS = [
   { key: 'thumbnail', label: 'Miniatura' },
+  { key: 'code', label: 'Código de estilo' },
   { key: 'brand', label: 'Marca' },
   { key: 'collection', label: 'Colección' },
   { key: 'productType', label: 'Tipo de Producto' },
@@ -116,11 +119,13 @@ const COLUMN_DEFS = [
   { key: 'price', label: 'Precio' },
   { key: 'status', label: 'Estado' },
   { key: 'task', label: 'Tarea' },
+  { key: 'createdBy', label: 'Creado por' },
+  { key: 'updatedBy', label: 'Editado por' },
 ] as const;
 
 type ColumnKey = (typeof COLUMN_DEFS)[number]['key'];
 
-const DEFAULT_VISIBLE_COLUMNS: ColumnKey[] = ['thumbnail', 'brand', 'productType', 'price', 'status'];
+const DEFAULT_VISIBLE_COLUMNS: ColumnKey[] = ['thumbnail', 'code', 'brand', 'productType', 'price', 'status', 'createdBy', 'updatedBy'];
 const COLUMNS_STORAGE_KEY = 'admin-productos-columnas';
 
 function loadVisibleColumns(): Set<ColumnKey> {
@@ -555,14 +560,13 @@ export default function AdminProductsPage() {
                         {visibleColumns.has('thumbnail') && (
                           <ProductThumbnail url={product.coverUrl} name={product.name} />
                         )}
-                        <div>
-                          <p className="font-medium">{product.name}</p>
-                          <p className="text-sm text-gray-500">{product.code}</p>
-                        </div>
+                        <p className="font-medium">{product.name}</p>
                       </div>
                     </TableCell>
                     {tableColumnDefs.map((col) => {
                       switch (col.key) {
+                        case 'code':
+                          return <TableCell key={col.key}>{product.code}</TableCell>;
                         case 'brand':
                           return <TableCell key={col.key}>{product.brandName || '-'}</TableCell>;
                         case 'collection':
@@ -612,6 +616,10 @@ export default function AdminProductsPage() {
                               )}
                             </TableCell>
                           );
+                        case 'createdBy':
+                          return <TableCell key={col.key}>{product.createdByName || '—'}</TableCell>;
+                        case 'updatedBy':
+                          return <TableCell key={col.key}>{product.updatedByName || '—'}</TableCell>;
                         default:
                           return null;
                       }

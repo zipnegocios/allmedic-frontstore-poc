@@ -27,8 +27,10 @@ import {
   variantAttributeValues as variantAttributeValuesTable,
   sizes as sizesTable,
   catalogTasks as catalogTasksTable,
+  users as usersTable,
 } from '@/db/schema';
 import { eq, and, or, ne, asc, desc, sql, like, inArray, notInArray, isNull, isNotNull, type SQL } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { resolveMediaUrl } from './media';
 import { reorganizeProductMedia, reorganizeSetMedia } from './media-reorganize-service';
 import { deleteObject } from '@/lib/r2';
@@ -175,6 +177,9 @@ export async function getAdminProducts(opts: {
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
+  const createdByUsers = alias(usersTable, 'created_by_users');
+  const updatedByUsers = alias(usersTable, 'updated_by_users');
+
   const [countResult, rows] = await Promise.all([
     db.select({ count: sql<number>`count(*)` }).from(productsTable).where(where),
     db.select({
@@ -196,11 +201,15 @@ export async function getAdminProducts(opts: {
       isBestSeller: productsTable.isBestSeller,
       isActive: productsTable.isActive,
       brandName: brandsTable.name,
+      createdByName: createdByUsers.name,
+      updatedByName: updatedByUsers.name,
     })
       .from(productsTable)
       .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
       .leftJoin(productTypesTable, eq(productsTable.productTypeId, productTypesTable.id))
       .leftJoin(collectionsTable, eq(productsTable.collectionId, collectionsTable.id))
+      .leftJoin(createdByUsers, eq(productsTable.createdBy, createdByUsers.id))
+      .leftJoin(updatedByUsers, eq(productsTable.updatedBy, updatedByUsers.id))
       .where(where)
       .orderBy(desc(productsTable.createdAt))
       .limit(limit)
@@ -599,7 +608,7 @@ interface ProductWithRelationsInput {
   secondaryCover?: { assetId?: string; alt?: string };
 }
 
-export async function createProductWithRelations(input: ProductWithRelationsInput) {
+export async function createProductWithRelations(input: ProductWithRelationsInput, userId?: string) {
   const product = await db.transaction(async (tx) => {
     const { variants = [], images = [], cover, secondaryCover, ...productData } = input;
 
@@ -612,6 +621,8 @@ export async function createProductWithRelations(input: ProductWithRelationsInpu
       crossSellId: emptyToNull(productData.crossSellId),
       discountEnd: productData.discountEnd ? new Date(productData.discountEnd) : undefined,
       wholesaleDiscountEnd: productData.wholesaleDiscountEnd ? new Date(productData.wholesaleDiscountEnd) : undefined,
+      createdBy: userId ?? null,
+      updatedBy: userId ?? null,
     }).returning();
 
     if (variants.length > 0) {
@@ -694,13 +705,14 @@ export async function createProductWithRelations(input: ProductWithRelationsInpu
 
 export async function updateProductWithRelations(
   id: string,
-  input: Partial<ProductWithRelationsInput>
+  input: Partial<ProductWithRelationsInput>,
+  userId?: string
 ) {
   const product = await db.transaction(async (tx) => {
     const { variants, images, cover, secondaryCover, ...productData } = input;
 
     // Update product base
-    if (Object.keys(productData).length > 0) {
+    if (Object.keys(productData).length > 0 || userId) {
       const updateData: Record<string, unknown> = { ...productData };
       if (productData.priceSale !== undefined) {
         updateData.priceSale = emptyToNull(productData.priceSale);
@@ -722,6 +734,9 @@ export async function updateProductWithRelations(
       }
       if (productData.wholesaleDiscountEnd !== undefined) {
         updateData.wholesaleDiscountEnd = productData.wholesaleDiscountEnd ? new Date(productData.wholesaleDiscountEnd) : null;
+      }
+      if (userId) {
+        updateData.updatedBy = userId;
       }
       await tx.update(productsTable).set(updateData).where(eq(productsTable.id, id));
     }

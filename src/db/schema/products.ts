@@ -1,6 +1,7 @@
 import { pgTable, text, integer, boolean, decimal, timestamp, jsonb, index, uniqueIndex, unique, uuid as pgUuid } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import { uuid } from "@/lib/uuid";
+import { users } from "./auth";
 
 // ─── Brands ───
 export const brands = pgTable("brands", {
@@ -215,6 +216,8 @@ export const products = pgTable("products", {
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  createdBy: pgUuid("created_by").references(() => users.id),
+  updatedBy: pgUuid("updated_by").references(() => users.id),
 }, (table) => [
   index("idx_products_brand").on(table.brandId),
   index("idx_products_gender").on(table.gender),
@@ -227,6 +230,8 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   collection: one(collections, { fields: [products.collectionId], references: [collections.id] }),
   productType: one(productTypes, { fields: [products.productTypeId], references: [productTypes.id] }),
   variants: many(productVariants),
+  createdByUser: one(users, { fields: [products.createdBy], references: [users.id] }),
+  updatedByUser: one(users, { fields: [products.updatedBy], references: [users.id] }),
 }));
 
 // ─── Product Variants ───

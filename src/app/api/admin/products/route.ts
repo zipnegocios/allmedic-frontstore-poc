@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/admin-auth';
+import { requireAdmin, getSessionUserId } from '@/lib/admin-auth';
 import { requireRole, ForbiddenError } from '@/lib/permissions';
 import { getAdminProducts, createProductWithRelations } from '@/lib/admin-data-service';
 import { z } from 'zod';
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
     await requireRole(session, 'productos', 'write');
     const body = await request.json();
     const validated = CreateProductSchema.parse(body);
-    const product = await createProductWithRelations(validated);
+    const product = await createProductWithRelations(validated, getSessionUserId(session));
     return NextResponse.json(product, { status: 201 });
   } catch (err) {
     if (err instanceof ForbiddenError) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
