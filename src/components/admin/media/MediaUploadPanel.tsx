@@ -26,13 +26,72 @@ interface MediaUploadPanelProps {
   onFolderChange?: (folder: string) => void;
 }
 
+/** Lee el contenido de una carpeta soltada (`FileSystemDirectoryEntry`) — usa la Entries API
+ * (`webkitGetAsEntry`, soportada por todos los navegadores modernos pese al prefijo). Solo
+ * admite carpetas planas: si encuentra una subcarpeta adentro, lanza para que el llamador
+ * rechace el drop completo en vez de subir una selección parcial/ambigua. */
+function readFlatDirectory(dirEntry: FileSystemDirectoryEntry): Promise<File[]> {
+  return new Promise((resolve, reject) => {
+    const reader = dirEntry.createReader();
+    const entries: FileSystemEntry[] = [];
+    function readBatch() {
+      reader.readEntries((batch) => {
+        if (batch.length === 0) {
+          const subfolder = entries.find((e) => e.isDirectory);
+          if (subfolder) {
+            reject(new Error(`La carpeta "${dirEntry.name}" contiene una subcarpeta ("${subfolder.name}") — debe tener solo archivos sueltos, sin carpetas adentro.`));
+            return;
+          }
+          Promise.all(
+            entries.map(
+              (entry) =>
+                new Promise<File>((res, rej) => (entry as FileSystemFileEntry).file(res, rej))
+            )
+          ).then(resolve, reject);
+          return;
+        }
+        entries.push(...batch);
+        readBatch();
+      }, reject);
+    }
+    readBatch();
+  });
+}
+
+/** Extrae los archivos de un `DataTransfer` de drop — soporta tanto archivos sueltos como UNA
+ * carpeta plana arrastrada directamente (lee su contenido vía `readFlatDirectory`). Si hay más
+ * de un ítem y alguno es carpeta, o si la carpeta tiene subcarpetas, rechaza con un mensaje
+ * claro en vez de intentar adivinar qué se quiso subir. */
+async function extractDroppedFiles(dataTransfer: DataTransfer): Promise<File[]> {
+  const items = Array.from(dataTransfer.items).filter((item) => item.kind === 'file');
+  const entries = items.map((item) => item.webkitGetAsEntry?.() ?? null);
+
+  // Sin soporte de Entries API (navegador viejo) — cae al comportamiento previo (solo archivos).
+  if (entries.some((e) => e === null)) {
+    return Array.from(dataTransfer.files);
+  }
+
+  const directories = entries.filter((e): e is FileSystemDirectoryEntry => e!.isDirectory);
+  if (directories.length > 1) {
+    throw new Error('Solo se puede arrastrar una carpeta a la vez.');
+  }
+  if (directories.length === 1 && entries.length > 1) {
+    throw new Error('No mezcles una carpeta con archivos sueltos en el mismo arrastre.');
+  }
+  if (directories.length === 1) {
+    return readFlatDirectory(directories[0]);
+  }
+
+  return Array.from(dataTransfer.files);
+}
+
 export function MediaUploadPanel({ folder, segments = [], onUploaded, showFolderPicker, onFolderChange }: MediaUploadPanelProps) {
   const { uploads, uploadFiles } = useMediaUpload();
   const [dragActive, setDragActive] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function handleFiles(fileList: FileList | null) {
+  async function handleFiles(fileList: FileList | File[] | null) {
     if (!fileList || fileList.length === 0) return;
     const allFiles = Array.from(fileList);
 
@@ -90,10 +149,15 @@ export function MediaUploadPanel({ folder, segments = [], onUploaded, showFolder
       <div
         onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
         onDragLeave={() => setDragActive(false)}
-        onDrop={(e) => {
+        onDrop={async (e) => {
           e.preventDefault();
           setDragActive(false);
-          handleFiles(e.dataTransfer.files);
+          try {
+            const files = await extractDroppedFiles(e.dataTransfer);
+            handleFiles(files);
+          } catch (err) {
+            toast.error(err instanceof Error ? err.message : 'Error al leer la carpeta arrastrada');
+          }
         }}
         onClick={() => inputRef.current?.click()}
         className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors ${
@@ -101,8 +165,8 @@ export function MediaUploadPanel({ folder, segments = [], onUploaded, showFolder
         }`}
       >
         <UploadCloud className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-        <p className="text-sm text-gray-500">Arrastra imágenes o videos aquí o haz clic para seleccionar</p>
-        <p className="text-xs text-gray-400 mt-1">JPEG, PNG, WebP, AVIF (máx. 100MB) o video MP4/WebM (máx. 100MB)</p>
+        <p className="text-sm text-gray-500">Arrastra imágenes, videos o una carpeta aquí, o haz clic para seleccionar</p>
+        <p className="text-xs text-gray-400 mt-1">JPEG, PNG, WebP, AVIF (máx. 100MB) o video MP4/WebM (máx. 100MB) — la carpeta debe contener solo archivos, sin subcarpetas</p>
         <input
           ref={inputRef}
           type="file"
