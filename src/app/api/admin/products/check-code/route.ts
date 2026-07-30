@@ -16,8 +16,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'code es requerido' }, { status: 400 });
     }
 
-    const available = await isProductCodeAvailable(code, excludeProductId);
-    return NextResponse.json({ available });
+    const result = await isProductCodeAvailable(code, excludeProductId);
+    return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     if (message === 'Unauthorized') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

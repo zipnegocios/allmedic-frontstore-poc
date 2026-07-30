@@ -517,12 +517,34 @@ export async function getTrashedProducts() {
     .orderBy(desc(productsTable.deletedAt));
 }
 
+export interface ProductCodeConflictSummary {
+  id: string;
+  name: string;
+  brandName: string | null;
+  collectionName: string | null;
+  colorCount: number;
+  variantCount: number;
+  /** Solo medios de GALERÍA por color — mismo criterio que el badge "N colores · N var ·
+   * N med" de la pestaña "Variantes y Medios" (no incluye portada/portada secundaria). */
+  mediaCount: number;
+}
+
 /**
  * Verifica disponibilidad global de `products.code` (Fase 3.4 — check en vivo del
  * campo Código de Estilo en `ProductForm`). `excludeProductId` permite guardar sin
  * conflicto al editar el propio producto (su propio código no cuenta como colisión).
+ *
+ * Si el código está en uso, además de `available: false` devuelve un resumen liviano
+ * del producto dueño (nombre, marca, colección, colores/variantes/medios) — para que
+ * el admin pueda identificar y saltar a editarlo sin tener que buscarlo manualmente
+ * (ver `/api/admin/products/check-code`). Deliberadamente NO reutiliza
+ * `getAdminProductById` (esa función trae variantes+medios completos con URLs
+ * resueltas — demasiado costoso para un endpoint debounced por cada tecla).
  */
-export async function isProductCodeAvailable(code: string, excludeProductId?: string): Promise<boolean> {
+export async function isProductCodeAvailable(
+  code: string,
+  excludeProductId?: string
+): Promise<{ available: boolean; conflict?: ProductCodeConflictSummary }> {
   // `trim()` en ambos lados de la comparación — defensa contra filas ya persistidas con un
   // espacio colado en `code` (ej. "C652 "), que con `eq()` exacto nunca colisionaban contra
   // un código nuevo escrito sin ese espacio. El schema de creación/edición ya normaliza con
@@ -531,11 +553,48 @@ export async function isProductCodeAvailable(code: string, excludeProductId?: st
   const conditions: SQL<unknown>[] = [eq(sql`trim(${productsTable.code})`, code.trim())];
   if (excludeProductId) conditions.push(ne(productsTable.id, excludeProductId));
   const [existing] = await db
-    .select({ id: productsTable.id })
+    .select({
+      id: productsTable.id,
+      name: productsTable.name,
+      brandName: brandsTable.name,
+      collectionName: collectionsTable.name,
+    })
     .from(productsTable)
+    .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
+    .leftJoin(collectionsTable, eq(productsTable.collectionId, collectionsTable.id))
     .where(and(...conditions))
     .limit(1);
-  return !existing;
+
+  if (!existing) return { available: true };
+
+  const [colorCountRow, variantCountRow, mediaCountRow] = await Promise.all([
+    db.select({ count: sql<number>`count(distinct ${variantsTable.colorId})::int` })
+      .from(variantsTable)
+      .where(eq(variantsTable.productId, existing.id)),
+    db.select({ count: sql<number>`count(*)::int` })
+      .from(variantsTable)
+      .where(eq(variantsTable.productId, existing.id)),
+    db.select({ count: sql<number>`count(*)::int` })
+      .from(mediaLinksTable)
+      .where(and(
+        eq(mediaLinksTable.entityType, 'PRODUCT'),
+        eq(mediaLinksTable.entityId, existing.id),
+        eq(mediaLinksTable.role, 'GALLERY')
+      )),
+  ]);
+
+  return {
+    available: false,
+    conflict: {
+      id: existing.id,
+      name: existing.name,
+      brandName: existing.brandName,
+      collectionName: existing.collectionName,
+      colorCount: colorCountRow[0]?.count ?? 0,
+      variantCount: variantCountRow[0]?.count ?? 0,
+      mediaCount: mediaCountRow[0]?.count ?? 0,
+    },
+  };
 }
 
 // ── Product with Relations (Transactional) ──

@@ -88,8 +88,11 @@ export const ProductFormSchema = z.object({
   collectionId: z.string().optional(),
   // Código de estilo del fabricante (Fase 3.4) — núcleo obligatorio de la taxonomía
   // EAV (`products.code`, NOT NULL UNIQUE desde Fase 1). Verificado en vivo contra
-  // `/api/admin/products/check-code` (ver `ProductForm.tsx`).
-  code: z.string().min(1, 'Código de estilo requerido'),
+  // `/api/admin/products/check-code` (ver `ProductForm.tsx`). El input ya fuerza este
+  // formato en vivo (mayúsculas, sin espacios/especiales, ver `sanitizeStyleCode` en
+  // `ProductForm.tsx`) — el regex es la segunda capa de defensa (paste, autocompletado).
+  code: z.string().trim().min(1, 'Código de estilo requerido')
+    .regex(/^[A-Z0-9_-]+$/, 'Solo mayúsculas, números, guion (-) y guion bajo (_), sin espacios'),
   // FK a `productTypes` (Fase 3.2/3.4) — reemplaza al selector de `category`
   // hardcoded como fuente de verdad en el form. Requerido a nivel de form (aunque
   // `products.productTypeId` sea nullable en DB, ver comentario en el esquema):

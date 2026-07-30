@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/accordion';
 import { toast } from 'sonner';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, Save, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Loader2, AlertCircle, IdCard, DollarSign, FileText, Images } from 'lucide-react';
+import { ArrowLeft, Save, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Loader2, AlertCircle, IdCard, DollarSign, FileText, Images, ExternalLink } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { WizardStepId } from '@/components/admin/product-form/wizard-steps';
 
@@ -69,6 +69,14 @@ import { slugify } from '@/lib/slugify';
 
 const PRODUCT_ANCHOR_TYPES = ['CREATE_PRODUCT', 'EDIT_PRODUCT', 'SET_PRODUCT_SLOT'];
 
+/** Formato forzado del Código de Estilo mientras se escribe: mayúsculas, sin espacios,
+ * solo [A-Z0-9_-]. Deliberadamente NO colapsa "-"/"_" entre sí (a diferencia de
+ * `sanitizeCodeSegment` en `src/lib/media.ts`, que sí normaliza "_" a "-" para nombres
+ * de carpeta en R2) — el código visible puede tener "_" tal cual, la carpeta física
+ * seguirá normalizándolo por separado; es una divergencia cosmética aceptada. */
+function sanitizeStyleCode(raw: string): string {
+  return raw.toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+}
 
 // ─── Component ───
 
@@ -142,6 +150,19 @@ export default function ProductForm({
   const [showValidationBanner, setShowValidationBanner] = useState(false);
   // ─── Código de estilo: verificación de unicidad en vivo (Fase 3.4, ver brief C.1) ───
   const [codeStatus, setCodeStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  // Resumen del producto dueño del código, poblado solo cuando codeStatus === 'taken' — permite
+  // saltar directo a editarlo en vez de tener que buscarlo manualmente en el listado. Shape
+  // espejado de `ProductCodeConflictSummary` en `admin-data-service.ts` (server-only, no se
+  // puede importar directo desde un componente cliente).
+  const [codeConflict, setCodeConflict] = useState<{
+    id: string;
+    name: string;
+    brandName: string | null;
+    collectionName: string | null;
+    colorCount: number;
+    variantCount: number;
+    mediaCount: number;
+  } | null>(null);
   // Protección contra respuestas fuera de orden del debounce de check-code: cada
   // request lleva un id incremental y un AbortController; solo se aplica el
   // resultado si sigue siendo la request más reciente en vuelo.
@@ -404,6 +425,7 @@ export default function ProductForm({
     const trimmed = codeValue?.trim();
     if (!trimmed) {
       setCodeStatus('idle');
+      setCodeConflict(null);
       return;
     }
     setCodeStatus('checking');
@@ -422,15 +444,18 @@ export default function ProductForm({
         if (requestId !== codeCheckRequestIdRef.current) return; // respuesta obsoleta, ignorar
         if (!res.ok) {
           setCodeStatus('idle');
+          setCodeConflict(null);
           return;
         }
         const json = await res.json();
         if (requestId !== codeCheckRequestIdRef.current) return;
         setCodeStatus(json.available ? 'available' : 'taken');
+        setCodeConflict(json.available ? null : json.conflict ?? null);
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') return;
         if (requestId !== codeCheckRequestIdRef.current) return;
         setCodeStatus('idle');
+        setCodeConflict(null);
       }
     }, 450);
     return () => clearTimeout(handle);
@@ -760,9 +785,30 @@ export default function ProductForm({
     }
     if (codeStatus === 'taken') {
       return (
-        <p className="text-xs text-red-500 flex items-center gap-1.5">
-          <XCircle className="w-3.5 h-3.5" /> Este código ya está en uso por otro producto
-        </p>
+        <div className="space-y-1.5">
+          <p className="text-xs text-red-500 flex items-center gap-1.5">
+            <XCircle className="w-3.5 h-3.5" /> Este código ya está en uso por otro producto
+          </p>
+          {codeConflict && (
+            <div className="text-xs bg-red-50 border border-red-200 rounded-lg p-2.5 space-y-1">
+              <p className="font-semibold text-[#111111] truncate">{codeConflict.name}</p>
+              <p className="text-gray-500">
+                {[codeConflict.brandName, codeConflict.collectionName].filter(Boolean).join(' · ') || 'Sin marca/colección'}
+              </p>
+              <p className="text-gray-500">
+                {codeConflict.colorCount} {codeConflict.colorCount === 1 ? 'color' : 'colores'} · {codeConflict.variantCount} var · {codeConflict.mediaCount} med
+              </p>
+              <Link
+                href={`/admin/productos/${codeConflict.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-red-600 font-medium hover:underline pt-0.5"
+              >
+                Editar este producto <ExternalLink className="w-3 h-3" />
+              </Link>
+            </div>
+          )}
+        </div>
       );
     }
     return null;
@@ -1032,8 +1078,9 @@ export default function ProductForm({
               <Input
                 id="m-code"
                 {...register('code')}
+                onChange={(e) => setValue('code', sanitizeStyleCode(e.target.value), { shouldValidate: true, shouldDirty: true })}
                 placeholder="Ej: 2624A"
-                className="border-red-200 focus-visible:ring-red-300 bg-red-50/40"
+                className="border-red-200 focus-visible:ring-red-300 bg-red-50/40 uppercase"
               />
               {errors.code && <p className="text-sm text-red-500">{errors.code.message}</p>}
               {codeStatusIndicator}
@@ -1288,8 +1335,9 @@ export default function ProductForm({
                   <Input
                     id="code"
                     {...register('code')}
+                    onChange={(e) => setValue('code', sanitizeStyleCode(e.target.value), { shouldValidate: true, shouldDirty: true })}
                     placeholder="Ej: 2624A"
-                    className="border-red-200 focus-visible:ring-red-300 bg-red-50/40"
+                    className="border-red-200 focus-visible:ring-red-300 bg-red-50/40 uppercase"
                   />
                   {errors.code && <p className="text-sm text-red-500">{errors.code.message}</p>}
                   {codeStatusIndicator}

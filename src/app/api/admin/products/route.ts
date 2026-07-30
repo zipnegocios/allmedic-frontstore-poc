@@ -36,7 +36,9 @@ const CreateProductSchema = z.object({
   // `.trim()` evita que un espacio colado (ej. al pegar el texto) persista como parte
   // del código — `eq()` en Postgres es comparación exacta, así que "C652 " ≠ "C652"
   // y el chequeo de unicidad (`isProductCodeAvailable`) no detectaba la colisión.
-  code: z.string().trim().min(1),
+  // Charset restringido (mayúsculas/números/-/_) — mismo regex que `ProductFormSchema`,
+  // defensa final por si algo llega sin pasar por el input sanitizado del formulario.
+  code: z.string().trim().min(1).regex(/^[A-Z0-9_-]+$/, 'Código de estilo con formato inválido'),
   brandId: z.string().min(1),
   collectionId: z.string().optional(),
   productTypeId: z.string().optional(),
