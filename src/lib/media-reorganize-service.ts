@@ -141,13 +141,13 @@ export async function reorganizeProductMedia(productId: string, userId?: string)
 }
 
 /**
- * Reorganiza físicamente en R2 las portadas (primaria y secundaria) de un set
- * hacia `sets/{slug}/portada/` — misma lógica que `reorganizeProductMedia`
- * (idempotente, nunca mueve assets reutilizados por otra entidad). Cubre
- * ambos roles (`COVER`/`COVER_SECONDARY`); las portadas elegidas en modo
- * "Portadas del contenido" (galería de un producto del set) ya están
- * vinculadas a ese producto, así que el chequeo de "reusado en otra entidad"
- * las deja intactas — solo se mueven las subidas exclusivas del set.
+ * Reorganiza físicamente en R2 las portadas (primaria y secundaria) de un set hacia
+ * `sets/{slug}/portada/` (sin color) o `sets/{slug}/portada/{CODIGO-COLOR}/` (con color) —
+ * misma lógica que `reorganizeProductMedia` (idempotente, nunca mueve assets reutilizados por
+ * otra entidad). Cubre ambos roles (`COVER`/`COVER_SECONDARY`); las portadas elegidas en modo
+ * "Portadas del contenido" (galería de un producto del set) ya están vinculadas a ese producto,
+ * así que el chequeo de "reusado en otra entidad" las deja intactas — solo se mueven las
+ * subidas exclusivas del set.
  */
 export async function reorganizeSetMedia(setId: string, userId?: string): Promise<ReorganizeResult> {
   const [set] = await db.select({ slug: corporateSetsTable.slug }).from(corporateSetsTable).where(eq(corporateSetsTable.id, setId));
@@ -156,6 +156,7 @@ export async function reorganizeSetMedia(setId: string, userId?: string): Promis
   const links = await db
     .select({
       assetId: mediaLinksTable.assetId,
+      colorId: mediaLinksTable.colorId,
       storageKey: mediaAssetsTable.storageKey,
     })
     .from(mediaLinksTable)
@@ -167,6 +168,13 @@ export async function reorganizeSetMedia(setId: string, userId?: string): Promis
     ));
 
   if (links.length === 0) return { moved: [], skippedReused: 0, failed: [] };
+
+  const colorIds = [...new Set(links.map((l) => l.colorId).filter((id): id is string => Boolean(id)))];
+  const colorCodeById = new Map<string, string>();
+  if (colorIds.length > 0) {
+    const colorRows = await db.select({ id: colorsTable.id, code: colorsTable.code }).from(colorsTable).where(inArray(colorsTable.id, colorIds));
+    for (const c of colorRows) colorCodeById.set(c.id, c.code);
+  }
 
   const assetIds = links.map((l) => l.assetId);
   const externalLinkRows = await db
@@ -187,7 +195,8 @@ export async function reorganizeSetMedia(setId: string, userId?: string): Promis
 
     try {
       const fileName = fileNameFromStorageKey(link.storageKey);
-      let targetKey = buildSetMediaKey(set.slug, fileName);
+      const colorCode = link.colorId ? colorCodeById.get(link.colorId) : undefined;
+      let targetKey = buildSetMediaKey(set.slug, fileName, colorCode);
       if (targetKey === link.storageKey) continue;
 
       targetKey = await ensureUniqueKey(targetKey, link.assetId);

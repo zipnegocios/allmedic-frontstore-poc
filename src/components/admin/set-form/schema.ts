@@ -27,22 +27,30 @@ export const SetRecommendedItemSchema = z.object({
   productId: z.string().min(1, 'Producto requerido'),
 });
 
+// ─── Portadas por color (Set × Color) — cada color de la intersección entre bloques puede
+// tener su propia portada primaria (obligatoria) + secundaria (opcional). El primer elemento
+// del array es el "color por defecto" del set (sin flag aparte) — ver SetColorsSection.tsx. ───
+export const SetColorSchema = z.object({
+  colorId: z.string().min(1, 'Color requerido'),
+  sortOrder: z.number().default(0),
+  coverAssetId: z.string().min(1, 'La portada primaria es obligatoria'),
+  coverAlt: z.string().optional(),
+  imageUrl: z.string().optional(), // solo para previsualización, no se persiste
+  secondaryCoverAssetId: z.string().optional(),
+  secondaryCoverAlt: z.string().optional(),
+  secondaryImageUrl: z.string().optional(), // solo para previsualización, no se persiste
+});
+
 export const SetFormSchema = z.object({
   name: z.string().min(1, 'Nombre requerido'),
   slug: z.string().min(1, 'Slug requerido'),
   description: z.string().optional(),
-  // Portadas primaria + secundaria — paridad exacta con productos: ambas
-  // obligatorias para guardar/publicar, sin importar el modo usado para
-  // elegirlas (subida especial o galería de las piezas del set).
-  coverAssetId: z.string().min(1, 'La portada primaria es obligatoria'),
-  coverAlt: z.string().optional(),
-  imageUrl: z.string().optional(), // solo para previsualización, no se persiste
-  secondaryCoverAssetId: z.string().min(1, 'La portada secundaria es obligatoria'),
-  secondaryCoverAlt: z.string().optional(),
-  secondaryImageUrl: z.string().optional(), // solo para previsualización, no se persiste
   // Modo de color del set — obligatorio y mutuamente excluyente. Sin elegirlo no se puede avanzar
   // del paso "Modo de color" (mobile) ni ver el paso "Bloques" (desktop). Ver ColorModeGate.
   colorMode: z.enum(['PAIRED', 'MIXED'], { message: 'Elige un modo de color para el set' }),
+  // Portadas por color — al menos 1 color con portada primaria es obligatorio para guardar
+  // (mismo criterio de bloqueo que antes con la portada única del set).
+  setColors: z.array(SetColorSchema).min(1, 'Agrega al menos un color con portada'),
   isActive: z.boolean().default(true),
   isFeatured: z.boolean().default(false),
   priceManual: z.string().optional(),
@@ -57,6 +65,7 @@ export const SetFormSchema = z.object({
 
 export type SetFormData = z.infer<typeof SetFormSchema>;
 export type SetBlockFormData = z.infer<typeof SetBlockSchema>;
+export type SetColorFormData = z.infer<typeof SetColorSchema>;
 
 // ─── Types ───
 

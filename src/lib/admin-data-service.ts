@@ -11,6 +11,7 @@ import {
   setBlocks as setBlocksTable,
   setBlockOptions as setBlockOptionsTable,
   setRecommendedItems as setRecommendedItemsTable,
+  setColors as setColorsTable,
   setColorCombos as setColorCombosTable,
   setColorComboItems as setColorComboItemsTable,
   corporateAccounts as corporateAccountsTable,
@@ -51,15 +52,18 @@ async function replaceSingleLink(
   entityId: string,
   role: string,
   assetId: string | null | undefined,
-  alt?: string | null
+  alt?: string | null,
+  colorId?: string | null
 ) {
+  const colorFilter = colorId ? eq(mediaLinksTable.colorId, colorId) : isNull(mediaLinksTable.colorId);
   await db.delete(mediaLinksTable).where(and(
     eq(mediaLinksTable.entityType, entityType),
     eq(mediaLinksTable.entityId, entityId),
-    eq(mediaLinksTable.role, role)
+    eq(mediaLinksTable.role, role),
+    colorFilter
   ));
   if (assetId) {
-    await db.insert(mediaLinksTable).values({ assetId, entityType, entityId, role, altOverride: alt || null });
+    await db.insert(mediaLinksTable).values({ assetId, entityType, entityId, role, altOverride: alt || null, colorId: colorId || null });
   }
 }
 
@@ -1557,14 +1561,13 @@ export async function getAdminSetById(id: string) {
   const [set] = await db.select().from(corporateSetsTable).where(eq(corporateSetsTable.id, id)).limit(1);
   if (!set) return null;
 
-  function coverQuery(role: 'COVER' | 'COVER_SECONDARY') {
+  function coverLinksQuery() {
     return db
       .select({
-        id: mediaLinksTable.id,
+        colorId: mediaLinksTable.colorId,
+        role: mediaLinksTable.role,
         assetId: mediaLinksTable.assetId,
         url: sql<string>`concat(${sql.raw("'" + process.env.R2_PUBLIC_URL + "/'")}, ${mediaAssetsTable.storageKey})`,
-        storageKey: mediaAssetsTable.storageKey,
-        mimeType: mediaAssetsTable.mimeType,
         alt: mediaLinksTable.altOverride,
       })
       .from(mediaLinksTable)
@@ -1572,12 +1575,11 @@ export async function getAdminSetById(id: string) {
       .where(and(
         eq(mediaLinksTable.entityType, 'SET'),
         eq(mediaLinksTable.entityId, id),
-        eq(mediaLinksTable.role, role)
-      ))
-      .limit(1);
+        or(eq(mediaLinksTable.role, 'COVER'), eq(mediaLinksTable.role, 'COVER_SECONDARY'))
+      ));
   }
 
-  const [blockRows, recommendedRows, coverResult, secondaryCoverResult] = await Promise.all([
+  const [blockRows, recommendedRows, setColorRows, coverLinks] = await Promise.all([
     db
       .select({
         id: setBlocksTable.id,
@@ -1612,14 +1614,40 @@ export async function getAdminSetById(id: string) {
       .leftJoin(productsTable, eq(setRecommendedItemsTable.productId, productsTable.id))
       .where(eq(setRecommendedItemsTable.setId, id))
       .orderBy(asc(setRecommendedItemsTable.sortOrder)),
-    coverQuery('COVER'),
-    coverQuery('COVER_SECONDARY'),
+    db
+      .select({
+        colorId: setColorsTable.colorId,
+        sortOrder: setColorsTable.sortOrder,
+        colorName: colorsTable.name,
+        colorCode: colorsTable.code,
+        colorHex: colorsTable.hex,
+      })
+      .from(setColorsTable)
+      .innerJoin(colorsTable, eq(colorsTable.id, setColorsTable.colorId))
+      .where(eq(setColorsTable.setId, id))
+      .orderBy(asc(setColorsTable.sortOrder)),
+    coverLinksQuery(),
   ]);
 
-  const cover = coverResult[0] || null;
-  const secondaryCover = secondaryCoverResult[0] || null;
-  const imageUrl = cover?.url ?? null;
-  const secondaryImageUrl = secondaryCover?.url ?? null;
+  // Arma, por color, su portada primaria + secundaria (si existen) a partir de las filas planas
+  // de `media_links` — cada color tiene a lo sumo 1 fila COVER y 1 COVER_SECONDARY.
+  const setColors = setColorRows.map((c) => {
+    const cover = coverLinks.find((l) => l.colorId === c.colorId && l.role === 'COVER') ?? null;
+    const secondaryCover = coverLinks.find((l) => l.colorId === c.colorId && l.role === 'COVER_SECONDARY') ?? null;
+    return {
+      colorId: c.colorId,
+      sortOrder: c.sortOrder,
+      colorName: c.colorName,
+      colorCode: c.colorCode,
+      colorHex: c.colorHex,
+      coverAssetId: cover?.assetId ?? null,
+      imageUrl: cover?.url ?? null,
+      coverAlt: cover?.alt ?? null,
+      secondaryCoverAssetId: secondaryCover?.assetId ?? null,
+      secondaryImageUrl: secondaryCover?.url ?? null,
+      secondaryCoverAlt: secondaryCover?.alt ?? null,
+    };
+  });
 
   const blocksMap = new Map<string, { id: string; blockCode: string; quantityPerSet: number; options: typeof blockRows }>();
   for (const row of blockRows) {
@@ -1630,7 +1658,7 @@ export async function getAdminSetById(id: string) {
   }
   const blocks = Array.from(blocksMap.values()).sort((a, b) => a.blockCode.localeCompare(b.blockCode));
 
-  return { ...set, cover, secondaryCover, imageUrl, secondaryImageUrl, blocks, recommendedItems: recommendedRows };
+  return { ...set, setColors, blocks, recommendedItems: recommendedRows };
 }
 
 
@@ -1650,14 +1678,19 @@ interface SetRecommendedItemInput {
   sortOrder: number;
 }
 
+interface SetColorInput {
+  colorId: string;
+  sortOrder: number;
+  coverAssetId: string;
+  coverAlt?: string;
+  secondaryCoverAssetId?: string;
+  secondaryCoverAlt?: string;
+}
+
 interface CorporateSetInput {
   name: string;
   slug: string;
   description?: string;
-  coverAssetId?: string;
-  coverAlt?: string;
-  secondaryCoverAssetId?: string;
-  secondaryCoverAlt?: string;
   /** Modo de color del set — obligatorio, dispara la creación/desactivación automática de la
    * regla COLOR_PAIRING (ver `syncColorPairingRule`). Sin default: debe elegirse explícitamente. */
   colorMode: 'PAIRED' | 'MIXED';
@@ -1672,6 +1705,10 @@ interface CorporateSetInput {
   /** Exactamente 2 bloques (A y B) — validado en la API/zod, no en constraint de DB. */
   blocks?: [SetBlockInput, SetBlockInput];
   recommendedItems?: SetRecommendedItemInput[];
+  /** Portadas por color — reemplazo atómico completo (delete-all + insert-all), mismo patrón que
+   * `blocks`/`recommendedItems`. Al menos 1 color con `coverAssetId` es obligatorio (validado en
+   * zod y reforzado aquí server-side). */
+  setColors?: SetColorInput[];
 }
 
 /**
@@ -1721,7 +1758,7 @@ async function insertBlocksWithOptions(
 }
 
 export async function createSetWithItems(input: CorporateSetInput) {
-  const { blocks, recommendedItems = [], coverAssetId, coverAlt, secondaryCoverAssetId, secondaryCoverAlt, manualDiscountEnd, ...setData } = input;
+  const { blocks, recommendedItems = [], setColors: setColorsInput = [], manualDiscountEnd, ...setData } = input;
   const derivedBrandId = await deriveSetBrandId(collectProductIds(blocks, recommendedItems));
 
   const set = await db.transaction(async (tx) => {
@@ -1745,13 +1782,27 @@ export async function createSetWithItems(input: CorporateSetInput) {
       );
     }
 
+    if (setColorsInput.length > 0) {
+      await tx.insert(setColorsTable).values(
+        setColorsInput.map((c, idx) => ({
+          setId: set.id,
+          colorId: c.colorId,
+          sortOrder: c.sortOrder ?? idx,
+        }))
+      );
+    }
+
     await syncColorPairingRule(set.id, setData.colorMode, tx);
 
     return set;
   });
 
-  if (coverAssetId) await replaceSingleLink('SET', set.id, 'COVER', coverAssetId, coverAlt);
-  if (secondaryCoverAssetId) await replaceSingleLink('SET', set.id, 'COVER_SECONDARY', secondaryCoverAssetId, secondaryCoverAlt);
+  for (const c of setColorsInput) {
+    await replaceSingleLink('SET', set.id, 'COVER', c.coverAssetId, c.coverAlt, c.colorId);
+    if (c.secondaryCoverAssetId) {
+      await replaceSingleLink('SET', set.id, 'COVER_SECONDARY', c.secondaryCoverAssetId, c.secondaryCoverAlt, c.colorId);
+    }
+  }
   try {
     const result = await reorganizeSetMedia(set.id);
     if (result.failed.length > 0) {
@@ -1764,7 +1815,7 @@ export async function createSetWithItems(input: CorporateSetInput) {
 }
 
 export async function updateSetWithItems(id: string, input: Partial<CorporateSetInput>) {
-  const { blocks, recommendedItems, coverAssetId, coverAlt, secondaryCoverAssetId, secondaryCoverAlt, manualDiscountEnd, ...setData } = input;
+  const { blocks, recommendedItems, setColors: setColorsInput, manualDiscountEnd, ...setData } = input;
   const derivedBrandId = (blocks !== undefined || recommendedItems !== undefined)
     ? await deriveSetBrandId(collectProductIds(blocks, recommendedItems))
     : undefined;
@@ -1801,6 +1852,19 @@ export async function updateSetWithItems(id: string, input: Partial<CorporateSet
       }
     }
 
+    if (setColorsInput !== undefined) {
+      await tx.delete(setColorsTable).where(eq(setColorsTable.setId, id));
+      if (setColorsInput.length > 0) {
+        await tx.insert(setColorsTable).values(
+          setColorsInput.map((c, idx) => ({
+            setId: id,
+            colorId: c.colorId,
+            sortOrder: c.sortOrder ?? idx,
+          }))
+        );
+      }
+    }
+
     if (setData.colorMode !== undefined) {
       await syncColorPairingRule(id, setData.colorMode, tx);
     }
@@ -1809,8 +1873,27 @@ export async function updateSetWithItems(id: string, input: Partial<CorporateSet
     return set;
   });
 
-  if (coverAssetId !== undefined) await replaceSingleLink('SET', id, 'COVER', coverAssetId, coverAlt);
-  if (secondaryCoverAssetId !== undefined) await replaceSingleLink('SET', id, 'COVER_SECONDARY', secondaryCoverAssetId, secondaryCoverAlt);
+  if (setColorsInput !== undefined) {
+    // Colores que ya no están en el nuevo array: sus media_links de portada quedan huérfanos
+    // (colorId ya no referenciado por ninguna fila de set_colors) — se limpian para no dejar
+    // basura ni que reorganizeSetMedia intente moverlos.
+    const keptColorIds = setColorsInput.map((c) => c.colorId);
+    await db.delete(mediaLinksTable).where(and(
+      eq(mediaLinksTable.entityType, 'SET'),
+      eq(mediaLinksTable.entityId, id),
+      or(eq(mediaLinksTable.role, 'COVER'), eq(mediaLinksTable.role, 'COVER_SECONDARY')),
+      isNotNull(mediaLinksTable.colorId),
+      keptColorIds.length > 0 ? notInArray(mediaLinksTable.colorId, keptColorIds) : sql`true`
+    ));
+    for (const c of setColorsInput) {
+      await replaceSingleLink('SET', id, 'COVER', c.coverAssetId, c.coverAlt, c.colorId);
+      if (c.secondaryCoverAssetId) {
+        await replaceSingleLink('SET', id, 'COVER_SECONDARY', c.secondaryCoverAssetId, c.secondaryCoverAlt, c.colorId);
+      } else {
+        await replaceSingleLink('SET', id, 'COVER_SECONDARY', undefined, undefined, c.colorId);
+      }
+    }
+  }
   try {
     const result = await reorganizeSetMedia(id);
     if (result.failed.length > 0) {

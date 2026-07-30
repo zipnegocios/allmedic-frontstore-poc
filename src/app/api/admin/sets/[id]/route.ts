@@ -22,14 +22,21 @@ const SetRecommendedItemSchema = z.object({
   sortOrder: z.number().default(0),
 });
 
+// Portadas por color (Set × Color) — cuando el array viene en el body (se está reemplazando),
+// debe tener al menos 1 color con portada primaria; mismo bloqueo que en creación.
+const SetColorSchema = z.object({
+  colorId: z.string().min(1),
+  sortOrder: z.number().default(0),
+  coverAssetId: z.string().min(1, 'La portada primaria es obligatoria'),
+  coverAlt: z.string().optional(),
+  secondaryCoverAssetId: z.string().optional(),
+  secondaryCoverAlt: z.string().optional(),
+});
+
 const UpdateSetSchema = z.object({
   name: z.string().min(1).optional(),
   slug: z.string().min(1).optional(),
   description: z.string().optional(),
-  coverAssetId: z.string().optional(),
-  coverAlt: z.string().optional(),
-  secondaryCoverAssetId: z.string().optional(),
-  secondaryCoverAlt: z.string().optional(),
   colorMode: z.enum(['PAIRED', 'MIXED']).optional(),
   isActive: z.boolean().optional(),
   isFeatured: z.boolean().optional(),
@@ -39,6 +46,7 @@ const UpdateSetSchema = z.object({
   manualDiscountEnd: z.string().optional().nullable(),
   blocks: z.tuple([SetBlockSchema, SetBlockSchema]).optional(),
   recommendedItems: z.array(SetRecommendedItemSchema).optional(),
+  setColors: z.array(SetColorSchema).min(1, 'Agrega al menos un color con portada').optional(),
 }).refine(
   (data) => !data.priceManualSale || !data.priceManual || Number(data.priceManualSale) < Number(data.priceManual),
   { message: 'El precio manual rebajado debe ser menor al precio manual', path: ['priceManualSale'] }

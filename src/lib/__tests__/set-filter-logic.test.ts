@@ -17,6 +17,7 @@ function makeSet(overrides: Partial<CorporateSetSummary> = {}): CorporateSetSumm
     description: null,
     cover: null,
     secondaryCover: null,
+    coversByColor: [],
     brandName: 'AllMedic',
     brandId: 'b1',
     productIds: ['p1', 'p2'],
@@ -44,19 +45,24 @@ describe('matchesSetFilters', () => {
   it('matches a set when Navy comes from one piece and M comes from a different piece (aggregated, cross-piece AND)', () => {
     // colors=[Navy] aggregated from the shirt, sizes=[M] aggregated from the pants — same set object.
     const set = makeSet({ colors: [{ id: 'c-navy', name: 'Navy', code: 'NVY', hex: '#1B2A4A', kind: 'SOLID', swatchUrl: null }], sizes: ['M'] });
-    const result = matchesSetFilters(set, filters({ colors: ['c-navy'], sizes: ['M'] }));
+    const result = matchesSetFilters(set, filters({ colorId: 'c-navy', sizes: ['M'] }));
     expect(result).toBe(true);
   });
 
   it('excludes a set with no piece in Navy when filtering by Navy', () => {
     const set = makeSet({ colors: [{ id: 'c-black', name: 'Black', code: 'BLK', hex: '#000000', kind: 'SOLID', swatchUrl: null }] });
-    const result = matchesSetFilters(set, filters({ colors: ['c-navy'] }));
+    const result = matchesSetFilters(set, filters({ colorId: 'c-navy' }));
     expect(result).toBe(false);
   });
 
-  it('applies OR within a group: Navy OR Black matches a set that only has Black', () => {
-    const set = makeSet({ colors: [{ id: 'c-black', name: 'Black', code: 'BLK', hex: '#000000', kind: 'SOLID', swatchUrl: null }] });
-    const result = matchesSetFilters(set, filters({ colors: ['c-navy', 'c-black'] }));
+  it('matches a set that has the filtered color among others', () => {
+    const set = makeSet({
+      colors: [
+        { id: 'c-black', name: 'Black', code: 'BLK', hex: '#000000', kind: 'SOLID', swatchUrl: null },
+        { id: 'c-navy', name: 'Navy', code: 'NVY', hex: '#1B2A4A', kind: 'SOLID', swatchUrl: null },
+      ],
+    });
+    const result = matchesSetFilters(set, filters({ colorId: 'c-navy' }));
     expect(result).toBe(true);
   });
 
@@ -118,7 +124,7 @@ describe('countActiveSetFilters', () => {
 
   it('counts each active filter once, arrays by length', () => {
     const count = countActiveSetFilters(
-      filters({ gender: 'Mujer', colors: ['c1'] })
+      filters({ gender: 'Mujer', colorId: 'c1' })
     );
     expect(count).toBe(2); // 1 gender + 1 color
   });

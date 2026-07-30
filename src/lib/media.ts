@@ -106,9 +106,12 @@ export function buildProductMediaKey(codigoEstilo: string, colorCodeOrPortada: s
   return buildFolderMediaKey('PRODUCTS', codigoEstilo, colorCodeOrPortada, fileName);
 }
 
-/** Construye la clave física de la portada de un set: `sets/{slug}/portada/archivo.ext`. */
-export function buildSetMediaKey(slug: string, fileName: string): string {
-  return buildFolderMediaKey('SETS', slug, COVER_SEGMENT, fileName);
+/** Construye la clave física de la portada de un set: `sets/{slug}/portada/archivo.ext`, o
+ * `sets/{slug}/portada/{CODIGO-COLOR}/archivo.ext` cuando la portada pertenece a un color
+ * específico (`colorCode`, preserva mayúsculas vía `sanitizeCodeSegment`). */
+export function buildSetMediaKey(slug: string, fileName: string, colorCode?: string): string {
+  const segments = colorCode ? [slug, COVER_SEGMENT, sanitizeCodeSegment(colorCode)] : [slug, COVER_SEGMENT];
+  return buildStorageKey('SETS', segments, fileName);
 }
 
 /** Extrae el nombre de archivo (última porción) de un storage_key existente —

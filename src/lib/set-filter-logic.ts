@@ -7,7 +7,9 @@ export interface SetFilterState {
   /** Nombres de `productTypes` (EAV) seleccionados — fuente de verdad para el filtro "Tipo de Producto". */
   productTypes: string[];
   brands: string[];
-  colors: string[];
+  /** Selección única (no array) — un color activo a la vez determina tanto el filtrado de
+   * cards como qué portada por color se muestra (`resolveCardCover` en `CorporativoContent`). */
+  colorId: string | null;
   sizes: string[];
   /** Estilos EAV seleccionados: slug de atributo → valores seleccionados. Ej: `{ corte: ['Regular'] }`. */
   selectedStyles: Record<string, string[]>;
@@ -18,7 +20,7 @@ export const EMPTY_SET_FILTERS: SetFilterState = {
   gender: null,
   productTypes: [],
   brands: [],
-  colors: [],
+  colorId: null,
   sizes: [],
   selectedStyles: {},
 };
@@ -35,7 +37,7 @@ export function matchesSetFilters(set: CorporateSetSummary, filters: SetFilterSt
   if (filters.brands.length > 0 && (!set.brandName || !filters.brands.includes(set.brandName))) {
     return false;
   }
-  if (filters.colors.length > 0 && !set.colors.some((c) => filters.colors.includes(c.id))) {
+  if (filters.colorId && !set.colors.some((c) => c.id === filters.colorId)) {
     return false;
   }
   if (filters.sizes.length > 0 && !set.sizes.some((s) => filters.sizes.includes(s))) {
@@ -81,7 +83,7 @@ export function countActiveSetFilters(filters: SetFilterState): number {
     (filters.gender ? 1 : 0) +
     filters.productTypes.length +
     filters.brands.length +
-    filters.colors.length +
+    (filters.colorId ? 1 : 0) +
     filters.sizes.length +
     Object.values(filters.selectedStyles).reduce((sum, values) => sum + values.length, 0)
   );

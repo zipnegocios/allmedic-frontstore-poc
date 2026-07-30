@@ -1,32 +1,40 @@
 import Link from 'next/link';
 import { Building2, AlertTriangle } from 'lucide-react';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
+import { ColorFallbackBadge } from '@/components/catalog/ColorFallbackBadge';
 import type { CorporateSetSummary } from '@/lib/corporate-types';
+import { resolveCardCover } from '@/lib/resolve-card-cover';
 
 interface SetListItemProps {
   set: CorporateSetSummary;
   showPrices: boolean;
+  /** Color actualmente filtrado (selección única) — determina qué portada mostrar, ver
+   * `resolveCardCover`. `null`/ausente = sin filtro, se usa el color por defecto del set. */
+  activeColorId?: string | null;
 }
 
-export function SetListItem({ set, showPrices }: SetListItemProps) {
+export function SetListItem({ set, showPrices, activeColorId = null }: SetListItemProps) {
+  const { cover, secondaryCover, isFallback } = resolveCardCover(set, activeColorId);
+  const fallbackColor = isFallback ? set.colors.find((c) => c.id === activeColorId) : undefined;
+
   return (
     <Link
       href={`/corporativo/s/${set.slug}`}
       className="group flex gap-4 p-4 bg-white border border-[#E5E5E5] rounded-xl hover:border-[#111111] hover:shadow-md transition-all duration-300"
     >
       <div className="relative flex-shrink-0 w-24 h-24 sm:w-32 sm:h-32 bg-[#F5F5F7] rounded-lg overflow-hidden">
-        {set.cover ? (
+        {cover ? (
           <>
             <MediaGridThumb
-              item={set.cover}
+              item={cover}
               fallback="/images/placeholder-product.jpg"
               alt={set.name}
               sizes="128px"
-              className={`object-cover transition-opacity duration-300 ${set.secondaryCover ? 'group-hover:opacity-0' : 'group-hover:scale-105 transition-transform duration-500'}`}
+              className={`object-cover transition-opacity duration-300 ${secondaryCover ? 'group-hover:opacity-0' : 'group-hover:scale-105 transition-transform duration-500'}`}
             />
-            {set.secondaryCover && (
+            {secondaryCover && (
               <MediaGridThumb
-                item={set.secondaryCover}
+                item={secondaryCover}
                 fallback="/images/placeholder-product.jpg"
                 alt={set.name}
                 sizes="128px"
@@ -39,6 +47,7 @@ export function SetListItem({ set, showPrices }: SetListItemProps) {
             <Building2 className="w-8 h-8" strokeWidth={1} />
           </div>
         )}
+        {fallbackColor && <ColorFallbackBadge colorHex={fallbackColor.hex} colorName={fallbackColor.name} />}
       </div>
 
       <div className="flex-1 min-w-0 flex flex-col">

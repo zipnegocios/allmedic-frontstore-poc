@@ -1,7 +1,7 @@
 import { pgTable, text, integer, boolean, decimal, timestamp, jsonb, index, uuid as pgUuid, unique } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { uuid } from "@/lib/uuid";
-import { products, brands, productVariants } from "./products";
+import { products, brands, productVariants, colors } from "./products";
 import { users } from "./auth";
 import { leads } from "./commerce";
 
@@ -47,6 +47,29 @@ export const corporateSetsRelations = relations(corporateSets, ({ one, many }) =
   blocks: many(setBlocks),
   recommendedItems: many(setRecommendedItems),
   colorCombos: many(setColorCombos),
+  setColors: many(setColors),
+}));
+
+// ─── Set Colors (Portadas por color — un set puede tener 1 portada primaria + secundaria
+// opcional por cada color de la intersección entre sus bloques). `sortOrder` define el orden
+// de aparición y el color en la posición 0 es el "color por defecto" del set (sin flag
+// aparte) — ver `media_links` (entityType='SET', colorId) para las imágenes asociadas a
+// cada fila de esta tabla. ───
+export const setColors = pgTable("set_colors", {
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
+  setId: pgUuid("set_id").notNull().references(() => corporateSets.id, { onDelete: "cascade" }),
+  colorId: pgUuid("color_id").notNull().references(() => colors.id),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => [
+  index("idx_set_colors_set").on(table.setId),
+  unique("uq_set_colors_set_color").on(table.setId, table.colorId),
+]);
+
+export const setColorsRelations = relations(setColors, ({ one }) => ({
+  set: one(corporateSets, { fields: [setColors.setId], references: [corporateSets.id] }),
+  color: one(colors, { fields: [setColors.colorId], references: [colors.id] }),
 }));
 
 // ─── Set Blocks (Bloques de alternancia — exactamente 2 por set, Bloque A / Bloque B) ───

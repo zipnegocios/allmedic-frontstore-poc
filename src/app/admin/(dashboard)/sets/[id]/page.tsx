@@ -43,12 +43,6 @@ export default async function EditSetPage({ params }: EditSetPageProps) {
     name: set.name,
     slug: set.slug,
     description: set.description || '',
-    imageUrl: set.imageUrl || '',
-    coverAssetId: set.cover?.assetId || '',
-    coverAlt: set.cover?.alt || '',
-    secondaryImageUrl: set.secondaryImageUrl || '',
-    secondaryCoverAssetId: set.secondaryCover?.assetId || '',
-    secondaryCoverAlt: set.secondaryCover?.alt || '',
     colorMode: set.colorMode as 'PAIRED' | 'MIXED',
     isActive: set.isActive ?? true,
     isFeatured: set.isFeatured ?? false,
@@ -59,6 +53,16 @@ export default async function EditSetPage({ params }: EditSetPageProps) {
       : '',
     blocks: [blockAt('A', 0), blockAt('B', 1)] as [ReturnType<typeof blockAt>, ReturnType<typeof blockAt>],
     recommendedItems: set.recommendedItems.map((i) => ({ productId: i.productId })),
+    setColors: set.setColors.map((c) => ({
+      colorId: c.colorId,
+      sortOrder: c.sortOrder,
+      coverAssetId: c.coverAssetId || '',
+      coverAlt: c.coverAlt || '',
+      imageUrl: c.imageUrl || '',
+      secondaryCoverAssetId: c.secondaryCoverAssetId || '',
+      secondaryCoverAlt: c.secondaryCoverAlt || '',
+      secondaryImageUrl: c.secondaryImageUrl || '',
+    })),
   };
 
   return <SetForm setId={id} initialData={initialData} />;

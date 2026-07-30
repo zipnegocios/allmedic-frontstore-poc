@@ -10,8 +10,10 @@ import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 import { LayoutSwitcher, type ViewMode } from '@/components/catalog/LayoutSwitcher';
 import { SetFilterSidebar, SetFilterButton } from '@/components/catalog/SetFilterSidebar';
 import { SetListItem } from '@/components/catalog/SetListItem';
+import { ColorFallbackBadge } from '@/components/catalog/ColorFallbackBadge';
 import { useSetFilter } from '@/hooks/useSetFilter';
 import type { SetSortOption } from '@/lib/set-filter-logic';
+import { resolveCardCover } from '@/lib/resolve-card-cover';
 
 interface CorporativoContentProps {
   sets: CorporateSetSummary[];
@@ -189,29 +191,32 @@ export function CorporativoContent({ sets, priceVisibilityRules, minQuantity }: 
                     viewMode === 'list' && 'grid-cols-1'
                   )}
                 >
-                  {paginatedSets.map((set) =>
-                    viewMode === 'list' ? (
-                      <SetListItem key={set.id} set={set} showPrices={showPricesFor(set)} />
-                    ) : (
+                  {paginatedSets.map((set) => {
+                    if (viewMode === 'list') {
+                      return <SetListItem key={set.id} set={set} showPrices={showPricesFor(set)} activeColorId={filters.colorId} />;
+                    }
+                    const { cover, secondaryCover, isFallback } = resolveCardCover(set, filters.colorId);
+                    const fallbackColor = isFallback ? set.colors.find((c) => c.id === filters.colorId) : undefined;
+                    return (
                       <Link
                         key={set.id}
                         href={`/corporativo/s/${set.slug}`}
                         className="group border border-[#E5E5E5] rounded-xl overflow-hidden hover:shadow-lg transition-shadow bg-white"
                       >
                         <div className="relative aspect-product bg-[#F5F5F7] overflow-hidden">
-                          {set.cover ? (
+                          {cover ? (
                             <>
                               <MediaGridThumb
-                                item={set.cover}
+                                item={cover}
                                 fallback="/images/placeholder-product.jpg"
                                 alt={set.name}
                                 fit="cover"
-                                className={`object-cover transition-opacity duration-300 ${set.secondaryCover ? 'group-hover:opacity-0' : 'group-hover:scale-105 transition-transform duration-500'}`}
+                                className={`object-cover transition-opacity duration-300 ${secondaryCover ? 'group-hover:opacity-0' : 'group-hover:scale-105 transition-transform duration-500'}`}
                                 sizes="400px"
                               />
-                              {set.secondaryCover && (
+                              {secondaryCover && (
                                 <MediaGridThumb
-                                  item={set.secondaryCover}
+                                  item={secondaryCover}
                                   fallback="/images/placeholder-product.jpg"
                                   alt={set.name}
                                   fit="cover"
@@ -230,6 +235,9 @@ export function CorporativoContent({ sets, priceVisibilityRules, minQuantity }: 
                               <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
                               Destacado
                             </span>
+                          )}
+                          {fallbackColor && (
+                            <ColorFallbackBadge colorHex={fallbackColor.hex} colorName={fallbackColor.name} />
                           )}
                         </div>
                         <div className="p-4">
@@ -254,8 +262,8 @@ export function CorporativoContent({ sets, priceVisibilityRules, minQuantity }: 
                             ))}
                         </div>
                       </Link>
-                    )
-                  )}
+                    );
+                  })}
                 </div>
 
                 {totalPages > 1 && (

@@ -4,6 +4,7 @@ import {
   setBlocks as setBlocksTable,
   setBlockOptions as setBlockOptionsTable,
   setRecommendedItems as setRecommendedItemsTable,
+  setColors as setColorsTable,
   setColorCombos as setColorCombosTable,
   setColorComboItems as setColorComboItemsTable,
   products as productsTable,
@@ -46,14 +47,40 @@ async function getColorSwatchMap(colorIds: string[]): Promise<Map<string, string
   return new Map(links.map((l) => [l.colorId, resolveMediaUrl(l.storageKey)]));
 }
 
-/** Portadas primaria+secundaria de sets (paridad con productos) — mismo patrón
- * de `mapDbProductToProduct` en `data-service.ts`: `MediaItem` con `type`
- * derivado de `mimeType` para que el hover-swap público soporte video. */
-async function getCoverMediaMap(setIds: string[]): Promise<Map<string, { cover: MediaItem; secondaryCover?: MediaItem }>> {
+export interface SetColorCover {
+  colorId: string;
+  colorCode: string;
+  sortOrder: number;
+  cover: MediaItem;
+  secondaryCover: MediaItem | null;
+}
+
+/** Portadas por color de sets (Set × Color) — agrupa `media_links` (entityType='SET',
+ * role COVER/COVER_SECONDARY) por `(setId, colorId)`, incluyendo el `sortOrder` de `set_colors`
+ * (el color en la posición 0 es el "color por defecto" del set, usado como fallback cuando no
+ * hay filtro o el color filtrado no tiene portada propia). Devuelve un array por set ya
+ * ordenado por `sortOrder`. */
+async function getColorCoverMediaMap(setIds: string[]): Promise<Map<string, SetColorCover[]>> {
   if (setIds.length === 0) return new Map();
+
+  const colorRows = await db
+    .select({
+      setId: setColorsTable.setId,
+      colorId: setColorsTable.colorId,
+      colorCode: colorsTable.code,
+      sortOrder: setColorsTable.sortOrder,
+    })
+    .from(setColorsTable)
+    .innerJoin(colorsTable, eq(colorsTable.id, setColorsTable.colorId))
+    .where(inArray(setColorsTable.setId, setIds))
+    .orderBy(asc(setColorsTable.sortOrder));
+
+  if (colorRows.length === 0) return new Map();
+
   const links = await db
     .select({
       setId: mediaLinksTable.entityId,
+      colorId: mediaLinksTable.colorId,
       role: mediaLinksTable.role,
       storageKey: mediaAssetsTable.storageKey,
       mimeType: mediaAssetsTable.mimeType,
@@ -68,13 +95,12 @@ async function getCoverMediaMap(setIds: string[]): Promise<Map<string, { cover: 
     .where(and(
       eq(mediaLinksTable.entityType, 'SET'),
       inArray(mediaLinksTable.role, ['COVER', 'COVER_SECONDARY']),
-      inArray(mediaLinksTable.entityId, setIds)
+      inArray(mediaLinksTable.entityId, setIds),
+      isNotNull(mediaLinksTable.colorId)
     ));
 
-  const coverBySet = new Map<string, MediaItem>();
-  const secondaryBySet = new Map<string, MediaItem>();
-  for (const l of links) {
-    const item: MediaItem = {
+  function toMediaItem(l: (typeof links)[number]): MediaItem {
+    return {
       url: resolveMediaUrl(l.storageKey),
       type: isVideoMime(l.mimeType) ? 'video' : 'image',
       mimeType: l.mimeType,
@@ -84,13 +110,22 @@ async function getCoverMediaMap(setIds: string[]): Promise<Map<string, { cover: 
       previewStartSeconds: l.previewStartSeconds,
       previewDurationSeconds: l.previewDurationSeconds,
     };
-    if (l.role === 'COVER') coverBySet.set(l.setId, item);
-    else secondaryBySet.set(l.setId, item);
   }
 
-  const map = new Map<string, { cover: MediaItem; secondaryCover?: MediaItem }>();
-  for (const [setId, cover] of coverBySet) {
-    map.set(setId, { cover, secondaryCover: secondaryBySet.get(setId) });
+  const map = new Map<string, SetColorCover[]>();
+  for (const row of colorRows) {
+    const cover = links.find((l) => l.setId === row.setId && l.colorId === row.colorId && l.role === 'COVER');
+    if (!cover) continue; // portada primaria obligatoria — sin ella, el color no es utilizable en el front
+    const secondary = links.find((l) => l.setId === row.setId && l.colorId === row.colorId && l.role === 'COVER_SECONDARY');
+    const entry: SetColorCover = {
+      colorId: row.colorId,
+      colorCode: row.colorCode,
+      sortOrder: row.sortOrder,
+      cover: toMediaItem(cover),
+      secondaryCover: secondary ? toMediaItem(secondary) : null,
+    };
+    if (!map.has(row.setId)) map.set(row.setId, []);
+    map.get(row.setId)!.push(entry);
   }
   return map;
 }
@@ -212,7 +247,7 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
     : [];
   const colorSwatchMap = await getColorSwatchMap(variants.map((v) => v.colorId).filter((id): id is string => !!id));
 
-  const coverMedia = await getCoverMediaMap(setIds);
+  const colorCoverMedia = await getColorCoverMediaMap(setIds);
   const blocksBySet = new Map<string, typeof blocks>();
   for (const b of blocks) {
     if (!blocksBySet.has(b.setId)) blocksBySet.set(b.setId, []);
@@ -276,13 +311,20 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
       Array.from(stylesMap.entries(), ([slug, values]) => [slug, Array.from(values)])
     );
 
+    // Color por defecto del set = primero por `sortOrder` en `coversByColor` — `cover`/
+    // `secondaryCover` a nivel de set quedan como ese color "efectivo" para consumidores que no
+    // razonan por color (ítem de carrito, mega-menu).
+    const coversByColor = colorCoverMedia.get(set.id) ?? [];
+    const defaultColorCover = coversByColor[0];
+
     return {
       id: set.id,
       slug: set.slug,
       name: set.name,
       description: set.description,
-      cover: coverMedia.get(set.id)?.cover ?? null,
-      secondaryCover: coverMedia.get(set.id)?.secondaryCover ?? null,
+      cover: defaultColorCover?.cover ?? null,
+      secondaryCover: defaultColorCover?.secondaryCover ?? null,
+      coversByColor,
       brandName: set.brandName,
       brandId: set.brandId,
       productIds: setProductIds,
@@ -352,7 +394,7 @@ export async function getLatestCorporateSets(limit = 8): Promise<CorporateSetNav
     blocksBySet.get(b.setId)!.push(b);
   }
 
-  const coverMedia = await getCoverMediaMap(setIds);
+  const colorCoverMediaLatest = await getColorCoverMediaMap(setIds);
 
   return rows.map((set) => {
     const setBlockRows = blocksBySet.get(set.id) ?? [];
@@ -375,7 +417,7 @@ export async function getLatestCorporateSets(limit = 8): Promise<CorporateSetNav
       id: set.id,
       slug: set.slug,
       name: set.name,
-      cover: coverMedia.get(set.id)?.cover ?? null,
+      cover: colorCoverMediaLatest.get(set.id)?.[0]?.cover ?? null,
       brandName: set.brandName,
       referencePrice,
     };
@@ -671,7 +713,9 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
     referencePrice += Math.min(...blockPrices) * (block.quantityPerSet ?? 1);
   }
 
-  const coverMedia = await getCoverMediaMap([set.id]);
+  const colorCoverMediaDetail = await getColorCoverMediaMap([set.id]);
+  const coversByColorDetail = colorCoverMediaDetail.get(set.id) ?? [];
+  const defaultColorCoverDetail = coversByColorDetail[0];
 
   // Combinaciones de color curadas (modo MIXED) — solo se consultan/usan cuando aplica; en
   // modo PAIRED el armador calcula la intersección de color directamente de `pieces[].colors`.
@@ -714,8 +758,9 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
     slug: set.slug,
     name: set.name,
     description: set.description,
-    cover: coverMedia.get(set.id)?.cover ?? null,
-    secondaryCover: coverMedia.get(set.id)?.secondaryCover ?? null,
+    cover: defaultColorCoverDetail?.cover ?? null,
+    secondaryCover: defaultColorCoverDetail?.secondaryCover ?? null,
+    coversByColor: coversByColorDetail,
     brandId: set.brandId,
     brandName: set.brandName,
     productIds: pieces.map((p) => p.productId),

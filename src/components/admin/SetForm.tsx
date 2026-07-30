@@ -31,6 +31,7 @@ import {
   nextMaxVisitedIndex,
 } from '@/components/admin/set-form/wizard-steps';
 import { GeneralSection } from '@/components/admin/set-form/GeneralSection';
+import { SetColorsSection } from '@/components/admin/set-form/SetColorsSection';
 import { ColorModeGate } from '@/components/admin/set-form/ColorModeGate';
 import { PairedColorAccordion } from '@/components/admin/set-form/PairedColorAccordion';
 import { MixedColorAccordion } from '@/components/admin/set-form/MixedColorAccordion';
@@ -76,7 +77,9 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
   const { anchoredTask, updateAnchoredStatus } = useAnchoredTask();
   const [savingAnchored, setSavingAnchored] = useState<'progress' | 'complete' | null>(null);
   const [showValidationBanner, setShowValidationBanner] = useState(false);
-  const [pickerRequest, setPickerRequest] = useState<{ target: 'cover' | 'secondaryCover'; mode: 'special' | 'content' } | null>(null);
+  // `colorIndex` identifica la fila de `setColors` a la que aplica esta selección de portada
+  // (Set × Color desacoplado de "Datos generales" — ver SetColorsSection.tsx).
+  const [pickerRequest, setPickerRequest] = useState<{ colorIndex: number; target: 'cover' | 'secondaryCover'; mode: 'special' | 'content' } | null>(null);
   // Snapshot de productIds vigentes al momento de elegir una portada en modo
   // "Portadas del contenido" — si luego se quita del set alguno de esos
   // productos, avisamos que la portada podría ya no ser válida (Fase 2.4,
@@ -84,8 +87,8 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
   // elegido (eso requeriría una consulta extra a media_links por selección),
   // así que el aviso es conservador: se dispara si el producto quitado
   // formaba parte del alcance de la galería consultada, no solo si es
-  // certeramente el dueño de la imagen.
-  const [coverContentScope, setCoverContentScope] = useState<{ cover?: string[]; secondaryCover?: string[] }>({});
+  // certeramente el dueño de la imagen. Clave: `${colorIndex}:${target}`.
+  const [coverContentScope, setCoverContentScope] = useState<Record<string, string[]>>({});
   const [optionComboOpen, setOptionComboOpen] = useState<string | null>(null);
   const [recommendedComboOpen, setRecommendedComboOpen] = useState<number | null>(null);
 
@@ -124,10 +127,6 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
       name: '',
       slug: '',
       description: '',
-      coverAssetId: '',
-      imageUrl: '',
-      secondaryCoverAssetId: '',
-      secondaryImageUrl: '',
       isActive: true,
       isFeatured: false,
       blocks: [
@@ -135,6 +134,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
         { blockCode: 'B', quantityPerSet: 1, options: [{ productId: '' }] },
       ],
       recommendedItems: [],
+      setColors: [],
     },
   });
 
@@ -172,18 +172,30 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
       .map((p) => ({ id: p.id, name: p.name, code: p.code, brandName: p.brandName, colors: p.colors }));
   }, [allPieceItems, products]);
 
+  // `colorCode` de la fila de `setColors` objetivo del picker abierto — determina la subcarpeta
+  // de storage (`sets/{slug}/portada/{colorCode}/`, ver `SetColorsSection`/`buildSetMediaKey`).
+  const setColorsValue = watch('setColors');
+  const pickerColorCode = useMemo(() => {
+    if (!pickerRequest) return undefined;
+    const colorId = setColorsValue?.[pickerRequest.colorIndex]?.colorId;
+    if (!colorId) return undefined;
+    for (const p of products) {
+      const color = p.colors.find((c) => c.id === colorId);
+      if (color) return color.code;
+    }
+    return undefined;
+  }, [pickerRequest, setColorsValue, products]);
+
   /** Quita una pieza recomendada y avisa si podría haber sido la fuente de alguna portada
    * elegida en modo "Portadas del contenido" (Fase 2.4). */
   function handleRemoveRecommended(index: number) {
     const removedProductId = recommendedItems[index]?.productId;
     removeRecommended(index);
     if (!removedProductId) return;
-    const affected = (['cover', 'secondaryCover'] as const).filter((slot) =>
-      coverContentScope[slot]?.includes(removedProductId)
-    );
-    if (affected.length > 0) {
+    const affected = Object.values(coverContentScope).some((productIds) => productIds.includes(removedProductId));
+    if (affected) {
       toast.warning(
-        'Quitaste una pieza cuya galería pudo haber aportado la portada actual — revisa que la portada primaria y secundaria sigan siendo válidas antes de guardar.'
+        'Quitaste una pieza cuya galería pudo haber aportado alguna portada por color — revisa que sigan siendo válidas antes de guardar.'
       );
     }
   }
@@ -276,6 +288,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
       priceManualSale: manualPriceEnabled ? (data.priceManualSale || null) : null,
       manualDiscountEnd: manualPriceEnabled ? (data.manualDiscountEnd || null) : null,
       recommendedItems: data.recommendedItems.map((item, idx) => ({ ...item, sortOrder: idx })),
+      setColors: data.setColors.map((c, idx) => ({ ...c, sortOrder: idx })),
     };
   }
 
@@ -643,9 +656,6 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
                   register={register}
                   control={control}
                   errors={errors}
-                  watch={watch}
-                  hasPieces={allPieceItems.some((i) => i.productId)}
-                  onOpenPicker={(target, mode) => setPickerRequest({ target, mode })}
                 />
               )}
 
@@ -654,6 +664,22 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
               )}
 
               {currentStep.id === 'pieces' && renderBlocksAndRecommended()}
+
+              {currentStep.id === 'set-colors' && (
+                <SetColorsSection
+                  register={register}
+                  control={control}
+                  errors={errors}
+                  watch={watch}
+                  setValue={setValue}
+                  setId={createdSetId}
+                  colorMode={colorMode}
+                  blockItems={blockOnlyItems}
+                  products={products}
+                  hasPieces={allPieceItems.some((i) => i.productId)}
+                  onOpenPicker={(colorIndex, target, mode) => setPickerRequest({ colorIndex, target, mode })}
+                />
+              )}
 
               {currentStep.id === 'price' && (
                 <PriceSection
@@ -730,14 +756,27 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
               register={register}
               control={control}
               errors={errors}
-              watch={watch}
-              hasPieces={allPieceItems.some((i) => i.productId)}
-              onOpenPicker={(target, mode) => setPickerRequest({ target, mode })}
             />
 
             <ColorModeGate value={colorMode} onChange={handleColorModeChange} nameFilled={Boolean(nameValue?.trim())} />
 
             {colorMode && renderBlocksAndRecommended()}
+
+            {colorMode && (
+              <SetColorsSection
+                register={register}
+                control={control}
+                errors={errors}
+                watch={watch}
+                setValue={setValue}
+                setId={createdSetId}
+                colorMode={colorMode}
+                blockItems={blockOnlyItems}
+                products={products}
+                hasPieces={allPieceItems.some((i) => i.productId)}
+                onOpenPicker={(colorIndex, target, mode) => setPickerRequest({ colorIndex, target, mode })}
+              />
+            )}
 
             <PriceSection
               register={register}
@@ -773,8 +812,16 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
         open={pickerRequest !== null}
         onClose={() => setPickerRequest(null)}
         folder="SETS"
-        segments={slugValue?.trim() ? [sanitizeCodeSegment(slugValue.trim()), COVER_SEGMENT] : []}
-        keyPrefix={pickerRequest?.mode === 'special' && slugValue?.trim() ? `sets/${sanitizeCodeSegment(slugValue.trim())}/${COVER_SEGMENT}/` : undefined}
+        segments={
+          slugValue?.trim() && pickerRequest
+            ? [sanitizeCodeSegment(slugValue.trim()), COVER_SEGMENT, ...(pickerColorCode ? [sanitizeCodeSegment(pickerColorCode)] : [])]
+            : []
+        }
+        keyPrefix={
+          pickerRequest?.mode === 'special' && slugValue?.trim()
+            ? `sets/${sanitizeCodeSegment(slugValue.trim())}/${COVER_SEGMENT}/${pickerColorCode ? `${sanitizeCodeSegment(pickerColorCode)}/` : ''}`
+            : undefined
+        }
         linkedEntityType={pickerRequest?.mode === 'special' ? 'SET' : undefined}
         linkedEntityId={pickerRequest?.mode === 'special' ? createdSetId : undefined}
         productIds={pickerRequest?.mode === 'content' ? allPieceItems.map((i) => i.productId).filter(Boolean) : undefined}
@@ -783,13 +830,14 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
           if (assets[0] && pickerRequest) {
             const assetIdField = pickerRequest.target === 'cover' ? 'coverAssetId' : 'secondaryCoverAssetId';
             const urlField = pickerRequest.target === 'cover' ? 'imageUrl' : 'secondaryImageUrl';
-            setValue(assetIdField, assets[0].id);
-            setValue(urlField, resolveMediaUrl(assets[0].storageKey));
+            setValue(`setColors.${pickerRequest.colorIndex}.${assetIdField}`, assets[0].id);
+            setValue(`setColors.${pickerRequest.colorIndex}.${urlField}`, resolveMediaUrl(assets[0].storageKey));
+            const scopeKey = `${pickerRequest.colorIndex}:${pickerRequest.target}`;
             setCoverContentScope((prev) => ({
               ...prev,
-              [pickerRequest.target]: pickerRequest.mode === 'content'
+              [scopeKey]: pickerRequest.mode === 'content'
                 ? allPieceItems.map((i) => i.productId).filter(Boolean)
-                : undefined,
+                : [],
             }));
           }
           setPickerRequest(null);

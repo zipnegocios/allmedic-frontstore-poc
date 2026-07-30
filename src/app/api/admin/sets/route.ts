@@ -22,14 +22,21 @@ const SetRecommendedItemSchema = z.object({
   sortOrder: z.number().default(0),
 });
 
+// Portadas por color (Set × Color) — al menos 1 color con portada primaria es obligatorio
+// (mismo bloqueo de guardado que antes con la portada única del set), ver `set-form/schema.ts`.
+const SetColorSchema = z.object({
+  colorId: z.string().min(1),
+  sortOrder: z.number().default(0),
+  coverAssetId: z.string().min(1, 'La portada primaria es obligatoria'),
+  coverAlt: z.string().optional(),
+  secondaryCoverAssetId: z.string().optional(),
+  secondaryCoverAlt: z.string().optional(),
+});
+
 const CreateSetSchema = z.object({
   name: z.string().min(1),
   slug: z.string().min(1),
   description: z.string().optional(),
-  coverAssetId: z.string().min(1, 'La portada primaria es obligatoria'),
-  coverAlt: z.string().optional(),
-  secondaryCoverAssetId: z.string().min(1, 'La portada secundaria es obligatoria'),
-  secondaryCoverAlt: z.string().optional(),
   colorMode: z.enum(['PAIRED', 'MIXED'], { message: 'Elige un modo de color para el set' }),
   isActive: z.boolean().default(true),
   isFeatured: z.boolean().default(false),
@@ -40,6 +47,7 @@ const CreateSetSchema = z.object({
   // Exactamente 2 bloques (A y B) — Decisión 1 del plan de bloques de alternancia.
   blocks: z.tuple([SetBlockSchema, SetBlockSchema]),
   recommendedItems: z.array(SetRecommendedItemSchema).default([]),
+  setColors: z.array(SetColorSchema).min(1, 'Agrega al menos un color con portada'),
 }).refine(
   (data) => !data.priceManualSale || !data.priceManual || Number(data.priceManualSale) < Number(data.priceManual),
   { message: 'El precio manual rebajado debe ser menor al precio manual', path: ['priceManualSale'] }

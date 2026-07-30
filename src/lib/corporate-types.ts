@@ -41,10 +41,21 @@ export interface CorporateSetSummary {
   slug: string;
   name: string;
   description: string | null;
-  /** Portada primaria/secundaria — paridad con productos (`resolveCoverMedia`/
-   * `resolveSecondaryCoverMedia`). `secondaryCover` ausente si no hay hover-swap. */
+  /** Portada primaria/secundaria "efectivas" — derivadas del color por defecto (primer
+   * `sortOrder` de `coversByColor`), usadas donde no importa el color activo (ej. ítem de
+   * carrito, mega-menu). `secondaryCover` ausente si no hay hover-swap. */
   cover: MediaItem | null;
   secondaryCover: MediaItem | null;
+  /** Portadas por color (Set × Color) — una entrada por color con portada primaria cargada,
+   * ordenadas por `sortOrder` (posición 0 = color por defecto del set). Fuente de verdad para
+   * el hover-swap dinámico por color en `/corporativo` (ver `resolveCardCover`). */
+  coversByColor: Array<{
+    colorId: string;
+    colorCode: string;
+    sortOrder: number;
+    cover: MediaItem;
+    secondaryCover: MediaItem | null;
+  }>;
   brandName: string | null;
   /** Id de la marca (para resolver reglas por ítem en el grid — `brandName` es solo para mostrar/filtrar). */
   brandId: string | null;

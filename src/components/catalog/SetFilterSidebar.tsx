@@ -15,7 +15,7 @@ interface SetFilterSidebarProps {
   onClose: () => void;
 }
 
-type ArrayFilterKey = 'productTypes' | 'brands' | 'colors' | 'sizes';
+type ArrayFilterKey = 'productTypes' | 'brands' | 'sizes';
 
 export function SetFilterSidebar({ filters, filterOptions, onFilterChange, isOpen, onClose }: SetFilterSidebarProps) {
   const toggleArrayFilter = (key: ArrayFilterKey, value: string) => {
@@ -35,17 +35,21 @@ export function SetFilterSidebar({ filters, filterOptions, onFilterChange, isOpe
       gender: null,
       productTypes: [],
       brands: [],
-      colors: [],
+      colorId: null,
       sizes: [],
       selectedStyles: {},
     });
+  };
+
+  const toggleColor = (colorId: string) => {
+    onFilterChange({ colorId: filters.colorId === colorId ? null : colorId });
   };
 
   const hasActiveFilters =
     filters.gender !== null ||
     filters.productTypes.length > 0 ||
     filters.brands.length > 0 ||
-    filters.colors.length > 0 ||
+    filters.colorId !== null ||
     filters.sizes.length > 0 ||
     Object.values(filters.selectedStyles).some((values) => values.length > 0);
 
@@ -145,8 +149,8 @@ export function SetFilterSidebar({ filters, filterOptions, onFilterChange, isOpe
                 <ColorSwatch
                   key={color.id}
                   color={color}
-                  isSelected={filters.colors.includes(color.id)}
-                  onClick={() => toggleArrayFilter('colors', color.id)}
+                  isSelected={filters.colorId === color.id}
+                  onClick={() => toggleColor(color.id)}
                   size="md"
                 />
               ))}
