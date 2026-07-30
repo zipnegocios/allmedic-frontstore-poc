@@ -1369,6 +1369,7 @@ export async function getAdminSets() {
       isActive: corporateSetsTable.isActive,
       isFeatured: corporateSetsTable.isFeatured,
       sortOrder: corporateSetsTable.sortOrder,
+      colorMode: corporateSetsTable.colorMode,
     })
     .from(corporateSetsTable)
     .leftJoin(brandsTable, eq(corporateSetsTable.brandId, brandsTable.id))
@@ -1379,7 +1380,7 @@ export async function getAdminSets() {
   const [blockRows, coverMap] = await Promise.all([
     setIds.length > 0
       ? db
-          .select({ id: setBlocksTable.id, setId: setBlocksTable.setId })
+          .select({ id: setBlocksTable.id, setId: setBlocksTable.setId, blockCode: setBlocksTable.blockCode })
           .from(setBlocksTable)
           .where(inArray(setBlocksTable.setId, setIds))
       : Promise.resolve([]),
@@ -1388,6 +1389,7 @@ export async function getAdminSets() {
 
   const blockIds = blockRows.map((b) => b.id);
   const setIdByBlockId = new Map(blockRows.map((b) => [b.id, b.setId]));
+  const blockCodeByBlockId = new Map(blockRows.map((b) => [b.id, b.blockCode]));
   const setProducts = blockIds.length > 0
     ? await db
         .select({
@@ -1395,15 +1397,66 @@ export async function getAdminSets() {
           productId: setBlockOptionsTable.productId,
           productName: productsTable.name,
           productSlug: productsTable.slug,
+          productCode: productsTable.code,
+          gender: productsTable.gender,
+          brandName: brandsTable.name,
+          collectionName: collectionsTable.name,
         })
         .from(setBlockOptionsTable)
         .innerJoin(productsTable, eq(setBlockOptionsTable.productId, productsTable.id))
+        .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
+        .leftJoin(collectionsTable, eq(productsTable.collectionId, collectionsTable.id))
         .where(inArray(setBlockOptionsTable.blockId, blockIds))
         .orderBy(asc(setBlockOptionsTable.sortOrder))
     : [];
 
-  const productIds = setProducts.map(sp => sp.productId);
-  const productCovers = await getProductCoversMap(productIds);
+  const productIds = Array.from(new Set(setProducts.map(sp => sp.productId)));
+  const [productCovers, colorCountMap, variantCountMap, mediaCountMap, colorsByProductMap] = await Promise.all([
+    getProductCoversMap(productIds),
+    productIds.length > 0
+      ? db
+          .select({ productId: variantsTable.productId, count: sql<number>`count(distinct ${variantsTable.colorId})::int` })
+          .from(variantsTable)
+          .where(inArray(variantsTable.productId, productIds))
+          .groupBy(variantsTable.productId)
+      : Promise.resolve([]),
+    productIds.length > 0
+      ? db
+          .select({ productId: variantsTable.productId, count: sql<number>`count(*)::int` })
+          .from(variantsTable)
+          .where(inArray(variantsTable.productId, productIds))
+          .groupBy(variantsTable.productId)
+      : Promise.resolve([]),
+    productIds.length > 0
+      ? db
+          .select({ productId: mediaLinksTable.entityId, count: sql<number>`count(*)::int` })
+          .from(mediaLinksTable)
+          .where(and(
+            eq(mediaLinksTable.entityType, 'PRODUCT'),
+            inArray(mediaLinksTable.entityId, productIds),
+            eq(mediaLinksTable.role, 'GALLERY')
+          ))
+          .groupBy(mediaLinksTable.entityId)
+      : Promise.resolve([]),
+    // Colores por producto (solo variantes activas) — alimenta el conteo de advertencias de
+    // paridad de color (colorMode 'PAIRED', ver `computePairedColorWarnings`), reutilizando el
+    // mismo criterio de "variante activa" que `getActiveCorporateSets` en corporate-data-service.ts.
+    productIds.length > 0
+      ? db
+          .select({
+            productId: variantsTable.productId,
+            colorId: variantsTable.colorId,
+            colorName: colorsTable.name,
+            colorCode: colorsTable.code,
+          })
+          .from(variantsTable)
+          .leftJoin(colorsTable, eq(variantsTable.colorId, colorsTable.id))
+          .where(and(inArray(variantsTable.productId, productIds), eq(variantsTable.status, 'AVAILABLE')))
+      : Promise.resolve([]),
+  ]);
+  const colorCountByProduct = new Map(colorCountMap.map((r) => [r.productId, r.count]));
+  const variantCountByProduct = new Map(variantCountMap.map((r) => [r.productId, r.count]));
+  const mediaCountByProduct = new Map(mediaCountMap.map((r) => [r.productId, r.count]));
 
   // "Piezas" del set en el listado admin = número de bloques (siempre 2), no de opciones cargadas.
   const countMap = new Map<string, number>();
@@ -1418,6 +1471,14 @@ export async function getAdminSets() {
       productId: string;
       name: string | null;
       slug: string;
+      code: string | null;
+      gender: string | null;
+      brandName: string | null;
+      collectionName: string | null;
+      blockCode: string;
+      colorCount: number;
+      variantCount: number;
+      mediaCount: number;
       imageUrl: string | null;
       mimeType: string | null;
       previewStart: number | null;
@@ -1433,6 +1494,14 @@ export async function getAdminSets() {
       productId: item.productId,
       name: item.productName,
       slug: item.productSlug,
+      code: item.productCode,
+      gender: item.gender,
+      brandName: item.brandName,
+      collectionName: item.collectionName,
+      blockCode: blockCodeByBlockId.get(item.blockId) ?? '',
+      colorCount: colorCountByProduct.get(item.productId) ?? 0,
+      variantCount: variantCountByProduct.get(item.productId) ?? 0,
+      mediaCount: mediaCountByProduct.get(item.productId) ?? 0,
       imageUrl: cover?.url ?? null,
       mimeType: cover?.mimeType ?? null,
       previewStart: cover?.previewStart ?? null,
@@ -1441,12 +1510,46 @@ export async function getAdminSets() {
     productsBySetMap.set(setId, list);
   }
 
-  return rows.map(r => ({
-    ...r,
-    itemCount: countMap.get(r.id) ?? 0,
-    imageUrl: coverMap.get(r.id) ?? null,
-    items: productsBySetMap.get(r.id) || [],
-  }));
+  // Advertencias de paridad de color (solo aplica a sets colorMode 'PAIRED' — "todas las piezas se
+  // piden siempre en el mismo color", ver PairedColorAccordion.tsx). Se calcula por set a partir de
+  // los colores de sus propias piezas, reutilizando la misma lógica que `computePairedColorWarnings`.
+  const genderLabels: Record<string, string> = { MUJER: 'Dama', HOMBRE: 'Caballero', UNISEX: 'Unisex' };
+  const setSummaries = rows.map((r) => {
+    const items = productsBySetMap.get(r.id) || [];
+    const genders = Array.from(new Set(items.map((i) => (i.gender ? genderLabels[i.gender] ?? i.gender : null)).filter((g): g is string => !!g)));
+
+    let colorParityWarningCount = 0;
+    if (r.colorMode === 'PAIRED' && items.length > 1) {
+      const uniqueProductIds = Array.from(new Set(items.map((i) => i.productId)));
+      const colorsByProduct = new Map<string, Set<string>>();
+      for (const pid of uniqueProductIds) colorsByProduct.set(pid, new Set());
+      for (const row of colorsByProductMap) {
+        if (row.colorCode && colorsByProduct.has(row.productId)) colorsByProduct.get(row.productId)!.add(row.colorCode);
+      }
+      for (const pid of uniqueProductIds) {
+        const ownCodes = colorsByProduct.get(pid) ?? new Set();
+        const missingByOther = new Set<string>();
+        for (const otherPid of uniqueProductIds) {
+          if (otherPid === pid) continue;
+          for (const code of colorsByProduct.get(otherPid) ?? []) {
+            if (!ownCodes.has(code)) missingByOther.add(code);
+          }
+        }
+        colorParityWarningCount += missingByOther.size;
+      }
+    }
+
+    return {
+      ...r,
+      itemCount: countMap.get(r.id) ?? 0,
+      imageUrl: coverMap.get(r.id) ?? null,
+      items,
+      genders,
+      colorParityWarningCount,
+    };
+  });
+
+  return setSummaries;
 }
 
 
