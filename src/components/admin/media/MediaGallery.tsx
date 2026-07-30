@@ -126,7 +126,6 @@ export function MediaGallery({
         params.set('keyPrefix', keyPrefix);
         if (linkedEntityType) params.set('linkedEntityType', linkedEntityType);
         if (linkedEntityId) params.set('linkedEntityId', linkedEntityId);
-        if (linkedColorId !== undefined) params.set('linkedColorId', linkedColorId === null ? '__COVER__' : linkedColorId);
       }
       if (treeNode) {
         params.set('treeNodeType', treeNode.type);
@@ -137,6 +136,12 @@ export function MediaGallery({
         if (treeNode.type === 'color') params.set('treeNodeColorId', treeNode.id);
       }
       if (productIds && productIds.length > 0) params.set('productIds', productIds.join(','));
+      // `linkedColorId` acota tanto el caso `keyPrefix` (portada/galería de un producto único)
+      // como el caso `productIds` (selector "ver por pieza" de un set) — no depende de
+      // `keyPrefix` estar presente, ver `getAssetIdsForProducts` en el endpoint.
+      if ((keyPrefix || (productIds && productIds.length > 0)) && linkedColorId !== undefined) {
+        params.set('linkedColorId', linkedColorId === null ? '__COVER__' : linkedColorId);
+      }
       params.set('page', String(page));
       params.set('limit', String(limit));
 
