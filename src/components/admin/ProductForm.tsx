@@ -844,6 +844,26 @@ export default function ProductForm({
     unlinkedMedia.clearSuggestion(colorId, asset.id);
   }
 
+  // Vincula TODAS las sugerencias pendientes de un color de una sola vez — mismo
+  // `appendImage` en bloque que `handleFilesUploadedForColor`, para no requerir un clic por foto.
+  function handleAcceptAllSuggestions(colorId: string) {
+    const assets = unlinkedMedia.suggestionsByColorId[colorId] ?? [];
+    if (assets.length === 0) return;
+    const colorName = colors.find((c) => c.id === colorId)?.name;
+    assets.forEach((asset, i) => {
+      appendImage({
+        assetId: asset.id,
+        colorId,
+        url: resolveMediaUrl(asset.storageKey),
+        storageKey: asset.storageKey,
+        mimeType: asset.mimeType,
+        alt: buildAutoAlt(colorName),
+        sortOrder: imageFields.length + i,
+      });
+    });
+    assets.forEach((asset) => unlinkedMedia.clearSuggestion(colorId, asset.id));
+  }
+
   // Botón manual "Buscar en biblioteca" de un color puntual — reusa el mismo escaneo batcheado
   // (el endpoint ya filtra por prefijo de TODO el producto en una sola llamada; acá solo se
   // acota `colors` a este color puntual porque es lo único que le interesa a este botón).
@@ -1156,6 +1176,7 @@ export default function ProductForm({
                   suggestionsByColorId={unlinkedMedia.suggestionsByColorId}
                   suggestionsLoading={unlinkedMedia.loading}
                   onAcceptSuggestion={handleAcceptSuggestion}
+                  onAcceptAllSuggestions={handleAcceptAllSuggestions}
                   onDismissSuggestion={unlinkedMedia.clearSuggestion}
                   onScanColor={handleScanColor}
                   variantsErrors={errors.variants}
@@ -1356,6 +1377,7 @@ export default function ProductForm({
                 suggestionsByColorId={unlinkedMedia.suggestionsByColorId}
                 suggestionsLoading={unlinkedMedia.loading}
                 onAcceptSuggestion={handleAcceptSuggestion}
+                onAcceptAllSuggestions={handleAcceptAllSuggestions}
                 onDismissSuggestion={unlinkedMedia.clearSuggestion}
                 onScanColor={handleScanColor}
                 variantsErrors={errors.variants}

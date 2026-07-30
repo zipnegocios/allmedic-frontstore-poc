@@ -116,6 +116,9 @@ interface VariantsMediaSectionProps {
   /** Agrega una sugerencia aceptada a la galería del color (mismo resultado que subirla o
    * elegirla en el picker) y la quita de la lista de sugerencias pendientes. */
   onAcceptSuggestion: (asset: MediaUploadResult, colorId: string) => void;
+  /** Vincula TODAS las sugerencias pendientes de un color de una sola vez — atajo para no
+   * tener que aceptar foto por foto cuando todas corresponden a ese color. */
+  onAcceptAllSuggestions: (colorId: string) => void;
   /** Descarta una sugerencia sin agregarla — no vuelve a ofrecerse en sesiones futuras una
    * vez que el producto se guarde (ver `useUnlinkedProductMedia.getDismissedAssetIds`). */
   onDismissSuggestion: (colorId: string, assetId: string) => void;
@@ -190,6 +193,7 @@ export function VariantsMediaSection({
   suggestionsByColorId,
   suggestionsLoading,
   onAcceptSuggestion,
+  onAcceptAllSuggestions,
   onDismissSuggestion,
   onScanColor,
 }: VariantsMediaSectionProps) {
@@ -933,11 +937,22 @@ export function VariantsMediaSection({
 
                       {colorSuggestions.length > 0 && (
                         <div className="space-y-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                          <p className="text-[11px] text-blue-800">
-                            Encontramos {colorSuggestions.length} foto{colorSuggestions.length === 1 ? '' : 's'} ya
-                            subida{colorSuggestions.length === 1 ? '' : 's'} en la biblioteca para este color, sin
-                            vincular todavía. Agrégalas a la galería o descártalas.
-                          </p>
+                          <div className="flex items-start justify-between gap-3">
+                            <p className="text-[11px] text-blue-800">
+                              Encontramos {colorSuggestions.length} foto{colorSuggestions.length === 1 ? '' : 's'} ya
+                              subida{colorSuggestions.length === 1 ? '' : 's'} en la biblioteca para este color, sin
+                              vincular todavía. Agrégalas a la galería o descártalas.
+                            </p>
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => onAcceptAllSuggestions(colorId)}
+                              className="h-7 text-[10px] bg-[#111111] shrink-0"
+                            >
+                              <Check className="w-3 h-3 mr-1" />
+                              Vincular todas
+                            </Button>
+                          </div>
                           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                             {colorSuggestions.map((asset) => (
                               <div key={asset.id} className="relative rounded-lg overflow-hidden border border-blue-300 bg-white">
