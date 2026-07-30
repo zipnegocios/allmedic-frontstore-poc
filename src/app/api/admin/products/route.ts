@@ -33,7 +33,10 @@ const CreateProductSchema = z.object({
   // la migración de taxonomía). El formulario de admin aún no expone este campo
   // (llega en la Fase 3); hasta entonces, esta ruta responde 400 en vez de dejar
   // que Postgres rechace el INSERT con un error opaco de NOT NULL.
-  code: z.string().min(1),
+  // `.trim()` evita que un espacio colado (ej. al pegar el texto) persista como parte
+  // del código — `eq()` en Postgres es comparación exacta, así que "C652 " ≠ "C652"
+  // y el chequeo de unicidad (`isProductCodeAvailable`) no detectaba la colisión.
+  code: z.string().trim().min(1),
   brandId: z.string().min(1),
   collectionId: z.string().optional(),
   productTypeId: z.string().optional(),

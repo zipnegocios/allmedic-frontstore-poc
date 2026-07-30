@@ -32,7 +32,9 @@ const UpdateProductSchema = z.object({
   brandId: z.string().min(1).optional(),
   collectionId: z.string().optional(),
   productTypeId: z.string().optional(),
-  code: z.string().min(1).optional(),
+  // `.trim()` — ver comentario equivalente en `products/route.ts` (evita que un espacio
+  // colado persista como parte del código y rompa la comparación exacta de unicidad).
+  code: z.string().trim().min(1).optional(),
   gender: z.string().min(1).optional(),
   priceNormal: z.string().min(1).optional(),
   priceSale: z.string().optional(),
