@@ -1,8 +1,7 @@
 'use client';
 
-import type { Control, UseFormRegister, FieldErrors } from 'react-hook-form';
+import type { Control, FieldErrors } from 'react-hook-form';
 import { Controller } from 'react-hook-form';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -17,7 +16,6 @@ interface BlockSectionProps {
   blockIndex: 0 | 1;
   blockCode: 'A' | 'B';
   control: Control<SetFormData>;
-  register: UseFormRegister<SetFormData>;
   errors: FieldErrors<SetFormData>;
   products: EligibleProduct[];
   optionComboOpen: string | null; // `${blockIndex}-${optionIndex}` | null
@@ -33,15 +31,16 @@ interface BlockSectionProps {
 
 /**
  * Un bloque de alternancia (A o B) — 1 o 2 piezas alternativas, cada una con atajos de crear
- * producto nuevo / editar producto, y un solo campo "Cantidad por set" en la cabecera
- * (compartido por sus opciones, no por fila). Un toggle decide si el bloque tiene 1 sola pieza
- * (sin alternativa que elegir) o 2 (el cliente elige 1 de las 2 en la ficha pública).
+ * producto nuevo / editar producto. Un toggle decide si el bloque tiene 1 sola pieza (sin
+ * alternativa que elegir) o 2 (el cliente elige 1 de las 2 en la ficha pública). La relación
+ * entre bloques siempre es 1:1 (una pieza del Bloque A por cada pieza del Bloque B) — el set se
+ * vende como conjunto, no hay cantidades independientes por bloque configurables desde el admin
+ * (ver `quantityPerSet` fijo en 1 en `schema.ts`).
  */
 export function BlockSection({
   blockIndex,
   blockCode,
   control,
-  register,
   errors,
   products,
   optionComboOpen,
@@ -268,18 +267,6 @@ export function BlockSection({
           })}
         </div>
 
-        <div className="flex items-center gap-3 pt-3 border-t">
-          <Label className="text-xs text-gray-500 whitespace-nowrap">
-            Cantidad por set <span className="text-gray-400">(una sola, aplica sin importar cuál opción elija el cliente)</span>
-          </Label>
-          <Input
-            type="number"
-            min={1}
-            inputMode="numeric"
-            className="w-20"
-            {...register(`blocks.${blockIndex}.quantityPerSet`)}
-          />
-        </div>
       </CardContent>
     </Card>
   );

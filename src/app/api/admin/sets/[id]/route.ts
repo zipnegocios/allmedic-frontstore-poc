@@ -11,7 +11,9 @@ const SetBlockOptionSchema = z.object({
 
 const SetBlockSchema = z.object({
   blockCode: z.enum(['A', 'B']),
-  quantityPerSet: z.number().min(1).default(1),
+  // Siempre 1 — el set se vende como conjunto (1 pieza del Bloque A por cada pieza del Bloque
+  // B), ver comentario equivalente en `set-form/schema.ts`.
+  quantityPerSet: z.number().min(1).default(1).transform(() => 1),
   options: z.array(SetBlockOptionSchema).min(1).max(2),
 });
 

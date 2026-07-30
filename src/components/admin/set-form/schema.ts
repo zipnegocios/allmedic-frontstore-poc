@@ -16,7 +16,10 @@ export const SetBlockOptionSchema = z.object({
 
 export const SetBlockSchema = z.object({
   blockCode: z.enum(['A', 'B']),
-  quantityPerSet: z.coerce.number().min(1, 'Cantidad mínima 1'),
+  // Siempre 1 — el set se vende como conjunto (1 pieza del Bloque A por cada pieza del Bloque
+  // B), no hay proporciones configurables por bloque. Ya no es editable desde el admin
+  // (ver BlockSection.tsx); se fija aquí para blindar el valor sin importar el origen del payload.
+  quantityPerSet: z.coerce.number().min(1).default(1).transform(() => 1),
   options: z.array(SetBlockOptionSchema).min(1, 'Al menos 1 opción por bloque').max(2, 'Máximo 2 opciones por bloque'),
 });
 

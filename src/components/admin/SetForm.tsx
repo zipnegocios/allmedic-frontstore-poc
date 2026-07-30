@@ -446,7 +446,6 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
           blockIndex={0}
           blockCode="A"
           control={control}
-          register={register}
           errors={errors}
           products={products}
           optionComboOpen={optionComboOpen}
@@ -461,7 +460,6 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
           blockIndex={1}
           blockCode="B"
           control={control}
-          register={register}
           errors={errors}
           products={products}
           optionComboOpen={optionComboOpen}
