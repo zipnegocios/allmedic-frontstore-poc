@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, getSessionUserId } from '@/lib/admin-auth';
 import { requireRole, ForbiddenError } from '@/lib/permissions';
-import { getAdminProductById, updateProductWithRelations, softDeleteProduct } from '@/lib/admin-data-service';
+import { getAdminProductById, updateProductWithRelations, softDeleteProduct, recordProductMediaDismissals } from '@/lib/admin-data-service';
 import { z } from 'zod';
 
 const VariantSchema = z.object({
@@ -61,6 +61,14 @@ const UpdateProductSchema = z.object({
     assetId: z.string().optional(),
     alt: z.string().optional(),
   }).optional(),
+  // Sugerencias de precarga (assets sin vincular detectados por carpeta, ver
+  // `/api/admin/media/unlinked-by-color`) que el admin quitó de la galería antes de guardar —
+  // se registran para no volver a ofrecerlas (ver `recordProductMediaDismissals`). No forma
+  // parte del modelo de datos del producto, es metadata de UX de esta sesión de guardado.
+  dismissedSuggestedAssets: z.array(z.object({
+    assetId: z.string(),
+    colorId: z.string().nullable(),
+  })).optional(),
 });
 
 
@@ -85,8 +93,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     await requireRole(session, 'productos', 'write');
     const { id } = await params;
     const body = await request.json();
-    const validated = UpdateProductSchema.parse(body);
+    const { dismissedSuggestedAssets, ...validated } = UpdateProductSchema.parse(body);
     const product = await updateProductWithRelations(id, validated, getSessionUserId(session));
+    if (dismissedSuggestedAssets && dismissedSuggestedAssets.length > 0) {
+      await recordProductMediaDismissals(id, dismissedSuggestedAssets);
+    }
     return NextResponse.json(product);
   } catch (err) {
     if (err instanceof ForbiddenError) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

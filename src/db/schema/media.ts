@@ -113,3 +113,21 @@ export const mediaAuditRelations = relations(mediaAudit, ({ one }) => ({
   asset: one(mediaAssets, { fields: [mediaAudit.assetId], references: [mediaAssets.id] }),
   user: one(users, { fields: [mediaAudit.userId], references: [users.id] }),
 }));
+
+// ─── Descartes de sugerencias de medios (ficha de producto) ───
+// Cuando la matriz de variantes detecta assets ya subidos a R2 bajo la carpeta del
+// producto/color pero sin vincular (ej. sesión previa que falló al guardar), se
+// ofrecen como precarga automática en la galería. Si el admin quita una de esas
+// sugerencias antes de guardar, se registra acá para no volver a ofrecerla — sin
+// esto, "sin vínculo en media_links" es indistinguible entre "nunca ofrecida" y
+// "ofrecida y rechazada a propósito".
+export const productMediaDismissals = pgTable("product_media_dismissals", {
+  id: pgUuid("id").primaryKey().$defaultFn(() => uuid()),
+  productId: pgUuid("product_id").notNull(),
+  colorId: pgUuid("color_id"), // null = sugerencia de portada/sin color
+  assetId: pgUuid("asset_id").notNull().references(() => mediaAssets.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+}, (table) => [
+  unique("uniq_product_media_dismissals").on(table.productId, table.colorId, table.assetId),
+  index("idx_product_media_dismissals_product").on(table.productId),
+]);

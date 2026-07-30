@@ -190,6 +190,13 @@
       "when": 1785232957528,
       "tag": "0026_luxuriant_nightmare",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1785348456870,
+      "tag": "0027_great_electro",
+      "breakpoints": true
     }
   ]
 }

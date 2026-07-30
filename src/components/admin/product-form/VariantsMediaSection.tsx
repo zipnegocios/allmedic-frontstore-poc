@@ -27,7 +27,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Plus, Trash2, AlertTriangle, GripVertical, ArrowDownAZ } from 'lucide-react';
+import { Plus, Trash2, AlertTriangle, GripVertical, ArrowDownAZ, RefreshCw, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { MediaThumb } from '@/components/admin/media/MediaThumb';
@@ -109,6 +109,19 @@ interface VariantsMediaSectionProps {
   /** Sin código de estilo válido no hay carpeta (`products/{codigo}/...`) donde
    * ubicar los medios — se deshabilita agregar medios hasta que se declare uno. */
   codeMissing: boolean;
+  /** Assets ya subidos a R2 bajo la carpeta del color pero sin vincular todavía (ver
+   * `useUnlinkedProductMedia`) — se ofrecen como precarga sugerida en "Galería del Color". */
+  suggestionsByColorId: Record<string, MediaUploadResult[]>;
+  suggestionsLoading: boolean;
+  /** Agrega una sugerencia aceptada a la galería del color (mismo resultado que subirla o
+   * elegirla en el picker) y la quita de la lista de sugerencias pendientes. */
+  onAcceptSuggestion: (asset: MediaUploadResult, colorId: string) => void;
+  /** Descarta una sugerencia sin agregarla — no vuelve a ofrecerse en sesiones futuras una
+   * vez que el producto se guarde (ver `useUnlinkedProductMedia.getDismissedAssetIds`). */
+  onDismissSuggestion: (colorId: string, assetId: string) => void;
+  /** Botón manual "Buscar medios en la biblioteca" — re-ejecuta el escaneo para un color
+   * puntual sin necesidad de regenerar la matriz de variantes. */
+  onScanColor: (colorId: string) => void;
 }
 
 /** Envuelve cada item de color del acordeón con `useSortable` — extraído a un
@@ -174,6 +187,11 @@ export function VariantsMediaSection({
   formErrors,
   onColorCreated,
   codeMissing,
+  suggestionsByColorId,
+  suggestionsLoading,
+  onAcceptSuggestion,
+  onDismissSuggestion,
+  onScanColor,
 }: VariantsMediaSectionProps) {
   // Modal de detalle de errores — se abre al hacer clic en el badge "Con errores"
   // de cualquier color; muestra el mapeo completo (ficha general + variantes y
@@ -530,7 +548,10 @@ export function VariantsMediaSection({
         variantFields={variantFields}
         appendVariant={appendVariant}
         onColorCreated={onColorCreated}
-        onMatrixGenerated={(colorIds) => colorIds[0] && setExpandedColorId(colorIds[0])}
+        onMatrixGenerated={(colorIds) => {
+          if (colorIds[0]) setExpandedColorId(colorIds[0]);
+          colorIds.forEach(onScanColor);
+        }}
       />
 
       {/* ─── LISTADO DE GRUPOS POR COLOR ─── */}
@@ -622,6 +643,13 @@ export function VariantsMediaSection({
                 .map((img, idx) => ({ img, idx }))
                 .filter((item) => item.img.colorId === colorId)
                 .sort((a, b) => (a.img.sortOrder ?? 0) - (b.img.sortOrder ?? 0));
+
+              // Sugerencias pendientes de este color — filtradas contra lo que ya está en la
+              // galería (defensa extra: si el admin ya la agregó por otra vía, no se ofrece de nuevo).
+              const linkedAssetIds = new Set(colorImages.map((item) => item.img.assetId));
+              const colorSuggestions = (suggestionsByColorId[colorId] ?? []).filter(
+                (asset) => !linkedAssetIds.has(asset.id)
+              );
 
               // Tallas ya usadas en este color — evita duplicar una misma talla dos
               // veces para el mismo color (ej. dos filas "S" para "Negro").
@@ -870,23 +898,74 @@ export function VariantsMediaSection({
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
                         <Label className="text-xs font-semibold text-gray-700">Galería del Color</Label>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={codeMissing}
-                          title={codeMissing ? 'Declara un Código de Estilo válido para habilitar los medios' : undefined}
-                          onClick={() => onPickTarget('append', colorId)}
-                          className="h-7 text-[10px] bg-white"
-                        >
-                          <Plus className="w-3 h-3 mr-1" />
-                          Agregar Medios
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={codeMissing || suggestionsLoading}
+                            title={codeMissing ? 'Declara un Código de Estilo válido para habilitar los medios' : 'Buscar en la biblioteca fotos ya subidas para este color sin vincular todavía'}
+                            onClick={() => onScanColor(colorId)}
+                            className="h-7 text-[10px] bg-white"
+                          >
+                            <RefreshCw className={cn('w-3 h-3 mr-1', suggestionsLoading && 'animate-spin')} />
+                            {suggestionsLoading ? 'Buscando...' : 'Buscar en biblioteca'}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={codeMissing}
+                            title={codeMissing ? 'Declara un Código de Estilo válido para habilitar los medios' : undefined}
+                            onClick={() => onPickTarget('append', colorId)}
+                            className="h-7 text-[10px] bg-white"
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            Agregar Medios
+                          </Button>
+                        </div>
                       </div>
                       {codeMissing && (
                         <p className="text-[11px] text-amber-700 bg-amber-50 rounded px-2 py-1">
                           Declara un Código de Estilo válido en la ficha General para poder subir medios.
                         </p>
+                      )}
+
+                      {colorSuggestions.length > 0 && (
+                        <div className="space-y-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          <p className="text-[11px] text-blue-800">
+                            Encontramos {colorSuggestions.length} foto{colorSuggestions.length === 1 ? '' : 's'} ya
+                            subida{colorSuggestions.length === 1 ? '' : 's'} en la biblioteca para este color, sin
+                            vincular todavía. Agrégalas a la galería o descártalas.
+                          </p>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                            {colorSuggestions.map((asset) => (
+                              <div key={asset.id} className="relative rounded-lg overflow-hidden border border-blue-300 bg-white">
+                                <div className="aspect-square bg-gray-50">
+                                  <MediaThumb storageKey={asset.storageKey} mimeType={asset.mimeType} sizes="120px" />
+                                </div>
+                                <div className="flex divide-x divide-blue-200 border-t border-blue-200">
+                                  <button
+                                    type="button"
+                                    onClick={() => onAcceptSuggestion(asset, colorId)}
+                                    className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-medium text-emerald-700 hover:bg-emerald-50"
+                                    title="Agregar a la galería"
+                                  >
+                                    <Check className="w-3 h-3" /> Agregar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => onDismissSuggestion(colorId, asset.id)}
+                                    className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-medium text-red-600 hover:bg-red-50"
+                                    title="Descartar (no volver a sugerir)"
+                                  >
+                                    <X className="w-3 h-3" /> Quitar
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       )}
 
                       {colorImages.length === 0 ? (

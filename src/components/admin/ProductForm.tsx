@@ -57,6 +57,7 @@ import { TagListEditor } from '@/components/admin/product-form/TagListEditor';
 import { VariantsMediaSection } from '@/components/admin/product-form/VariantsMediaSection';
 import { FloatingSaveButton, type FloatingSaveStatus } from '@/components/admin/FloatingSaveButton';
 import { useProductTypeAttributes } from '@/components/admin/product-form/useProductTypeAttributes';
+import { useUnlinkedProductMedia } from '@/hooks/useUnlinkedProductMedia';
 import { GeneralPrimarySection } from '@/components/admin/product-form/GeneralPrimarySection';
 import { ClassificationSection } from '@/components/admin/product-form/ClassificationSection';
 import { PricingSection } from '@/components/admin/product-form/PricingSection';
@@ -377,8 +378,28 @@ export default function ProductForm({
     if (Object.keys(derived).length > 0) setValue('styleAttributes', derived);
   }, [attributeLinks, valuesByAttribute, getValues, setValue]);
 
+  // ─── Precarga de medios sin vincular (assets ya subidos a R2 sin media_link) ───
+  // Detecta automáticamente fotos que ya existen en la carpeta del producto/color pero nunca
+  // se vincularon (ej. sesión previa que falló al guardar) — se ofrecen para agregar a la
+  // galería con un clic, o se pueden descartar. Ver `useUnlinkedProductMedia`.
+  const unlinkedMedia = useUnlinkedProductMedia(createdProductId);
+  const scannedOnLoadRef = useRef(false);
+
   // ─── Código de Estilo: verificación de unicidad en vivo (Fase 3.4, brief C.1) ───
   const codeValue = watch('code');
+
+  useEffect(() => {
+    if (scannedOnLoadRef.current) return;
+    if (!codeValue?.trim() || colors.length === 0) return;
+    const activeColorIds = new Set(getValues('variants').map((v) => v.colorId).filter(Boolean));
+    if (activeColorIds.size === 0) return;
+    scannedOnLoadRef.current = true;
+    const activeColors = colors.filter((c) => activeColorIds.has(c.id)).map((c) => ({ id: c.id, code: c.code }));
+    unlinkedMedia.scan(codeValue, activeColors);
+    // Solo al terminar de cargar un producto existente (variantes/colores ya poblados) — no
+    // en cada tecleo del código ni cada color agregado; `scannedOnLoadRef` lo limita a una vez.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [colors, codeValue]);
   useEffect(() => {
     const trimmed = codeValue?.trim();
     if (!trimmed) {
@@ -461,8 +482,20 @@ export default function ProductForm({
     return synced;
   }
 
+  /** Adjunta al payload de guardado las sugerencias de precarga (`useUnlinkedProductMedia`)
+   * que se ofrecieron en esta sesión pero NO terminaron en `images[]` — el backend las
+   * registra como descarte explícito para no volver a sugerirlas (ver `/api/admin/products/[id]/route.ts`).
+   * Solo aplica a productos ya existentes (PATCH); un producto nuevo no tiene id para
+   * asociar el descarte todavía. */
+  function withDismissedSuggestions(data: ProductFormData): ProductFormData & { dismissedSuggestedAssets?: Array<{ assetId: string; colorId: string | null }> } {
+    if (!createdProductId) return data;
+    const finalAssetIds = new Set(data.images.map((img) => img.assetId));
+    const dismissedSuggestedAssets = unlinkedMedia.getDismissedAssetIds(finalAssetIds);
+    return dismissedSuggestedAssets.length > 0 ? { ...data, dismissedSuggestedAssets } : data;
+  }
+
   async function onSubmit(rawData: ProductFormData) {
-    const data = withSyncedStyleAttributes(rawData);
+    const data = withDismissedSuggestions(withSyncedStyleAttributes(rawData));
     setSaving(true);
     setShowValidationBanner(false);
     try {
@@ -513,7 +546,7 @@ export default function ProductForm({
       toast.error('Revisa los campos obligatorios antes de guardar');
       return;
     }
-    const data = withSyncedStyleAttributes(rawData);
+    const data = withDismissedSuggestions(withSyncedStyleAttributes(rawData));
     if (mode === 'progress') data.isActive = false;
 
     setSavingAnchored(mode);
@@ -570,7 +603,7 @@ export default function ProductForm({
   // guardando avances en formularios largos (variantes, medios) sin el viaje de
   // ida y vuelta a la lista.
   async function onSaveAndStay(rawData: ProductFormData) {
-    const data = withSyncedStyleAttributes(rawData);
+    const data = withDismissedSuggestions(withSyncedStyleAttributes(rawData));
     setSavingStay(true);
     setSaveStayStatus('saving');
     setShowValidationBanner(false);
@@ -792,6 +825,33 @@ export default function ProductForm({
         sortOrder: imageFields.length + i,
       });
     });
+  }
+
+  // Acepta una sugerencia de precarga (asset ya en R2 sin vincular, ver `useUnlinkedProductMedia`)
+  // — mismo `appendImage` que el resto de los flujos de galería, y la saca de la lista de
+  // sugerencias pendientes de ese color.
+  function handleAcceptSuggestion(asset: MediaAssetSummary, colorId: string) {
+    const colorName = colors.find((c) => c.id === colorId)?.name;
+    appendImage({
+      assetId: asset.id,
+      colorId,
+      url: resolveMediaUrl(asset.storageKey),
+      storageKey: asset.storageKey,
+      mimeType: asset.mimeType,
+      alt: buildAutoAlt(colorName),
+      sortOrder: imageFields.length,
+    });
+    unlinkedMedia.clearSuggestion(colorId, asset.id);
+  }
+
+  // Botón manual "Buscar en biblioteca" de un color puntual — reusa el mismo escaneo batcheado
+  // (el endpoint ya filtra por prefijo de TODO el producto en una sola llamada; acá solo se
+  // acota `colors` a este color puntual porque es lo único que le interesa a este botón).
+  function handleScanColor(colorId: string) {
+    if (!codeValue?.trim()) return;
+    const color = colors.find((c) => c.id === colorId);
+    if (!color) return;
+    unlinkedMedia.scan(codeValue, [{ id: color.id, code: color.code }]);
   }
 
   const mediaPickerDialog = (
@@ -1093,6 +1153,11 @@ export default function ProductForm({
                   removeImage={removeImage}
                   code={codeValue ?? ''}
                   onFilesUploaded={handleFilesUploadedForColor}
+                  suggestionsByColorId={unlinkedMedia.suggestionsByColorId}
+                  suggestionsLoading={unlinkedMedia.loading}
+                  onAcceptSuggestion={handleAcceptSuggestion}
+                  onDismissSuggestion={unlinkedMedia.clearSuggestion}
+                  onScanColor={handleScanColor}
                   variantsErrors={errors.variants}
                   formErrors={errors}
                   onColorCreated={handleColorCreated}
@@ -1288,6 +1353,11 @@ export default function ProductForm({
                 removeImage={removeImage}
                 code={codeValue ?? ''}
                 onFilesUploaded={handleFilesUploadedForColor}
+                suggestionsByColorId={unlinkedMedia.suggestionsByColorId}
+                suggestionsLoading={unlinkedMedia.loading}
+                onAcceptSuggestion={handleAcceptSuggestion}
+                onDismissSuggestion={unlinkedMedia.clearSuggestion}
+                onScanColor={handleScanColor}
                 variantsErrors={errors.variants}
                 formErrors={errors}
                 onColorCreated={handleColorCreated}

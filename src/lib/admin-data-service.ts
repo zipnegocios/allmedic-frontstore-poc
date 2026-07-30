@@ -28,10 +28,11 @@ import {
   sizes as sizesTable,
   catalogTasks as catalogTasksTable,
   users as usersTable,
+  productMediaDismissals as productMediaDismissalsTable,
 } from '@/db/schema';
-import { eq, and, or, ne, asc, desc, sql, like, inArray, notInArray, isNull, isNotNull, type SQL } from 'drizzle-orm';
+import { eq, and, or, ne, asc, desc, sql, like, ilike, inArray, notInArray, isNull, isNotNull, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { resolveMediaUrl } from './media';
+import { resolveMediaUrl, sanitizeCodeSegment, type MediaAssetSummary } from './media';
 import { reorganizeProductMedia, reorganizeSetMedia } from './media-reorganize-service';
 import { deleteObject } from '@/lib/r2';
 import type { BusinessRule, RuleConflict } from '@/lib/rules-engine';
@@ -1784,6 +1785,106 @@ async function getProductCoversMap(productIds: string[]): Promise<Map<string, Pr
   }
 
   return coverMap;
+}
+
+/**
+ * Assets ya subidos a R2 bajo `products/{code}/{colorCode}/...` que NO están vinculados
+ * (GALLERY) al producto+color todavía, ni fueron descartados antes (`product_media_dismissals`)
+ * — sugerencias de precarga para "Configuración por Color" cuando la matriz de variantes se
+ * genera o el formulario de edición se abre (ej. sesión previa que subió fotos pero falló al
+ * guardar el producto, dejándolas sin vincular). Una sola consulta por prefijo de producto, sin
+ * importar la cantidad de colores — ver `getProductCoversMap` como patrón de referencia batcheado.
+ */
+export async function getUnlinkedProductMediaByColor(
+  productId: string | undefined,
+  code: string,
+  colors: { id: string; code: string }[]
+): Promise<Record<string, MediaAssetSummary[]>> {
+  const codeSegment = sanitizeCodeSegment(code.trim());
+  if (!codeSegment || colors.length === 0) return {};
+
+  const [assets, linkedRows, dismissedRows] = await Promise.all([
+    db.select().from(mediaAssetsTable).where(ilike(mediaAssetsTable.storageKey, `products/${codeSegment}/%`)),
+    productId
+      ? db.select({ assetId: mediaLinksTable.assetId, colorId: mediaLinksTable.colorId })
+          .from(mediaLinksTable)
+          .where(and(
+            eq(mediaLinksTable.entityType, 'PRODUCT'),
+            eq(mediaLinksTable.entityId, productId),
+            eq(mediaLinksTable.role, 'GALLERY')
+          ))
+      : Promise.resolve([]),
+    productId
+      ? db.select({ assetId: productMediaDismissalsTable.assetId, colorId: productMediaDismissalsTable.colorId })
+          .from(productMediaDismissalsTable)
+          .where(eq(productMediaDismissalsTable.productId, productId))
+      : Promise.resolve([]),
+  ]);
+
+  const linkedAssetIdsByColor = new Map<string, Set<string>>();
+  for (const row of linkedRows) {
+    if (!row.colorId) continue;
+    if (!linkedAssetIdsByColor.has(row.colorId)) linkedAssetIdsByColor.set(row.colorId, new Set());
+    linkedAssetIdsByColor.get(row.colorId)!.add(row.assetId);
+  }
+  const dismissedAssetIdsByColor = new Map<string, Set<string>>();
+  for (const row of dismissedRows) {
+    const key = row.colorId ?? '';
+    if (!dismissedAssetIdsByColor.has(key)) dismissedAssetIdsByColor.set(key, new Set());
+    dismissedAssetIdsByColor.get(key)!.add(row.assetId);
+  }
+
+  // Segmento de carpeta -> color: compara sin distinguir mayúsculas/minúsculas, consistente con
+  // el `ILIKE` de la consulta (`sanitizeCodeSegment` preserva case, ver src/lib/media.ts).
+  const colorBySegment = new Map(colors.map((c) => [sanitizeCodeSegment(c.code).toLowerCase(), c]));
+
+  const result: Record<string, MediaAssetSummary[]> = {};
+  for (const asset of assets) {
+    const segments = asset.storageKey.split('/');
+    const colorSegment = segments[2]; // products/{code}/{colorSegment}/archivo
+    if (!colorSegment) continue;
+    const color = colorBySegment.get(colorSegment.toLowerCase());
+    if (!color) continue; // portada, "sin-color", u otro color no seleccionado en la matriz
+
+    if (linkedAssetIdsByColor.get(color.id)?.has(asset.id)) continue;
+    if (dismissedAssetIdsByColor.get(color.id)?.has(asset.id)) continue;
+
+    if (!result[color.id]) result[color.id] = [];
+    result[color.id].push({
+      id: asset.id,
+      storageKey: asset.storageKey,
+      fileName: asset.fileName,
+      folder: asset.folder,
+      mimeType: asset.mimeType,
+      sizeBytes: asset.sizeBytes,
+      width: asset.width,
+      height: asset.height,
+      durationSeconds: asset.durationSeconds,
+      previewStartSeconds: asset.previewStartSeconds,
+      previewDurationSeconds: asset.previewDurationSeconds,
+      altText: asset.altText,
+      title: asset.title,
+      caption: asset.caption,
+      createdAt: asset.createdAt?.toISOString() ?? null,
+    });
+  }
+  return result;
+}
+
+/**
+ * Registra qué sugerencias de precarga (`getUnlinkedProductMediaByColor`) fueron descartadas
+ * por el admin antes de guardar — para no volver a ofrecerlas. Se llama solo con los assetIds
+ * que el frontend ofreció y que NO quedaron en `images[]` al guardar (ver `updateProductWithRelations`).
+ * Idempotente (`ON CONFLICT DO NOTHING`, constraint `uniq_product_media_dismissals`).
+ */
+export async function recordProductMediaDismissals(
+  productId: string,
+  dismissals: Array<{ assetId: string; colorId: string | null }>
+) {
+  if (dismissals.length === 0) return;
+  await db.insert(productMediaDismissalsTable)
+    .values(dismissals.map((d) => ({ productId, colorId: d.colorId, assetId: d.assetId })))
+    .onConflictDoNothing();
 }
 
 // ── Productos disponibles para armar sets (visibility GROUPS o BOTH) ──

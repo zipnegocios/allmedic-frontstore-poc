@@ -44,9 +44,11 @@ interface AttributeMatrixSectionProps {
    * "Asociar Color" — el llamador (`ProductForm`) lo agrega a la lista de colores
    * disponibles en todo el formulario, no solo aquí. */
   onColorCreated?: (color: Color) => void;
-  /** Se dispara al terminar de generar la matriz con al menos una variante nueva —
-   * el llamador (`VariantsMediaSection`) lo usa para expandir automáticamente la
-   * sección "Configuración por Color" del primer color recién generado. */
+  /** Se dispara al terminar de procesar la matriz para los colores seleccionados —
+   * incluso si no se crearon variantes nuevas (combinaciones ya existentes). El
+   * llamador (`VariantsMediaSection`) lo usa para expandir automáticamente la
+   * sección "Configuración por Color" del primer color, y para disparar el escaneo
+   * de medios sin vincular de esos colores (`getUnlinkedProductMediaByColor`). */
   onMatrixGenerated?: (colorIds: string[]) => void;
 }
 
@@ -163,8 +165,12 @@ export function AttributeMatrixSection({
       toast.info('No se generaron variantes nuevas (todas las combinaciones ya existían)');
     } else {
       toast.success(`${created} variante(s) generada(s)`);
-      onMatrixGenerated?.(selectedColorIds);
     }
+    // Se dispara aunque `created === 0` (combinaciones ya existentes) — cubre el caso de
+    // reabrir un producto con variantes ya guardadas pero cuyos medios nunca se vincularon
+    // (ej. sesión previa que falló al guardar), donde regenerar la matriz no crea filas
+    // nuevas pero sigue siendo la señal de "quiero revisar estos colores".
+    onMatrixGenerated?.(selectedColorIds);
   }
 
   return (
