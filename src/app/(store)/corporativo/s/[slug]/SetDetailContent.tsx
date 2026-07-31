@@ -12,6 +12,7 @@ import type { MediaItem } from '@/lib/media';
 import { ColorSwatchGroup } from '@/components/catalog/ColorSwatch';
 import { MinQuantityInfoPopover } from '@/components/catalog/MinQuantityInfoPopover';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
+import { MagnifierImage } from '@/components/media/MagnifierImage';
 import { LiquidFillLoader } from '@/components/ui/LiquidFillLoader';
 import { cn } from '@/lib/utils';
 
@@ -770,11 +771,11 @@ function Gallery({
               <LiquidFillLoader />
             </div>
           )}
-          <MediaGridThumb
+          <MagnifierImage
+            key={focusedImage?.url}
             item={focusedImage}
             fallback="/images/placeholder-product.jpg"
             alt={focus.side === 'A' ? pieceA.productName : pieceB.productName}
-            fit="contain"
             className={cn('object-contain transition-opacity duration-200', isImageLoading && 'opacity-0')}
             onLoad={() => setIsImageLoading(false)}
             onError={() => setIsImageLoading(false)}
