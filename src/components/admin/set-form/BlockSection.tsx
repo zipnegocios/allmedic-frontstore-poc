@@ -27,6 +27,13 @@ interface BlockSectionProps {
    * opciones?". Al desactivarlo se quita la 2da opción; al activarlo se agrega vacía. */
   hasSecondOption: boolean;
   onToggleSecondOption: (enabled: boolean) => void;
+  /** Tipo de producto permitido para elegir/agregar en este bloque (ej. "Camisas" en Bloque A,
+   * "Pantalones" en Bloque B — convención fija del catálogo corporativo). Solo acota el selector
+   * de búsqueda: una pieza ya elegida que no cumpla (dato histórico) sigue mostrándose sin
+   * cambios, nunca se fuerza a reemplazarla. `undefined` = sin restricción (comportamiento
+   * previo). */
+  allowedProductTypeId?: string;
+  allowedProductTypeLabel?: string;
 }
 
 /**
@@ -50,6 +57,8 @@ export function BlockSection({
   optionProductIds,
   hasSecondOption,
   onToggleSecondOption,
+  allowedProductTypeId,
+  allowedProductTypeLabel,
 }: BlockSectionProps) {
   const blockErrors = errors.blocks?.[blockIndex];
   const prices = optionProductIds.map((id) => productPrice(products.find((p) => p.id === id)));
@@ -139,10 +148,17 @@ export function BlockSection({
                           <PopoverContent className="w-[420px] max-w-[calc(100vw-2rem)] p-0" align="start">
                             <Command>
                               <CommandInput placeholder="Buscar por nombre, código, marca o colección..." />
+                              {allowedProductTypeLabel && (
+                                <p className="px-3 pt-2 text-[11px] text-gray-400">
+                                  Solo se muestran productos de tipo &quot;{allowedProductTypeLabel}&quot;.
+                                </p>
+                              )}
                               <CommandList>
                                 <CommandEmpty>Sin resultados.</CommandEmpty>
                                 <CommandGroup>
-                                  {products.map((p) => {
+                                  {products
+                                    .filter((p) => p.id === productId || !allowedProductTypeId || p.productTypeId === allowedProductTypeId)
+                                    .map((p) => {
                                     const alreadyUsed = p.id !== productId && selectedProductIds.includes(p.id);
                                     return (
                                       <CommandItem

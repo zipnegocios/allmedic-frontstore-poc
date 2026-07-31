@@ -126,7 +126,12 @@ export function SetCard({ set, canEdit, onToggleActive, onDelete }: SetCardProps
 
   return (
     <Card className="overflow-hidden border border-gray-200 hover:shadow-md hover:border-gray-300 transition-all duration-200 bg-white p-2.5 flex flex-col gap-1.5">
-      {/* Header: portada + nombre + estado + género */}
+      {/* Nombre del set — primer elemento de la card, hasta 2 líneas */}
+      <h3 className="font-bold text-xs text-gray-900 leading-tight line-clamp-2" title={set.name}>
+        {set.name}
+      </h3>
+
+      {/* Header: portada + estado + género + marca */}
       <div className="flex gap-2 items-start">
         <div className="w-9 h-12 bg-gray-50 rounded overflow-hidden relative shrink-0 border border-gray-100">
           <SetCoverThumb set={set} />
@@ -137,9 +142,6 @@ export function SetCard({ set, canEdit, onToggleActive, onDelete }: SetCardProps
           )}
         </div>
         <div className="flex-1 min-w-0 space-y-1">
-          <h3 className="font-bold text-xs text-gray-900 leading-tight line-clamp-1" title={set.name}>
-            {set.name}
-          </h3>
           <div className="flex flex-wrap items-center gap-1">
             <Badge
               variant={set.isActive ? 'default' : 'secondary'}

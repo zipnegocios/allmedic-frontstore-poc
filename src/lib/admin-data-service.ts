@@ -2172,10 +2172,13 @@ export async function getSetEligibleProducts() {
       visibility: productsTable.visibility,
       brandName: brandsTable.name,
       brandId: productsTable.brandId,
+      productTypeId: productsTable.productTypeId,
+      productTypeName: productTypesTable.name,
     })
     .from(productsTable)
     .leftJoin(brandsTable, eq(productsTable.brandId, brandsTable.id))
     .leftJoin(collectionsTable, eq(productsTable.collectionId, collectionsTable.id))
+    .leftJoin(productTypesTable, eq(productsTable.productTypeId, productTypesTable.id))
     .where(and(eq(productsTable.isActive, true), isNull(productsTable.deletedAt)))
     .orderBy(asc(productsTable.name));
 

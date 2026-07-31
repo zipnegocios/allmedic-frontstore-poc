@@ -85,6 +85,8 @@ export interface EligibleProduct {
   colors: { id: string; name: string; code: string; hex: string }[];
   sizes: string[];
   hasActiveVariant: boolean;
+  productTypeId: string | null;
+  productTypeName: string | null;
 }
 
 // ─── Combinaciones de color curadas (modo MIXED) ───

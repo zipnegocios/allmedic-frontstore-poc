@@ -159,6 +159,14 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
   ];
   const blockOnlyItems = blocks.flatMap((b) => b.options.map((o) => ({ productId: o.productId, quantityPerSet: b.quantityPerSet })));
 
+  // Convención fija del catálogo corporativo: Bloque A solo admite piezas de tipo "Camisas",
+  // Bloque B solo "Pantalones" — resuelto por nombre exacto desde el catálogo ya cargado en
+  // memoria (evita un fetch aparte a /api/admin/product-types). Sets ya guardados con una pieza
+  // de otro tipo (dato histórico) no se ven afectados: la restricción solo acota el selector de
+  // búsqueda de una pieza NUEVA (ver BlockSection.tsx), nunca oculta la ya elegida.
+  const camisasTypeId = products.find((p) => p.productTypeName === 'Camisas')?.productTypeId ?? undefined;
+  const pantalonesTypeId = products.find((p) => p.productTypeName === 'Pantalones')?.productTypeId ?? undefined;
+
   // Piezas del set para el selector "ver por pieza" del picker de portadas en modo "Portadas del
   // contenido" — reutiliza `products` (ya en memoria) en vez de pedirle a MediaPicker que traiga
   // el catálogo completo + colores por producto (mecanismo genérico de "otra ubicación").
@@ -467,6 +475,8 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
           optionProductIds={(blocks[0]?.options ?? []).map((o) => o.productId ?? '')}
           hasSecondOption={(blocks[0]?.options?.length ?? 0) >= 2}
           onToggleSecondOption={(enabled) => toggleSecondOption(0, enabled)}
+          allowedProductTypeId={camisasTypeId}
+          allowedProductTypeLabel="Camisas"
         />
         <BlockSection
           blockIndex={1}
@@ -481,6 +491,8 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
           optionProductIds={(blocks[1]?.options ?? []).map((o) => o.productId ?? '')}
           hasSecondOption={(blocks[1]?.options?.length ?? 0) >= 2}
           onToggleSecondOption={(enabled) => toggleSecondOption(1, enabled)}
+          allowedProductTypeId={pantalonesTypeId}
+          allowedProductTypeLabel="Pantalones"
         />
         {colorMode === 'PAIRED' && <PairedColorAccordion items={blockOnlyItems} products={products} />}
         {colorMode === 'MIXED' && <MixedColorAccordion setId={createdSetId} items={blockOnlyItems} products={products} />}
