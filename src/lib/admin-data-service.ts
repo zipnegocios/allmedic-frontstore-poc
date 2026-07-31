@@ -1764,6 +1764,10 @@ export async function createSetWithItems(input: CorporateSetInput) {
   const set = await db.transaction(async (tx) => {
     const [set] = await tx.insert(corporateSetsTable).values({
       ...setData,
+      // Columnas `decimal`: un string vacío del formulario ("sin precio manual") debe guardarse
+      // como null, no como '' — Postgres rechaza '' como numeric.
+      priceManual: setData.priceManual || null,
+      priceManualSale: setData.priceManualSale || null,
       brandId: derivedBrandId,
       manualDiscountEnd: manualDiscountEnd ? new Date(manualDiscountEnd) : undefined,
     }).returning();
@@ -1824,6 +1828,9 @@ export async function updateSetWithItems(id: string, input: Partial<CorporateSet
     if (Object.keys(setData).length > 0 || manualDiscountEnd !== undefined || derivedBrandId !== undefined) {
       await tx.update(corporateSetsTable).set({
         ...setData,
+        // Mismo saneo que en createSetWithItems: '' no es un numeric válido para Postgres.
+        ...(setData.priceManual !== undefined ? { priceManual: setData.priceManual || null } : {}),
+        ...(setData.priceManualSale !== undefined ? { priceManualSale: setData.priceManualSale || null } : {}),
         ...(derivedBrandId !== undefined ? { brandId: derivedBrandId } : {}),
         ...(manualDiscountEnd !== undefined
           ? { manualDiscountEnd: manualDiscountEnd ? new Date(manualDiscountEnd) : null }
