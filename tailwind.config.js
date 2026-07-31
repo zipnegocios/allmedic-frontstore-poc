@@ -95,12 +95,17 @@ export default {
           "0%": { backgroundPosition: "-200% 0" },
           "100%": { backgroundPosition: "200% 0" },
         },
+        "liquid-flow": {
+          "0%": { left: "-140%" },
+          "100%": { left: "0%" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         shimmer: "shimmer 3s linear infinite",
         "shimmer-fast": "shimmer 1.5s linear infinite",
+        "liquid-flow": "liquid-flow 2.4s cubic-bezier(0.5,0,0.3,1) infinite",
       },
     },
   },

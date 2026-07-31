@@ -12,6 +12,7 @@ import type { MediaItem } from '@/lib/media';
 import { ColorSwatchGroup } from '@/components/catalog/ColorSwatch';
 import { MinQuantityInfoPopover } from '@/components/catalog/MinQuantityInfoPopover';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
+import { LiquidFillLoader } from '@/components/ui/LiquidFillLoader';
 import { cn } from '@/lib/utils';
 
 interface SetDetailContentProps {
@@ -747,6 +748,16 @@ function Gallery({
   offsetB: number;
   setOffsetB: (updater: (o: number) => number) => void;
 }) {
+  // Barra líquida mientras se descarga la imagen enfocada — reinicio "durante el render" (sin
+  // useEffect, mismo patrón que SetListItem.tsx) cada vez que cambia (elegir otro color del
+  // set, cambiar de pieza en un bloque, o navegar el carril).
+  const [isImageLoading, setIsImageLoading] = useState(true);
+  const [trackedFocusedUrl, setTrackedFocusedUrl] = useState(focusedImage?.url);
+  if (focusedImage?.url !== trackedFocusedUrl) {
+    setTrackedFocusedUrl(focusedImage?.url);
+    setIsImageLoading(true);
+  }
+
   return (
     <div className="flex items-start gap-3">
       <GalleryRail images={imagesA} side="A" focusSide={focus.side} focusIndex={focus.index} onFocus={setFocus} offset={offsetA} setOffset={setOffsetA} />
@@ -754,12 +765,19 @@ function Gallery({
         {/* MediaGridThumb resuelve su propio placeholder genérico cuando `item` es undefined
             (color activo sin foto real, defensa — nunca fondo teñido con el hex del color). */}
         <div className="relative w-full aspect-product bg-[#F5F5F7] rounded-xl overflow-hidden">
+          {isImageLoading && focusedImage?.type !== 'video' && (
+            <div className="absolute inset-0 flex items-center justify-center bg-[#F5F5F7] z-[2] px-10">
+              <LiquidFillLoader />
+            </div>
+          )}
           <MediaGridThumb
             item={focusedImage}
             fallback="/images/placeholder-product.jpg"
             alt={focus.side === 'A' ? pieceA.productName : pieceB.productName}
             fit="contain"
-            className="object-contain"
+            className={cn('object-contain transition-opacity duration-200', isImageLoading && 'opacity-0')}
+            onLoad={() => setIsImageLoading(false)}
+            onError={() => setIsImageLoading(false)}
           />
         </div>
       </div>

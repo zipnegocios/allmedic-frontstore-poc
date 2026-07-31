@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
+import { LiquidFillLoader } from '@/components/ui/LiquidFillLoader';
 import type { MediaItem } from '@/lib/media';
 
 const PLACEHOLDER = '/images/placeholder-product.jpg';
@@ -52,10 +53,10 @@ export function ImageGallery({ images, productName, brandLogo }: ImageGalleryPro
     <div className="space-y-4">
       {/* Main viewer */}
       <div className="relative aspect-product bg-[#F5F5F7] overflow-hidden rounded-lg">
-        {/* Loading Spinner */}
+        {/* Loading: barra líquida mientras se descarga la imagen del color/índice elegido */}
         {isImageLoading && !isActiveVideo && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#F5F5F7] z-10">
-            <Loader2 className="w-10 h-10 text-gray-400 animate-spin" strokeWidth={1.5} />
+          <div className="absolute inset-0 flex items-center justify-center bg-[#F5F5F7] z-10 px-8">
+            <LiquidFillLoader />
           </div>
         )}
 

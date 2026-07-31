@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
-import { Eye, Check, X, Clock, Loader2 } from 'lucide-react';
+import { Eye, Check, X, Clock } from 'lucide-react';
 import type { Product } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { CountdownBadge } from '@/components/ui/CountdownBadge';
+import { LiquidFillLoader } from '@/components/ui/LiquidFillLoader';
 import { QuickViewModal } from './QuickViewModal';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 import { usePriceVisibility } from '@/context/PriceVisibilityContext';
@@ -30,14 +31,19 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
   // lugar — `colorTouched` distingue el color "por defecto" del elegido a propósito.
   const [colorTouched, setColorTouched] = useState(false);
 
-  // Update selected color when filter changes
-  useEffect(() => {
+  // Reacciona al filtro de color externo cambiando — reinicio "durante el render" (patrón
+  // oficial de React para sincronizar estado con una prop sin useEffect:
+  // https://react.dev/learn/you-might-not-need-an-effect), evita el render en cascada extra
+  // que dispara un setState síncrono dentro de un efecto.
+  const [trackedFilterColor, setTrackedFilterColor] = useState(selectedFilterColor);
+  if (selectedFilterColor !== trackedFilterColor) {
+    setTrackedFilterColor(selectedFilterColor);
     if (selectedFilterColor && product.colors.some(c => c.id === selectedFilterColor)) {
       setSelectedColorId(selectedFilterColor);
       setColorTouched(true);
       setIsImageLoading(true);
     }
-  }, [selectedFilterColor, product.colors]);
+  }
 
   // Reset loading state when color changes
   const handleColorChange = (colorId: string) => {
@@ -135,10 +141,10 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
               </div>
             )}
 
-            {/* Loading Spinner */}
+            {/* Loading: barra líquida mientras se descarga la imagen del color elegido */}
             {isImageLoading && displayMedia?.type !== 'video' && (
-              <div className="absolute inset-0 flex items-center justify-center bg-[#F5F5F7] z-5">
-                <Loader2 className="w-8 h-8 text-gray-400 animate-spin" strokeWidth={1.5} />
+              <div className="absolute inset-0 flex items-center justify-center bg-[#F5F5F7] z-5 px-6">
+                <LiquidFillLoader label={`Cargando imagen en ${selectedColor?.name ?? 'este color'}`} />
               </div>
             )}
 

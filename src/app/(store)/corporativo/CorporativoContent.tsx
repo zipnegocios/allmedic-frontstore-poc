@@ -11,6 +11,7 @@ import { LayoutSwitcher, type ViewMode } from '@/components/catalog/LayoutSwitch
 import { SetFilterSidebar, SetFilterButton } from '@/components/catalog/SetFilterSidebar';
 import { SetListItem } from '@/components/catalog/SetListItem';
 import { ColorFallbackBadge } from '@/components/catalog/ColorFallbackBadge';
+import { LiquidFillLoader } from '@/components/ui/LiquidFillLoader';
 import { useSetFilter } from '@/hooks/useSetFilter';
 import type { SetSortOption } from '@/lib/set-filter-logic';
 import { resolveCardCover } from '@/lib/resolve-card-cover';
@@ -20,6 +21,104 @@ interface CorporativoContentProps {
   /** Solo las reglas PRICE_VISIBILITY — se resuelven por set en el cliente (loop en memoria). */
   priceVisibilityRules: BusinessRule[];
   minQuantity: number;
+}
+
+/** Card del grid — extraída para poder trackear `isImageLoading` (barra líquida) por set
+ * individual mientras se descarga la portada del color recién filtrado, sin violar las reglas
+ * de hooks (no se puede usar `useState` dentro del `.map()` del padre). */
+function SetGridCard({
+  set,
+  activeColorId,
+  showPrices,
+}: {
+  set: CorporateSetSummary;
+  activeColorId: string | null;
+  showPrices: boolean;
+}) {
+  const { cover, secondaryCover, isFallback } = resolveCardCover(set, activeColorId);
+  const fallbackColor = isFallback ? set.colors.find((c) => c.id === activeColorId) : undefined;
+
+  // Reinicio "durante el render" (sin useEffect) al cambiar la URL de portada — mismo patrón
+  // que SetListItem.tsx, evita el render en cascada de un setState síncrono dentro de un efecto.
+  const [isImageLoading, setIsImageLoading] = useState(true);
+  const [trackedCoverUrl, setTrackedCoverUrl] = useState(cover?.url);
+  if (cover?.url !== trackedCoverUrl) {
+    setTrackedCoverUrl(cover?.url);
+    setIsImageLoading(true);
+  }
+
+  return (
+    <Link
+      href={`/corporativo/s/${set.slug}`}
+      className="group border border-[#E5E5E5] rounded-xl overflow-hidden hover:shadow-lg transition-shadow bg-white"
+    >
+      <div className="relative aspect-product bg-[#F5F5F7] overflow-hidden">
+        {cover ? (
+          <>
+            {isImageLoading && cover.type !== 'video' && (
+              <div className="absolute inset-0 flex items-center justify-center bg-[#F5F5F7] z-[2] px-8">
+                <LiquidFillLoader />
+              </div>
+            )}
+            <MediaGridThumb
+              item={cover}
+              fallback="/images/placeholder-product.jpg"
+              alt={set.name}
+              fit="cover"
+              className={`object-cover transition-opacity duration-300 ${secondaryCover ? 'group-hover:opacity-0' : 'group-hover:scale-105 transition-transform duration-500'} ${isImageLoading ? 'opacity-0' : ''}`}
+              sizes="400px"
+              onLoad={() => setIsImageLoading(false)}
+              onError={() => setIsImageLoading(false)}
+            />
+            {secondaryCover && (
+              <MediaGridThumb
+                item={secondaryCover}
+                fallback="/images/placeholder-product.jpg"
+                alt={set.name}
+                fit="cover"
+                className="absolute inset-0 object-cover opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                sizes="400px"
+              />
+            )}
+          </>
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-gray-300">
+            <Building2 className="w-12 h-12" strokeWidth={1} />
+          </div>
+        )}
+        {set.isFeatured && (
+          <span className="absolute top-3 left-3 flex items-center gap-1 bg-white/90 text-xs font-medium px-2 py-1 rounded-full">
+            <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+            Destacado
+          </span>
+        )}
+        {fallbackColor && (
+          <ColorFallbackBadge colorHex={fallbackColor.hex} colorName={fallbackColor.name} />
+        )}
+      </div>
+      <div className="p-4">
+        {set.brandName && <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{set.brandName}</p>}
+        <h3 className="font-semibold text-[#111111] mb-1">{set.name}</h3>
+        <p className="text-sm text-gray-500 mb-3">
+          {set.pieceCount} {set.pieceCount === 1 ? 'pieza' : 'piezas'}
+        </p>
+        {showPrices &&
+          (set.referencePrice !== null ? (
+            <div>
+              <span className="text-lg font-bold text-[#111111]">${set.referencePrice.toFixed(2)}</span>
+              <span className="text-xs text-gray-400 ml-1">/ set referencial</span>
+              {set.hasMissingPrices && (
+                <span className="flex items-center gap-1 text-xs text-amber-600 mt-1">
+                  <AlertTriangle className="w-3 h-3" /> Precio parcial
+                </span>
+              )}
+            </div>
+          ) : (
+            <span className="text-sm text-gray-400">Precio bajo cotización</span>
+          ))}
+      </div>
+    </Link>
+  );
 }
 
 export function CorporativoContent({ sets, priceVisibilityRules, minQuantity }: CorporativoContentProps) {
@@ -191,79 +290,13 @@ export function CorporativoContent({ sets, priceVisibilityRules, minQuantity }: 
                     viewMode === 'list' && 'grid-cols-1'
                   )}
                 >
-                  {paginatedSets.map((set) => {
-                    if (viewMode === 'list') {
-                      return <SetListItem key={set.id} set={set} showPrices={showPricesFor(set)} activeColorId={filters.colorId} />;
-                    }
-                    const { cover, secondaryCover, isFallback } = resolveCardCover(set, filters.colorId);
-                    const fallbackColor = isFallback ? set.colors.find((c) => c.id === filters.colorId) : undefined;
-                    return (
-                      <Link
-                        key={set.id}
-                        href={`/corporativo/s/${set.slug}`}
-                        className="group border border-[#E5E5E5] rounded-xl overflow-hidden hover:shadow-lg transition-shadow bg-white"
-                      >
-                        <div className="relative aspect-product bg-[#F5F5F7] overflow-hidden">
-                          {cover ? (
-                            <>
-                              <MediaGridThumb
-                                item={cover}
-                                fallback="/images/placeholder-product.jpg"
-                                alt={set.name}
-                                fit="cover"
-                                className={`object-cover transition-opacity duration-300 ${secondaryCover ? 'group-hover:opacity-0' : 'group-hover:scale-105 transition-transform duration-500'}`}
-                                sizes="400px"
-                              />
-                              {secondaryCover && (
-                                <MediaGridThumb
-                                  item={secondaryCover}
-                                  fallback="/images/placeholder-product.jpg"
-                                  alt={set.name}
-                                  fit="cover"
-                                  className="absolute inset-0 object-cover opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                                  sizes="400px"
-                                />
-                              )}
-                            </>
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-300">
-                              <Building2 className="w-12 h-12" strokeWidth={1} />
-                            </div>
-                          )}
-                          {set.isFeatured && (
-                            <span className="absolute top-3 left-3 flex items-center gap-1 bg-white/90 text-xs font-medium px-2 py-1 rounded-full">
-                              <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
-                              Destacado
-                            </span>
-                          )}
-                          {fallbackColor && (
-                            <ColorFallbackBadge colorHex={fallbackColor.hex} colorName={fallbackColor.name} />
-                          )}
-                        </div>
-                        <div className="p-4">
-                          {set.brandName && <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{set.brandName}</p>}
-                          <h3 className="font-semibold text-[#111111] mb-1">{set.name}</h3>
-                          <p className="text-sm text-gray-500 mb-3">
-                            {set.pieceCount} {set.pieceCount === 1 ? 'pieza' : 'piezas'}
-                          </p>
-                          {showPricesFor(set) &&
-                            (set.referencePrice !== null ? (
-                              <div>
-                                <span className="text-lg font-bold text-[#111111]">${set.referencePrice.toFixed(2)}</span>
-                                <span className="text-xs text-gray-400 ml-1">/ set referencial</span>
-                                {set.hasMissingPrices && (
-                                  <span className="flex items-center gap-1 text-xs text-amber-600 mt-1">
-                                    <AlertTriangle className="w-3 h-3" /> Precio parcial
-                                  </span>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-sm text-gray-400">Precio bajo cotización</span>
-                            ))}
-                        </div>
-                      </Link>
-                    );
-                  })}
+                  {paginatedSets.map((set) =>
+                    viewMode === 'list' ? (
+                      <SetListItem key={set.id} set={set} showPrices={showPricesFor(set)} activeColorId={filters.colorId} />
+                    ) : (
+                      <SetGridCard key={set.id} set={set} activeColorId={filters.colorId} showPrices={showPricesFor(set)} />
+                    )
+                  )}
                 </div>
 
                 {totalPages > 1 && (

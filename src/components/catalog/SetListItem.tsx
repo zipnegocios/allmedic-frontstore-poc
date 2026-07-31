@@ -1,7 +1,11 @@
+'use client';
+
+import { useState } from 'react';
 import Link from 'next/link';
 import { Building2, AlertTriangle } from 'lucide-react';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 import { ColorFallbackBadge } from '@/components/catalog/ColorFallbackBadge';
+import { LiquidFillLoader } from '@/components/ui/LiquidFillLoader';
 import type { CorporateSetSummary } from '@/lib/corporate-types';
 import { resolveCardCover } from '@/lib/resolve-card-cover';
 
@@ -17,6 +21,17 @@ export function SetListItem({ set, showPrices, activeColorId = null }: SetListIt
   const { cover, secondaryCover, isFallback } = resolveCardCover(set, activeColorId);
   const fallbackColor = isFallback ? set.colors.find((c) => c.id === activeColorId) : undefined;
 
+  // Barra líquida mientras se descarga la portada del color recién filtrado — reinicio "durante
+  // el render" (patrón oficial de React para resetear estado en respuesta a un cambio de prop,
+  // sin useEffect: https://react.dev/learn/you-might-not-need-an-effect), no dispara el render
+  // en cascada extra que sí dispara un setState síncrono dentro de un efecto.
+  const [isImageLoading, setIsImageLoading] = useState(true);
+  const [trackedCoverUrl, setTrackedCoverUrl] = useState(cover?.url);
+  if (cover?.url !== trackedCoverUrl) {
+    setTrackedCoverUrl(cover?.url);
+    setIsImageLoading(true);
+  }
+
   return (
     <Link
       href={`/corporativo/s/${set.slug}`}
@@ -25,12 +40,19 @@ export function SetListItem({ set, showPrices, activeColorId = null }: SetListIt
       <div className="relative flex-shrink-0 w-24 h-24 sm:w-32 sm:h-32 bg-[#F5F5F7] rounded-lg overflow-hidden">
         {cover ? (
           <>
+            {isImageLoading && cover.type !== 'video' && (
+              <div className="absolute inset-0 flex items-center justify-center bg-[#F5F5F7] z-[2] px-3">
+                <LiquidFillLoader />
+              </div>
+            )}
             <MediaGridThumb
               item={cover}
               fallback="/images/placeholder-product.jpg"
               alt={set.name}
               sizes="128px"
-              className={`object-cover transition-opacity duration-300 ${secondaryCover ? 'group-hover:opacity-0' : 'group-hover:scale-105 transition-transform duration-500'}`}
+              className={`object-cover transition-opacity duration-300 ${secondaryCover ? 'group-hover:opacity-0' : 'group-hover:scale-105 transition-transform duration-500'} ${isImageLoading ? 'opacity-0' : ''}`}
+              onLoad={() => setIsImageLoading(false)}
+              onError={() => setIsImageLoading(false)}
             />
             {secondaryCover && (
               <MediaGridThumb
