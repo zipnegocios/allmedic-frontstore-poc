@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Building2, AlertTriangle } from 'lucide-react';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 import { ColorFallbackBadge } from '@/components/catalog/ColorFallbackBadge';
+import { ColorSwatch } from '@/components/catalog/ColorSwatch';
 import { LiquidFillLoader } from '@/components/ui/LiquidFillLoader';
 import type { CorporateSetSummary } from '@/lib/corporate-types';
 import { resolveCardCover } from '@/lib/resolve-card-cover';
@@ -18,8 +19,19 @@ interface SetListItemProps {
 }
 
 export function SetListItem({ set, showPrices, activeColorId = null }: SetListItemProps) {
-  const { cover, secondaryCover, isFallback } = resolveCardCover(set, activeColorId);
-  const fallbackColor = isFallback ? set.colors.find((c) => c.id === activeColorId) : undefined;
+  // Color elegido al clickear un swatch dentro de esta card. Si el filtro lateral
+  // (prop activeColorId) cambia, debe primar sobre la selección local — mismo patrón
+  // "durante el render" que ProductCard.tsx (sin useEffect).
+  const [localColorId, setLocalColorId] = useState<string | null>(activeColorId);
+  const [trackedFilterColor, setTrackedFilterColor] = useState(activeColorId);
+  if (activeColorId !== trackedFilterColor) {
+    setTrackedFilterColor(activeColorId);
+    setLocalColorId(activeColorId);
+  }
+
+  const effectiveColorId = localColorId;
+  const { cover, secondaryCover, isFallback } = resolveCardCover(set, effectiveColorId);
+  const fallbackColor = isFallback ? set.colors.find((c) => c.id === effectiveColorId) : undefined;
 
   // Barra líquida mientras se descarga la portada del color recién filtrado — reinicio "durante
   // el render" (patrón oficial de React para resetear estado en respuesta a un cambio de prop,
@@ -74,29 +86,52 @@ export function SetListItem({ set, showPrices, activeColorId = null }: SetListIt
 
       <div className="flex-1 min-w-0 flex flex-col">
         <div className="flex-1">
-          {set.brandName && <p className="text-xs uppercase tracking-wider text-gray-400 mb-1">{set.brandName}</p>}
-          <h3 className="text-base sm:text-lg font-semibold text-[#111111] mb-1 group-hover:underline line-clamp-2">
+          {set.brandName && (
+            <p className="font-sans text-body-sm uppercase tracking-badge text-gray-400 mb-1">{set.brandName}</p>
+          )}
+          <h3 className="font-sans text-body-md font-normal text-[#111111] mb-1 group-hover:underline line-clamp-2">
             {set.name}
           </h3>
-          <p className="text-sm text-gray-500">
+          <p className="font-sans text-body-sm text-gray-500">
             {set.pieceCount} {set.pieceCount === 1 ? 'pieza' : 'piezas'}
           </p>
+          {set.colors.length > 1 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {set.colors.slice(0, 5).map(color => (
+                <div
+                  key={color.id}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setLocalColorId(color.id);
+                  }}
+                >
+                  <ColorSwatch color={color} size="sm" isSelected={effectiveColorId === color.id} />
+                </div>
+              ))}
+              {set.colors.length > 5 && (
+                <span className="font-sans text-body-xs text-gray-400 flex items-center">
+                  +{set.colors.length - 5}
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-between mt-3">
           {showPrices ? (
             set.referencePrice !== null ? (
               <div>
-                <span className="text-lg font-bold text-[#111111]">${set.referencePrice.toFixed(2)}</span>
-                <span className="text-xs text-gray-400 ml-1">/ set referencial</span>
+                <span className="font-sans text-body-md font-medium text-[#111111]">${set.referencePrice.toFixed(2)}</span>
+                <span className="font-sans text-body-xs text-gray-400 ml-1">/ set referencial</span>
                 {set.hasMissingPrices && (
-                  <span className="flex items-center gap-1 text-xs text-amber-600 mt-1">
+                  <span className="flex items-center gap-1 font-sans text-body-xs text-amber-600 mt-1">
                     <AlertTriangle className="w-3 h-3" /> Precio parcial
                   </span>
                 )}
               </div>
             ) : (
-              <span className="text-sm text-gray-400">Precio bajo cotización</span>
+              <span className="font-sans text-body-sm text-gray-400">Precio bajo cotización</span>
             )
           ) : (
             <span />

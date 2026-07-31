@@ -11,6 +11,7 @@ import { LayoutSwitcher, type ViewMode } from '@/components/catalog/LayoutSwitch
 import { SetFilterSidebar, SetFilterButton } from '@/components/catalog/SetFilterSidebar';
 import { SetListItem } from '@/components/catalog/SetListItem';
 import { ColorFallbackBadge } from '@/components/catalog/ColorFallbackBadge';
+import { ColorSwatch } from '@/components/catalog/ColorSwatch';
 import { LiquidFillLoader } from '@/components/ui/LiquidFillLoader';
 import { useSetFilter } from '@/hooks/useSetFilter';
 import type { SetSortOption } from '@/lib/set-filter-logic';
@@ -35,8 +36,20 @@ function SetGridCard({
   activeColorId: string | null;
   showPrices: boolean;
 }) {
-  const { cover, secondaryCover, isFallback } = resolveCardCover(set, activeColorId);
-  const fallbackColor = isFallback ? set.colors.find((c) => c.id === activeColorId) : undefined;
+  // Color elegido al clickear un swatch dentro de esta card. Si el filtro lateral
+  // (prop activeColorId) cambia, debe primar sobre la selección local — mismo patrón
+  // "durante el render" que ProductCard.tsx (sin useEffect, evita el render en cascada
+  // de un setState síncrono dentro de un efecto).
+  const [localColorId, setLocalColorId] = useState<string | null>(activeColorId);
+  const [trackedFilterColor, setTrackedFilterColor] = useState(activeColorId);
+  if (activeColorId !== trackedFilterColor) {
+    setTrackedFilterColor(activeColorId);
+    setLocalColorId(activeColorId);
+  }
+
+  const effectiveColorId = localColorId;
+  const { cover, secondaryCover, isFallback } = resolveCardCover(set, effectiveColorId);
+  const fallbackColor = isFallback ? set.colors.find((c) => c.id === effectiveColorId) : undefined;
 
   // Reinicio "durante el render" (sin useEffect) al cambiar la URL de portada — mismo patrón
   // que SetListItem.tsx, evita el render en cascada de un setState síncrono dentro de un efecto.
@@ -97,25 +110,48 @@ function SetGridCard({
         )}
       </div>
       <div className="p-4">
-        {set.brandName && <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{set.brandName}</p>}
-        <h3 className="font-semibold text-[#111111] mb-1">{set.name}</h3>
-        <p className="text-sm text-gray-500 mb-3">
+        {set.brandName && (
+          <p className="font-sans text-body-sm uppercase tracking-badge text-gray-400 mb-1">{set.brandName}</p>
+        )}
+        <h3 className="font-sans text-body-md font-normal text-[#111111] mb-1">{set.name}</h3>
+        <p className="font-sans text-body-sm text-gray-500 mb-3">
           {set.pieceCount} {set.pieceCount === 1 ? 'pieza' : 'piezas'}
         </p>
         {showPrices &&
           (set.referencePrice !== null ? (
             <div>
-              <span className="text-lg font-bold text-[#111111]">${set.referencePrice.toFixed(2)}</span>
-              <span className="text-xs text-gray-400 ml-1">/ set referencial</span>
+              <span className="font-sans text-body-md font-medium text-[#111111]">${set.referencePrice.toFixed(2)}</span>
+              <span className="font-sans text-body-xs text-gray-400 ml-1">/ set referencial</span>
               {set.hasMissingPrices && (
-                <span className="flex items-center gap-1 text-xs text-amber-600 mt-1">
+                <span className="flex items-center gap-1 font-sans text-body-xs text-amber-600 mt-1">
                   <AlertTriangle className="w-3 h-3" /> Precio parcial
                 </span>
               )}
             </div>
           ) : (
-            <span className="text-sm text-gray-400">Precio bajo cotización</span>
+            <span className="font-sans text-body-sm text-gray-400">Precio bajo cotización</span>
           ))}
+        {set.colors.length > 1 && (
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {set.colors.slice(0, 5).map(color => (
+              <div
+                key={color.id}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setLocalColorId(color.id);
+                }}
+              >
+                <ColorSwatch color={color} size="sm" isSelected={effectiveColorId === color.id} />
+              </div>
+            ))}
+            {set.colors.length > 5 && (
+              <span className="font-sans text-body-xs text-gray-400 flex items-center">
+                +{set.colors.length - 5}
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </Link>
   );
