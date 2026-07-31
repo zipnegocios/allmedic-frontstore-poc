@@ -1,11 +1,17 @@
 'use client';
 
-import { X, SlidersHorizontal } from 'lucide-react';
+import { X, SlidersHorizontal, Venus, Mars, VenusAndMars, Users } from 'lucide-react';
 import type { SetFilterState } from '@/lib/set-filter-logic';
 import type { SetFilterOptions } from '@/hooks/useSetFilter';
 import type { Gender } from '@/lib/types';
 import { ColorSwatch } from './ColorSwatch';
 import { cn } from '@/lib/utils';
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from '@/components/ui/accordion';
 
 interface SetFilterSidebarProps {
   filters: SetFilterState;
@@ -15,7 +21,14 @@ interface SetFilterSidebarProps {
   onClose: () => void;
 }
 
-type ArrayFilterKey = 'productTypes' | 'brands' | 'sizes';
+type ArrayFilterKey = 'productTypes' | 'sizes';
+
+const GENDER_OPTIONS: { value: Gender | null; label: string; Icon: typeof Venus }[] = [
+  { value: 'Mujer', label: 'Mujer', Icon: Venus },
+  { value: 'Hombre', label: 'Hombre', Icon: Mars },
+  { value: 'Unisex', label: 'Unisex', Icon: VenusAndMars },
+  { value: null, label: 'Todos', Icon: Users },
+];
 
 export function SetFilterSidebar({ filters, filterOptions, onFilterChange, isOpen, onClose }: SetFilterSidebarProps) {
   const toggleArrayFilter = (key: ArrayFilterKey, value: string) => {
@@ -34,7 +47,8 @@ export function SetFilterSidebar({ filters, filterOptions, onFilterChange, isOpe
     onFilterChange({
       gender: null,
       productTypes: [],
-      brands: [],
+      brandId: null,
+      collectionId: null,
       colorId: null,
       sizes: [],
       selectedStyles: {},
@@ -45,13 +59,24 @@ export function SetFilterSidebar({ filters, filterOptions, onFilterChange, isOpe
     onFilterChange({ colorId: filters.colorId === colorId ? null : colorId });
   };
 
+  const toggleBrand = (brandId: string) => {
+    onFilterChange({ brandId: filters.brandId === brandId ? null : brandId });
+  };
+
+  const toggleCollection = (collectionId: string) => {
+    onFilterChange({ collectionId: filters.collectionId === collectionId ? null : collectionId });
+  };
+
   const hasActiveFilters =
     filters.gender !== null ||
     filters.productTypes.length > 0 ||
-    filters.brands.length > 0 ||
+    filters.brandId !== null ||
+    filters.collectionId !== null ||
     filters.colorId !== null ||
     filters.sizes.length > 0 ||
     Object.values(filters.selectedStyles).some((values) => values.length > 0);
+
+  const defaultOpenSections = ['gender', 'brand'];
 
   const sidebarContent = (
     <>
@@ -62,147 +87,220 @@ export function SetFilterSidebar({ filters, filterOptions, onFilterChange, isOpe
         </button>
       </div>
 
-      <div className="p-4 space-y-6 overflow-y-auto max-h-[calc(100vh-80px)] lg:max-h-none">
+      <div className="p-4 overflow-y-auto max-h-[calc(100vh-80px)] lg:max-h-none">
         {hasActiveFilters && (
-          <button onClick={clearFilters} className="text-sm text-gray-500 hover:text-[#111111] underline transition-colors">
+          <button
+            onClick={clearFilters}
+            className="text-sm text-gray-500 hover:text-[#111111] underline transition-colors mb-4"
+          >
             Limpiar todos los filtros
           </button>
         )}
 
-        <div>
-          <h3 className="text-xs uppercase tracking-widest text-gray-400 mb-3">Género</h3>
-          <div className="space-y-2">
-            {(['Mujer', 'Hombre', 'Unisex'] as Gender[]).map((gender) => (
-              <label key={gender} className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="set-gender"
-                  checked={filters.gender === gender}
-                  onChange={() => onFilterChange({ gender })}
-                  className="w-4 h-4 accent-[#111111]"
-                />
-                <span className="text-sm text-[#333333]">{gender}</span>
-              </label>
-            ))}
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="set-gender"
-                checked={filters.gender === null}
-                onChange={() => onFilterChange({ gender: null })}
-                className="w-4 h-4 accent-[#111111]"
-              />
-              <span className="text-sm text-[#333333]">Todos</span>
-            </label>
-          </div>
-        </div>
+        <Accordion type="multiple" defaultValue={defaultOpenSections} className="w-full">
+          <AccordionItem value="gender">
+            <AccordionTrigger className="text-xs uppercase tracking-widest text-gray-400 hover:no-underline">
+              Género
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="grid grid-cols-2 gap-2">
+                {GENDER_OPTIONS.map(({ value, label, Icon }) => {
+                  const isSelected = filters.gender === value;
+                  return (
+                    <button
+                      key={label}
+                      onClick={() => onFilterChange({ gender: value })}
+                      className={cn(
+                        'flex items-center gap-2 px-3 py-2 text-sm rounded border transition-colors duration-150',
+                        isSelected
+                          ? 'border-[#111111] bg-[#F5F5F7] text-[#111111] font-medium'
+                          : 'border-gray-200 text-gray-500 hover:border-gray-400'
+                      )}
+                    >
+                      <Icon className="w-4 h-4 shrink-0" strokeWidth={1.5} />
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
 
-        {filterOptions.productTypes.length > 0 && (
-          <div>
-            <h3 className="text-xs uppercase tracking-widest text-gray-400 mb-3">Tipo de Producto</h3>
-            <div className="space-y-2">
-              {filterOptions.productTypes.map((productType) => (
-                <label key={productType} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={filters.productTypes.includes(productType)}
-                    onChange={() => toggleArrayFilter('productTypes', productType)}
-                    className="w-4 h-4 accent-[#111111] rounded"
-                  />
-                  <span className="text-sm text-[#333333]">{productType}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-        )}
+          {filterOptions.brands.length > 0 && (
+            <AccordionItem value="brand">
+              <AccordionTrigger className="text-xs uppercase tracking-widest text-gray-400 hover:no-underline">
+                Marca
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="grid grid-cols-2 gap-2">
+                  {filterOptions.brands.map((brand) => {
+                    const isSelected = filters.brandId === brand.id;
+                    return (
+                      <button
+                        key={brand.id}
+                        onClick={() => toggleBrand(brand.id)}
+                        className={cn(
+                          'flex items-center justify-center h-16 px-3 rounded border transition-colors duration-150',
+                          isSelected
+                            ? 'border-[#111111] bg-[#F5F5F7]'
+                            : 'border-gray-200 hover:border-gray-400'
+                        )}
+                      >
+                        {brand.logoUrl ? (
+                          <img
+                            src={brand.logoUrl}
+                            alt={brand.name}
+                            className="max-h-10 max-w-full object-contain"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                            }}
+                          />
+                        ) : null}
+                        <span
+                          className={cn(
+                            'text-xs font-medium text-center',
+                            brand.logoUrl ? 'hidden' : 'block',
+                            isSelected ? 'text-[#111111]' : 'text-gray-500'
+                          )}
+                        >
+                          {brand.name}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          )}
 
-        {filterOptions.brands.length > 0 && (
-          <div>
-            <h3 className="text-xs uppercase tracking-widest text-gray-400 mb-3">Marca</h3>
-            <div className="grid grid-cols-2 gap-2">
-              {filterOptions.brands.map((brand) => {
-                const isSelected = filters.brands.includes(brand);
-                return (
-                  <button
-                    key={brand}
-                    onClick={() => toggleArrayFilter('brands', brand)}
-                    className={cn(
-                      'px-3 py-2 text-xs font-medium rounded border transition-all duration-200 text-left',
-                      isSelected
-                        ? 'border-[#111111] bg-[#F5F5F7] text-[#111111]'
-                        : 'border-gray-200 text-gray-500 hover:border-gray-400'
-                    )}
-                  >
-                    {brand}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
+          {filterOptions.collections.length > 0 && (
+            <AccordionItem value="collection">
+              <AccordionTrigger className="text-xs uppercase tracking-widest text-gray-400 hover:no-underline">
+                Colección
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="flex flex-wrap gap-2">
+                  {filterOptions.collections.map((collection) => {
+                    const isSelected = filters.collectionId === collection.id;
+                    return (
+                      <button
+                        key={collection.id}
+                        onClick={() => toggleCollection(collection.id)}
+                        className={cn(
+                          'px-3 py-2 text-xs font-medium rounded border transition-colors duration-150',
+                          isSelected
+                            ? 'border-[#111111] bg-[#F5F5F7] text-[#111111]'
+                            : 'border-gray-200 text-gray-500 hover:border-gray-400'
+                        )}
+                      >
+                        {collection.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          )}
 
-        {filterOptions.colors.length > 0 && (
-          <div>
-            <h3 className="text-xs uppercase tracking-widest text-gray-400 mb-3">Color</h3>
-            <div className="flex flex-wrap gap-2">
-              {filterOptions.colors.slice(0, 20).map((color) => (
-                <ColorSwatch
-                  key={color.id}
-                  color={color}
-                  isSelected={filters.colorId === color.id}
-                  onClick={() => toggleColor(color.id)}
-                  size="md"
-                />
-              ))}
-            </div>
-          </div>
-        )}
+          {filterOptions.productTypes.length > 0 && (
+            <AccordionItem value="productType">
+              <AccordionTrigger className="text-xs uppercase tracking-widest text-gray-400 hover:no-underline">
+                Tipo de Producto
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="space-y-2">
+                  {filterOptions.productTypes.map((productType) => (
+                    <label key={productType} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={filters.productTypes.includes(productType)}
+                        onChange={() => toggleArrayFilter('productTypes', productType)}
+                        className="w-4 h-4 accent-[#111111] rounded"
+                      />
+                      <span className="text-sm text-[#333333]">{productType}</span>
+                    </label>
+                  ))}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          )}
 
-        {filterOptions.sizes.length > 0 && (
-          <div>
-            <h3 className="text-xs uppercase tracking-widest text-gray-400 mb-3">Talla</h3>
-            <div className="flex flex-wrap gap-2">
-              {filterOptions.sizes.map((size) => {
-                const isSelected = filters.sizes.includes(size);
-                return (
-                  <button
-                    key={size}
-                    onClick={() => toggleArrayFilter('sizes', size)}
-                    className={cn(
-                      'min-w-[40px] h-9 px-2 text-sm font-medium rounded transition-all duration-200',
-                      isSelected
-                        ? 'bg-[#111111] text-white'
-                        : 'border border-gray-200 text-[#333333] hover:border-[#111111]'
-                    )}
-                  >
-                    {size}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
+          {filterOptions.colors.length > 0 && (
+            <AccordionItem value="color">
+              <AccordionTrigger className="text-xs uppercase tracking-widest text-gray-400 hover:no-underline">
+                Color
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="flex flex-wrap gap-2">
+                  {filterOptions.colors.slice(0, 20).map((color) => (
+                    <ColorSwatch
+                      key={color.id}
+                      color={color}
+                      isSelected={filters.colorId === color.id}
+                      onClick={() => toggleColor(color.id)}
+                      size="md"
+                    />
+                  ))}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          )}
 
-        {/* Estilos EAV (ej. Corte) — un bloque por cada atributo de estilo presente en los datos,
-            no hardcodeado: soporta cualquier atributo que aparezca en `set.availableStyles`. */}
-        {filterOptions.styleOptions.map((styleOption) => (
-          <div key={styleOption.slug}>
-            <h3 className="text-xs uppercase tracking-widest text-gray-400 mb-3">{styleOption.label}</h3>
-            <div className="space-y-2">
-              {styleOption.values.map((value) => (
-                <label key={value} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={(filters.selectedStyles[styleOption.slug] || []).includes(value)}
-                    onChange={() => toggleStyleValue(styleOption.slug, value)}
-                    className="w-4 h-4 accent-[#111111] rounded"
-                  />
-                  <span className="text-sm text-[#333333]">{value}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-        ))}
+          {filterOptions.sizes.length > 0 && (
+            <AccordionItem value="size">
+              <AccordionTrigger className="text-xs uppercase tracking-widest text-gray-400 hover:no-underline">
+                Talla
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="flex flex-wrap gap-2">
+                  {filterOptions.sizes.map((size) => {
+                    const isSelected = filters.sizes.includes(size);
+                    return (
+                      <button
+                        key={size}
+                        onClick={() => toggleArrayFilter('sizes', size)}
+                        className={cn(
+                          'min-w-[40px] h-9 px-2 text-sm font-medium rounded transition-all duration-200',
+                          isSelected
+                            ? 'bg-[#111111] text-white'
+                            : 'border border-gray-200 text-[#333333] hover:border-[#111111]'
+                        )}
+                      >
+                        {size}
+                      </button>
+                    );
+                  })}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          )}
+
+          {/* Estilos EAV (ej. Corte) — un AccordionItem por cada atributo de estilo presente en
+              los datos, no hardcodeado: soporta cualquier atributo que aparezca en `set.availableStyles`. */}
+          {filterOptions.styleOptions.map((styleOption) => (
+            <AccordionItem key={styleOption.slug} value={`style-${styleOption.slug}`}>
+              <AccordionTrigger className="text-xs uppercase tracking-widest text-gray-400 hover:no-underline">
+                {styleOption.label}
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="space-y-2">
+                  {styleOption.values.map((value) => (
+                    <label key={value} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={(filters.selectedStyles[styleOption.slug] || []).includes(value)}
+                        onChange={() => toggleStyleValue(styleOption.slug, value)}
+                        className="w-4 h-4 accent-[#111111] rounded"
+                      />
+                      <span className="text-sm text-[#333333]">{value}</span>
+                    </label>
+                  ))}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
       </div>
     </>
   );

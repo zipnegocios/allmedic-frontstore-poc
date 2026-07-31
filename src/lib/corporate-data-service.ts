@@ -9,6 +9,7 @@ import {
   setColorComboItems as setColorComboItemsTable,
   products as productsTable,
   brands as brandsTable,
+  collections as collectionsTable,
   colors as colorsTable,
   productVariants as variantsTable,
   productTypes as productTypesTable,
@@ -206,10 +207,14 @@ export async function getActiveCorporateSets(queryOptions?: { featuredOnly?: boo
           productTypeId: productsTable.productTypeId,
           productTypeName: productTypesTable.name,
           gender: productsTable.gender,
+          collectionId: collectionsTable.id,
+          collectionName: collectionsTable.name,
+          collectionIsActive: collectionsTable.isActive,
         })
         .from(setBlockOptionsTable)
         .leftJoin(productsTable, eq(setBlockOptionsTable.productId, productsTable.id))
         .leftJoin(productTypesTable, eq(productsTable.productTypeId, productTypesTable.id))
+        .leftJoin(collectionsTable, eq(productsTable.collectionId, collectionsTable.id))
         .where(inArray(setBlockOptionsTable.blockId, blockIds))
     : [];
 
@@ -223,6 +228,9 @@ export async function getActiveCorporateSets(queryOptions?: { featuredOnly?: boo
     productTypeId: o.productTypeId,
     productTypeName: o.productTypeName,
     gender: o.gender,
+    collectionId: o.collectionId,
+    collectionName: o.collectionName,
+    collectionIsActive: o.collectionIsActive,
   }));
 
   const recommendedRows = await db
@@ -264,6 +272,20 @@ export async function getActiveCorporateSets(queryOptions?: { featuredOnly?: boo
     optionsByBlock.get(o.blockId)!.push(o);
   }
 
+  const brandIds = Array.from(new Set(rows.map((r) => r.brandId).filter((id): id is string => !!id)));
+  const brandLogoLinks = brandIds.length > 0
+    ? await db
+        .select({ brandId: mediaLinksTable.entityId, storageKey: mediaAssetsTable.storageKey })
+        .from(mediaLinksTable)
+        .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
+        .where(and(
+          eq(mediaLinksTable.entityType, 'BRAND'),
+          eq(mediaLinksTable.role, 'LOGO'),
+          inArray(mediaLinksTable.entityId, brandIds)
+        ))
+    : [];
+  const brandLogoMap = new Map(brandLogoLinks.map((l) => [l.brandId, resolveMediaUrl(l.storageKey)]));
+
   return rows.map((set) => {
     const setItems = items.filter((i) => i.setId === set.id);
     const setBlockRows = blocksBySet.get(set.id) ?? [];
@@ -290,6 +312,13 @@ export async function getActiveCorporateSets(queryOptions?: { featuredOnly?: boo
     const genders = Array.from(
       new Set(setItems.map((i) => (i.gender ? genderFromDb[i.gender] : undefined)).filter((g): g is Gender => !!g))
     );
+    const collectionsMap = new Map<string, string>();
+    for (const i of setItems) {
+      if (i.collectionId && i.collectionName && i.collectionIsActive) {
+        collectionsMap.set(i.collectionId, i.collectionName);
+      }
+    }
+    const setCollections = Array.from(collectionsMap, ([id, name]) => ({ id, name }));
     const pieceNames = Array.from(new Set(setItems.map((i) => i.productName).filter((n): n is string => !!n)));
 
     const setVariants = variants.filter((v) => setProductIds.includes(v.productId));
@@ -332,6 +361,7 @@ export async function getActiveCorporateSets(queryOptions?: { featuredOnly?: boo
       coversByColor,
       brandName: set.brandName,
       brandId: set.brandId,
+      brandLogoUrl: set.brandId ? (brandLogoMap.get(set.brandId) ?? null) : null,
       productIds: setProductIds,
       isFeatured: set.isFeatured ?? false,
       pieceCount: setBlockRows.length,
@@ -342,6 +372,7 @@ export async function getActiveCorporateSets(queryOptions?: { featuredOnly?: boo
       sizes: Array.from(sizeSet),
       genders,
       productTypes,
+      collections: setCollections,
       availableStyles,
       pieceNames,
       createdAt: set.createdAt ? set.createdAt.toISOString() : new Date(0).toISOString(),
@@ -768,6 +799,10 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
     coversByColor: coversByColorDetail,
     brandId: set.brandId,
     brandName: set.brandName,
+    // El detalle del set (PDP) no resuelve logo de marca ni colección por pieza — ese dato
+    // solo lo consume el filtro del grid (`SetFilterSidebar`, ver `getActiveCorporateSets`).
+    brandLogoUrl: null,
+    collections: [],
     productIds: pieces.map((p) => p.productId),
     isFeatured: set.isFeatured ?? false,
     pieceCount: blocks.length,

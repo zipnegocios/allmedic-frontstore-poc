@@ -24,7 +24,8 @@ export interface SetStyleFilterOption {
 export interface SetFilterOptions {
   /** Nombres de `productTypes` (EAV) presentes entre los sets recibidos — dinámico, sin opción muerta. */
   productTypes: string[];
-  brands: string[];
+  brands: { id: string; name: string; logoUrl: string | null }[];
+  collections: { id: string; name: string }[];
   colors: ProductColor[];
   sizes: string[];
   styleOptions: SetStyleFilterOption[];
@@ -40,13 +41,19 @@ export function useSetFilter(sets: CorporateSetSummary[]) {
 
   const filterOptions: SetFilterOptions = useMemo(() => {
     const productTypes = new Set<string>();
-    const brands = new Set<string>();
+    const brandsMap = new Map<string, { id: string; name: string; logoUrl: string | null }>();
+    const collectionsMap = new Map<string, { id: string; name: string }>();
     const colorMap = new Map<string, ProductColor>();
     const sizes = new Set<string>();
     const stylesMap = new Map<string, Set<string>>();
     for (const s of sets) {
       for (const t of s.productTypes) productTypes.add(t);
-      if (s.brandName) brands.add(s.brandName);
+      if (s.brandId && s.brandName && !brandsMap.has(s.brandId)) {
+        brandsMap.set(s.brandId, { id: s.brandId, name: s.brandName, logoUrl: s.brandLogoUrl });
+      }
+      for (const c of s.collections) {
+        if (!collectionsMap.has(c.id)) collectionsMap.set(c.id, c);
+      }
       for (const c of s.colors) if (!colorMap.has(c.id)) colorMap.set(c.id, c);
       for (const sz of s.sizes) sizes.add(sz);
       for (const [slug, values] of Object.entries(s.availableStyles)) {
@@ -61,7 +68,8 @@ export function useSetFilter(sets: CorporateSetSummary[]) {
     }));
     return {
       productTypes: Array.from(productTypes).sort(),
-      brands: Array.from(brands).sort(),
+      brands: Array.from(brandsMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
+      collections: Array.from(collectionsMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
       colors: Array.from(colorMap.values()),
       sizes: Array.from(sizes),
       styleOptions,

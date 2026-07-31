@@ -6,7 +6,11 @@ export interface SetFilterState {
   gender: Gender | null;
   /** Nombres de `productTypes` (EAV) seleccionados — fuente de verdad para el filtro "Tipo de Producto". */
   productTypes: string[];
-  brands: string[];
+  /** Selección única — id de marca activo, o null. */
+  brandId: string | null;
+  /** Selección única — id de colección activa, o null. Matchea si CUALQUIER pieza del set
+   * pertenece a esta colección (unión, no intersección). */
+  collectionId: string | null;
   /** Selección única (no array) — un color activo a la vez determina tanto el filtrado de
    * cards como qué portada por color se muestra (`resolveCardCover` en `CorporativoContent`). */
   colorId: string | null;
@@ -19,7 +23,8 @@ export const EMPTY_SET_FILTERS: SetFilterState = {
   search: '',
   gender: null,
   productTypes: [],
-  brands: [],
+  brandId: null,
+  collectionId: null,
   colorId: null,
   sizes: [],
   selectedStyles: {},
@@ -34,7 +39,10 @@ export function matchesSetFilters(set: CorporateSetSummary, filters: SetFilterSt
   if (filters.productTypes.length > 0 && !set.productTypes.some((t) => filters.productTypes.includes(t))) {
     return false;
   }
-  if (filters.brands.length > 0 && (!set.brandName || !filters.brands.includes(set.brandName))) {
+  if (filters.brandId && set.brandId !== filters.brandId) {
+    return false;
+  }
+  if (filters.collectionId && !set.collections.some((c) => c.id === filters.collectionId)) {
     return false;
   }
   if (filters.colorId && !set.colors.some((c) => c.id === filters.colorId)) {
@@ -82,7 +90,8 @@ export function countActiveSetFilters(filters: SetFilterState): number {
   return (
     (filters.gender ? 1 : 0) +
     filters.productTypes.length +
-    filters.brands.length +
+    (filters.brandId ? 1 : 0) +
+    (filters.collectionId ? 1 : 0) +
     (filters.colorId ? 1 : 0) +
     filters.sizes.length +
     Object.values(filters.selectedStyles).reduce((sum, values) => sum + values.length, 0)

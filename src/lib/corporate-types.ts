@@ -59,6 +59,8 @@ export interface CorporateSetSummary {
   brandName: string | null;
   /** Id de la marca (para resolver reglas por ítem en el grid — `brandName` es solo para mostrar/filtrar). */
   brandId: string | null;
+  /** URL del logo de marca (media_links role LOGO) — null si la marca no tiene logo cargado. */
+  brandLogoUrl: string | null;
   /** Ids de los productos que componen el set — para resolver reglas de ámbito Producto en el grid. */
   productIds: string[];
   isFeatured: boolean;
@@ -76,6 +78,9 @@ export interface CorporateSetSummary {
   genders: Gender[];
   /** Nombres de `productTypes` (EAV) presentes entre las piezas del set — fuente de verdad para filtros. Vacío si ninguna pieza tiene `productTypeId` asignado. */
   productTypes: string[];
+  /** Colecciones presentes entre las piezas activas del set — unión, no intersección (una pieza
+   * de cualquier colección basta para que el set matchee ese filtro). */
+  collections: { id: string; name: string }[];
   /** Agregado EAV de `variants[].styles` a través de todas las piezas del set: slug de atributo → valores únicos presentes. */
   availableStyles: Record<string, string[]>;
   pieceNames: string[];
