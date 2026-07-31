@@ -154,7 +154,12 @@ export async function getAllBusinessRules(): Promise<BusinessRule[]> {
 }
 
 // ── Grid público de sets activos ──
-export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
+export async function getActiveCorporateSets(queryOptions?: { featuredOnly?: boolean }): Promise<CorporateSetSummary[]> {
+  const baseConditions = [eq(corporateSetsTable.isActive, true), isNull(corporateSetsTable.deletedAt)];
+  if (queryOptions?.featuredOnly) {
+    baseConditions.push(eq(corporateSetsTable.isFeatured, true));
+  }
+
   const rows = await db
     .select({
       id: corporateSetsTable.id,
@@ -172,7 +177,7 @@ export async function getActiveCorporateSets(): Promise<CorporateSetSummary[]> {
     })
     .from(corporateSetsTable)
     .leftJoin(brandsTable, eq(corporateSetsTable.brandId, brandsTable.id))
-    .where(and(eq(corporateSetsTable.isActive, true), isNull(corporateSetsTable.deletedAt)))
+    .where(and(...baseConditions))
     .orderBy(asc(corporateSetsTable.sortOrder));
 
   const setIds = rows.map((r) => r.id);

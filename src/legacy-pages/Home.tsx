@@ -4,16 +4,17 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ChevronLeft, ChevronRight, ArrowRight, Volume2, VolumeX } from 'lucide-react';
-import { ProductCard } from '@/components/catalog/ProductCard';
-import { ProductListItem } from '@/components/catalog/LayoutSwitcher';
 import type { ViewMode } from '@/components/catalog/LayoutSwitcher';
 import { LayoutSwitcher } from '@/components/catalog/LayoutSwitcher';
-import { FilterableProductSection } from '@/components/home/FilterableProductSection';
+import { SetGridCard } from '@/components/catalog/SetGridCard';
+import { SetCatalogGrid } from '@/components/catalog/SetCatalogGrid';
 import { BrandCarousel } from '@/components/home/BrandCarousel';
 import { CorporateCTA } from '@/components/home/CorporateCTA';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/utils';
-import type { Product, MediaItem, BrandNavItem } from '@/lib/types';
+import type { MediaItem, BrandNavItem } from '@/lib/types';
+import type { CorporateSetSummary } from '@/lib/corporate-types';
+import { resolveRules, type BusinessRule } from '@/lib/rules-engine';
 
 interface HeroSlide {
   id: string;
@@ -190,26 +191,25 @@ function QuickAccessCards() {
   );
 }
 
-// Featured Products Section Component
-function FeaturedProductsSection({ products }: { products: Product[] }) {
-  // Default to 4 columns on desktop, 2 columns on mobile (handled by responsive classes)
+// Featured Sets Section Component — grid simple, sin filtros (esos viven en /corporativo).
+function FeaturedSetsSection({ sets, priceVisibilityRules }: { sets: CorporateSetSummary[]; priceVisibilityRules: BusinessRule[] }) {
   const [viewMode, setViewMode] = useState<ViewMode>('grid-4');
   const [itemsPerPage, setItemsPerPage] = useState<number>(8);
-  const displayedProducts = products.slice(0, itemsPerPage);
+  const displayedSets = sets.slice(0, itemsPerPage);
 
   return (
     <section className="py-16 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-          <h2 className="font-display uppercase text-h2-mobile md:text-h2">Lo más solicitado</h2>
+          <h2 className="font-display uppercase text-h2-mobile md:text-h2">Sets destacados</h2>
           <div className="flex items-center gap-4">
             <div className="hidden sm:block">
-              <LayoutSwitcher viewMode={viewMode} onViewModeChange={setViewMode} itemsPerPage={itemsPerPage} onItemsPerPageChange={setItemsPerPage} totalItems={products.length} showAllColumns={true} />
+              <LayoutSwitcher viewMode={viewMode} onViewModeChange={setViewMode} itemsPerPage={itemsPerPage} onItemsPerPageChange={setItemsPerPage} totalItems={sets.length} showAllColumns={true} />
             </div>
             <div className="sm:hidden">
-              <LayoutSwitcher viewMode={viewMode} onViewModeChange={setViewMode} itemsPerPage={itemsPerPage} onItemsPerPageChange={setItemsPerPage} totalItems={products.length} showAllColumns={false} />
+              <LayoutSwitcher viewMode={viewMode} onViewModeChange={setViewMode} itemsPerPage={itemsPerPage} onItemsPerPageChange={setItemsPerPage} totalItems={sets.length} showAllColumns={false} />
             </div>
-            <Link href="/catalogo" className="hidden sm:flex items-center gap-1 text-sm font-medium text-[#333333] hover:text-[#111111] transition-colors">
+            <Link href="/corporativo" className="hidden sm:flex items-center gap-1 text-sm font-medium text-[#333333] hover:text-[#111111] transition-colors">
               Ver todo <ArrowRight className="w-4 h-4" strokeWidth={1.5} />
             </Link>
           </div>
@@ -222,16 +222,22 @@ function FeaturedProductsSection({ products }: { products: Product[] }) {
           viewMode === 'grid-1' && 'grid-cols-1 sm:grid-cols-2',
           viewMode === 'list' && 'grid-cols-1'
         )}>
-          {displayedProducts.map(product => (
-            viewMode === 'list' ? (
-              <ProductListItem key={product.id} product={product} onQuickView={() => {}} />
-            ) : (
-              <ProductCard key={product.id} product={product} />
-            )
-          ))}
+          {displayedSets.map(set => {
+            const resolved = resolveRules(priceVisibilityRules, {
+              setId: set.id,
+              brandId: set.brandId,
+              productIds: set.productIds,
+            });
+            const showPrices =
+              resolved.priceVisibility.showPrices &&
+              (resolved.priceVisibility.catalog === 'CORPORATE' || resolved.priceVisibility.catalog === 'BOTH');
+            return (
+              <SetGridCard key={set.id} set={set} activeColorId={null} showPrices={showPrices} />
+            );
+          })}
         </div>
         <div className="mt-6 sm:hidden">
-          <Link href="/catalogo" className="flex items-center justify-center gap-1 text-sm font-medium text-[#333333] hover:text-[#111111] transition-colors py-3 border border-[#E5E5E5] rounded-lg">
+          <Link href="/corporativo" className="flex items-center justify-center gap-1 text-sm font-medium text-[#333333] hover:text-[#111111] transition-colors py-3 border border-[#E5E5E5] rounded-lg">
             Ver todo <ArrowRight className="w-4 h-4" strokeWidth={1.5} />
           </Link>
         </div>
@@ -241,15 +247,33 @@ function FeaturedProductsSection({ products }: { products: Product[] }) {
 }
 
 // Main Home Page
-export function Home({ heroSlides, featuredProducts, allProducts, brands }: { heroSlides: HeroSlide[]; featuredProducts: Product[]; allProducts?: Product[]; brands?: BrandNavItem[] }) {
+export function Home({
+  heroSlides,
+  featuredSets,
+  allSets,
+  priceVisibilityRules,
+  minQuantity,
+  brands,
+}: {
+  heroSlides: HeroSlide[];
+  featuredSets: CorporateSetSummary[];
+  allSets: CorporateSetSummary[];
+  priceVisibilityRules: BusinessRule[];
+  minQuantity: number;
+  brands?: BrandNavItem[];
+}) {
   return (
     <main className="pt-14 sm:pt-16">
       {heroSlides && heroSlides.length > 0 && <HeroCarousel slides={heroSlides} />}
       <CorporateCTA />
       <QuickAccessCards />
-      {allProducts && allProducts.length > 0 && <FilterableProductSection products={allProducts} />}
+      {allSets && allSets.length > 0 && (
+        <SetCatalogGrid sets={allSets} priceVisibilityRules={priceVisibilityRules} minQuantity={minQuantity} />
+      )}
       {brands && brands.length > 0 && <BrandCarousel brands={brands} />}
-      {featuredProducts && featuredProducts.length > 0 && <FeaturedProductsSection products={featuredProducts} />}
+      {featuredSets && featuredSets.length > 0 && (
+        <FeaturedSetsSection sets={featuredSets} priceVisibilityRules={priceVisibilityRules} />
+      )}
     </main>
   );
 }

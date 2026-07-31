@@ -403,24 +403,6 @@ export async function getProductBySlug(slug: string): Promise<Product | undefine
   return results[0];
 }
 
-export async function getFeaturedProducts(): Promise<Product[]> {
-  if (!await checkDbAvailable()) return [];
-  const results = await db
-    .select({ id: productsTable.id })
-    .from(productsTable)
-    .where(and(
-      eq(productsTable.isActive, true),
-      eq(productsTable.isBestSeller, true),
-      ne(productsTable.visibility, 'GROUPS')
-    ))
-    .limit(8);
-
-  const productIds = results.map(r => r.id);
-  if (productIds.length === 0) return [];
-
-  return fetchProductsWithJoins(inArray(productsTable.id, productIds));
-}
-
 export async function getProductsByBrand(brandSlug: string): Promise<Product[]> {
   if (!await checkDbAvailable()) return [];
   return fetchProductsWithJoins(
