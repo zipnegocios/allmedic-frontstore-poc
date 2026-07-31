@@ -88,7 +88,6 @@ export function BlockSection({
             ¿Este bloque tiene 2 opciones?
           </label>
         </div>
-        <p className="text-[10px] text-gray-400">DEBUG optionProductIds={JSON.stringify(optionProductIds)}</p>
 
         <div className="space-y-3">
           {optionProductIds.map((_, idx) => {

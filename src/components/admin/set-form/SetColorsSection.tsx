@@ -215,9 +215,6 @@ export function SetColorsSection({
           <p className="text-sm text-amber-600 flex items-start gap-1.5">
             <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
             Agrega piezas a ambos bloques para calcular los colores disponibles.
-            <span className="text-[10px] text-gray-400 block">
-              DEBUG hasPieces={String(hasPieces)} blockItems={JSON.stringify(blockItems)} productsCount={products.length}
-            </span>
           </p>
         )}
 

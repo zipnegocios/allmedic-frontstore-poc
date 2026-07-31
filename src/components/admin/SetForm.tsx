@@ -148,26 +148,29 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
   const colorMode = watch('colorMode');
 
   // Todas las piezas del set (4 opciones de bloque + recomendadas) — usado por los acordeones de
-  // color (paridad/combos) y por el chequeo de duplicados entre bloques.
-  const allPieceItems = useMemo(
-    () => [
-      ...blocks.flatMap((b) => b.options.map((o) => ({ productId: o.productId, quantityPerSet: b.quantityPerSet }))),
-      ...recommendedItems.map((r) => ({ productId: r.productId, quantityPerSet: 1 })),
-    ],
-    [blocks, recommendedItems]
-  );
+  // color (paridad/combos), por el chequeo de duplicados entre bloques y por `hasPieces` en
+  // "Portadas por color". Sin `useMemo`: memoizar sobre `[blocks, recommendedItems]` (ambos
+  // provenientes de `watch()`) quedaba con una referencia stale un ciclo de render después de
+  // elegir producto en un bloque, dejando `hasPieces` en `false` aunque los bloques ya tuvieran
+  // piezas — el recálculo es barato (aplanar 2-4 items), no vale la pena el riesgo.
+  const allPieceItems = [
+    ...blocks.flatMap((b) => b.options.map((o) => ({ productId: o.productId, quantityPerSet: b.quantityPerSet }))),
+    ...recommendedItems.map((r) => ({ productId: r.productId, quantityPerSet: 1 })),
+  ];
   const blockOnlyItems = blocks.flatMap((b) => b.options.map((o) => ({ productId: o.productId, quantityPerSet: b.quantityPerSet })));
 
   // Piezas del set para el selector "ver por pieza" del picker de portadas en modo "Portadas del
   // contenido" — reutiliza `products` (ya en memoria) en vez de pedirle a MediaPicker que traiga
   // el catálogo completo + colores por producto (mecanismo genérico de "otra ubicación").
+  const allPieceProductIds = allPieceItems.map((i) => i.productId).filter(Boolean).join(',');
   const scopedCoverProducts = useMemo(() => {
-    const ids = Array.from(new Set(allPieceItems.map((i) => i.productId).filter(Boolean)));
+    const ids = Array.from(new Set(allPieceProductIds.split(',').filter(Boolean)));
     return ids
       .map((id) => products.find((p) => p.id === id))
       .filter((p): p is EligibleProduct => Boolean(p))
       .map((p) => ({ id: p.id, name: p.name, code: p.code, brandName: p.brandName, colors: p.colors }));
-  }, [allPieceItems, products]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allPieceProductIds, products]);
 
   // `colorCode` de la fila de `setColors` objetivo del picker abierto — determina la subcarpeta
   // de storage (`sets/{slug}/portada/{colorCode}/`, ver `SetColorsSection`/`buildSetMediaKey`).

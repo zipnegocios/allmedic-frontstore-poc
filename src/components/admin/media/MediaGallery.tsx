@@ -145,9 +145,13 @@ export function MediaGallery({
       params.set('page', String(page));
       params.set('limit', String(limit));
 
+      // eslint-disable-next-line no-console
+      console.log('[MediaGallery debug] fetching', `/api/admin/media?${params}`);
       const res = await fetch(`/api/admin/media?${params}`);
       if (!res.ok) throw new Error('Failed to fetch media');
       const data = await res.json();
+      // eslint-disable-next-line no-console
+      console.log('[MediaGallery debug] result', { total: data.total, assetsLength: data.assets?.length });
       setAssets(data.assets);
       setTotal(data.total);
     } catch {
