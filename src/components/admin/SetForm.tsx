@@ -156,10 +156,7 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
     ],
     [blocks, recommendedItems]
   );
-  const blockOnlyItems = useMemo(
-    () => blocks.flatMap((b) => b.options.map((o) => ({ productId: o.productId, quantityPerSet: b.quantityPerSet }))),
-    [blocks]
-  );
+  const blockOnlyItems = blocks.flatMap((b) => b.options.map((o) => ({ productId: o.productId, quantityPerSet: b.quantityPerSet })));
 
   // Piezas del set para el selector "ver por pieza" del picker de portadas en modo "Portadas del
   // contenido" — reutiliza `products` (ya en memoria) en vez de pedirle a MediaPicker que traiga
