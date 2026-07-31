@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useFieldArray, type Control, type UseFormRegister, type UseFormWatch, type UseFormSetValue, type FieldErrors } from 'react-hook-form';
 import {
   DndContext,
@@ -166,6 +166,31 @@ export function SetColorsSection({
   const availableColors = computeSetColorIntersection(colorMode, blockItems, products, colorCombos);
   const usedColorIds = new Set(setColors.map((c) => c.colorId));
   const selectableColors = availableColors.filter((c) => !usedColorIds.has(c.id));
+
+  // Precarga automática: en cuanto hay colores en la intersección Y todavía no se agregó
+  // ninguna fila manualmente, se agregan todos de una — evita que el admin tenga que repetir
+  // "Agregar color..." una vez por cada color cuando recién eligió las piezas de ambos bloques.
+  // Solo dispara una vez por montaje (`autoSeeded`): si el admin borra filas después a propósito,
+  // no se vuelven a rellenar solas.
+  const autoSeeded = useRef(false);
+  useEffect(() => {
+    if (autoSeeded.current) return;
+    if (fields.length > 0 || availableColors.length === 0) return;
+    autoSeeded.current = true;
+    availableColors.forEach((color, idx) => {
+      append({
+        colorId: color.id,
+        sortOrder: idx,
+        coverAssetId: '',
+        imageUrl: '',
+        coverAlt: '',
+        secondaryCoverAssetId: '',
+        secondaryImageUrl: '',
+        secondaryCoverAlt: '',
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableColors, fields.length]);
 
   const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 

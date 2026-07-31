@@ -490,10 +490,13 @@ export async function getMediaLibraryTree(): Promise<LibraryTreeBrand[]> {
  * el set ya esté guardado en la base: se le pasan los `productId` en memoria). */
 export async function getAssetIdsForProducts(productIds: string[], colorId?: string | null): Promise<string[]> {
   if (colorId === undefined) return assetIdsLinkedToProducts(productIds);
-  // `colorId` puntual (o `null` = portada) solo tiene sentido acotando a UNA pieza — con varias
-  // piezas mezcladas no hay un único producto al que aplicarle "color X"/"portada".
-  if (productIds.length !== 1) return assetIdsLinkedToProducts(productIds);
+  // `colorId === null` (portada del producto, sentinel `__COVER__`) solo tiene sentido acotando
+  // a UNA pieza — con varias piezas mezcladas no hay un único producto al que aplicarle
+  // "portada". Un `colorId` puntual (string), en cambio, sí tiene sentido con múltiples piezas:
+  // es el caso de "Portadas por color" de un set (Set × Color) — mismo color, en la galería de
+  // CUALQUIERA de las piezas del set (ej. buzo azul del bloque A o pantalón azul del bloque B).
   if (colorId === null) {
+    if (productIds.length !== 1) return assetIdsLinkedToProducts(productIds);
     const rows = await db.selectDistinct({ assetId: mediaLinksTable.assetId }).from(mediaLinksTable)
       .where(and(
         eq(mediaLinksTable.entityType, 'PRODUCT'),

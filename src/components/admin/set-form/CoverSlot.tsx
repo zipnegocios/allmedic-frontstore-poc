@@ -8,8 +8,9 @@ import { ImageIcon } from 'lucide-react';
 import type { SetFormData } from './schema';
 
 /** Slot de portada (primaria o secundaria) reusado tanto por la portada única legacy como por
- * cada fila de "Portadas por color" — "Subir nueva" abre el picker en modo especial, "Elegir
- * portada" explora las galerías de las piezas ya agregadas al set (referencia viva). */
+ * cada fila de "Portadas por color" — "Elegir portada" (acción primaria) explora las galerías
+ * de las piezas ya agregadas al set (referencia viva, el caso de uso principal en Set × Color);
+ * "Subir nueva" (secundaria) abre el picker en modo especial para subir un archivo propio. */
 export function CoverSlot({
   label,
   required,
@@ -43,11 +44,11 @@ export function CoverSlot({
           )}
         </div>
         <div className="flex flex-col gap-1">
-          <Button type="button" size="sm" variant="outline" onClick={onOpenSpecial}>
-            {imageUrl ? 'Cambiar (subir)' : 'Subir nueva'}
-          </Button>
-          <Button type="button" size="sm" variant="ghost" className="text-xs h-auto py-1" onClick={onOpenContent} disabled={!hasPieces}>
+          <Button type="button" size="sm" variant="outline" onClick={onOpenContent} disabled={!hasPieces}>
             Elegir portada
+          </Button>
+          <Button type="button" size="sm" variant="ghost" className="text-xs h-auto py-1" onClick={onOpenSpecial}>
+            {imageUrl ? 'Cambiar (subir)' : 'Subir nueva'}
           </Button>
         </div>
       </div>

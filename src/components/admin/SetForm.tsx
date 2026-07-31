@@ -169,7 +169,6 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
       .map((id) => products.find((p) => p.id === id))
       .filter((p): p is EligibleProduct => Boolean(p))
       .map((p) => ({ id: p.id, name: p.name, code: p.code, brandName: p.brandName, colors: p.colors }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allPieceProductIds, products]);
 
   // `colorCode` de la fila de `setColors` objetivo del picker abierto — determina la subcarpeta
@@ -826,6 +825,11 @@ export default function SetForm({ setId, initialData }: SetFormProps) {
         linkedEntityId={pickerRequest?.mode === 'special' ? createdSetId : undefined}
         productIds={pickerRequest?.mode === 'content' ? allPieceItems.map((i) => i.productId).filter(Boolean) : undefined}
         scopedProducts={pickerRequest?.mode === 'content' ? scopedCoverProducts : undefined}
+        initialColorId={
+          pickerRequest?.mode === 'content'
+            ? setColorsValue?.[pickerRequest.colorIndex]?.colorId
+            : undefined
+        }
         onConfirm={(assets) => {
           if (assets[0] && pickerRequest) {
             const assetIdField = pickerRequest.target === 'cover' ? 'coverAssetId' : 'secondaryCoverAssetId';

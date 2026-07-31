@@ -85,9 +85,15 @@ interface MediaPickerProps {
    * (`SetForm`) ya tiene esta data en memoria. Sin esto, `productIds` sigue
    * funcionando pero sin selector (todas las piezas mezcladas, como antes). */
   scopedProducts?: ScopedProductOption[];
+  /** Color preseleccionado al abrir el picker en modo `productIds` (Set × Color, ver
+   * `SetColorsSection`) — filtra de entrada la galería de TODAS las piezas del set a ese color
+   * puntual, sin necesidad de elegir una pieza específica primero (a diferencia del selector
+   * "ver por pieza", pensado para 1 producto). El admin puede limpiarlo para ver todos los
+   * colores mezclados otra vez. */
+  initialColorId?: string;
 }
 
-export function MediaPicker({ open, onClose, folder, segments = [], multiple = false, mediaType: fixedMediaType, onConfirm, keyPrefix, linkedEntityType, linkedEntityId, linkedColorId, folderLabel, productIds, scopedProducts }: MediaPickerProps) {
+export function MediaPicker({ open, onClose, folder, segments = [], multiple = false, mediaType: fixedMediaType, onConfirm, keyPrefix, linkedEntityType, linkedEntityId, linkedColorId, folderLabel, productIds, scopedProducts, initialColorId }: MediaPickerProps) {
   const [selected, setSelected] = useState<MediaAssetSummary[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [tab, setTab] = useState('library');
@@ -122,6 +128,11 @@ export function MediaPicker({ open, onClose, folder, segments = [], multiple = f
   const [otherColors, setOtherColors] = useState<OtherColorOption[]>([]);
   const [otherColorId, setOtherColorId] = useState<string | null>(null);
   const [otherColorPopoverOpen, setOtherColorPopoverOpen] = useState(false);
+  // Filtro de color preseleccionado (modo `productIds`, Set × Color) — distinto de
+  // `otherColorId` porque no depende de elegir una pieza puntual primero, filtra directo a
+  // través de TODAS las piezas del set (`productIds`) por ese color. `undefined` = sin filtro
+  // (todos los colores mezclados); string = color puntual.
+  const [presetColorId, setPresetColorId] = useState<string | undefined>(initialColorId);
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
@@ -129,6 +140,7 @@ export function MediaPicker({ open, onClose, folder, segments = [], multiple = f
       setBrowseAll(false);
       setOtherProductId(null);
       setOtherColorId(null);
+      setPresetColorId(initialColorId);
     }
   }
 
@@ -165,6 +177,12 @@ export function MediaPicker({ open, onClose, folder, segments = [], multiple = f
     setOtherProductPopoverOpen(false);
   }
 
+  // Nombre del color preseleccionado (Set × Color) — buscado en cualquier pieza del set que lo
+  // tenga, ya que `presetColorId` filtra a través de TODAS las piezas, no de una puntual.
+  const presetColorName = presetColorId
+    ? scopedProducts?.flatMap((p) => p.colors).find((c) => c.id === presetColorId)?.name
+    : undefined;
+
   const otherProduct = scopedProducts
     ? scopedProducts.find((p) => p.id === otherProductId)
     : otherProducts.find((p) => p.id === otherProductId);
@@ -186,6 +204,10 @@ export function MediaPicker({ open, onClose, folder, segments = [], multiple = f
   const otherLinkedColorId: string | null | undefined = otherColorId === '__COVER__'
     ? null
     : (otherColorId ?? undefined);
+  // En modo `productIds` sin pieza puntual elegida (`otherProductId`), el color preseleccionado
+  // (`presetColorId`, Set × Color) filtra a través de TODAS las piezas del set. Si el admin elige
+  // una pieza puntual con el selector "ver por pieza", ese filtro (más específico) tiene prioridad.
+  const productsColorId: string | undefined = otherProductId ? otherLinkedColorId ?? undefined : presetColorId;
 
   function toggleSelect(asset: MediaAssetSummary) {
     setSelected((prev) => {
@@ -237,6 +259,20 @@ export function MediaPicker({ open, onClose, folder, segments = [], multiple = f
                 <span className="text-gray-500">
                   {otherProduct ? `Mostrando la galería de ${otherProduct.name}.` : 'Mostrando las galerías de todas las piezas del set.'}
                 </span>
+                {presetColorId && !otherProductId && (
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#F5F5F7] text-[#111111] font-medium">
+                      Filtrando color: {presetColorName ?? 'seleccionado'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setPresetColorId(undefined)}
+                      className="text-gray-400 hover:text-[#111111] underline"
+                    >
+                      Ver todos los colores
+                    </button>
+                  </div>
+                )}
                 <div className="flex items-center gap-2 mt-2">
                   <Popover open={otherProductPopoverOpen} onOpenChange={setOtherProductPopoverOpen}>
                     <PopoverTrigger asChild>
@@ -471,7 +507,7 @@ export function MediaPicker({ open, onClose, folder, segments = [], multiple = f
             keyPrefix={productIds ? undefined : (browseAll ? otherKeyPrefix : keyPrefix)}
             linkedEntityType={productIds ? undefined : (browseAll ? (otherProductId ? 'PRODUCT' : undefined) : linkedEntityType)}
             linkedEntityId={productIds ? undefined : (browseAll ? (otherProductId ?? undefined) : linkedEntityId)}
-            linkedColorId={productIds ? (otherProductId ? otherLinkedColorId : undefined) : (browseAll ? otherLinkedColorId : linkedColorId)}
+            linkedColorId={productIds ? productsColorId : (browseAll ? otherLinkedColorId : linkedColorId)}
             productIds={productIds ? (otherProductId ? [otherProductId] : productIds) : undefined}
             hideFilters
             searchValue={q}
