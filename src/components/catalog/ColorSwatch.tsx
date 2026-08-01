@@ -25,7 +25,7 @@ export function ColorSwatch({
   };
 
   return (
-    <div className="relative group">
+    <div className="relative group/swatch">
       <button
         onClick={onClick}
         disabled={!isAvailable}
@@ -56,7 +56,7 @@ export function ColorSwatch({
 
       {/* Tooltip */}
       {showTooltip && (
-        <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-[#111111] text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+        <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-[#111111] text-white text-xs rounded opacity-0 group-hover/swatch:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
           {color.name}
         </div>
       )}
