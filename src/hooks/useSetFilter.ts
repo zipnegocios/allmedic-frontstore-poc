@@ -33,8 +33,25 @@ export interface SetFilterOptions {
 
 const ITEMS_PER_PAGE_DEFAULT = 20;
 
-export function useSetFilter(sets: CorporateSetSummary[]) {
-  const [filters, setFilters] = useState<SetFilterState>(EMPTY_SET_FILTERS);
+export function useSetFilter(
+  sets: CorporateSetSummary[],
+  initial?: { search?: string; brandName?: string }
+) {
+  const [filters, setFilters] = useState<SetFilterState>(() => {
+    if (!initial) return EMPTY_SET_FILTERS;
+    let brandId: string | null = null;
+    if (initial.brandName) {
+      const match = sets.find(
+        (s) => s.brandName?.toLowerCase() === initial.brandName!.toLowerCase()
+      );
+      brandId = match?.brandId ?? null;
+    }
+    return {
+      ...EMPTY_SET_FILTERS,
+      search: initial.search ?? EMPTY_SET_FILTERS.search,
+      brandId,
+    };
+  });
   const [sortBy, setSortBy] = useState<SetSortOption>('relevance');
   const [itemsPerPage, setItemsPerPageState] = useState<number>(ITEMS_PER_PAGE_DEFAULT);
   const [currentPage, setCurrentPage] = useState<number>(1);

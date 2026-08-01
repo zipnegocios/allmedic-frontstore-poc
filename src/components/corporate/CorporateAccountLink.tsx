@@ -12,10 +12,10 @@ export function CorporateAccountLink() {
   return (
     <Link
       href={session?.user ? '/corporativo/mi-cuenta' : '/corporativo/login'}
-      className="fixed bottom-24 right-6 z-40 flex items-center gap-2 px-4 py-2 bg-white border border-[#E5E5E5] text-[#111111] rounded-full shadow-md hover:shadow-lg transition-shadow text-sm font-medium"
+      className="p-2 hover:bg-[#F5F5F7] rounded-full transition-colors"
+      aria-label={session?.user ? 'Mi cuenta' : 'Iniciar sesión'}
     >
-      <UserCircle className="w-4 h-4" strokeWidth={1.5} />
-      {session?.user ? 'Mi Cuenta' : 'Iniciar sesión'}
+      <UserCircle className="w-5 h-5" strokeWidth={1.5} />
     </Link>
   );
 }

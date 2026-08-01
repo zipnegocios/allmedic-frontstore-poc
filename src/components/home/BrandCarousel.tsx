@@ -193,7 +193,7 @@ export function BrandCarousel({ brands: brandsProp }: { brands?: BrandNavItem[] 
               return (
                 <Link
                   key={brand.name}
-                  href={`/catalogo?brand=${encodeURIComponent(brand.name)}`}
+                  href={`/corporativo?brand=${encodeURIComponent(brand.name)}`}
                   className={cn(
                     'flex-shrink-0 group relative',
                     'w-[calc(50%-6px)] sm:w-[calc(33.333%-11px)] lg:w-[calc(20%-13px)]'

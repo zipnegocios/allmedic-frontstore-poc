@@ -23,14 +23,13 @@ export function CorporateCartButton() {
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-5 py-3 bg-[#111111] text-white rounded-full shadow-lg hover:opacity-90 transition-opacity"
+        className="p-2 hover:bg-[#F5F5F7] rounded-full transition-colors relative"
         aria-label="Abrir carrito corporativo"
       >
         <Building2 className="w-5 h-5" strokeWidth={1.5} />
-        <span className="text-sm font-medium">Carrito Corporativo</span>
         {mounted && totalSets > 0 && (
-          <span className="flex items-center justify-center w-5 h-5 bg-white text-[#111111] text-xs font-bold rounded-full">
-            {totalSets}
+          <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-[#FF3B30] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+            {totalSets > 99 ? '99+' : totalSets}
           </span>
         )}
       </button>

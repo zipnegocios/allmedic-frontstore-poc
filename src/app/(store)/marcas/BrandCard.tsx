@@ -15,7 +15,7 @@ interface BrandCardProps {
 export function BrandCard({ brand }: BrandCardProps) {
   return (
     <Link
-      href={`/catalogo?brand=${encodeURIComponent(brand.name)}`}
+      href={`/corporativo?brand=${encodeURIComponent(brand.name)}`}
       className="group bg-[#F5F5F7] rounded-xl p-6 sm:p-8 hover:bg-[#111111] transition-all duration-300"
     >
       <div className="aspect-square max-w-[80px] sm:max-w-[100px] mx-auto mb-4 flex items-center justify-center">

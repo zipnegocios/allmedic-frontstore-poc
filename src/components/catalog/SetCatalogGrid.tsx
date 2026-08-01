@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Search, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CorporateSetSummary } from '@/lib/corporate-types';
@@ -23,6 +24,9 @@ interface SetCatalogGridProps {
 export function SetCatalogGrid({ sets, priceVisibilityRules }: SetCatalogGridProps) {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('grid-4');
+  const searchParams = useSearchParams();
+  const initialSearch = searchParams.get('q') ?? undefined;
+  const initialBrandName = searchParams.get('brand') ?? undefined;
 
   const {
     filters,
@@ -40,7 +44,7 @@ export function SetCatalogGrid({ sets, priceVisibilityRules }: SetCatalogGridPro
     setSortBy,
     itemsPerPage,
     setItemsPerPage,
-  } = useSetFilter(sets);
+  } = useSetFilter(sets, { search: initialSearch, brandName: initialBrandName });
 
   const showPricesFor = (set: CorporateSetSummary): boolean => {
     const resolved = resolveRules(priceVisibilityRules, {

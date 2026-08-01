@@ -58,14 +58,6 @@ export function Footer({ stores }: { stores?: Store[] }) {
             <ul className="space-y-3">
               <li>
                 <Link
-                  href="/catalogo"
-                  className="text-sm text-gray-400 hover:text-white transition-colors"
-                >
-                  Catálogo
-                </Link>
-              </li>
-              <li>
-                <Link
                   href="/marcas"
                   className="text-sm text-gray-400 hover:text-white transition-colors"
                 >

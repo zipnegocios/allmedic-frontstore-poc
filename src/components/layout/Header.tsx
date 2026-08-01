@@ -3,17 +3,17 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
-import { Search, ShoppingBag, X, ChevronRight, Menu, MapPin, Tag, Home, Grid3X3, Building2 } from 'lucide-react';
-import { useCart } from '@/context/CartContext';
+import { Search, X, ChevronRight, Menu, MapPin, Tag, Home, Grid3X3, Building2 } from 'lucide-react';
 // Removed dummy search import
 import { MegaMenu } from './MegaMenu';
 import { CorporateNavCTA } from './CorporateNavCTA';
+import { CorporateAccountLink } from '@/components/corporate/CorporateAccountLink';
+import { CorporateCartButton } from '@/components/corporate/CorporateCartButton';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 import { usePriceVisibility } from '@/context/PriceVisibilityContext';
 import type { Product, Store, BrandNavItem } from '@/lib/types';
 import type { CorporateSetNavItem } from '@/lib/corporate-types';
 import { cn } from '@/lib/utils';
-import { resolveCoverMedia } from '@/lib/product-cover';
 
 interface HeaderProps {
   onCartClick: () => void;
@@ -25,21 +25,21 @@ interface HeaderProps {
 
 const navLinks = [
   { label: 'Inicio', href: '/', icon: Home },
-  { label: 'Catálogo', href: '/catalogo', icon: Tag },
   { label: 'Marcas', href: '/marcas', icon: Tag },
   { label: 'Tiendas', href: '/sucursales', icon: MapPin },
 ];
 
-export function Header({ onCartClick, products, brands, stores, corporateSets }: HeaderProps) {
-  const { totalItems } = useCart();
+// Renombrado de "Catálogo" a "Productos" para cuando se reactive la venta individual —
+// no se incluye en `navLinks` mientras el sitio solo vende sets corporativos.
+// { label: 'Productos', href: '/catalogo', icon: Tag },
+
+// `onCartClick` ya no dispara ningún trigger visual en este Header (el shopping bag individual
+// se quitó) — se mantiene en la interfaz porque AppShell.tsx sigue pasándola y CartDrawer sigue
+// montado; no se destructura para no generar un error de parámetro no usado.
+export function Header({ products, brands, stores, corporateSets }: HeaderProps) {
   const showPrices = usePriceVisibility();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [megaMenuOpenedBy, setMegaMenuOpenedBy] = useState<'hover' | 'click' | null>(null);
   const isMegaMenuOpen = megaMenuOpenedBy !== null;
@@ -108,7 +108,7 @@ export function Header({ onCartClick, products, brands, stores, corporateSets }:
     };
   }, []);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [searchResults, setSearchResults] = useState<CorporateSetNavItem[]>([]);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
@@ -136,14 +136,12 @@ export function Header({ onCartClick, products, brands, stores, corporateSets }:
 
     if (searchQuery.length >= 2) {
       searchDebounceRef.current = setTimeout(() => {
-        let results: Product[];
-        if (products) {
+        let results: CorporateSetNavItem[];
+        if (corporateSets) {
           const q = searchQuery.toLowerCase();
-          results = products.filter(p =>
-            p.name.toLowerCase().includes(q) ||
-            p.brand.toLowerCase().includes(q) ||
-            (p.productType?.name.toLowerCase().includes(q) ?? false) ||
-            p.colors.some(c => c.name.toLowerCase().includes(q))
+          results = corporateSets.filter(s =>
+            s.name.toLowerCase().includes(q) ||
+            (s.brandName?.toLowerCase().includes(q) ?? false)
           );
         } else {
           results = [];
@@ -159,12 +157,12 @@ export function Header({ onCartClick, products, brands, stores, corporateSets }:
         clearTimeout(searchDebounceRef.current);
       }
     };
-  }, [searchQuery]);
+  }, [searchQuery, corporateSets]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      router.push(`/catalogo?q=${encodeURIComponent(searchQuery)}`);
+      router.push(`/corporativo?q=${encodeURIComponent(searchQuery)}`);
       setIsSearchOpen(false);
       setSearchQuery('');
     }
@@ -280,19 +278,11 @@ export function Header({ onCartClick, products, brands, stores, corporateSets }:
                 <Search className="w-5 h-5" strokeWidth={1.5} />
               </button>
 
-              {/* Cart Button */}
-              <button
-                onClick={onCartClick}
-                className="p-2 hover:bg-[#F5F5F7] rounded-full transition-colors relative"
-                aria-label="Carrito"
-              >
-                <ShoppingBag className="w-5 h-5" strokeWidth={1.5} />
-                {isMounted && totalItems > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-[#FF3B30] text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-bounce">
-                    {totalItems > 99 ? '99+' : totalItems}
-                  </span>
-                )}
-              </button>
+              {/* Corporate account (Mi cuenta / Iniciar sesión) */}
+              <CorporateAccountLink />
+
+              {/* Corporate cart */}
+              <CorporateCartButton />
             </div>
           </div>
         </div>
@@ -423,7 +413,7 @@ export function Header({ onCartClick, products, brands, stores, corporateSets }:
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar productos, marcas, colores..."
+                placeholder="Buscar sets, marcas..."
                 className="w-full pl-12 pr-12 py-3 sm:py-4 text-base sm:text-lg bg-[#F5F5F7] rounded-full focus:outline-none focus:ring-2 focus:ring-[#111111]"
                 autoFocus={isSearchOpen}
               />
@@ -453,10 +443,10 @@ export function Header({ onCartClick, products, brands, stores, corporateSets }:
                     <p className="text-xs uppercase tracking-widest text-gray-400 mb-3">
                       Resultados de búsqueda
                     </p>
-                    {searchResults.map(product => (
+                    {searchResults.map(set => (
                       <Link
-                        key={product.id}
-                        href={`/p/${product.slug}`}
+                        key={set.id}
+                        href={`/corporativo/s/${set.slug}`}
                         onClick={() => {
                           setIsSearchOpen(false);
                           setSearchQuery('');
@@ -465,21 +455,21 @@ export function Header({ onCartClick, products, brands, stores, corporateSets }:
                       >
                         <div className="relative w-12 h-16 sm:w-14 sm:h-18 bg-[#F5F5F7] rounded overflow-hidden flex-shrink-0">
                           <MediaGridThumb
-                            item={resolveCoverMedia(product)}
+                            item={set.cover ?? undefined}
                             fallback="/images/placeholder-product.jpg"
-                            alt={product.name}
+                            alt={set.name}
                             sizes="56px"
                             className="object-cover"
                           />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs text-gray-400 uppercase">{product.brand}</p>
-                          <p className="text-sm font-medium text-[#111111] truncate">{product.name}</p>
+                          {set.brandName && <p className="text-xs text-gray-400 uppercase">{set.brandName}</p>}
+                          <p className="text-sm font-medium text-[#111111] truncate">{set.name}</p>
                         </div>
-                        {showPrices && (
+                        {showPrices && set.referencePrice !== null && (
                           <div className="text-right">
                             <p className="text-sm font-medium">
-                              ${(product.priceSale || product.priceNormal).toFixed(2)}
+                              ${set.referencePrice.toFixed(2)}
                             </p>
                           </div>
                         )}
@@ -487,7 +477,7 @@ export function Header({ onCartClick, products, brands, stores, corporateSets }:
                       </Link>
                     ))}
                     <Link
-                      href={`/catalogo?q=${encodeURIComponent(searchQuery)}`}
+                      href={`/corporativo?q=${encodeURIComponent(searchQuery)}`}
                       onClick={() => {
                         setIsSearchOpen(false);
                         setSearchQuery('');
@@ -514,7 +504,7 @@ export function Header({ onCartClick, products, brands, stores, corporateSets }:
                         key={term}
                         onClick={() => {
                           setSearchQuery(term);
-                          router.push(`/catalogo?q=${encodeURIComponent(term)}`);
+                          router.push(`/corporativo?q=${encodeURIComponent(term)}`);
                           setIsSearchOpen(false);
                         }}
                         className="px-4 py-2 text-sm bg-[#F5F5F7] rounded-full hover:bg-gray-200 transition-colors"

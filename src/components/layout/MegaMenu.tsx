@@ -235,7 +235,7 @@ export function MegaMenu({ isOpen, onClose, brands: brandsProp, stores: storesPr
                       {section.items.map((brand: any) => (
                         <Link
                           key={brand.id}
-                          href={`/catalogo?brand=${encodeURIComponent(brand.name)}`}
+                          href={`/corporativo?brand=${encodeURIComponent(brand.name)}`}
                           onClick={onClose}
                           className="group p-1"
                         >

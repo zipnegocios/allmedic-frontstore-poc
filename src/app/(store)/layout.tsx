@@ -1,4 +1,5 @@
 import { CartProvider } from '@/context/CartContext';
+import { CorporateCartProvider } from '@/context/CorporateCartContext';
 import { NotificationProvider } from '@/context/NotificationContext';
 import { PriceVisibilityProvider } from '@/context/PriceVisibilityContext';
 import { AppShell } from '@/components/layout/AppShell';
@@ -33,9 +34,11 @@ export default async function StoreLayout({
       <NotificationProvider>
         <PriceVisibilityProvider rules={priceVisibilityRules}>
           <CartProvider>
-            <AppShell products={products} brands={brands} stores={stores} corporateSets={corporateSets}>
-              {children}
-            </AppShell>
+            <CorporateCartProvider>
+              <AppShell products={products} brands={brands} stores={stores} corporateSets={corporateSets}>
+                {children}
+              </AppShell>
+            </CorporateCartProvider>
           </CartProvider>
         </PriceVisibilityProvider>
       </NotificationProvider>
