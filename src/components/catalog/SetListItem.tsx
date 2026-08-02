@@ -31,7 +31,7 @@ export function SetListItem({ set, showPrices, activeColorId = null }: SetListIt
 
   const effectiveColorId = localColorId;
   const { cover, secondaryCover, isFallback } = resolveCardCover(set, effectiveColorId);
-  const fallbackColor = isFallback ? set.colors.find((c) => c.id === effectiveColorId) : undefined;
+  const fallbackColor = isFallback ? set.pairedColors.find((c) => c.id === effectiveColorId) : undefined;
 
   // Barra líquida mientras se descarga la portada del color recién filtrado — reinicio "durante
   // el render" (patrón oficial de React para resetear estado en respuesta a un cambio de prop,
@@ -95,9 +95,9 @@ export function SetListItem({ set, showPrices, activeColorId = null }: SetListIt
           <p className="font-sans text-body-sm text-gray-500">
             {set.pieceCount} {set.pieceCount === 1 ? 'pieza' : 'piezas'}
           </p>
-          {set.colors.length > 1 && (
+          {set.pairedColors.length > 1 && (
             <div className="flex flex-wrap gap-1.5 mt-2">
-              {set.colors.slice(0, 5).map(color => (
+              {set.pairedColors.slice(0, 5).map(color => (
                 <div
                   key={color.id}
                   onClick={(e) => {
@@ -109,9 +109,9 @@ export function SetListItem({ set, showPrices, activeColorId = null }: SetListIt
                   <ColorSwatch color={color} size="sm" isSelected={effectiveColorId === color.id} />
                 </div>
               ))}
-              {set.colors.length > 5 && (
+              {set.pairedColors.length > 5 && (
                 <span className="font-sans text-body-xs text-gray-400 flex items-center">
-                  +{set.colors.length - 5}
+                  +{set.pairedColors.length - 5}
                 </span>
               )}
             </div>

@@ -28,6 +28,7 @@ function makeSet(overrides: Partial<CorporateSetSummary> = {}): CorporateSetSumm
     referencePrice: 100,
     hasMissingPrices: false,
     colors: [{ id: 'c-navy', name: 'Navy', code: 'NVY', hex: '#1B2A4A', kind: 'SOLID', swatchUrl: null }],
+    pairedColors: [{ id: 'c-navy', name: 'Navy', code: 'NVY', hex: '#1B2A4A', kind: 'SOLID', swatchUrl: null }],
     sizes: ['M'],
     genders: ['Unisex'],
     productTypes: ['Camisas'],

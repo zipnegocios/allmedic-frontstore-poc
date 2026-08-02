@@ -174,6 +174,7 @@ export async function getActiveCorporateSets(queryOptions?: { featuredOnly?: boo
       priceManual: corporateSetsTable.priceManual,
       priceManualSale: corporateSetsTable.priceManualSale,
       manualDiscountEnd: corporateSetsTable.manualDiscountEnd,
+      colorMode: corporateSetsTable.colorMode,
       createdAt: corporateSetsTable.createdAt,
     })
     .from(corporateSetsTable)
@@ -220,6 +221,7 @@ export async function getActiveCorporateSets(queryOptions?: { featuredOnly?: boo
 
   const items = options.map((o) => ({
     setId: setIdByBlockId.get(o.blockId)!,
+    blockId: o.blockId,
     productId: o.productId,
     quantityPerSet: quantityPerBlock.get(o.blockId) ?? 1,
     priceWholesale: o.priceWholesale,
@@ -259,6 +261,36 @@ export async function getActiveCorporateSets(queryOptions?: { featuredOnly?: boo
         .where(and(inArray(variantsTable.productId, productIds), eq(variantsTable.status, 'AVAILABLE')))
     : [];
   const colorSwatchMap = await getColorSwatchMap(variants.map((v) => v.colorId).filter((id): id is string => !!id));
+
+  // Imágenes por producto+color — necesarias para replicar en el listado el mismo criterio
+  // estricto que la PDP (`strictPairedColors`): un color solo cuenta como comprable si la pieza
+  // tiene al menos una imagen cargada para ese color (mismo patrón que `getCorporateSetBySlug`).
+  const galleryLinks = productIds.length > 0
+    ? await db
+        .select({ productId: mediaLinksTable.entityId, colorId: mediaLinksTable.colorId })
+        .from(mediaLinksTable)
+        .where(and(
+          eq(mediaLinksTable.entityType, 'PRODUCT'),
+          eq(mediaLinksTable.role, 'GALLERY'),
+          inArray(mediaLinksTable.entityId, productIds)
+        ))
+    : [];
+  const productColorsWithImage = new Set(galleryLinks.map((l) => `${l.productId}::${l.colorId}`));
+
+  // Combos curados (modo MIXED) — solo para los sets en ese modo entre los recibidos.
+  const mixedSetIds = rows.filter((r) => r.colorMode === 'MIXED').map((r) => r.id);
+  const combos = mixedSetIds.length > 0
+    ? await db
+        .select({ setId: setColorCombosTable.setId, colorCode: setColorComboItemsTable.colorCode })
+        .from(setColorCombosTable)
+        .innerJoin(setColorComboItemsTable, eq(setColorComboItemsTable.comboId, setColorCombosTable.id))
+        .where(and(inArray(setColorCombosTable.setId, mixedSetIds), eq(setColorCombosTable.isActive, true)))
+    : [];
+  const comboColorCodesBySet = new Map<string, Set<string>>();
+  for (const c of combos) {
+    if (!comboColorCodesBySet.has(c.setId)) comboColorCodesBySet.set(c.setId, new Set());
+    comboColorCodesBySet.get(c.setId)!.add(c.colorCode);
+  }
 
   const colorCoverMedia = await getColorCoverMediaMap(setIds);
   const blocksBySet = new Map<string, typeof blocks>();
@@ -345,6 +377,41 @@ export async function getActiveCorporateSets(queryOptions?: { featuredOnly?: boo
       Array.from(stylesMap.entries(), ([slug, values]) => [slug, Array.from(values)])
     );
 
+    // Colores realmente comprables (swatch de la card) — ver doc de `pairedColors` en
+    // corporate-types.ts. `colors` (arriba) se deja intacto para el filtro lateral.
+    let pairedColors: ProductColor[];
+    if (set.colorMode === 'MIXED') {
+      const comboCodes = comboColorCodesBySet.get(set.id);
+      pairedColors = comboCodes
+        ? Array.from(colorMap.values()).filter((c) => comboCodes.has(c.code))
+        : [];
+    } else {
+      const hasSellableImagedColor = (productId: string, colorId: string) =>
+        setVariants.some((v) => v.productId === productId && v.colorId === colorId) &&
+        productColorsWithImage.has(`${productId}::${colorId}`);
+
+      const blockAOptions = setBlockRows[0] ? (optionsByBlock.get(setBlockRows[0].id) ?? []) : [];
+      const blockBOptions = setBlockRows[1] ? (optionsByBlock.get(setBlockRows[1].id) ?? []) : [];
+      const pairedCodes = new Set<string>();
+      if (blockAOptions.length > 0 && blockBOptions.length > 0) {
+        for (const optA of blockAOptions) {
+          const colorsA = setVariants.filter((v) => v.productId === optA.productId && v.colorId);
+          for (const va of colorsA) {
+            if (!hasSellableImagedColor(optA.productId, va.colorId!)) continue;
+            for (const optB of blockBOptions) {
+              const matchB = setVariants.find(
+                (v) => v.productId === optB.productId && v.colorCode === va.colorCode
+              );
+              if (matchB?.colorId && hasSellableImagedColor(optB.productId, matchB.colorId)) {
+                pairedCodes.add(va.colorCode || '');
+              }
+            }
+          }
+        }
+      }
+      pairedColors = Array.from(colorMap.values()).filter((c) => pairedCodes.has(c.code));
+    }
+
     // Color por defecto del set = primero por `sortOrder` en `coversByColor` — `cover`/
     // `secondaryCover` a nivel de set quedan como ese color "efectivo" para consumidores que no
     // razonan por color (ítem de carrito, mega-menu).
@@ -369,6 +436,7 @@ export async function getActiveCorporateSets(queryOptions?: { featuredOnly?: boo
       referencePrice: setBlockRows.length > 0 || manualPrice !== null ? referencePrice : null,
       hasMissingPrices,
       colors: Array.from(colorMap.values()),
+      pairedColors,
       sizes: Array.from(sizeSet),
       genders,
       productTypes,
@@ -810,6 +878,10 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
     referencePrice: blocks.length > 0 || manualPrice !== null ? (manualPrice ?? referencePrice) : null,
     hasMissingPrices: effectiveHasMissingPrices,
     colors: Array.from(colorMapAgg.values()),
+    // No usado por la UI de la PDP (que calcula la intersección en vivo vía `strictPairedColors`
+    // sobre la pieza elegida de cada bloque) — se deja igual a `colors` solo para satisfacer el
+    // tipo compartido `CorporateSetSummary`.
+    pairedColors: Array.from(colorMapAgg.values()),
     sizes: Array.from(sizeSetAgg),
     genders: Array.from(gendersAgg),
     productTypes: Array.from(productTypesAgg),

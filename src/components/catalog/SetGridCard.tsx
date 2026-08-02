@@ -33,7 +33,7 @@ export function SetGridCard({ set, activeColorId, showPrices }: SetGridCardProps
 
   const effectiveColorId = localColorId;
   const { cover, secondaryCover, isFallback } = resolveCardCover(set, effectiveColorId);
-  const fallbackColor = isFallback ? set.colors.find((c) => c.id === effectiveColorId) : undefined;
+  const fallbackColor = isFallback ? set.pairedColors.find((c) => c.id === effectiveColorId) : undefined;
 
   // Reinicio "durante el render" (sin useEffect) al cambiar la URL de portada — mismo patrón
   // que SetListItem.tsx, evita el render en cascada de un setState síncrono dentro de un efecto.
@@ -115,9 +115,9 @@ export function SetGridCard({ set, activeColorId, showPrices }: SetGridCardProps
           ) : (
             <span className="font-sans text-body-sm text-gray-400">Precio bajo cotización</span>
           ))}
-        {set.colors.length > 1 && (
+        {set.pairedColors.length > 1 && (
           <div className="flex flex-wrap gap-1.5 mt-3">
-            {set.colors.slice(0, 5).map(color => (
+            {set.pairedColors.slice(0, 5).map(color => (
               <div
                 key={color.id}
                 onClick={(e) => {
@@ -129,9 +129,9 @@ export function SetGridCard({ set, activeColorId, showPrices }: SetGridCardProps
                 <ColorSwatch color={color} size="sm" isSelected={effectiveColorId === color.id} />
               </div>
             ))}
-            {set.colors.length > 5 && (
+            {set.pairedColors.length > 5 && (
               <span className="font-sans text-body-xs text-gray-400 flex items-center">
-                +{set.colors.length - 5}
+                +{set.pairedColors.length - 5}
               </span>
             )}
           </div>

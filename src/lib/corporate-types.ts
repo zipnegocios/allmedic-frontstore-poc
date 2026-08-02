@@ -72,8 +72,15 @@ export interface CorporateSetSummary {
   hasRecommendedItems: boolean;
   referencePrice: number | null;
   hasMissingPrices: boolean;
-  /** Atributos agregados de las piezas activas del set — usados por el filtrado de `/corporativo`. */
+  /** Atributos agregados de las piezas activas del set — usados por el filtrado de `/corporativo`.
+   * Unión amplia (cualquier color presente en cualquier pieza), a propósito: un set en modo MIXED
+   * con "Wine" en una sola pieza debe seguir siendo encontrado por el filtro de color "Wine". */
   colors: ProductColor[];
+  /** Colores realmente comprables en el listado — en modo PAIRED, intersección de color entre
+   * al menos una opción de Bloque A y una de Bloque B (mismo criterio que `strictPairedColors`
+   * en la PDP); en modo MIXED, colores presentes en `colorCombos` curados por el admin. Fuente de
+   * verdad para el swatch de la card del listado — NO usar `colors` ahí (ver `SetGridCard`). */
+  pairedColors: ProductColor[];
   sizes: string[];
   genders: Gender[];
   /** Nombres de `productTypes` (EAV) presentes entre las piezas del set — fuente de verdad para filtros. Vacío si ninguna pieza tiene `productTypeId` asignado. */
