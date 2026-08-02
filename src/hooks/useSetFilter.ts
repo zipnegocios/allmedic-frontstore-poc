@@ -25,7 +25,7 @@ export interface SetFilterOptions {
   /** Nombres de `productTypes` (EAV) presentes entre los sets recibidos — dinámico, sin opción muerta. */
   productTypes: string[];
   brands: { id: string; name: string; logoUrl: string | null }[];
-  collections: { id: string; name: string }[];
+  collections: { id: string; name: string; logoUrl: string | null }[];
   colors: ProductColor[];
   sizes: string[];
   styleOptions: SetStyleFilterOption[];
@@ -59,7 +59,7 @@ export function useSetFilter(
   const filterOptions: SetFilterOptions = useMemo(() => {
     const productTypes = new Set<string>();
     const brandsMap = new Map<string, { id: string; name: string; logoUrl: string | null }>();
-    const collectionsMap = new Map<string, { id: string; name: string }>();
+    const collectionsMap = new Map<string, { id: string; name: string; logoUrl: string | null }>();
     const colorMap = new Map<string, ProductColor>();
     const sizes = new Set<string>();
     const stylesMap = new Map<string, Set<string>>();

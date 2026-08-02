@@ -180,7 +180,7 @@ export function SetFilterSidebar({ filters, filterOptions, onFilterChange, isOpe
                 Colección
               </AccordionTrigger>
               <AccordionContent>
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   {filterOptions.collections.map((collection) => {
                     const isSelected = filters.collectionId === collection.id;
                     return (
@@ -188,13 +188,32 @@ export function SetFilterSidebar({ filters, filterOptions, onFilterChange, isOpe
                         key={collection.id}
                         onClick={() => toggleCollection(collection.id)}
                         className={cn(
-                          'px-3 py-2 text-xs font-medium rounded border transition-colors duration-150',
+                          'flex items-center justify-center h-16 px-3 rounded border transition-colors duration-150',
                           isSelected
-                            ? 'border-[#111111] bg-[#F5F5F7] text-[#111111]'
-                            : 'border-gray-200 text-gray-500 hover:border-gray-400'
+                            ? 'border-[#111111] bg-[#F5F5F7]'
+                            : 'border-gray-200 hover:border-gray-400'
                         )}
                       >
-                        {collection.name}
+                        {collection.logoUrl ? (
+                          <img
+                            src={collection.logoUrl}
+                            alt={collection.name}
+                            className="max-h-10 max-w-full object-contain"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                            }}
+                          />
+                        ) : null}
+                        <span
+                          className={cn(
+                            'text-xs font-medium text-center',
+                            collection.logoUrl ? 'hidden' : 'block',
+                            isSelected ? 'text-[#111111]' : 'text-gray-500'
+                          )}
+                        >
+                          {collection.name}
+                        </span>
                       </button>
                     );
                   })}

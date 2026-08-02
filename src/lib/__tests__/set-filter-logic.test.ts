@@ -100,7 +100,7 @@ describe('matchesSetFilters — búsqueda ampliada', () => {
       { id: 'c-wine', name: 'Wine', code: 'WNE', hex: '#7B1E3A', kind: 'SOLID', swatchUrl: null },
       { id: 'c-hunter', name: 'Hunter', code: 'HNT', hex: '#2F4F2F', kind: 'SOLID', swatchUrl: null },
     ],
-    collections: [{ id: 'col-1', name: 'Temporada Clínica' }],
+    collections: [{ id: 'col-1', name: 'Temporada Clínica', logoUrl: null }],
     productTypes: ['Camisas', 'Pantalones'],
     availableStyles: { corte: ['Slim', 'Regular'] },
   });

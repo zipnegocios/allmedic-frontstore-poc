@@ -318,6 +318,22 @@ export async function getActiveCorporateSets(queryOptions?: { featuredOnly?: boo
     : [];
   const brandLogoMap = new Map(brandLogoLinks.map((l) => [l.brandId, resolveMediaUrl(l.storageKey)]));
 
+  const collectionIds = Array.from(
+    new Set(options.map((o) => o.collectionId).filter((id): id is string => !!id))
+  );
+  const collectionLogoLinks = collectionIds.length > 0
+    ? await db
+        .select({ collectionId: mediaLinksTable.entityId, storageKey: mediaAssetsTable.storageKey })
+        .from(mediaLinksTable)
+        .innerJoin(mediaAssetsTable, eq(mediaLinksTable.assetId, mediaAssetsTable.id))
+        .where(and(
+          eq(mediaLinksTable.entityType, 'COLLECTION'),
+          eq(mediaLinksTable.role, 'LOGO'),
+          inArray(mediaLinksTable.entityId, collectionIds)
+        ))
+    : [];
+  const collectionLogoMap = new Map(collectionLogoLinks.map((l) => [l.collectionId, resolveMediaUrl(l.storageKey)]));
+
   return rows.map((set) => {
     const setItems = items.filter((i) => i.setId === set.id);
     const setBlockRows = blocksBySet.get(set.id) ?? [];
@@ -350,7 +366,11 @@ export async function getActiveCorporateSets(queryOptions?: { featuredOnly?: boo
         collectionsMap.set(i.collectionId, i.collectionName);
       }
     }
-    const setCollections = Array.from(collectionsMap, ([id, name]) => ({ id, name }));
+    const setCollections = Array.from(collectionsMap, ([id, name]) => ({
+      id,
+      name,
+      logoUrl: collectionLogoMap.get(id) ?? null,
+    }));
     const pieceNames = Array.from(new Set(setItems.map((i) => i.productName).filter((n): n is string => !!n)));
 
     const setVariants = variants.filter((v) => setProductIds.includes(v.productId));

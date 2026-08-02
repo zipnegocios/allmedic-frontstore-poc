@@ -86,8 +86,10 @@ export interface CorporateSetSummary {
   /** Nombres de `productTypes` (EAV) presentes entre las piezas del set — fuente de verdad para filtros. Vacío si ninguna pieza tiene `productTypeId` asignado. */
   productTypes: string[];
   /** Colecciones presentes entre las piezas activas del set — unión, no intersección (una pieza
-   * de cualquier colección basta para que el set matchee ese filtro). */
-  collections: { id: string; name: string }[];
+   * de cualquier colección basta para que el set matchee ese filtro). `logoUrl` viene de
+   * `media_links` (entityType COLLECTION, role LOGO) — null si la colección no tiene imagen
+   * cargada en el admin, mismo patrón que `brandLogoUrl`. */
+  collections: { id: string; name: string; logoUrl: string | null }[];
   /** Agregado EAV de `variants[].styles` a través de todas las piezas del set: slug de atributo → valores únicos presentes. */
   availableStyles: Record<string, string[]>;
   pieceNames: string[];
