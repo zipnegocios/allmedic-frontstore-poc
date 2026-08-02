@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 
 interface HeaderProps {
   onCartClick: () => void;
+  onCorporateCartClick: () => void;
   products?: Product[];
   brands?: BrandNavItem[];
   stores?: Store[];
@@ -36,7 +37,7 @@ const navLinks = [
 // `onCartClick` ya no dispara ningún trigger visual en este Header (el shopping bag individual
 // se quitó) — se mantiene en la interfaz porque AppShell.tsx sigue pasándola y CartDrawer sigue
 // montado; no se destructura para no generar un error de parámetro no usado.
-export function Header({ products, brands, stores, corporateSets }: HeaderProps) {
+export function Header({ onCorporateCartClick, products, brands, stores, corporateSets }: HeaderProps) {
   const showPrices = usePriceVisibility();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -282,7 +283,7 @@ export function Header({ products, brands, stores, corporateSets }: HeaderProps)
               <CorporateAccountLink />
 
               {/* Corporate cart */}
-              <CorporateCartButton />
+              <CorporateCartButton onClick={onCorporateCartClick} />
             </div>
           </div>
         </div>
