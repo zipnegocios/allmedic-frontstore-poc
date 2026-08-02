@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Search, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -11,7 +11,8 @@ import { SetFilterSidebar, SetFilterButton } from '@/components/catalog/SetFilte
 import { SetListItem } from '@/components/catalog/SetListItem';
 import { SetGridCard } from '@/components/catalog/SetGridCard';
 import { useSetFilter } from '@/hooks/useSetFilter';
-import type { SetSortOption } from '@/lib/set-filter-logic';
+import { buildSetSearchWords, type SetSortOption } from '@/lib/set-filter-logic';
+import { suggestClosestMatch } from '@/lib/fuzzy-match';
 
 interface SetCatalogGridProps {
   sets: CorporateSetSummary[];
@@ -45,6 +46,14 @@ export function SetCatalogGrid({ sets, priceVisibilityRules }: SetCatalogGridPro
     itemsPerPage,
     setItemsPerPage,
   } = useSetFilter(sets, { search: initialSearch, brandName: initialBrandName });
+
+  const searchSuggestion = useMemo(() => {
+    if (paginatedSets.length > 0 || totalSets > 0) return null;
+    const query = filters.search.trim();
+    if (!query) return null;
+    const allWords = sets.flatMap(buildSetSearchWords);
+    return suggestClosestMatch(query, allWords);
+  }, [paginatedSets.length, totalSets, filters.search, sets]);
 
   const showPricesFor = (set: CorporateSetSummary): boolean => {
     const resolved = resolveRules(priceVisibilityRules, {
@@ -154,6 +163,17 @@ export function SetCatalogGrid({ sets, priceVisibilityRules }: SetCatalogGridPro
           {paginatedSets.length === 0 ? (
             <div className="text-center py-16 text-gray-500">
               No hay sets corporativos disponibles con estos filtros.
+              {searchSuggestion && (
+                <p className="mt-2">
+                  <button
+                    type="button"
+                    onClick={() => applyFilters({ search: searchSuggestion })}
+                    className="text-[#111111] font-medium hover:underline"
+                  >
+                    ¿Usted quizás quiso decir: <span className="underline">{searchSuggestion}</span>?
+                  </button>
+                </p>
+              )}
               {hasActiveFilters && (
                 <div className="mt-4">
                   <button

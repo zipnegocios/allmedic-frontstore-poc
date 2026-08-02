@@ -11,6 +11,7 @@ import { CorporateAccountLink } from '@/components/corporate/CorporateAccountLin
 import { CorporateCartButton } from '@/components/corporate/CorporateCartButton';
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 import { usePriceVisibility } from '@/context/PriceVisibilityContext';
+import { suggestClosestMatch } from '@/lib/fuzzy-match';
 import type { Product, Store, BrandNavItem } from '@/lib/types';
 import type { CorporateSetNavItem } from '@/lib/corporate-types';
 import { cn } from '@/lib/utils';
@@ -110,6 +111,7 @@ export function Header({ onCorporateCartClick, products, brands, stores, corpora
   }, []);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<CorporateSetNavItem[]>([]);
+  const [searchSuggestion, setSearchSuggestion] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
@@ -140,17 +142,42 @@ export function Header({ onCorporateCartClick, products, brands, stores, corpora
         let results: CorporateSetNavItem[];
         if (corporateSets) {
           const q = searchQuery.toLowerCase();
-          results = corporateSets.filter(s =>
-            s.name.toLowerCase().includes(q) ||
-            (s.brandName?.toLowerCase().includes(q) ?? false)
-          );
+          results = corporateSets.filter(s => {
+            const haystack = [
+              s.name,
+              s.brandName ?? '',
+              ...s.colors.map((c) => c.code),
+              ...s.colors.map((c) => c.name),
+              ...s.collections,
+              ...s.productTypes,
+              ...Object.values(s.availableStyles).flat(),
+            ]
+              .join(' ')
+              .toLowerCase();
+            return haystack.includes(q);
+          });
         } else {
           results = [];
         }
         setSearchResults(results.slice(0, 6));
+        if (results.length === 0 && corporateSets) {
+          const allWords = corporateSets.flatMap((s) => [
+            s.name,
+            s.brandName ?? '',
+            ...s.colors.map((c) => c.code),
+            ...s.colors.map((c) => c.name),
+            ...s.collections,
+            ...s.productTypes,
+            ...Object.values(s.availableStyles).flat(),
+          ]);
+          setSearchSuggestion(suggestClosestMatch(searchQuery, allWords));
+        } else {
+          setSearchSuggestion(null);
+        }
       }, 200);
     } else {
       setSearchResults([]);
+      setSearchSuggestion(null);
     }
 
     return () => {
@@ -491,7 +518,16 @@ export function Header({ onCorporateCartClick, products, brands, stores, corpora
                   </div>
                 ) : (
                   <div className="text-center py-8">
-                    <p className="text-gray-500">No encontramos resultados para "{searchQuery}"</p>
+                    <p className="text-gray-500">No encontramos resultados para &quot;{searchQuery}&quot;</p>
+                    {searchSuggestion && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery(searchSuggestion)}
+                        className="mt-2 text-sm text-[#111111] font-medium hover:underline"
+                      >
+                        ¿Usted quizás quiso decir: <span className="underline">{searchSuggestion}</span>?
+                      </button>
+                    )}
                   </div>
                 )
               ) : (

@@ -100,8 +100,10 @@ export interface SetColorCombo {
   items: Array<{ productId: string; colorCode: string }>;
 }
 
-/** Item liviano de set para navegación (mega-menu) — solo lo necesario para una card
- * chica: sin colores/tallas/estilos/variantes agregados (eso es exclusivo de `/corporativo`). */
+/** Item liviano de set para navegación (mega-menu, uso con `getLatestCorporateSets`) y para el
+ * autocompletado del Header (uso con `getSearchableCorporateSets`) — este segundo caso agrega
+ * los campos mínimos necesarios para buscar por color/colección/tipo/atributo sin llegar al
+ * peso de `CorporateSetSummary` (sin variantes, sin coversByColor, sin precios por bloque). */
 export interface CorporateSetNavItem {
   id: string;
   slug: string;
@@ -109,6 +111,11 @@ export interface CorporateSetNavItem {
   cover: MediaItem | null;
   brandName: string | null;
   referencePrice: number | null;
+  /** Vacío cuando el item viene de `getLatestCorporateSets` (mega-menu, no necesita buscar). */
+  colors: { code: string; name: string }[];
+  collections: string[];
+  productTypes: string[];
+  availableStyles: Record<string, string[]>;
 }
 
 export interface CorporateSetDetail extends CorporateSetSummary {

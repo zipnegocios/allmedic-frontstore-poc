@@ -10,6 +10,10 @@ describe("CorporateSetNavItem shape", () => {
       cover: null,
       brandName: null,
       referencePrice: null,
+      colors: [],
+      collections: [],
+      productTypes: [],
+      availableStyles: {},
     };
     expect(item.id).toBe("set-1");
   });
@@ -28,6 +32,10 @@ describe("CorporateSetNavItem shape", () => {
       },
       brandName: "AllMedic",
       referencePrice: 42.5,
+      colors: [{ code: "WNE", name: "Wine" }],
+      collections: ["Temporada Clínica"],
+      productTypes: ["Camisas"],
+      availableStyles: { corte: ["Regular"] },
     };
     expect(item.referencePrice).toBe(42.5);
   });

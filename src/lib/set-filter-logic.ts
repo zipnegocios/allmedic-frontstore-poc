@@ -32,6 +32,23 @@ export const EMPTY_SET_FILTERS: SetFilterState = {
 
 export type SetSortOption = 'relevance' | 'price-asc' | 'price-desc' | 'newest';
 
+/** Todas las palabras/frases buscables de un set — nombre, marca, piezas, color (code+nombre),
+ * colección, tipo de producto y valores de atributos EAV. Fuente única para el matching de
+ * texto (`matchesSetFilters`) y para el pool de sugerencias por aproximación
+ * (`suggestClosestMatch` en `SetCatalogGrid`). */
+export function buildSetSearchWords(set: CorporateSetSummary): string[] {
+  return [
+    set.name,
+    set.brandName ?? '',
+    ...set.pieceNames,
+    ...set.colors.map((c) => c.code),
+    ...set.colors.map((c) => c.name),
+    ...set.collections.map((c) => c.name),
+    ...set.productTypes,
+    ...Object.values(set.availableStyles).flat(),
+  ].filter((w) => w.trim().length > 0);
+}
+
 export function matchesSetFilters(set: CorporateSetSummary, filters: SetFilterState): boolean {
   if (filters.gender && !set.genders.includes(filters.gender)) {
     return false;
@@ -59,9 +76,7 @@ export function matchesSetFilters(set: CorporateSetSummary, filters: SetFilterSt
 
   const query = filters.search.trim().toLowerCase();
   if (query) {
-    const haystack = [set.name, set.brandName ?? '', ...set.pieceNames]
-      .join(' ')
-      .toLowerCase();
+    const haystack = buildSetSearchWords(set).join(' ').toLowerCase();
     if (!haystack.includes(query)) return false;
   }
 

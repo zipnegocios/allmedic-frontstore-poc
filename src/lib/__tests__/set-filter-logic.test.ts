@@ -94,6 +94,42 @@ describe('matchesSetFilters', () => {
   });
 });
 
+describe('matchesSetFilters — búsqueda ampliada', () => {
+  const set = makeSet({
+    colors: [
+      { id: 'c-wine', name: 'Wine', code: 'WNE', hex: '#7B1E3A', kind: 'SOLID', swatchUrl: null },
+      { id: 'c-hunter', name: 'Hunter', code: 'HNT', hex: '#2F4F2F', kind: 'SOLID', swatchUrl: null },
+    ],
+    collections: [{ id: 'col-1', name: 'Temporada Clínica' }],
+    productTypes: ['Camisas', 'Pantalones'],
+    availableStyles: { corte: ['Slim', 'Regular'] },
+  });
+
+  it('matchea por código de color', () => {
+    expect(matchesSetFilters(set, { ...EMPTY_SET_FILTERS, search: 'WNE' })).toBe(true);
+  });
+
+  it('matchea por nombre de color (case-insensitive)', () => {
+    expect(matchesSetFilters(set, { ...EMPTY_SET_FILTERS, search: 'hunter' })).toBe(true);
+  });
+
+  it('matchea por nombre de colección', () => {
+    expect(matchesSetFilters(set, { ...EMPTY_SET_FILTERS, search: 'Temporada Clínica' })).toBe(true);
+  });
+
+  it('matchea por tipo de producto', () => {
+    expect(matchesSetFilters(set, { ...EMPTY_SET_FILTERS, search: 'Pantalones' })).toBe(true);
+  });
+
+  it('matchea por valor de atributo EAV', () => {
+    expect(matchesSetFilters(set, { ...EMPTY_SET_FILTERS, search: 'Slim' })).toBe(true);
+  });
+
+  it('no matchea texto ausente en ningún campo', () => {
+    expect(matchesSetFilters(set, { ...EMPTY_SET_FILTERS, search: 'Turquesa' })).toBe(false);
+  });
+});
+
 describe('sortSets', () => {
   const cheap = makeSet({ id: 'cheap', referencePrice: 50, createdAt: '2026-01-01T00:00:00.000Z' });
   const pricey = makeSet({ id: 'pricey', referencePrice: 150, createdAt: '2026-03-01T00:00:00.000Z' });

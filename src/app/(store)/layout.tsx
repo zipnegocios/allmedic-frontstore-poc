@@ -4,7 +4,7 @@ import { NotificationProvider } from '@/context/NotificationContext';
 import { PriceVisibilityProvider } from '@/context/PriceVisibilityContext';
 import { AppShell } from '@/components/layout/AppShell';
 import { getAllProducts, getBrandsForNav, getStores } from '@/lib/data-service';
-import { getAllBusinessRules, getLatestCorporateSets } from '@/lib/corporate-data-service';
+import { getAllBusinessRules, getSearchableCorporateSets } from '@/lib/corporate-data-service';
 
 // Fuerza renderizado dinámico en toda la tienda: la base de datos no está disponible
 // durante `docker build` (solo en runtime vía EasyPanel), así que un prerender estático
@@ -21,7 +21,7 @@ export default async function StoreLayout({
     getBrandsForNav(),
     getStores(),
     getAllBusinessRules(),
-    getLatestCorporateSets(),
+    getSearchableCorporateSets(),
   ]);
 
   // Solo las reglas PRICE_VISIBILITY viajan al cliente — se resuelven por ítem (marca/producto)

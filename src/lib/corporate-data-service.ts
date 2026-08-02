@@ -524,8 +524,32 @@ export async function getLatestCorporateSets(limit = 8): Promise<CorporateSetNav
       cover: colorCoverMediaLatest.get(set.id)?.[0]?.cover ?? null,
       brandName: set.brandName,
       referencePrice,
+      colors: [],
+      collections: [],
+      productTypes: [],
+      availableStyles: {},
     };
   });
+}
+
+// ── Sets para el autocompletado del Header (sin límite, campos mínimos para buscar) ──
+// Reusa `getActiveCorporateSets` (ya trae colores/colecciones/tipos/estilos agregados por set)
+// en vez de duplicar sus ~10 queries — solo remapea al tipo liviano `CorporateSetNavItem`.
+// Se ejecuta en el layout raíz de `(store)`, en cada página del sitio.
+export async function getSearchableCorporateSets(): Promise<CorporateSetNavItem[]> {
+  const sets = await getActiveCorporateSets();
+  return sets.map((set) => ({
+    id: set.id,
+    slug: set.slug,
+    name: set.name,
+    cover: set.cover,
+    brandName: set.brandName,
+    referencePrice: set.referencePrice,
+    colors: set.colors.map((c) => ({ code: c.code, name: c.name })),
+    collections: set.collections.map((c) => c.name),
+    productTypes: set.productTypes,
+    availableStyles: set.availableStyles,
+  }));
 }
 
 // ── Detalle de un set (para /corporativo/s/[slug]) ──
