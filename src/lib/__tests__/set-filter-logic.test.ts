@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   matchesSetFilters,
+  matchesSetFiltersExcept,
+  computeSetFilterOptions,
   sortSets,
   countActiveSetFilters,
   paginate,
@@ -34,6 +36,7 @@ function makeSet(overrides: Partial<CorporateSetSummary> = {}): CorporateSetSumm
     productTypes: ['Camisas'],
     collections: [],
     availableStyles: { corte: ['Regular'] },
+    styleLabels: { corte: 'Corte' },
     pieceNames: ['Camisa Clínica', 'Pantalón Cargo'],
     createdAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
@@ -127,6 +130,121 @@ describe('matchesSetFilters — búsqueda ampliada', () => {
 
   it('no matchea texto ausente en ningún campo', () => {
     expect(matchesSetFilters(set, { ...EMPTY_SET_FILTERS, search: 'Turquesa' })).toBe(false);
+  });
+});
+
+describe('matchesSetFiltersExcept', () => {
+  it('ignora el filtro de color al evaluar, pero respeta el resto', () => {
+    const set = makeSet({
+      brandId: 'b1',
+      colors: [{ id: 'c-red', name: 'Red', code: 'RED', hex: '#FF0000', kind: 'SOLID', swatchUrl: null }],
+    });
+    // brandId coincide, colorId NO coincide (set no tiene c-navy) — pero como excluimos 'colorId',
+    // el mismatch de color no debe importar.
+    const result = matchesSetFiltersExcept(
+      set,
+      filters({ brandId: 'b1', colorId: 'c-navy' }),
+      'colorId'
+    );
+    expect(result).toBe(true);
+  });
+
+  it('sigue rechazando por otros filtros activos aunque se excluya uno', () => {
+    const set = makeSet({ brandId: 'b1' });
+    const result = matchesSetFiltersExcept(
+      set,
+      filters({ brandId: 'b2', colorId: 'c-navy' }),
+      'colorId'
+    );
+    expect(result).toBe(false);
+  });
+
+  it('sin exclusión, se comporta igual que matchesSetFilters', () => {
+    const set = makeSet({ brandId: 'b1' });
+    const withExclude = matchesSetFiltersExcept(set, filters({ brandId: 'b2' }), 'colorId');
+    const direct = matchesSetFilters(set, filters({ brandId: 'b2' }));
+    expect(withExclude).toBe(direct);
+  });
+});
+
+describe('computeSetFilterOptions — facetado', () => {
+  const setBarcoRojo = makeSet({
+    id: 'barco-rojo',
+    brandId: 'barco',
+    brandName: 'Barco',
+    genders: ['Hombre'],
+    colors: [{ id: 'c-red', name: 'Red', code: 'RED', hex: '#FF0000', kind: 'SOLID', swatchUrl: null }],
+  });
+  const setBarcoAzul = makeSet({
+    id: 'barco-azul',
+    brandId: 'barco',
+    brandName: 'Barco',
+    genders: ['Mujer'],
+    colors: [{ id: 'c-blue', name: 'Blue', code: 'BLU', hex: '#0000FF', kind: 'SOLID', swatchUrl: null }],
+  });
+  const setLandauVerde = makeSet({
+    id: 'landau-verde',
+    brandId: 'landau',
+    brandName: 'Landau',
+    genders: ['Hombre'],
+    colors: [{ id: 'c-green', name: 'Green', code: 'GRN', hex: '#00FF00', kind: 'SOLID', swatchUrl: null }],
+  });
+  const allSets = [setBarcoRojo, setBarcoAzul, setLandauVerde];
+
+  it('sin filtros activos, muestra todas las opciones', () => {
+    const options = computeSetFilterOptions(allSets, EMPTY_SET_FILTERS);
+    expect(options.brands.map((b) => b.id).sort()).toEqual(['barco', 'landau']);
+    expect(options.colors.map((c) => c.id).sort()).toEqual(['c-blue', 'c-green', 'c-red']);
+  });
+
+  it('al elegir marca Barco, el filtro de color se reduce a los colores de Barco', () => {
+    const options = computeSetFilterOptions(allSets, filters({ brandId: 'barco' }));
+    expect(options.colors.map((c) => c.id).sort()).toEqual(['c-blue', 'c-red']);
+  });
+
+  it('al elegir marca Barco + género Hombre, el color se reduce aún más (solo Red)', () => {
+    const options = computeSetFilterOptions(allSets, filters({ brandId: 'barco', gender: 'Hombre' }));
+    expect(options.colors.map((c) => c.id)).toEqual(['c-red']);
+  });
+
+  it('al elegir un color, el propio filtro de color sigue mostrando todas sus opciones (auto-exclusión)', () => {
+    const options = computeSetFilterOptions(allSets, filters({ brandId: 'barco', colorId: 'c-red' }));
+    // El filtro de color se excluye a sí mismo: debe seguir mostrando Red Y Blue (ambos de Barco).
+    expect(options.colors.map((c) => c.id).sort()).toEqual(['c-blue', 'c-red']);
+  });
+
+  it('colecciones se acotan por marca igual que colores', () => {
+    const setBarcoConColeccion = makeSet({
+      id: 'barco-col',
+      brandId: 'barco',
+      brandName: 'Barco',
+      collections: [{ id: 'col-verano', name: 'Verano', logoUrl: null }],
+    });
+    const setLandauConColeccion = makeSet({
+      id: 'landau-col',
+      brandId: 'landau',
+      brandName: 'Landau',
+      collections: [{ id: 'col-invierno', name: 'Invierno', logoUrl: null }],
+    });
+    const options = computeSetFilterOptions(
+      [setBarcoConColeccion, setLandauConColeccion],
+      filters({ brandId: 'barco' })
+    );
+    expect(options.collections.map((c) => c.id)).toEqual(['col-verano']);
+  });
+
+  it('usa el label real de styleLabels en vez del slug capitalizado', () => {
+    const set = makeSet({ availableStyles: { 'corte-tops': ['Regular'] }, styleLabels: { 'corte-tops': 'Modelo de Corte' } });
+    const options = computeSetFilterOptions([set], EMPTY_SET_FILTERS);
+    const styleOption = options.styleOptions.find((o) => o.slug === 'corte-tops');
+    expect(styleOption?.label).toBe('Modelo de Corte');
+  });
+
+  it('cae al slug capitalizado si ningún set provee styleLabels para ese slug', () => {
+    const set = makeSet({ availableStyles: { talle: ['M'] }, styleLabels: {} });
+    const options = computeSetFilterOptions([set], EMPTY_SET_FILTERS);
+    const styleOption = options.styleOptions.find((o) => o.slug === 'talle');
+    expect(styleOption?.label).toBe('Talle');
   });
 });
 

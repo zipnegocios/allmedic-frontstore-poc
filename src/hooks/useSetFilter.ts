@@ -1,35 +1,18 @@
 import { useState, useMemo, useCallback } from 'react';
 import type { CorporateSetSummary } from '@/lib/corporate-types';
-import type { ProductColor } from '@/lib/types';
 import {
   EMPTY_SET_FILTERS,
   matchesSetFilters,
+  computeSetFilterOptions,
   sortSets,
   countActiveSetFilters,
   paginate,
   type SetFilterState,
   type SetSortOption,
+  type SetFilterOptions,
 } from '@/lib/set-filter-logic';
 
-/** Opción de estilo EAV (ej. "Corte") derivada de `set.availableStyles` — soporta cualquier
- * atributo de estilo presente en los datos, no solo "corte". `label` es el slug capitalizado
- * (no tenemos el `name` del atributo en el payload público, solo su slug estable). Mismo patrón
- * que `StyleFilterOption` en `FilterSidebar.tsx` (catálogo individual). */
-export interface SetStyleFilterOption {
-  slug: string;
-  label: string;
-  values: string[];
-}
-
-export interface SetFilterOptions {
-  /** Nombres de `productTypes` (EAV) presentes entre los sets recibidos — dinámico, sin opción muerta. */
-  productTypes: string[];
-  brands: { id: string; name: string; logoUrl: string | null }[];
-  collections: { id: string; name: string; logoUrl: string | null }[];
-  colors: ProductColor[];
-  sizes: string[];
-  styleOptions: SetStyleFilterOption[];
-}
+export type { SetFilterOptions, SetStyleFilterOption } from '@/lib/set-filter-logic';
 
 const ITEMS_PER_PAGE_DEFAULT = 20;
 
@@ -56,42 +39,10 @@ export function useSetFilter(
   const [itemsPerPage, setItemsPerPageState] = useState<number>(ITEMS_PER_PAGE_DEFAULT);
   const [currentPage, setCurrentPage] = useState<number>(1);
 
-  const filterOptions: SetFilterOptions = useMemo(() => {
-    const productTypes = new Set<string>();
-    const brandsMap = new Map<string, { id: string; name: string; logoUrl: string | null }>();
-    const collectionsMap = new Map<string, { id: string; name: string; logoUrl: string | null }>();
-    const colorMap = new Map<string, ProductColor>();
-    const sizes = new Set<string>();
-    const stylesMap = new Map<string, Set<string>>();
-    for (const s of sets) {
-      for (const t of s.productTypes) productTypes.add(t);
-      if (s.brandId && s.brandName && !brandsMap.has(s.brandId)) {
-        brandsMap.set(s.brandId, { id: s.brandId, name: s.brandName, logoUrl: s.brandLogoUrl });
-      }
-      for (const c of s.collections) {
-        if (!collectionsMap.has(c.id)) collectionsMap.set(c.id, c);
-      }
-      for (const c of s.colors) if (!colorMap.has(c.id)) colorMap.set(c.id, c);
-      for (const sz of s.sizes) sizes.add(sz);
-      for (const [slug, values] of Object.entries(s.availableStyles)) {
-        if (!stylesMap.has(slug)) stylesMap.set(slug, new Set());
-        for (const v of values) stylesMap.get(slug)!.add(v);
-      }
-    }
-    const styleOptions: SetStyleFilterOption[] = Array.from(stylesMap.entries()).map(([slug, values]) => ({
-      slug,
-      label: slug.charAt(0).toUpperCase() + slug.slice(1),
-      values: Array.from(values).sort(),
-    }));
-    return {
-      productTypes: Array.from(productTypes).sort(),
-      brands: Array.from(brandsMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
-      collections: Array.from(collectionsMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
-      colors: Array.from(colorMap.values()),
-      sizes: Array.from(sizes),
-      styleOptions,
-    };
-  }, [sets]);
+  const filterOptions: SetFilterOptions = useMemo(
+    () => computeSetFilterOptions(sets, filters),
+    [sets, filters]
+  );
 
   const filteredSets = useMemo(() => {
     const matched = sets.filter((s) => matchesSetFilters(s, filters));

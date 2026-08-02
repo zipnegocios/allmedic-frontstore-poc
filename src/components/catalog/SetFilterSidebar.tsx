@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { X, SlidersHorizontal, Venus, Mars, VenusAndMars, Users } from 'lucide-react';
 import type { SetFilterState } from '@/lib/set-filter-logic';
 import type { SetFilterOptions } from '@/hooks/useSetFilter';
@@ -12,6 +13,7 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from '@/components/ui/accordion';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 
 interface SetFilterSidebarProps {
   filters: SetFilterState;
@@ -76,10 +78,12 @@ export function SetFilterSidebar({ filters, filterOptions, onFilterChange, isOpe
     filters.sizes.length > 0 ||
     Object.values(filters.selectedStyles).some((values) => values.length > 0);
 
+  const [isColorsExpanded, setIsColorsExpanded] = useState(false);
+
   const defaultOpenSections = ['gender', 'brand'];
 
   const sidebarContent = (
-    <>
+    <TooltipProvider delayDuration={200}>
       <div className="flex items-center justify-between p-4 border-b border-[#E5E5E5] lg:hidden">
         <h2 className="text-lg font-semibold">Filtros</h2>
         <button onClick={onClose} className="p-2 hover:bg-[#F5F5F7] rounded-full">
@@ -136,37 +140,41 @@ export function SetFilterSidebar({ filters, filterOptions, onFilterChange, isOpe
                   {filterOptions.brands.map((brand) => {
                     const isSelected = filters.brandId === brand.id;
                     return (
-                      <button
-                        key={brand.id}
-                        onClick={() => toggleBrand(brand.id)}
-                        className={cn(
-                          'flex items-center justify-center h-16 px-3 rounded border transition-colors duration-150',
-                          isSelected
-                            ? 'border-[#111111] bg-[#F5F5F7]'
-                            : 'border-gray-200 hover:border-gray-400'
-                        )}
-                      >
-                        {brand.logoUrl ? (
-                          <img
-                            src={brand.logoUrl}
-                            alt={brand.name}
-                            className="max-h-10 max-w-full object-contain"
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none';
-                              e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                            }}
-                          />
-                        ) : null}
-                        <span
-                          className={cn(
-                            'text-xs font-medium text-center',
-                            brand.logoUrl ? 'hidden' : 'block',
-                            isSelected ? 'text-[#111111]' : 'text-gray-500'
-                          )}
-                        >
-                          {brand.name}
-                        </span>
-                      </button>
+                      <Tooltip key={brand.id}>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => toggleBrand(brand.id)}
+                            className={cn(
+                              'flex items-center justify-center h-16 px-3 rounded border transition-colors duration-150',
+                              isSelected
+                                ? 'border-[#111111] bg-[#F5F5F7]'
+                                : 'border-gray-200 hover:border-gray-400'
+                            )}
+                          >
+                            {brand.logoUrl ? (
+                              <img
+                                src={brand.logoUrl}
+                                alt={brand.name}
+                                className="max-h-10 max-w-full object-contain"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                }}
+                              />
+                            ) : null}
+                            <span
+                              className={cn(
+                                'text-xs font-medium text-center',
+                                brand.logoUrl ? 'hidden' : 'block',
+                                isSelected ? 'text-[#111111]' : 'text-gray-500'
+                              )}
+                            >
+                              {brand.name}
+                            </span>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>{brand.name}</TooltipContent>
+                      </Tooltip>
                     );
                   })}
                 </div>
@@ -184,37 +192,41 @@ export function SetFilterSidebar({ filters, filterOptions, onFilterChange, isOpe
                   {filterOptions.collections.map((collection) => {
                     const isSelected = filters.collectionId === collection.id;
                     return (
-                      <button
-                        key={collection.id}
-                        onClick={() => toggleCollection(collection.id)}
-                        className={cn(
-                          'flex items-center justify-center h-16 px-3 rounded border transition-colors duration-150',
-                          isSelected
-                            ? 'border-[#111111] bg-[#F5F5F7]'
-                            : 'border-gray-200 hover:border-gray-400'
-                        )}
-                      >
-                        {collection.logoUrl ? (
-                          <img
-                            src={collection.logoUrl}
-                            alt={collection.name}
-                            className="max-h-10 max-w-full object-contain"
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none';
-                              e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                            }}
-                          />
-                        ) : null}
-                        <span
-                          className={cn(
-                            'text-xs font-medium text-center',
-                            collection.logoUrl ? 'hidden' : 'block',
-                            isSelected ? 'text-[#111111]' : 'text-gray-500'
-                          )}
-                        >
-                          {collection.name}
-                        </span>
-                      </button>
+                      <Tooltip key={collection.id}>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => toggleCollection(collection.id)}
+                            className={cn(
+                              'flex items-center justify-center h-16 px-3 rounded border transition-colors duration-150',
+                              isSelected
+                                ? 'border-[#111111] bg-[#F5F5F7]'
+                                : 'border-gray-200 hover:border-gray-400'
+                            )}
+                          >
+                            {collection.logoUrl ? (
+                              <img
+                                src={collection.logoUrl}
+                                alt={collection.name}
+                                className="max-h-10 max-w-full object-contain"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                }}
+                              />
+                            ) : null}
+                            <span
+                              className={cn(
+                                'text-xs font-medium text-center',
+                                collection.logoUrl ? 'hidden' : 'block',
+                                isSelected ? 'text-[#111111]' : 'text-gray-500'
+                              )}
+                            >
+                              {collection.name}
+                            </span>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>{collection.name}</TooltipContent>
+                      </Tooltip>
                     );
                   })}
                 </div>
@@ -252,7 +264,7 @@ export function SetFilterSidebar({ filters, filterOptions, onFilterChange, isOpe
               </AccordionTrigger>
               <AccordionContent>
                 <div className="flex flex-wrap gap-2">
-                  {filterOptions.colors.slice(0, 20).map((color) => (
+                  {(isColorsExpanded ? filterOptions.colors : filterOptions.colors.slice(0, 20)).map((color) => (
                     <ColorSwatch
                       key={color.id}
                       color={color}
@@ -262,6 +274,15 @@ export function SetFilterSidebar({ filters, filterOptions, onFilterChange, isOpe
                     />
                   ))}
                 </div>
+                {!isColorsExpanded && filterOptions.colors.length > 20 && (
+                  <button
+                    type="button"
+                    onClick={() => setIsColorsExpanded(true)}
+                    className="mt-2 text-xs text-gray-500 hover:text-[#111111] underline transition-colors"
+                  >
+                    Ver todos ({filterOptions.colors.length})
+                  </button>
+                )}
               </AccordionContent>
             </AccordionItem>
           )}
@@ -321,7 +342,7 @@ export function SetFilterSidebar({ filters, filterOptions, onFilterChange, isOpe
           ))}
         </Accordion>
       </div>
-    </>
+    </TooltipProvider>
   );
 
   return (

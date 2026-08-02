@@ -262,6 +262,11 @@ export async function getActiveCorporateSets(queryOptions?: { featuredOnly?: boo
     : [];
   const colorSwatchMap = await getColorSwatchMap(variants.map((v) => v.colorId).filter((id): id is string => !!id));
 
+  // Nombre legible de cada atributo EAV (slug → nombre) — mismo patrón que `getCorporateSetBySlug`
+  // (PDP), ahora también para el agregado de set que alimenta el filtro de `/corporativo`.
+  const allAttributes = await db.select({ name: attributesTable.name, slug: attributesTable.slug }).from(attributesTable);
+  const attributeNameBySlug = new Map(allAttributes.map((a) => [a.slug, a.name]));
+
   // Imágenes por producto+color — necesarias para replicar en el listado el mismo criterio
   // estricto que la PDP (`strictPairedColors`): un color solo cuenta como comprable si la pieza
   // tiene al menos una imagen cargada para ese color (mismo patrón que `getCorporateSetBySlug`).
@@ -396,6 +401,12 @@ export async function getActiveCorporateSets(queryOptions?: { featuredOnly?: boo
     const availableStyles: Record<string, string[]> = Object.fromEntries(
       Array.from(stylesMap.entries(), ([slug, values]) => [slug, Array.from(values)])
     );
+    const styleLabels: Record<string, string> = Object.fromEntries(
+      Array.from(stylesMap.keys(), (slug) => [
+        slug,
+        attributeNameBySlug.get(slug) ?? slug.charAt(0).toUpperCase() + slug.slice(1),
+      ])
+    );
 
     // Colores realmente comprables (swatch de la card) — ver doc de `pairedColors` en
     // corporate-types.ts. `colors` (arriba) se deja intacto para el filtro lateral.
@@ -462,6 +473,7 @@ export async function getActiveCorporateSets(queryOptions?: { featuredOnly?: boo
       productTypes,
       collections: setCollections,
       availableStyles,
+      styleLabels,
       pieceNames,
       createdAt: set.createdAt ? set.createdAt.toISOString() : new Date(0).toISOString(),
     };
@@ -931,6 +943,12 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
     productTypes: Array.from(productTypesAgg),
     availableStyles: Object.fromEntries(
       Array.from(stylesMapAgg.entries(), ([slug, values]) => [slug, Array.from(values)])
+    ),
+    styleLabels: Object.fromEntries(
+      Array.from(stylesMapAgg.keys(), (slug) => [
+        slug,
+        attributeNameBySlug.get(slug) ?? slug.charAt(0).toUpperCase() + slug.slice(1),
+      ])
     ),
     pieceNames: pieces.map((p) => p.productName).filter((n) => !!n),
     createdAt: set.createdAt ? set.createdAt.toISOString() : new Date(0).toISOString(),

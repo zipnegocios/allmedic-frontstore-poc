@@ -1,5 +1,5 @@
 import type { CorporateSetSummary } from './corporate-types';
-import type { Gender } from './types';
+import type { Gender, ProductColor } from './types';
 
 export interface SetFilterState {
   search: string;
@@ -49,29 +49,51 @@ export function buildSetSearchWords(set: CorporateSetSummary): string[] {
   ].filter((w) => w.trim().length > 0);
 }
 
-export function matchesSetFilters(set: CorporateSetSummary, filters: SetFilterState): boolean {
-  if (filters.gender && !set.genders.includes(filters.gender)) {
+/** Evalúa si `set` matchea `filters`, opcionalmente ignorando UNA categoría (`exclude`) — usado
+ * por el facetado (`computeSetFilterOptions`) para calcular qué opciones mostrar dentro de una
+ * categoría sin que esa misma categoría se autolimite a lo ya seleccionado. `matchesSetFilters`
+ * es el caso sin exclusión. */
+export function matchesSetFiltersExcept(
+  set: CorporateSetSummary,
+  filters: SetFilterState,
+  exclude?: keyof SetFilterState
+): boolean {
+  if (exclude !== 'gender' && filters.gender && !set.genders.includes(filters.gender)) {
     return false;
   }
-  if (filters.productTypes.length > 0 && !set.productTypes.some((t) => filters.productTypes.includes(t))) {
+  if (
+    exclude !== 'productTypes' &&
+    filters.productTypes.length > 0 &&
+    !set.productTypes.some((t) => filters.productTypes.includes(t))
+  ) {
     return false;
   }
-  if (filters.brandId && set.brandId !== filters.brandId) {
+  if (exclude !== 'brandId' && filters.brandId && set.brandId !== filters.brandId) {
     return false;
   }
-  if (filters.collectionId && !set.collections.some((c) => c.id === filters.collectionId)) {
+  if (
+    exclude !== 'collectionId' &&
+    filters.collectionId &&
+    !set.collections.some((c) => c.id === filters.collectionId)
+  ) {
     return false;
   }
-  if (filters.colorId && !set.colors.some((c) => c.id === filters.colorId)) {
+  if (exclude !== 'colorId' && filters.colorId && !set.colors.some((c) => c.id === filters.colorId)) {
     return false;
   }
-  if (filters.sizes.length > 0 && !set.sizes.some((s) => filters.sizes.includes(s))) {
+  if (
+    exclude !== 'sizes' &&
+    filters.sizes.length > 0 &&
+    !set.sizes.some((s) => filters.sizes.includes(s))
+  ) {
     return false;
   }
-  for (const [slug, values] of Object.entries(filters.selectedStyles)) {
-    if (values.length === 0) continue;
-    const setValues = set.availableStyles[slug] ?? [];
-    if (!setValues.some((v) => values.includes(v))) return false;
+  if (exclude !== 'selectedStyles') {
+    for (const [slug, values] of Object.entries(filters.selectedStyles)) {
+      if (values.length === 0) continue;
+      const setValues = set.availableStyles[slug] ?? [];
+      if (!setValues.some((v) => values.includes(v))) return false;
+    }
   }
 
   const query = filters.search.trim().toLowerCase();
@@ -81,6 +103,98 @@ export function matchesSetFilters(set: CorporateSetSummary, filters: SetFilterSt
   }
 
   return true;
+}
+
+export function matchesSetFilters(set: CorporateSetSummary, filters: SetFilterState): boolean {
+  return matchesSetFiltersExcept(set, filters, undefined);
+}
+
+/** Opción de estilo EAV (ej. "Corte") derivada de `set.availableStyles` — soporta cualquier
+ * atributo de estilo presente en los datos, no solo "corte". `label` es el nombre real del
+ * atributo (`set.styleLabels`), con fallback al slug capitalizado si ningún set lo provee. */
+export interface SetStyleFilterOption {
+  slug: string;
+  label: string;
+  values: string[];
+}
+
+export interface SetFilterOptions {
+  /** Nombres de `productTypes` (EAV) presentes entre los sets recibidos — dinámico, sin opción muerta. */
+  productTypes: string[];
+  brands: { id: string; name: string; logoUrl: string | null }[];
+  collections: { id: string; name: string; logoUrl: string | null }[];
+  colors: ProductColor[];
+  sizes: string[];
+  styleOptions: SetStyleFilterOption[];
+}
+
+/** Calcula las opciones disponibles por categoría de filtro (facetado): cada categoría se
+ * agrega SOLO desde los sets que matchean todos los filtros activos EXCEPTO el de esa misma
+ * categoría (`matchesSetFiltersExcept`) — así elegir Marca reduce las opciones de Color/
+ * Colección/etc., y viceversa, pero el usuario siempre puede seguir cambiando de opción dentro
+ * de la categoría que ya tiene seleccionada. Género no se incluye (son 4 valores fijos, siempre
+ * visibles completos). */
+export function computeSetFilterOptions(
+  sets: CorporateSetSummary[],
+  filters: SetFilterState
+): SetFilterOptions {
+  const setsForProductTypes = sets.filter((s) => matchesSetFiltersExcept(s, filters, 'productTypes'));
+  const setsForBrands = sets.filter((s) => matchesSetFiltersExcept(s, filters, 'brandId'));
+  const setsForCollections = sets.filter((s) => matchesSetFiltersExcept(s, filters, 'collectionId'));
+  const setsForColors = sets.filter((s) => matchesSetFiltersExcept(s, filters, 'colorId'));
+  const setsForSizes = sets.filter((s) => matchesSetFiltersExcept(s, filters, 'sizes'));
+  const setsForStyles = sets.filter((s) => matchesSetFiltersExcept(s, filters, 'selectedStyles'));
+
+  const productTypes = new Set<string>();
+  for (const s of setsForProductTypes) for (const t of s.productTypes) productTypes.add(t);
+
+  const brandsMap = new Map<string, { id: string; name: string; logoUrl: string | null }>();
+  for (const s of setsForBrands) {
+    if (s.brandId && s.brandName && !brandsMap.has(s.brandId)) {
+      brandsMap.set(s.brandId, { id: s.brandId, name: s.brandName, logoUrl: s.brandLogoUrl });
+    }
+  }
+
+  const collectionsMap = new Map<string, { id: string; name: string; logoUrl: string | null }>();
+  for (const s of setsForCollections) {
+    for (const c of s.collections) {
+      if (!collectionsMap.has(c.id)) collectionsMap.set(c.id, c);
+    }
+  }
+
+  const colorMap = new Map<string, ProductColor>();
+  for (const s of setsForColors) {
+    for (const c of s.colors) if (!colorMap.has(c.id)) colorMap.set(c.id, c);
+  }
+
+  const sizes = new Set<string>();
+  for (const s of setsForSizes) for (const sz of s.sizes) sizes.add(sz);
+
+  const stylesMap = new Map<string, Set<string>>();
+  const styleLabelsMap = new Map<string, string>();
+  for (const s of setsForStyles) {
+    for (const [slug, values] of Object.entries(s.availableStyles)) {
+      if (!stylesMap.has(slug)) stylesMap.set(slug, new Set());
+      for (const v of values) stylesMap.get(slug)!.add(v);
+      if (!styleLabelsMap.has(slug) && s.styleLabels[slug]) {
+        styleLabelsMap.set(slug, s.styleLabels[slug]);
+      }
+    }
+  }
+  const styleOptions: SetStyleFilterOption[] = Array.from(stylesMap.entries()).map(([slug, values]) => ({
+    slug,
+    label: styleLabelsMap.get(slug) ?? slug.charAt(0).toUpperCase() + slug.slice(1),
+    values: Array.from(values).sort(),
+  }));
+
+  return {
+    productTypes: Array.from(productTypes).sort(),
+    brands: Array.from(brandsMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
+    collections: Array.from(collectionsMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
+    colors: Array.from(colorMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
+    sizes: Array.from(sizes),
+    styleOptions,
+  };
 }
 
 export function sortSets(sets: CorporateSetSummary[], sortBy: SetSortOption): CorporateSetSummary[] {

@@ -92,6 +92,11 @@ export interface CorporateSetSummary {
   collections: { id: string; name: string; logoUrl: string | null }[];
   /** Agregado EAV de `variants[].styles` a través de todas las piezas del set: slug de atributo → valores únicos presentes. */
   availableStyles: Record<string, string[]>;
+  /** Nombre legible de cada slug presente en `availableStyles` (ej. `corte-tops` → `Modelo de
+   * Corte`) — mismo patrón que `SetPiece.styleLabels` en la PDP, ahora también a nivel de set
+   * agregado para el filtro de `/corporativo`. Fallback al slug capitalizado si el atributo no
+   * tiene `name` (dato inconsistente). */
+  styleLabels: Record<string, string>;
   pieceNames: string[];
   createdAt: string;
 }
