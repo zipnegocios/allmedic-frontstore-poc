@@ -162,35 +162,6 @@ function HeroCarousel({ slides }: { slides: HeroSlide[] }) {
   );
 }
 
-// Quick Access Cards Component
-function QuickAccessCards() {
-  const cards = [
-    { title: 'Damas', image: 'https://media.allmedicuniforms.com/site/category-women.jpg', link: '/catalogo?gender=Mujer' },
-    { title: 'Caballeros', image: 'https://media.allmedicuniforms.com/site/category-men.jpg', link: '/catalogo?gender=Hombre' },
-    // `?category=` legacy ya no filtra en `/catalogo` (Fase 4 remanente) — usa el buscador de
-    // texto libre (`?q=`), que ya matchea contra `productType?.name` (EAV).
-    { title: 'Accesorios', image: 'https://media.allmedicuniforms.com/site/category-accessories.jpg', link: '/catalogo?q=Accesorios' },
-  ];
-
-  return (
-    <section className="py-16 bg-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {cards.map((card, index) => (
-            <Link key={index} href={card.link} className="group relative aspect-[4/3] overflow-hidden rounded-lg">
-              <div className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105" style={{ backgroundImage: `url(${card.image})`, backgroundColor: '#3A3A3A' }} />
-              <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition-colors" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <h3 className="font-display uppercase text-h2-mobile text-white">{card.title}</h3>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 // Featured Sets Section Component — grid simple, sin filtros (esos viven en /corporativo).
 function FeaturedSetsSection({ sets, priceVisibilityRules }: { sets: CorporateSetSummary[]; priceVisibilityRules: BusinessRule[] }) {
   const [viewMode, setViewMode] = useState<ViewMode>('grid-4');
@@ -266,7 +237,6 @@ export function Home({
     <main className="pt-14 sm:pt-16">
       {heroSlides && heroSlides.length > 0 && <HeroCarousel slides={heroSlides} />}
       <CorporateCTA />
-      <QuickAccessCards />
       {allSets && allSets.length > 0 && (
         <SetCatalogGrid sets={allSets} priceVisibilityRules={priceVisibilityRules} minQuantity={minQuantity} />
       )}
