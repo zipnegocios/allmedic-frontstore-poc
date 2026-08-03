@@ -1,5 +1,6 @@
 import type { ProductColor } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 
 interface ColorSwatchProps {
   color: ProductColor;
@@ -24,8 +25,8 @@ export function ColorSwatch({
     lg: 'w-11 h-11',
   };
 
-  return (
-    <div className="relative group/swatch">
+  const swatchButton = (
+    <div className="relative">
       <button
         onClick={onClick}
         disabled={!isAvailable}
@@ -46,21 +47,27 @@ export function ColorSwatch({
         }}
         aria-label={`Color ${color.name}`}
       />
-      
+
       {/* Out of stock diagonal line */}
       {!isAvailable && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="w-full h-0.5 bg-gray-400 rotate-45" />
         </div>
       )}
-
-      {/* Tooltip */}
-      {showTooltip && (
-        <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-[#111111] text-white text-xs rounded opacity-0 group-hover/swatch:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
-          {color.name}
-        </div>
-      )}
     </div>
+  );
+
+  if (!showTooltip) {
+    return swatchButton;
+  }
+
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>{swatchButton}</TooltipTrigger>
+        <TooltipContent>{color.name}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 

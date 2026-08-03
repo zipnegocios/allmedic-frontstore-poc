@@ -80,7 +80,7 @@ export function SetFilterSidebar({ filters, filterOptions, onFilterChange, isOpe
 
   const [isColorsExpanded, setIsColorsExpanded] = useState(false);
 
-  const defaultOpenSections = ['gender', 'brand'];
+  const defaultOpenSection = 'gender';
 
   const sidebarContent = (
     <TooltipProvider delayDuration={200}>
@@ -101,7 +101,7 @@ export function SetFilterSidebar({ filters, filterOptions, onFilterChange, isOpe
           </button>
         )}
 
-        <Accordion type="multiple" defaultValue={defaultOpenSections} className="w-full">
+        <Accordion type="single" collapsible defaultValue={defaultOpenSection} className="w-full">
           <AccordionItem value="gender">
             <AccordionTrigger className="text-xs uppercase tracking-widest text-gray-400 hover:no-underline">
               Género
