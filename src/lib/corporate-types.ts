@@ -9,6 +9,12 @@ export interface SetPiece {
   productId: string;
   productName: string;
   productSlug: string;
+  /** Código de estilo del fabricante (`products.code`, ej. "WW625") — usado en "Combinaciones
+   * armadas" del PDP para identificar la pieza sin repetir el nombre completo del producto. */
+  productCode: string;
+  /** Nombre del Tipo de Producto (EAV, ej. "Camisa", "Pantalón") — `null` si el producto no
+   * tiene tipo asignado. Mismo uso que `productCode` en "Combinaciones armadas". */
+  productTypeName: string | null;
   /** Presente solo en piezas que son opción de un bloque (ausente en `recommendedPieces`,
    * que no tienen cantidad propia — la cantidad la define el cliente en la PDP). */
   quantityPerSet?: number;

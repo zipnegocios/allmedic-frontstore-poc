@@ -292,8 +292,19 @@ export function SetDetailContent({
     return [];
   }
 
-  function pieceLabelFor(productId: string): string {
-    return [pieceA, pieceB].find((p) => p.productId === productId)?.productName ?? productId;
+  /** Tipo de producto + código de estilo de una pieza del combo — fuente de verdad para el
+   * listado "Combinaciones armadas" (ej. "Camisa: WW625"). Cae a `productName` si el producto
+   * no tiene Tipo de Producto asignado (dato legacy). */
+  function pieceMetaFor(productId: string): { productType: string; code: string } {
+    const piece = [pieceA, pieceB].find((p) => p.productId === productId);
+    return { productType: piece?.productTypeName ?? piece?.productName ?? productId, code: piece?.productCode ?? '' };
+  }
+
+  /** Nombre legible del color (ej. "Wine") a partir del código guardado en la selección — busca
+   * en cualquiera de las 2 piezas porque en modo PAIRED comparten el mismo color. */
+  function colorNameFor(code: string | undefined): string | undefined {
+    if (!code) return undefined;
+    return pieceA.colors.find((c) => c.code === code)?.name ?? pieceB.colors.find((c) => c.code === code)?.name;
   }
 
   function rowColorViolations(row: CombinationRow): string[] {
@@ -305,7 +316,7 @@ export function SetDetailContent({
       for (const restriction of colorRestrictions) {
         if (restriction.colorCode === sel.color && units < restriction.min) {
           messages.push(
-            `"${pieceLabelFor(sel.productId)}" en color "${sel.color}" requiere un mínimo de ${restriction.min} unidades; esta combinación lleva ${units}.`
+            `"${pieceMetaFor(sel.productId).productType}" en color "${sel.color}" requiere un mínimo de ${restriction.min} unidades; esta combinación lleva ${units}.`
           );
         }
       }
@@ -602,7 +613,8 @@ export function SetDetailContent({
               showPrices={showPrices}
               onAdd={handleAddCombination}
               rows={rows}
-              pieceLabelFor={pieceLabelFor}
+              pieceMetaFor={pieceMetaFor}
+              colorNameFor={colorNameFor}
               onUpdateQuantity={updateRowQuantity}
               onRemoveRow={removeRow}
               rowViolations={(row) => [...rowColorViolations(row), ...rowPairingViolations(row)]}
@@ -946,7 +958,8 @@ function CombinationBuilderCard({
   showPrices,
   onAdd,
   rows,
-  pieceLabelFor,
+  pieceMetaFor,
+  colorNameFor,
   onUpdateQuantity,
   onRemoveRow,
   rowViolations,
@@ -959,7 +972,8 @@ function CombinationBuilderCard({
   showPrices: boolean;
   onAdd: () => void;
   rows: CombinationRow[];
-  pieceLabelFor: (productId: string) => string;
+  pieceMetaFor: (productId: string) => { productType: string; code: string };
+  colorNameFor: (code: string | undefined) => string | undefined;
   onUpdateQuantity: (id: string, quantity: number) => void;
   onRemoveRow: (id: string) => void;
   rowViolations: (row: CombinationRow) => string[];
@@ -998,36 +1012,61 @@ function CombinationBuilderCard({
       )}
 
       {rows.length > 0 && (
-        <div className="pt-2 border-t space-y-2">
+        <div className="pt-2 border-t space-y-3">
           <p className="font-sans text-body-sm font-medium text-gray-500">Combinaciones armadas</p>
           {rows.map((row) => {
             const violations = rowViolations(row);
+            // En PAIRED todas las piezas de la fila comparten color (`rowPairingViolations` ya lo
+            // exige) — se toma el de la primera selección como encabezado de la combinación.
+            const colorLabel = colorNameFor(row.pieceSelections[0]?.color);
             return (
-              <div key={row.id} className={cn('rounded-lg p-2', violations.length > 0 && 'bg-red-50')}>
-                <div className="flex items-center justify-between gap-2 text-xs">
-                  <span className="text-gray-700 flex-1 min-w-0 truncate">
-                    {row.pieceSelections
-                      .map((s) => {
-                        const styleValues = Object.values(s.styles ?? {});
-                        const parts = [s.size, s.color, ...styleValues].filter(Boolean).join(' / ');
-                        return `${pieceLabelFor(s.productId)}${parts ? ` (${parts})` : ''}`;
-                      })
-                      .join(' + ')}
-                  </span>
-                  <span className="flex items-center gap-2 flex-shrink-0">
-                    <input
-                      type="number"
-                      min={1}
-                      value={row.quantity}
-                      onChange={(e) => onUpdateQuantity(row.id, Math.max(0, Number(e.target.value) || 0))}
-                      className="w-14 border border-[#E5E5E5] rounded px-1 py-0.5 text-center text-xs"
-                    />
-                    sets
-                    <button type="button" onClick={() => onRemoveRow(row.id)} className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-500">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
+              <div
+                key={row.id}
+                className={cn(
+                  'rounded-lg border border-[#E5E5E5] p-3',
+                  violations.length > 0 && 'bg-red-50 border-red-200'
+                )}
+              >
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  {colorLabel && (
+                    <p className="font-sans text-body-sm font-semibold text-[#111111]">{colorLabel}:</p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onRemoveRow(row.id)}
+                    className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-500 ml-auto"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
                 </div>
+
+                <div className="space-y-1">
+                  {row.pieceSelections.map((s) => {
+                    const { productType, code } = pieceMetaFor(s.productId);
+                    const styleValues = Object.values(s.styles ?? {});
+                    return (
+                      <p key={s.productId} className="text-xs text-gray-700">
+                        {productType}: {code}
+                        {s.size && <> | Talla: {s.size}</>}
+                        {styleValues.length > 0 && <> | {styleValues.join(', ')}</>}
+                        {' — '}{row.quantity} sets
+                      </p>
+                    );
+                  })}
+                </div>
+
+                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-[#E5E5E5]/60">
+                  <label className="text-xs text-gray-500">Cantidad:</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={row.quantity}
+                    onChange={(e) => onUpdateQuantity(row.id, Math.max(0, Number(e.target.value) || 0))}
+                    className="w-14 border border-[#E5E5E5] rounded px-1 py-0.5 text-center text-xs"
+                  />
+                  <span className="text-xs text-gray-500">sets</span>
+                </div>
+
                 {violations.length > 0 && (
                   <div className="mt-1 space-y-0.5">
                     {violations.map((msg, idx) => (
