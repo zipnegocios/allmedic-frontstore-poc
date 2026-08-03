@@ -95,7 +95,10 @@ export function SetDetailContent({
   const [sizeB, setSizeB] = useState<string | undefined>(undefined);
   const [stylesA, setStylesA] = useState<Record<string, string>>({});
   const [stylesB, setStylesB] = useState<Record<string, string>>({});
-  const [quantity, setQuantity] = useState<number>(Math.max(1, minQuantity));
+  // Sin valor por defecto — precargar con `minQuantity` (regla de negocio, ej. 20) resultaba
+  // confuso: el usuario arma la combinación de a una unidad por diferencia de talla, no en
+  // bloques del mínimo. `handleAddCombination` sigue validando que no esté vacío/en 0.
+  const [quantity, setQuantity] = useState<number | ''>('');
   const [rows, setRows] = useState<CombinationRow[]>([]);
 
   // ── Galería de doble carril (Decisión 13) ──
@@ -239,7 +242,7 @@ export function SetDetailContent({
   const comboUnitPrice = (pieceA.priceWholesaleSale ?? pieceA.priceWholesale ?? 0) + (pieceB.priceWholesaleSale ?? pieceB.priceWholesale ?? 0);
 
   function handleAddCombination() {
-    if (quantity <= 0) {
+    if (!quantity || quantity <= 0) {
       toast.error('Ingresa una cantidad válida.');
       return;
     }
@@ -261,7 +264,7 @@ export function SetDetailContent({
       return;
     }
     setRows((prev) => [...prev, { id: newRowId(), quantity, pieceSelections }]);
-    setQuantity(Math.max(1, minQuantity));
+    setQuantity('');
     toast.success('Combinación agregada — sigue armando o agrégala al carrito.');
   }
 
@@ -878,11 +881,20 @@ function CompositionLine({
   const price = piece.priceWholesaleSale ?? piece.priceWholesale;
   const extraParts = [size, ...Object.values(styles)].filter(Boolean).join(', ');
   const parts = [colorName, extraParts].filter(Boolean).join(', ');
+  // Ejes de estilo EAV de esta pieza (ej. "Modelo de Terminado" en pantalones) sin valor elegido
+  // todavía — mismo criterio que `pieceStylesReady`/`comboReady`, que ya bloquean "Agregar
+  // combinación" hasta que estén completos. Antes solo se señalizaba la talla faltante.
+  const missingStyleLabels = Object.keys(piece.availableStyles)
+    .filter((slug) => !styles[slug])
+    .map((slug) => piece.styleLabels[slug] ?? slug);
   return (
     <div className="flex items-start justify-between gap-3 text-sm py-2">
       <span className="text-gray-700">
         {quantityPerSet}× {piece.productName} {parts ? `(${parts})` : ''}
         {showsSizes && !size && <span className="text-amber-600"> — elige talla</span>}
+        {missingStyleLabels.map((label) => (
+          <span key={label} className="text-amber-600"> — elige {label}</span>
+        ))}
       </span>
       {showPrices && price !== null && <span className="font-medium flex-shrink-0">{money(price)}</span>}
     </div>
@@ -940,8 +952,8 @@ function CombinationBuilderCard({
   rowViolations,
   onCheckout,
 }: {
-  quantity: number;
-  setQuantity: (q: number) => void;
+  quantity: number | '';
+  setQuantity: (q: number | '') => void;
   comboReady: boolean;
   comboUnitPrice: number;
   showPrices: boolean;
@@ -960,8 +972,12 @@ function CombinationBuilderCard({
         <input
           type="number"
           min={1}
+          placeholder="Ej. 1"
           value={quantity}
-          onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))}
+          onChange={(e) => {
+            const raw = e.target.value;
+            setQuantity(raw === '' ? '' : Math.max(0, Number(raw) || 0));
+          }}
           className="mt-1 w-full border border-[#E5E5E5] rounded-lg px-3 py-2 text-center"
         />
       </div>
@@ -975,7 +991,7 @@ function CombinationBuilderCard({
         Agregar combinación
       </button>
 
-      {showPrices && comboReady && (
+      {showPrices && comboReady && typeof quantity === 'number' && quantity > 0 && (
         <p className="font-sans text-body-sm text-gray-500 text-center">
           {money(comboUnitPrice)} / set × {quantity} = {money(comboUnitPrice * quantity)}
         </p>
