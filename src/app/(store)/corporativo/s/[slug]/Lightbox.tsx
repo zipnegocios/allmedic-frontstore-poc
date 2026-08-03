@@ -162,10 +162,16 @@ export function Lightbox({
         <X className="w-4 h-4 text-[#111111]" strokeWidth={1.5} />
       </button>
 
-      <div className="h-full flex items-center justify-center gap-3 p-6" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="h-full flex flex-col sm:flex-row items-center justify-center gap-3 p-3 sm:p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
         <GalleryRail images={imagesA} side="A" focusSide={focus.side} focusIndex={focus.index} onFocus={setFocus} offset={offsetA} setOffset={setOffsetA} />
 
-        <div className="relative flex-1 max-w-3xl h-full max-h-[80vh]">
+        {/* En mobile ocupa el ancho completo del viewport (sin los rieles laterales achicándola)
+            y se estira en alto vía `flex-1` dentro de la columna; en `sm:`+ vuelve al layout
+            original (rieles a los costados, ancho acotado a `max-w-3xl`). */}
+        <div className="relative w-full flex-1 sm:max-w-3xl h-full sm:max-h-[80vh]">
           <div
             ref={imageContainerRef}
             className="relative w-full h-full bg-[#F5F5F7] rounded-xl overflow-hidden"

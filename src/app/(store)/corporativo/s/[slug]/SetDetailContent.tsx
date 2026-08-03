@@ -763,9 +763,9 @@ function Gallery({
   const canMagnify = isRealImage && !isImageLoading;
 
   return (
-    <div className="flex items-start gap-3">
+    <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3">
       <GalleryRail images={imagesA} side="A" focusSide={focus.side} focusIndex={focus.index} onFocus={setFocus} offset={offsetA} setOffset={setOffsetA} />
-      <div className="flex-1">
+      <div className="w-full sm:flex-1">
         {/* MediaGridThumb resuelve su propio placeholder genérico cuando `item` es undefined
             (color activo sin foto real, defensa — nunca fondo teñido con el hex del color). */}
         <div className="relative w-full aspect-product bg-[#F5F5F7] rounded-xl overflow-hidden">
