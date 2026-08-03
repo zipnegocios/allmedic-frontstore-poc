@@ -260,7 +260,12 @@ export function ProductCard({ product, selectedFilterColor }: ProductCardProps) 
                       : 'border-gray-200 hover:border-[#111111]',
                     color.hex === '#FFFFFF' && 'border-gray-300'
                   )}
-                  style={{ backgroundColor: color.hex }}
+                  style={{
+                    backgroundColor: color.hex,
+                    backgroundImage: color.kind === 'PATTERN' && color.swatchUrl ? `url(${color.swatchUrl})` : undefined,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                  }}
                   aria-label={`Color ${color.name}`}
                 />
               ))}
