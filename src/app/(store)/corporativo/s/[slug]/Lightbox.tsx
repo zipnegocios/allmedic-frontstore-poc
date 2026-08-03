@@ -15,6 +15,20 @@ import type { MediaItem } from '@/lib/media';
 const LENS_SOURCE_WIDTH = 1600;
 const FALLBACK_IMAGE = '/images/placeholder-product.jpg';
 
+/** Rect (en px CSS) que ocupa la imagen dentro de un contenedor `object-contain` — mismo cálculo
+ * que hace el navegador para el `<img>` real, necesario para que el `backgroundSize` de la lente
+ * use la proporción natural de la foto en vez de estirarla al cuadrado de la lente. */
+function containRect(containerW: number, containerH: number, naturalW: number, naturalH: number) {
+  const containerAspect = containerW / containerH;
+  const naturalAspect = naturalW / naturalH;
+  if (naturalAspect > containerAspect) {
+    const w = containerW;
+    return { w, h: w / naturalAspect };
+  }
+  const h = containerH;
+  return { w: h * naturalAspect, h };
+}
+
 export interface LightboxProps {
   pieceA: SetPiece;
   pieceB: SetPiece;
@@ -96,6 +110,19 @@ export function Lightbox({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, focus.side, focus.index, currentImages.length]);
 
+  // Precarga la imagen de la lupa (1600px) apenas se enfoca — en paralelo con la miniatura
+  // visible, no recién al pasar el mouse. Antes, el fetch de este recurso (aparte del que ya
+  // se ve en pantalla) solo arrancaba al activar la lente, así que cada hover — y cada cambio
+  // de imagen — esperaba una descarga completa antes de poder mostrar el aumento.
+  useEffect(() => {
+    if (!isOpen || !focusedImage) return;
+    const isReal = focusedImage.type === 'image' && focusedImage.url !== FALLBACK_IMAGE;
+    if (!isReal) return;
+    const preloadUrl = cloudflareImageLoader({ src: focusedImage.url, width: LENS_SOURCE_WIDTH });
+    const img = new window.Image();
+    img.src = preloadUrl;
+  }, [isOpen, focusedImage]);
+
   if (!isOpen) return null;
 
   const isRealImage = focusedImage?.type === 'image' && focusedImage.url !== FALLBACK_IMAGE;
@@ -107,6 +134,15 @@ export function Lightbox({
   const radius = effectiveDiameter / 2;
   const centerX = rect ? Math.min(Math.max(lens.origin.x * rect.width, radius), rect.width - radius) : 0;
   const centerY = rect ? Math.min(Math.max(lens.origin.y * rect.height, radius), rect.height - radius) : 0;
+
+  // Tamaño "1x" (proporción natural) sobre el que se aplica el zoom — ver doc en
+  // `MagnifierLens.sourceWidth/Height`. Sin `width`/`height` naturales (dato legacy), cae al
+  // tamaño del contenedor completo (comportamiento previo, sin distorsión si el contenedor
+  // fuera cuadrado, pero es la única base disponible).
+  const renderedSize =
+    rect && isRealImage && focusedImage.width && focusedImage.height
+      ? containRect(rect.width, rect.height, focusedImage.width, focusedImage.height)
+      : { w: rect?.width ?? 0, h: rect?.height ?? 0 };
 
   return (
     <div
@@ -159,6 +195,8 @@ export function Lightbox({
                 zoomLevel={lens.zoomLevel}
                 lensUrl={lensUrl}
                 diameter={effectiveDiameter}
+                sourceWidth={renderedSize.w}
+                sourceHeight={renderedSize.h}
               />
             )}
           </div>

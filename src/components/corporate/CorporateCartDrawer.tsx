@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { X, Building2, AlertCircle, Trash2, Minus, Plus, Gift } from 'lucide-react';
-import { useCorporateCart } from '@/context/CorporateCartContext';
+import { useCorporateCart, type CorporateCartLine } from '@/context/CorporateCartContext';
 import { cn } from '@/lib/utils';
 
 interface CorporateCartDrawerProps {
@@ -23,6 +23,31 @@ function ClientOnly({ children, fallback = null }: { children: React.ReactNode; 
 function unitLabel(countUnit: 'SETS' | 'PIECES', n: number): string {
   if (countUnit === 'PIECES') return n === 1 ? 'pieza' : 'piezas';
   return n === 1 ? 'set' : 'sets';
+}
+
+/** Etiqueta de una línea del carrito: "{Color}: {código A}: {talla A} | {código B}: {talla B} ·
+ * {atributo}". `productCode`/`colorName` solo existen en líneas agregadas después de este
+ * cambio — si faltan (carrito guardado antes), cae al formato anterior (talla/código de color/
+ * estilos crudos) para no mostrar una etiqueta vacía o rota. */
+function lineLabel(line: CorporateCartLine): string {
+  const hasDisplayData = line.pieceSelections.some((s) => s.productCode || s.colorName);
+  if (!hasDisplayData) {
+    return (
+      line.pieceSelections
+        .map((s) => [s.size, s.color, ...Object.values(s.styles ?? {})].filter(Boolean).join(' / '))
+        .filter(Boolean)
+        .join(' · ') || 'Set completo'
+    );
+  }
+
+  const colorLabel = line.pieceSelections[0]?.colorName;
+  const pieceParts = line.pieceSelections
+    .map((s) => (s.productCode ? `${s.productCode}: ${s.size ?? ''}`.trim() : null))
+    .filter((p): p is string => Boolean(p))
+    .join(' | ');
+  const styleValues = Array.from(new Set(line.pieceSelections.flatMap((s) => Object.values(s.styles ?? {}))));
+  const parts = [pieceParts, styleValues.join(', ')].filter(Boolean);
+  return colorLabel ? `${colorLabel}: ${parts.join(' · ')}` : parts.join(' · ');
 }
 
 export function CorporateCartDrawer({ isOpen, onClose }: CorporateCartDrawerProps) {
@@ -137,12 +162,7 @@ export function CorporateCartDrawer({ isOpen, onClose }: CorporateCartDrawerProp
                           <div key={line.id} className="flex items-center justify-between text-sm bg-[#F5F5F7] rounded-lg px-3 py-2">
                             <div>
                               {line.pieceSelections.length > 0 ? (
-                                <span className="text-xs text-gray-600">
-                                  {line.pieceSelections
-                                    .map((s) => [s.size, s.color, ...Object.values(s.styles ?? {})].filter(Boolean).join(' / '))
-                                    .filter(Boolean)
-                                    .join(' · ') || 'Set completo'}
-                                </span>
+                                <span className="text-xs text-gray-600">{lineLabel(line)}</span>
                               ) : (
                                 <span className="text-gray-500">Set completo</span>
                               )}

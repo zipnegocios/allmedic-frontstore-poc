@@ -32,7 +32,15 @@ function newRowId(): string {
 interface CombinationRow {
   id: string;
   quantity: number;
-  pieceSelections: Array<{ productId: string; size?: string; color?: string; styles?: Record<string, string> }>;
+  pieceSelections: Array<{
+    productId: string;
+    size?: string;
+    color?: string;
+    colorName?: string;
+    productCode?: string;
+    productType?: string;
+    styles?: Record<string, string>;
+  }>;
 }
 
 function money(n: number): string {
@@ -219,9 +227,27 @@ export function SetDetailContent({
   const focusedImage = focus.side === 'A' ? galleryImagesA[focus.index] : galleryImagesB[focus.index];
 
   function currentSelectionsArray() {
+    const colorA = colorForPiece(pieceA.productId);
+    const colorB = colorForPiece(pieceB.productId);
     return [
-      { productId: pieceA.productId, size: sizeA, color: colorForPiece(pieceA.productId), styles: stylesA },
-      { productId: pieceB.productId, size: sizeB, color: colorForPiece(pieceB.productId), styles: stylesB },
+      {
+        productId: pieceA.productId,
+        size: sizeA,
+        color: colorA,
+        colorName: colorNameFor(colorA),
+        productCode: pieceA.productCode,
+        productType: pieceA.productTypeName ?? pieceA.productName,
+        styles: stylesA,
+      },
+      {
+        productId: pieceB.productId,
+        size: sizeB,
+        color: colorB,
+        colorName: colorNameFor(colorB),
+        productCode: pieceB.productCode,
+        productType: pieceB.productTypeName ?? pieceB.productName,
+        styles: stylesB,
+      },
     ];
   }
 
@@ -316,7 +342,7 @@ export function SetDetailContent({
       for (const restriction of colorRestrictions) {
         if (restriction.colorCode === sel.color && units < restriction.min) {
           messages.push(
-            `"${pieceMetaFor(sel.productId).productType}" en color "${sel.color}" requiere un mínimo de ${restriction.min} unidades; esta combinación lleva ${units}.`
+            `"${sel.productType ?? pieceMetaFor(sel.productId).productType}" en color "${sel.color}" requiere un mínimo de ${restriction.min} unidades; esta combinación lleva ${units}.`
           );
         }
       }
@@ -613,8 +639,6 @@ export function SetDetailContent({
               showPrices={showPrices}
               onAdd={handleAddCombination}
               rows={rows}
-              pieceMetaFor={pieceMetaFor}
-              colorNameFor={colorNameFor}
               onUpdateQuantity={updateRowQuantity}
               onRemoveRow={removeRow}
               rowViolations={(row) => [...rowColorViolations(row), ...rowPairingViolations(row)]}
@@ -958,8 +982,6 @@ function CombinationBuilderCard({
   showPrices,
   onAdd,
   rows,
-  pieceMetaFor,
-  colorNameFor,
   onUpdateQuantity,
   onRemoveRow,
   rowViolations,
@@ -972,8 +994,6 @@ function CombinationBuilderCard({
   showPrices: boolean;
   onAdd: () => void;
   rows: CombinationRow[];
-  pieceMetaFor: (productId: string) => { productType: string; code: string };
-  colorNameFor: (code: string | undefined) => string | undefined;
   onUpdateQuantity: (id: string, quantity: number) => void;
   onRemoveRow: (id: string) => void;
   rowViolations: (row: CombinationRow) => string[];
@@ -1018,7 +1038,18 @@ function CombinationBuilderCard({
             const violations = rowViolations(row);
             // En PAIRED todas las piezas de la fila comparten color (`rowPairingViolations` ya lo
             // exige) — se toma el de la primera selección como encabezado de la combinación.
-            const colorLabel = colorNameFor(row.pieceSelections[0]?.color);
+            // Ambas piezas juntas representan UN set: se listan en una sola línea unidas por
+            // "+", no una línea (y una cantidad) por pieza por separado.
+            const colorLabel = row.pieceSelections[0]?.colorName;
+            const combinationLine = row.pieceSelections
+              .map((s) => {
+                const styleValues = Object.values(s.styles ?? {});
+                let text = `${s.productType ?? ''}: ${s.productCode ?? ''}`;
+                if (s.size) text += ` | Talla: ${s.size}`;
+                if (styleValues.length > 0) text += ` | ${styleValues.join(', ')}`;
+                return text;
+              })
+              .join(' + ');
             return (
               <div
                 key={row.id}
@@ -1028,32 +1059,19 @@ function CombinationBuilderCard({
                 )}
               >
                 <div className="flex items-center justify-between gap-2 mb-1.5">
-                  {colorLabel && (
-                    <p className="font-sans text-body-sm font-semibold text-[#111111]">{colorLabel}:</p>
-                  )}
+                  <p className="font-sans text-body-sm font-semibold text-[#111111]">
+                    {colorLabel && `${colorLabel}: `}{row.quantity} sets
+                  </p>
                   <button
                     type="button"
                     onClick={() => onRemoveRow(row.id)}
-                    className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-500 ml-auto"
+                    className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-500"
                   >
                     <X className="w-3 h-3" />
                   </button>
                 </div>
 
-                <div className="space-y-1">
-                  {row.pieceSelections.map((s) => {
-                    const { productType, code } = pieceMetaFor(s.productId);
-                    const styleValues = Object.values(s.styles ?? {});
-                    return (
-                      <p key={s.productId} className="text-xs text-gray-700">
-                        {productType}: {code}
-                        {s.size && <> | Talla: {s.size}</>}
-                        {styleValues.length > 0 && <> | {styleValues.join(', ')}</>}
-                        {' — '}{row.quantity} sets
-                      </p>
-                    );
-                  })}
-                </div>
+                <p className="text-xs text-gray-700">{combinationLine}</p>
 
                 <div className="flex items-center gap-2 mt-2 pt-2 border-t border-[#E5E5E5]/60">
                   <label className="text-xs text-gray-500">Cantidad:</label>

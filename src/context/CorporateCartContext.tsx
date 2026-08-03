@@ -17,9 +17,20 @@ import {
 export interface CorporateCartLine {
   id: string;
   quantity: number;
-  /** Una entrada por pieza del set — talla ausente en sets NO_SIZES, color siempre opcional,
-   * styles presente solo si la pieza tiene atributos EAV en modo VARIANT. */
-  pieceSelections: Array<{ productId: string; size?: string; color?: string; styles?: Record<string, string> }>;
+  /** Una entrada por pieza del set — talla ausente en sets NO_SIZES, color siempre opcional
+   * (código, usado para matchear reglas por color — ver `COLOR_RESTRICTION`), styles presente
+   * solo si la pieza tiene atributos EAV en modo VARIANT. `productCode`/`colorName` son solo
+   * de despliegue (carrito/PDP) — opcionales porque los carritos guardados antes de agregarlos
+   * no los tienen; el drawer cae a un fallback legible si faltan. */
+  pieceSelections: Array<{
+    productId: string;
+    size?: string;
+    color?: string;
+    colorName?: string;
+    productCode?: string;
+    productType?: string;
+    styles?: Record<string, string>;
+  }>;
 }
 
 export interface CorporateCartItem {
