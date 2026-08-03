@@ -11,7 +11,7 @@ import { SetFilterSidebar, SetFilterButton } from '@/components/catalog/SetFilte
 import { SetListItem } from '@/components/catalog/SetListItem';
 import { SetGridCard } from '@/components/catalog/SetGridCard';
 import { useSetFilter } from '@/hooks/useSetFilter';
-import { buildSetSearchWords, type SetSortOption } from '@/lib/set-filter-logic';
+import { buildSetSearchWords, findSearchMatchedColorId, type SetSortOption } from '@/lib/set-filter-logic';
 import { suggestClosestMatch } from '@/lib/fuzzy-match';
 
 interface SetCatalogGridProps {
@@ -197,13 +197,19 @@ export function SetCatalogGrid({ sets, priceVisibilityRules }: SetCatalogGridPro
                   viewMode === 'list' && 'grid-cols-1'
                 )}
               >
-                {paginatedSets.map((set) =>
-                  viewMode === 'list' ? (
-                    <SetListItem key={set.id} set={set} showPrices={showPricesFor(set)} activeColorId={filters.colorId} />
+                {paginatedSets.map((set) => {
+                  // Sin color filtrado explícitamente, si el texto de búsqueda matchea un
+                  // código/nombre de color del set, se usa ESE color para la portada — así
+                  // buscar "Navy" o "AZ-01" muestra la imagen en ese color sin que el usuario
+                  // tenga que además clickear el swatch.
+                  const effectiveColorId =
+                    filters.colorId ?? (filters.search ? findSearchMatchedColorId(set, filters.search) : null);
+                  return viewMode === 'list' ? (
+                    <SetListItem key={set.id} set={set} showPrices={showPricesFor(set)} activeColorId={effectiveColorId} />
                   ) : (
-                    <SetGridCard key={set.id} set={set} activeColorId={filters.colorId} showPrices={showPricesFor(set)} />
-                  )
-                )}
+                    <SetGridCard key={set.id} set={set} activeColorId={effectiveColorId} showPrices={showPricesFor(set)} />
+                  );
+                })}
               </div>
 
               {totalPages > 1 && (
