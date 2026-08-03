@@ -13,8 +13,13 @@ export interface ResolvedCardCover {
  * `/corporativo` según el color actualmente filtrado (selección única) — si el set tiene
  * portada propia para ese color, la usa; si no, cae al color por defecto (`coversByColor[0]`,
  * o `cover`/`secondaryCover` ya derivados server-side) y marca `isFallback`. Sin filtro activo,
- * siempre usa el color por defecto sin marcar fallback. */
-export function resolveCardCover(set: CorporateSetSummary, activeColorId: string | null): ResolvedCardCover {
+ * siempre usa el color por defecto sin marcar fallback. Tipo `Pick` (no `CorporateSetSummary`
+ * completo) para que también acepte `CorporateSetNavItem`, el tipo liviano del dropdown del
+ * Header. */
+export function resolveCardCover(
+  set: Pick<CorporateSetSummary, 'cover' | 'secondaryCover' | 'coversByColor' | 'colors'>,
+  activeColorId: string | null
+): ResolvedCardCover {
   const defaultCover: ResolvedCardCover = {
     cover: set.cover,
     secondaryCover: set.secondaryCover,

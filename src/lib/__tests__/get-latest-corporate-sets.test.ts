@@ -8,12 +8,16 @@ describe("CorporateSetNavItem shape", () => {
       slug: "set-uno",
       name: "Set Uno",
       cover: null,
+      secondaryCover: null,
       brandName: null,
       referencePrice: null,
       colors: [],
+      pairedColors: [],
+      coversByColor: [],
       collections: [],
       productTypes: [],
       availableStyles: {},
+      pieceCodes: [],
     };
     expect(item.id).toBe("set-1");
   });
@@ -30,12 +34,16 @@ describe("CorporateSetNavItem shape", () => {
         width: 800,
         height: 600,
       },
+      secondaryCover: null,
       brandName: "AllMedic",
       referencePrice: 42.5,
-      colors: [{ code: "WNE", name: "Wine" }],
+      colors: [{ id: "c-wne", code: "WNE", name: "Wine", hex: "#7B1E3A", kind: "SOLID", swatchUrl: null }],
+      pairedColors: [{ id: "c-wne", code: "WNE", name: "Wine", hex: "#7B1E3A", kind: "SOLID", swatchUrl: null }],
+      coversByColor: [],
       collections: ["Temporada Clínica"],
       productTypes: ["Camisas"],
       availableStyles: { corte: ["Regular"] },
+      pieceCodes: ["2624A"],
     };
     expect(item.referencePrice).toBe(42.5);
   });

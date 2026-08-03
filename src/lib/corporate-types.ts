@@ -98,6 +98,9 @@ export interface CorporateSetSummary {
    * tiene `name` (dato inconsistente). */
   styleLabels: Record<string, string>;
   pieceNames: string[];
+  /** Código de estilo del fabricante (`products.code`, ej. "2624A") de cada pieza activa del
+   * set — fuente de verdad para buscar sets por código de producto (`buildSetSearchWords`). */
+  pieceCodes: string[];
   createdAt: string;
 }
 
@@ -109,20 +112,32 @@ export interface SetColorCombo {
 
 /** Item liviano de set para navegación (mega-menu, uso con `getLatestCorporateSets`) y para el
  * autocompletado del Header (uso con `getSearchableCorporateSets`) — este segundo caso agrega
- * los campos mínimos necesarios para buscar por color/colección/tipo/atributo sin llegar al
- * peso de `CorporateSetSummary` (sin variantes, sin coversByColor, sin precios por bloque). */
+ * los campos mínimos necesarios para buscar por color/colección/tipo/atributo/código, y para
+ * mostrar la portada del color buscado en el dropdown (`resolveCardCover` en `Header.tsx`), sin
+ * llegar al peso completo de `CorporateSetSummary` (sin variantes, sin precios por bloque). */
 export interface CorporateSetNavItem {
   id: string;
   slug: string;
   name: string;
   cover: MediaItem | null;
+  /** Portada secundaria (hover-swap) del color por defecto — no se usa en el dropdown del
+   * Header (sin hover), presente solo por paridad de forma con `resolveCardCover`. */
+  secondaryCover: MediaItem | null;
   brandName: string | null;
   referencePrice: number | null;
   /** Vacío cuando el item viene de `getLatestCorporateSets` (mega-menu, no necesita buscar). */
-  colors: { code: string; name: string }[];
+  colors: ProductColor[];
+  /** Colores realmente comprables — usados por `findSearchMatchedColorId` con prioridad sobre
+   * `colors` (mismo criterio que `CorporateSetSummary.pairedColors`). Vacío en `getLatestCorporateSets`. */
+  pairedColors: ProductColor[];
+  /** Portadas por color — permite mostrar en el dropdown la imagen del color que matcheó la
+   * búsqueda (`resolveCardCover`). Vacío en `getLatestCorporateSets`. */
+  coversByColor: CorporateSetSummary['coversByColor'];
   collections: string[];
   productTypes: string[];
   availableStyles: Record<string, string[]>;
+  /** Código de estilo del fabricante de cada pieza — ver `CorporateSetSummary.pieceCodes`. */
+  pieceCodes: string[];
 }
 
 export interface CorporateSetDetail extends CorporateSetSummary {

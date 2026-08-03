@@ -205,6 +205,7 @@ export async function getActiveCorporateSets(queryOptions?: { featuredOnly?: boo
           priceWholesale: productsTable.priceWholesale,
           priceWholesaleSale: productsTable.priceWholesaleSale,
           productName: productsTable.name,
+          productCode: productsTable.code,
           productTypeId: productsTable.productTypeId,
           productTypeName: productTypesTable.name,
           gender: productsTable.gender,
@@ -227,6 +228,7 @@ export async function getActiveCorporateSets(queryOptions?: { featuredOnly?: boo
     priceWholesale: o.priceWholesale,
     priceWholesaleSale: o.priceWholesaleSale,
     productName: o.productName,
+    productCode: o.productCode,
     productTypeId: o.productTypeId,
     productTypeName: o.productTypeName,
     gender: o.gender,
@@ -377,6 +379,7 @@ export async function getActiveCorporateSets(queryOptions?: { featuredOnly?: boo
       logoUrl: collectionLogoMap.get(id) ?? null,
     }));
     const pieceNames = Array.from(new Set(setItems.map((i) => i.productName).filter((n): n is string => !!n)));
+    const pieceCodes = Array.from(new Set(setItems.map((i) => i.productCode).filter((c): c is string => !!c)));
 
     const setVariants = variants.filter((v) => setProductIds.includes(v.productId));
     const colorMap = new Map<string, ProductColor>();
@@ -475,6 +478,7 @@ export async function getActiveCorporateSets(queryOptions?: { featuredOnly?: boo
       availableStyles,
       styleLabels,
       pieceNames,
+      pieceCodes,
       createdAt: set.createdAt ? set.createdAt.toISOString() : new Date(0).toISOString(),
     };
   });
@@ -554,12 +558,16 @@ export async function getLatestCorporateSets(limit = 8): Promise<CorporateSetNav
       slug: set.slug,
       name: set.name,
       cover: colorCoverMediaLatest.get(set.id)?.[0]?.cover ?? null,
+      secondaryCover: colorCoverMediaLatest.get(set.id)?.[0]?.secondaryCover ?? null,
       brandName: set.brandName,
       referencePrice,
       colors: [],
+      pairedColors: [],
+      coversByColor: [],
       collections: [],
       productTypes: [],
       availableStyles: {},
+      pieceCodes: [],
     };
   });
 }
@@ -575,12 +583,16 @@ export async function getSearchableCorporateSets(): Promise<CorporateSetNavItem[
     slug: set.slug,
     name: set.name,
     cover: set.cover,
+    secondaryCover: set.secondaryCover,
     brandName: set.brandName,
     referencePrice: set.referencePrice,
-    colors: set.colors.map((c) => ({ code: c.code, name: c.name })),
+    colors: set.colors,
+    pairedColors: set.pairedColors,
+    coversByColor: set.coversByColor,
     collections: set.collections.map((c) => c.name),
     productTypes: set.productTypes,
     availableStyles: set.availableStyles,
+    pieceCodes: set.pieceCodes,
   }));
 }
 
@@ -951,6 +963,9 @@ export async function getCorporateSetBySlug(slug: string): Promise<CorporateSetD
       ])
     ),
     pieceNames: pieces.map((p) => p.productName).filter((n) => !!n),
+    // No usado por la UI de la PDP (la búsqueda por código solo aplica al listado/nav) — vacío
+    // solo para satisfacer el tipo compartido `CorporateSetSummary`, mismo patrón que `pairedColors`.
+    pieceCodes: [],
     createdAt: set.createdAt ? set.createdAt.toISOString() : new Date(0).toISOString(),
     blocks,
     recommendedPieces,

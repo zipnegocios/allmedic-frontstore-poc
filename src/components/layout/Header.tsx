@@ -12,6 +12,8 @@ import { CorporateCartButton } from '@/components/corporate/CorporateCartButton'
 import { MediaGridThumb } from '@/components/media/MediaGridThumb';
 import { usePriceVisibility } from '@/context/PriceVisibilityContext';
 import { suggestClosestMatch } from '@/lib/fuzzy-match';
+import { findSearchMatchedColorId } from '@/lib/set-filter-logic';
+import { resolveCardCover } from '@/lib/resolve-card-cover';
 import type { Product, Store, BrandNavItem } from '@/lib/types';
 import type { CorporateSetNavItem } from '@/lib/corporate-types';
 import { cn } from '@/lib/utils';
@@ -146,6 +148,7 @@ export function Header({ onCorporateCartClick, products, brands, stores, corpora
             const haystack = [
               s.name,
               s.brandName ?? '',
+              ...s.pieceCodes,
               ...s.colors.map((c) => c.code),
               ...s.colors.map((c) => c.name),
               ...s.collections,
@@ -164,6 +167,7 @@ export function Header({ onCorporateCartClick, products, brands, stores, corpora
           const allWords = corporateSets.flatMap((s) => [
             s.name,
             s.brandName ?? '',
+            ...s.pieceCodes,
             ...s.colors.map((c) => c.code),
             ...s.colors.map((c) => c.name),
             ...s.collections,
@@ -196,7 +200,23 @@ export function Header({ onCorporateCartClick, products, brands, stores, corpora
     }
   };
 
-  const popularSearches = ['Navy', 'Black', 'Scrub', 'Uniforme'];
+  // Un ejemplo real por cada tipo de parámetro que soporta la búsqueda — no son "búsquedas
+  // populares" (no trackeamos consultas), es una muestra de qué se puede escribir en la caja.
+  // Se toma el primer valor no vacío presente en `corporateSets` para que el ejemplo siempre
+  // devuelva resultados reales al clickearlo.
+  const searchExamples = (() => {
+    if (!corporateSets) return [];
+    const examples: { label: string; value: string }[] = [];
+    const firstColor = corporateSets.flatMap((s) => s.colors).find((c) => c.name);
+    if (firstColor) examples.push({ label: 'Color', value: firstColor.name });
+    const firstCode = corporateSets.flatMap((s) => s.pieceCodes).find((c) => c);
+    if (firstCode) examples.push({ label: 'Código', value: firstCode });
+    const firstCollection = corporateSets.flatMap((s) => s.collections).find((c) => c);
+    if (firstCollection) examples.push({ label: 'Colección', value: firstCollection });
+    const firstBrand = corporateSets.map((s) => s.brandName).find((b): b is string => !!b);
+    if (firstBrand) examples.push({ label: 'Marca', value: firstBrand });
+    return examples;
+  })();
 
   const isActive = (path: string) => {
     if (path === '/') return pathname === '/';
@@ -441,7 +461,7 @@ export function Header({ onCorporateCartClick, products, brands, stores, corpora
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar sets, marcas..."
+                placeholder="Buscar sets, marcas, colección, color o código de producto."
                 className="w-full pl-12 pr-12 py-3 sm:py-4 text-base sm:text-lg bg-[#F5F5F7] rounded-full focus:outline-none focus:ring-2 focus:ring-[#111111]"
                 autoFocus={isSearchOpen}
               />
@@ -471,39 +491,46 @@ export function Header({ onCorporateCartClick, products, brands, stores, corpora
                     <p className="text-xs uppercase tracking-widest text-gray-400 mb-3">
                       Resultados de búsqueda
                     </p>
-                    {searchResults.map(set => (
-                      <Link
-                        key={set.id}
-                        href={`/corporativo/s/${set.slug}`}
-                        onClick={() => {
-                          setIsSearchOpen(false);
-                          setSearchQuery('');
-                        }}
-                        className="flex items-center gap-3 sm:gap-4 p-3 hover:bg-[#F5F5F7] rounded-lg transition-colors"
-                      >
-                        <div className="relative w-12 h-16 sm:w-14 sm:h-18 bg-[#F5F5F7] rounded overflow-hidden flex-shrink-0">
-                          <MediaGridThumb
-                            item={set.cover ?? undefined}
-                            fallback="/images/placeholder-product.jpg"
-                            alt={set.name}
-                            sizes="56px"
-                            className="object-cover"
-                          />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          {set.brandName && <p className="text-xs text-gray-400 uppercase">{set.brandName}</p>}
-                          <p className="text-sm font-medium text-[#111111] truncate">{set.name}</p>
-                        </div>
-                        {showPrices && set.referencePrice !== null && (
-                          <div className="text-right">
-                            <p className="text-sm font-medium">
-                              ${set.referencePrice.toFixed(2)}
-                            </p>
+                    {searchResults.map(set => {
+                      // Si el texto buscado matchea un color del set, se usa la portada de
+                      // ESE color (mismo comportamiento que el grid de `/corporativo`) — así
+                      // buscar "Navy" o un código de color muestra el thumbnail en ese color.
+                      const matchedColorId = findSearchMatchedColorId(set, searchQuery);
+                      const { cover } = resolveCardCover(set, matchedColorId);
+                      return (
+                        <Link
+                          key={set.id}
+                          href={`/corporativo/s/${set.slug}`}
+                          onClick={() => {
+                            setIsSearchOpen(false);
+                            setSearchQuery('');
+                          }}
+                          className="flex items-center gap-3 sm:gap-4 p-3 hover:bg-[#F5F5F7] rounded-lg transition-colors"
+                        >
+                          <div className="relative w-12 h-16 sm:w-14 sm:h-18 bg-[#F5F5F7] rounded overflow-hidden flex-shrink-0">
+                            <MediaGridThumb
+                              item={cover ?? undefined}
+                              fallback="/images/placeholder-product.jpg"
+                              alt={set.name}
+                              sizes="56px"
+                              className="object-cover"
+                            />
                           </div>
-                        )}
-                        <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" strokeWidth={1.5} />
-                      </Link>
-                    ))}
+                          <div className="flex-1 min-w-0">
+                            {set.brandName && <p className="text-xs text-gray-400 uppercase">{set.brandName}</p>}
+                            <p className="text-sm font-medium text-[#111111] truncate">{set.name}</p>
+                          </div>
+                          {showPrices && set.referencePrice !== null && (
+                            <div className="text-right">
+                              <p className="text-sm font-medium">
+                                ${set.referencePrice.toFixed(2)}
+                              </p>
+                            </div>
+                          )}
+                          <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" strokeWidth={1.5} />
+                        </Link>
+                      );
+                    })}
                     <Link
                       href={`/corporativo?q=${encodeURIComponent(searchQuery)}`}
                       onClick={() => {
@@ -533,20 +560,20 @@ export function Header({ onCorporateCartClick, products, brands, stores, corpora
               ) : (
                 <div>
                   <p className="text-xs uppercase tracking-widest text-gray-400 mb-3">
-                    Búsquedas populares
+                    Ejemplo
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {popularSearches.map(term => (
+                    {searchExamples.map(({ label, value }) => (
                       <button
-                        key={term}
+                        key={label}
                         onClick={() => {
-                          setSearchQuery(term);
-                          router.push(`/corporativo?q=${encodeURIComponent(term)}`);
+                          setSearchQuery(value);
+                          router.push(`/corporativo?q=${encodeURIComponent(value)}`);
                           setIsSearchOpen(false);
                         }}
                         className="px-4 py-2 text-sm bg-[#F5F5F7] rounded-full hover:bg-gray-200 transition-colors"
                       >
-                        {term}
+                        <span className="text-gray-400">{label}:</span> {value}
                       </button>
                     ))}
                   </div>

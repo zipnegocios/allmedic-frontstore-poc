@@ -41,6 +41,7 @@ export function buildSetSearchWords(set: CorporateSetSummary): string[] {
     set.name,
     set.brandName ?? '',
     ...set.pieceNames,
+    ...set.pieceCodes,
     ...set.colors.map((c) => c.code),
     ...set.colors.map((c) => c.name),
     ...set.collections.map((c) => c.name),
@@ -111,11 +112,16 @@ export function matchesSetFilters(set: CorporateSetSummary, filters: SetFilterSt
 
 /** Busca en los colores del set uno cuyo código o nombre matchee la búsqueda libre (mismo
  * criterio "includes" que `matchesSetFiltersExcept` usa sobre `buildSetSearchWords`) — permite
- * que el grid muestre la portada de ESE color cuando el usuario buscó por código/nombre de
- * color, sin que tenga que además seleccionar el swatch. Prioriza `pairedColors` (colores
- * realmente comprables, con portada propia en `coversByColor`) sobre `colors` (unión agregada
- * de piezas, puede no tener portada — cae a fallback en `resolveCardCover`). */
-export function findSearchMatchedColorId(set: CorporateSetSummary, query: string): string | null {
+ * que el grid (y el autocompletado del Header) muestren la portada de ESE color cuando el
+ * usuario buscó por código/nombre de color, sin que tenga que además seleccionar el swatch.
+ * Prioriza `pairedColors` (colores realmente comprables, con portada propia en `coversByColor`)
+ * sobre `colors` (unión agregada de piezas, puede no tener portada — cae a fallback en
+ * `resolveCardCover`). Tipo `Pick` (no `CorporateSetSummary` completo) para que también acepte
+ * `CorporateSetNavItem`, el tipo liviano que usa el dropdown del Header. */
+export function findSearchMatchedColorId(
+  set: Pick<CorporateSetSummary, 'colors' | 'pairedColors'>,
+  query: string
+): string | null {
   const q = query.trim().toLowerCase();
   if (!q) return null;
 
